@@ -1,3 +1,4 @@
+import { isRecord, sortedKeys } from "./data";
 import { type GameState, SCHEMA_VERSION } from "./state";
 
 function isPlainObject(value: object): boolean {
@@ -21,10 +22,6 @@ function describe(value: unknown): string {
 		return typeof name === "string" ? name : "object";
 	}
 	return typeof value;
-}
-
-function sortedKeys(value: object): string[] {
-	return Object.keys(value).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 function scanPlainData(value: unknown, path: string, problems: string[]): void {
@@ -66,17 +63,12 @@ function scanPlainData(value: unknown, path: string, problems: string[]): void {
 	}
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		!Array.isArray(value) &&
-		isPlainObject(value)
-	);
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+	return isRecord(value) && isPlainObject(value);
 }
 
 function checkStructure(state: unknown, problems: string[]): void {
-	if (!isRecord(state)) {
+	if (!isPlainRecord(state)) {
 		problems.push("$: must be an object");
 		return;
 	}
@@ -89,11 +81,11 @@ function checkStructure(state: unknown, problems: string[]): void {
 	}
 
 	const career = state.career;
-	if (!isRecord(career)) {
+	if (!isPlainRecord(career)) {
 		problems.push("$.career: must be an object");
 	} else {
 		for (const key of ["unlocks", "savedDecrees"]) {
-			if (!isRecord(career[key])) {
+			if (!isPlainRecord(career[key])) {
 				problems.push(`$.career.${key}: must be an object`);
 			}
 		}
@@ -105,7 +97,7 @@ function checkStructure(state: unknown, problems: string[]): void {
 	}
 
 	const posting = state.posting;
-	if (!isRecord(posting)) {
+	if (!isPlainRecord(posting)) {
 		problems.push("$.posting: must be an object");
 		return;
 	}
@@ -117,7 +109,7 @@ function checkStructure(state: unknown, problems: string[]): void {
 	}
 
 	const rng = posting.rng;
-	if (!isRecord(rng)) {
+	if (!isPlainRecord(rng)) {
 		problems.push("$.posting.rng: must be an object");
 	} else {
 		for (const name of sortedKeys(rng)) {
@@ -134,7 +126,7 @@ function checkStructure(state: unknown, problems: string[]): void {
 	}
 
 	const resources = posting.resources;
-	if (!isRecord(resources)) {
+	if (!isPlainRecord(resources)) {
 		problems.push("$.posting.resources: must be an object");
 	} else {
 		for (const id of sortedKeys(resources)) {
@@ -146,7 +138,7 @@ function checkStructure(state: unknown, problems: string[]): void {
 	}
 
 	const toy = posting.toy;
-	if (!isRecord(toy)) {
+	if (!isPlainRecord(toy)) {
 		problems.push("$.posting.toy: must be an object");
 	} else if (
 		typeof toy.growthPerTick !== "number" ||

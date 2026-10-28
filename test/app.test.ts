@@ -77,7 +77,6 @@ async function launch(
 	};
 	return {
 		app,
-		renderer: setup.renderer,
 		destroyCalls: () => destroys,
 		savedWhenDestroyed: () => savedWhenDestroyed,
 		state,
@@ -239,6 +238,18 @@ describe("startApp", () => {
 		expect(exit.saveError).toBeNull();
 		expect(savedHash(harness.saveDir)).toBe(stateHash(harness.state));
 		expect(harness.destroyCalls()).toBe(0);
+	});
+
+	test("a frame after hangUp neither steps nor renders", async () => {
+		const harness = await launch();
+		harness.app.hangUp();
+		const rendersBefore = harness.renders();
+		const tickBefore = harness.state.tick;
+
+		await harness.advanceStep();
+
+		expect(harness.renders()).toBe(rendersBefore);
+		expect(harness.state.tick).toBe(tickBefore);
 	});
 
 	test("hangUp after a completed shutdown does not save a second time", async () => {

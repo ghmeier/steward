@@ -1,11 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import tuningJson from "../data/tuning.json";
 import { canonicalStringify } from "../src/core/serialize";
 import { createNewGame } from "../src/core/state";
-import { parseTuning } from "../src/core/tuning";
 import { stateHash } from "../src/save/hash";
-
-const tuning = parseTuning(tuningJson);
+import { tuning } from "./helpers";
 
 describe("canonicalStringify", () => {
 	test("produces identical bytes regardless of key insertion order", () => {

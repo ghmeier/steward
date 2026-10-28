@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { compareKeys } from "../core/data";
 import { parseTuning, type Tuning } from "../core/tuning";
 
 export const DEFAULT_DATA_DIR = resolve(import.meta.dir, "..", "..", "data");
@@ -23,7 +24,7 @@ function listFiles(root: string, relativeDir: string, out: string[]): void {
 export function contentHash(dataDir: string = DEFAULT_DATA_DIR): string {
 	const files: string[] = [];
 	listFiles(dataDir, "", files);
-	files.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+	files.sort(compareKeys);
 
 	const hasher = new Bun.CryptoHasher("sha256");
 	const nul = new Uint8Array([0]);

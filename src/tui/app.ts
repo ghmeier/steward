@@ -1,4 +1,5 @@
 import type { CliRenderer, KeyEvent } from "@opentui/core";
+import { errorMessage } from "../core/errors";
 import { createNewGame, type GameState } from "../core/state";
 import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
@@ -6,8 +7,8 @@ import { actionForKey, KEY_HINTS } from "./keys";
 import { createPanels } from "./panels";
 import { createSession } from "./session";
 
-export const FRAME_INTERVAL_MS = 50;
-export const AUTOSAVE_INTERVAL_MS = 30_000;
+const FRAME_INTERVAL_MS = 50;
+const AUTOSAVE_INTERVAL_MS = 30_000;
 
 export type Startup =
 	| { kind: "ready"; state: GameState; notice: string | null }
@@ -52,10 +53,6 @@ const HINTS_TEXT = KEY_HINTS.map((hint) => `${hint.keys} ${hint.label}`).join(
 	" · ",
 );
 
-function errorText(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
-
 export function startApp(options: {
 	renderer: CliRenderer;
 	state: GameState;
@@ -90,7 +87,7 @@ export function startApp(options: {
 			saveGame(saveDir, session.state);
 			return null;
 		} catch (error) {
-			return errorText(error);
+			return errorMessage(error);
 		}
 	};
 	const saveAndAnnounce = (announceSuccess: boolean) => {

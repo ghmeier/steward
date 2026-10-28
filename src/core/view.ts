@@ -1,3 +1,4 @@
+import { compareKeys } from "./data";
 import type { GameState, ResourceId } from "./state";
 import type { Tuning } from "./tuning";
 
@@ -23,7 +24,7 @@ export type GameView = {
 // GameState directly.
 export function computeView(state: GameState, tuning: Tuning): GameView {
 	const ledger: LedgerLine[] = Object.entries(state.posting.resources)
-		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+		.sort(([a], [b]) => compareKeys(a, b))
 		.map(([resource, amount]) => ({
 			resource,
 			amount,

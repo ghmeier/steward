@@ -1,3 +1,5 @@
+import { sortedKeys } from "./data";
+
 function fail(path: string, reason: string): never {
 	throw new Error(`cannot serialize ${path}: ${reason}`);
 }
@@ -33,7 +35,7 @@ function render(value: unknown, path: string, indent: string): string {
 	if (prototype !== Object.prototype && prototype !== null) {
 		fail(path, "not a plain object");
 	}
-	const keys = Object.keys(value).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+	const keys = sortedKeys(value);
 	if (keys.length === 0) return "{}";
 	const entries = keys.map(
 		(key) =>
@@ -47,9 +49,8 @@ function render(value: unknown, path: string, indent: string): string {
 }
 
 // The save file and the state hash are both this exact string, so a byte-identical
-// save, load, save round trip proves the hash input is stable too. Keys are ordered by
-// UTF-16 code unit (plain `<`, never locale-aware) so no platform can reorder them, and
-// anything JSON would silently drop or alter throws instead of being saved wrong.
+// save, load, save round trip proves the hash input is stable too. Keys follow `compareKeys`,
+// and anything JSON would silently drop or alter throws instead of being saved wrong.
 export function canonicalStringify(value: unknown): string {
 	return `${render(value, "$", "")}\n`;
 }

@@ -4,8 +4,7 @@ import { seedStream } from "../src/core/rng";
 import { createNewGame, RNG_STREAMS, SCHEMA_VERSION } from "../src/core/state";
 import { parseTuning } from "../src/core/tuning";
 import { validateState } from "../src/core/validate";
-
-const tuning = parseTuning(tuningJson);
+import { tuning } from "./helpers";
 
 describe("createNewGame", () => {
 	test("returns deeply equal states for the same seed", () => {

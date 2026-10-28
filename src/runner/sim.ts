@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { type CommandLogEntry, parseCommandLog } from "../core/commands";
+import { sortedKeys } from "../core/data";
+import { errorMessage } from "../core/errors";
 import type { AbsorbedAdditionLog } from "../core/math";
 import { createNewGame, type GameState } from "../core/state";
 import { runSteps } from "../core/step";
@@ -38,13 +40,8 @@ function parseCount(text: string, name: string, minimum: number): number {
 
 function sortedRecord<T>(record: Record<string, T>): Record<string, T> {
 	const sorted: Record<string, T> = {};
-	const keys = Object.keys(record).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-	for (const key of keys) sorted[key] = record[key] as T;
+	for (const key of sortedKeys(record)) sorted[key] = record[key] as T;
 	return sorted;
-}
-
-function describeError(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
 }
 
 type Options = {
@@ -56,10 +53,9 @@ type Options = {
 	trace: number | null;
 };
 
-function parseOptions(argv: string[]): Options {
-	let values: Record<string, string | boolean | undefined>;
+function parseFlags(argv: string[]) {
 	try {
-		({ values } = parseArgs({
+		return parseArgs({
 			args: argv,
 			strict: true,
 			allowPositionals: false,
@@ -72,40 +68,40 @@ function parseOptions(argv: string[]): Options {
 				trace: { type: "string" },
 				strategy: { type: "string" },
 			},
-		}));
+		}).values;
 	} catch (error) {
-		throw new UsageError(describeError(error));
+		throw new UsageError(errorMessage(error));
 	}
+}
 
-	if (values.strategy !== undefined) {
+function parseOptions(argv: string[]): Options {
+	const flags = parseFlags(argv);
+	if (flags.strategy !== undefined) {
 		throw new UsageError("--strategy is not available until phase 3");
 	}
-	const seedText = values.seed as string | undefined;
-	const load = values.load as string | undefined;
-	if ((seedText === undefined) === (load === undefined)) {
+	if ((flags.seed === undefined) === (flags.load === undefined)) {
 		throw new UsageError("exactly one of --seed and --load is required");
 	}
-	const stepsText = values.steps as string | undefined;
-	if (stepsText === undefined) throw new UsageError("--steps is required");
+	if (flags.steps === undefined) throw new UsageError("--steps is required");
 	const seed =
-		seedText === undefined ? null : parseCount(seedText, "--seed", 0);
+		flags.seed === undefined ? null : parseCount(flags.seed, "--seed", 0);
 	if (seed !== null && seed > 0xffffffff) {
 		throw new UsageError("--seed must be a uint32");
 	}
-	const traceText = values.trace as string | undefined;
 	return {
 		seed,
-		load: load ?? null,
-		steps: parseCount(stepsText, "--steps", 0),
-		commands: (values.commands as string | undefined) ?? null,
-		out: (values.out as string | undefined) ?? null,
-		trace: traceText === undefined ? null : parseCount(traceText, "--trace", 1),
+		load: flags.load ?? null,
+		steps: parseCount(flags.steps, "--steps", 0),
+		commands: flags.commands ?? null,
+		out: flags.out ?? null,
+		trace:
+			flags.trace === undefined ? null : parseCount(flags.trace, "--trace", 1),
 	};
 }
 
 function reportError(io: SimIo, tick: number | null, error: unknown): number {
 	io.stderr(
-		JSON.stringify({ type: "error", tick, message: describeError(error) }),
+		JSON.stringify({ type: "error", tick, message: errorMessage(error) }),
 	);
 	return 1;
 }
@@ -179,20 +175,13 @@ export function runSim(
 		return reportError(io, state.tick, error);
 	}
 
-	const sortedAbsorbed: AbsorbedAdditionLog = {};
-	for (const [resource, entry] of Object.entries(sortedRecord(absorbed))) {
-		sortedAbsorbed[resource] = {
-			count: entry.count,
-			firstTick: entry.firstTick,
-		};
-	}
 	io.stdout(
 		JSON.stringify({
 			type: "summary",
 			tick: state.tick,
 			hash: stateHash(state),
 			resources: sortedRecord(state.posting.resources),
-			absorbed: sortedAbsorbed,
+			absorbed: sortedRecord(absorbed),
 			rejectedCommands,
 		}),
 	);

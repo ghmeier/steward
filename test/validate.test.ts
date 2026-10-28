@@ -1,10 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import tuningJson from "../data/tuning.json";
 import { createNewGame, SCHEMA_VERSION } from "../src/core/state";
-import { parseTuning } from "../src/core/tuning";
 import { assertValidState, validateState } from "../src/core/validate";
-
-const tuning = parseTuning(tuningJson);
+import { tuning } from "./helpers";
 
 type Tree = Record<string, unknown>;
 

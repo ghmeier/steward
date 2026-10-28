@@ -1,3 +1,5 @@
+import { isRecord } from "./data";
+
 export type Tuning = {
 	stepMs: number;
 	maxResourceValue: number;
@@ -8,10 +10,6 @@ export type Tuning = {
 		maxLoss: number;
 	};
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function field(parent: Record<string, unknown>, path: string, key: string) {
 	if (!Object.hasOwn(parent, key)) {

@@ -22,7 +22,7 @@ export type StepObserver = (
 	results: readonly CommandResult[],
 ) => void;
 
-export const SYSTEMS: readonly {
+const SYSTEMS: readonly {
 	name: string;
 	run: (state: GameState, tuning: Tuning, context: AddContext) => void;
 }[] = [{ name: "toy", run: runToySystem }];

@@ -10,6 +10,8 @@ import {
 	writeSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { isRecord } from "../core/data";
+import { errorMessage } from "../core/errors";
 import { canonicalStringify } from "../core/serialize";
 import { type GameState, SCHEMA_VERSION } from "../core/state";
 import { assertValidState } from "../core/validate";
@@ -36,10 +38,9 @@ export class SaveVersionError extends Error {
 	}
 }
 
-export function serializeSave(
-	state: GameState,
-	meta: { savedAt: string; contentHash: string },
-): string {
+type SaveMeta = { savedAt: string; contentHash: string };
+
+export function serializeSave(state: GameState, meta: SaveMeta): string {
 	assertValidState(state);
 	const save: SaveFile = {
 		schemaVersion: state.schemaVersion,
@@ -51,11 +52,8 @@ export function serializeSave(
 }
 
 export function parseSave(text: string): SaveFile {
-	const parsed: unknown = JSON.parse(text);
-	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-		throw new Error("save must be a JSON object");
-	}
-	const record = parsed as Record<string, unknown>;
+	const record: unknown = JSON.parse(text);
+	if (!isRecord(record)) throw new Error("save must be a JSON object");
 	if (record.schemaVersion !== SCHEMA_VERSION) {
 		throw new SaveVersionError(record.schemaVersion);
 	}
@@ -120,7 +118,7 @@ function fsyncDirectory(dir: string): void {
 export function writeSaveFile(
 	path: string,
 	state: GameState,
-	meta: Partial<{ savedAt: string; contentHash: string }> = {},
+	meta: Partial<SaveMeta> = {},
 	hooks: { afterTempWrite?: () => void } = {},
 ): void {
 	const text = serializeSave(state, {
@@ -148,7 +146,7 @@ export function writeSaveFile(
 export function saveGame(
 	dir: string,
 	state: GameState,
-	meta: Partial<{ savedAt: string; contentHash: string }> = {},
+	meta: Partial<SaveMeta> = {},
 	hooks: { afterTempWrite?: () => void } = {},
 ): string {
 	const savePath = join(dir, SAVE_FILE_NAME);
@@ -195,10 +193,7 @@ export function loadGame(dir: string): LoadResult {
 				preservedAs,
 			};
 		}
-		return {
-			kind: "invalid",
-			error: error instanceof Error ? error.message : String(error),
-		};
+		return { kind: "invalid", error: errorMessage(error) };
 	}
 }
 

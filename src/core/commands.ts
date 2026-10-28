@@ -1,3 +1,5 @@
+import { isRecord } from "./data";
+import { errorMessage } from "./errors";
 import { normalizeZero } from "./math";
 import type { GameState } from "./state";
 import type { Tuning } from "./tuning";
@@ -68,10 +70,6 @@ export function apply(
 	}
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 export function parseCommand(value: unknown): Command {
 	if (!isRecord(value)) throw new Error("command must be an object");
 	const type = value.type;
@@ -130,8 +128,7 @@ export function parseCommandLog(value: unknown): CommandLogEntry[] {
 		try {
 			command = parseCommand(raw.command);
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			throw new Error(`command log entry ${index}: ${message}`);
+			throw new Error(`command log entry ${index}: ${errorMessage(error)}`);
 		}
 		entries.push({ tick, command });
 	}
