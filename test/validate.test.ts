@@ -1,0 +1,156 @@
+import { describe, expect, test } from "bun:test";
+import tuningJson from "../data/tuning.json";
+import { createNewGame, SCHEMA_VERSION } from "../src/core/state";
+import { parseTuning } from "../src/core/tuning";
+import { assertValidState, validateState } from "../src/core/validate";
+
+const tuning = parseTuning(tuningJson);
+
+type Tree = Record<string, unknown>;
+
+function freshGame(): Tree {
+	return createNewGame(5, tuning) as unknown as Tree;
+}
+
+function setAt(root: Tree, path: string[], value: unknown): void {
+	let node = root;
+	for (const key of path.slice(0, -1)) node = node[key] as Tree;
+	node[path[path.length - 1] as string] = value;
+}
+
+class Widget {
+	size = 1;
+}
+
+describe("validateState", () => {
+	test("reports no problems for a fresh game", () => {
+		expect(validateState(freshGame())).toEqual([]);
+	});
+
+	const forbidden: [string, () => unknown][] = [
+		["undefined", () => undefined],
+		["null", () => null],
+		["NaN", () => Number.NaN],
+		["Infinity", () => Number.POSITIVE_INFINITY],
+		["negative zero", () => -0],
+		["a Map", () => new Map()],
+		["a Set", () => new Set()],
+		["a Date", () => new Date(0)],
+		["a class instance", () => new Widget()],
+		["a function", () => () => 1],
+	];
+
+	test.each(forbidden)("reports %s with its path", (_name, make) => {
+		const state = freshGame();
+		setAt(state, ["posting", "resources", "grain"], make());
+
+		const problems = validateState(state);
+
+		expect(
+			problems.some((p) => p.startsWith("$.posting.resources.grain")),
+		).toBe(true);
+	});
+
+	test("reports a forbidden value nested inside an array with its index", () => {
+		const state = freshGame();
+		setAt(state, ["career", "followers"], ["ok", undefined]);
+
+		const problems = validateState(state);
+
+		expect(problems.some((p) => p.startsWith("$.career.followers[1]"))).toBe(
+			true,
+		);
+	});
+
+	test("reports a sparse array hole", () => {
+		const state = freshGame();
+		// biome-ignore lint/suspicious/noSparseArray: the hole is the point of the test
+		setAt(state, ["career", "followers"], ["a", , "c"]);
+
+		const problems = validateState(state);
+
+		expect(problems.some((p) => p.includes("$.career.followers[1]"))).toBe(
+			true,
+		);
+	});
+
+	test("accepts an object with a null prototype", () => {
+		const state = freshGame();
+		setAt(
+			state,
+			["career", "unlocks"],
+			Object.assign(Object.create(null), { a: 1 }),
+		);
+
+		expect(validateState(state)).toEqual([]);
+	});
+
+	test("reports a wrong schemaVersion", () => {
+		const state = freshGame();
+		setAt(state, ["schemaVersion"], SCHEMA_VERSION + 1);
+
+		expect(validateState(state).join("\n")).toContain("$.schemaVersion");
+	});
+
+	test("reports a negative tick", () => {
+		const state = freshGame();
+		setAt(state, ["tick"], -1);
+
+		expect(validateState(state).join("\n")).toContain("$.tick");
+	});
+
+	test("reports a fractional tick", () => {
+		const state = freshGame();
+		setAt(state, ["tick"], 1.5);
+
+		expect(validateState(state).join("\n")).toContain("$.tick");
+	});
+
+	test("reports an all-zero rng stream", () => {
+		const state = freshGame();
+		setAt(state, ["posting", "rng", "toy"], [0, 0, 0, 0]);
+
+		expect(validateState(state).join("\n")).toContain("$.posting.rng.toy");
+	});
+
+	test("reports an rng stream with five words", () => {
+		const state = freshGame();
+		setAt(state, ["posting", "rng", "toy"], [1, 2, 3, 4, 5]);
+
+		expect(validateState(state).join("\n")).toContain("$.posting.rng.toy");
+	});
+
+	test("reports a seed that is not a uint32", () => {
+		const state = freshGame();
+		setAt(state, ["posting", "seed"], 2 ** 32);
+
+		expect(validateState(state).join("\n")).toContain("$.posting.seed");
+	});
+
+	test("reports career fields with the wrong container type", () => {
+		const state = freshGame();
+		setAt(state, ["career", "followers"], {});
+		setAt(state, ["career", "unlocks"], []);
+
+		const text = validateState(state).join("\n");
+
+		expect(text).toContain("$.career.followers");
+		expect(text).toContain("$.career.unlocks");
+	});
+});
+
+describe("assertValidState", () => {
+	test("accepts a fresh game", () => {
+		expect(() => assertValidState(freshGame())).not.toThrow();
+	});
+
+	test("throws one error listing every problem", () => {
+		const state = freshGame();
+		setAt(state, ["tick"], -1);
+		setAt(state, ["schemaVersion"], 99);
+
+		expect(() => assertValidState(state)).toThrow(
+			/\$\.tick[\s\S]*\$\.schemaVersion|\$\.schemaVersion[\s\S]*\$\.tick/,
+		);
+	});
+});

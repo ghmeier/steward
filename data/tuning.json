@@ -1,0 +1,10 @@
+{
+	"stepMs": 100,
+	"maxResourceValue": 1e300,
+	"toy": {
+		"resource": "grain",
+		"initialGrowthPerTick": 1.5,
+		"lossChancePerMille": 20,
+		"maxLoss": 50
+	}
+}
