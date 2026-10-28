@@ -4,7 +4,8 @@ import type { Tuning } from "./tuning";
 
 export type Command =
 	| { type: "noop" }
-	| { type: "setToyRate"; growthPerTick: number };
+	| { type: "setToyRate"; growthPerTick: number }
+	| { type: "adjustToyRate"; delta: number };
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
 
@@ -14,6 +15,22 @@ export type CommandResult = { ok: true } | { ok: false; reason: string };
  * the command will run in, and replay depends on nothing but that number.
  */
 export type CommandLogEntry = { tick: number; command: Command };
+
+function setToyGrowth(
+	state: GameState,
+	rate: number,
+	tuning: Tuning,
+): CommandResult {
+	if (rate < 0) return { ok: false, reason: "growth rate cannot go below 0" };
+	if (rate > tuning.maxResourceValue) {
+		return {
+			ok: false,
+			reason: `growth rate cannot go above ${tuning.maxResourceValue}`,
+		};
+	}
+	state.posting.toy.growthPerTick = normalizeZero(rate);
+	return { ok: true };
+}
 
 export function apply(
 	state: GameState,
@@ -28,14 +45,18 @@ export function apply(
 			if (typeof rate !== "number" || !Number.isFinite(rate)) {
 				return { ok: false, reason: "growthPerTick must be a finite number" };
 			}
-			if (rate < 0 || rate > tuning.maxResourceValue) {
-				return {
-					ok: false,
-					reason: `growthPerTick must be between 0 and ${tuning.maxResourceValue}`,
-				};
+			return setToyGrowth(state, rate, tuning);
+		}
+		case "adjustToyRate": {
+			const delta = command.delta;
+			if (typeof delta !== "number" || !Number.isFinite(delta)) {
+				return { ok: false, reason: "delta must be a finite number" };
 			}
-			state.posting.toy.growthPerTick = normalizeZero(rate);
-			return { ok: true };
+			return setToyGrowth(
+				state,
+				state.posting.toy.growthPerTick + delta,
+				tuning,
+			);
 		}
 		default: {
 			const unreachable: never = command;
@@ -69,6 +90,16 @@ export function parseCommand(value: unknown): Command {
 				throw new Error("setToyRate growthPerTick must be a finite number");
 			}
 			return { type: "setToyRate", growthPerTick };
+		}
+		case "adjustToyRate": {
+			if (!Object.hasOwn(value, "delta")) {
+				throw new Error("adjustToyRate command is missing delta");
+			}
+			const delta = value.delta;
+			if (typeof delta !== "number" || !Number.isFinite(delta)) {
+				throw new Error("adjustToyRate delta must be a finite number");
+			}
+			return { type: "adjustToyRate", delta };
 		}
 		default:
 			throw new Error(`unknown command type ${JSON.stringify(type)}`);

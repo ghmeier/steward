@@ -56,6 +56,55 @@ describe("apply", () => {
 		expect(canonicalStringify(state)).toBe(before);
 	});
 
+	test("adjustToyRate raises and lowers the rate by delta", () => {
+		const state = createNewGame(1, tuning);
+		const start = state.posting.toy.growthPerTick;
+
+		apply(state, { type: "adjustToyRate", delta: 2 }, tuning);
+		const raised = state.posting.toy.growthPerTick;
+		apply(state, { type: "adjustToyRate", delta: -1 }, tuning);
+
+		expect(raised).toBe(start + 2);
+		expect(state.posting.toy.growthPerTick).toBe(start + 1);
+	});
+
+	test("adjustToyRate accepts a delta that lands exactly on zero", () => {
+		const state = createNewGame(1, tuning);
+		const delta = -state.posting.toy.growthPerTick;
+
+		const result = apply(state, { type: "adjustToyRate", delta }, tuning);
+
+		expect(result).toEqual({ ok: true });
+		expect(Object.is(state.posting.toy.growthPerTick, 0)).toBe(true);
+	});
+
+	test("adjustToyRate rejects a delta below zero with a reason and changes nothing", () => {
+		const state = createNewGame(1, tuning);
+		const before = canonicalStringify(state);
+		const delta = -state.posting.toy.growthPerTick - 1;
+
+		const result = apply(state, { type: "adjustToyRate", delta }, tuning);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.reason).not.toBe("");
+		expect(canonicalStringify(state)).toBe(before);
+	});
+
+	test.each([
+		["above the maximum", tuning.maxResourceValue * 2],
+		["NaN", Number.NaN],
+		["infinite", Number.POSITIVE_INFINITY],
+	])("adjustToyRate rejects a delta %s and changes nothing", (_name, delta) => {
+		const state = createNewGame(1, tuning);
+		state.posting.toy.growthPerTick = 1;
+		const before = canonicalStringify(state);
+
+		const result = apply(state, { type: "adjustToyRate", delta }, tuning);
+
+		expect(result.ok).toBe(false);
+		expect(canonicalStringify(state)).toBe(before);
+	});
+
 	test("noop changes nothing", () => {
 		const state = createNewGame(1, tuning);
 		const before = canonicalStringify(state);
@@ -74,6 +123,26 @@ describe("parseCommand", () => {
 			type: "setToyRate",
 			growthPerTick: 2,
 		});
+	});
+
+	test("accepts adjustToyRate with a finite delta", () => {
+		expect(parseCommand({ type: "adjustToyRate", delta: -0.5 })).toEqual({
+			type: "adjustToyRate",
+			delta: -0.5,
+		});
+	});
+
+	test.each([
+		["a missing delta", { type: "adjustToyRate" }],
+		["a string delta", { type: "adjustToyRate", delta: "1" }],
+		["a null delta", { type: "adjustToyRate", delta: null }],
+		["a NaN delta", { type: "adjustToyRate", delta: Number.NaN }],
+		[
+			"an infinite delta",
+			{ type: "adjustToyRate", delta: Number.POSITIVE_INFINITY },
+		],
+	])("rejects adjustToyRate with %s", (_name, input) => {
+		expect(() => parseCommand(input)).toThrow();
 	});
 
 	test.each([
