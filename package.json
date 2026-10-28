@@ -9,6 +9,7 @@
 	"scripts": {
 		"test": "bun test",
 		"sim": "bun src/runner/sim.ts",
+		"play": "bun src/tui/main.ts",
 		"golden:update": "bun scripts/update-golden.ts",
 		"lint": "biome check .",
 		"format": "biome format --write .",

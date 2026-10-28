@@ -18,4 +18,5 @@ The render, keypress and restore checks ran the spike under a pseudo-terminal dr
 - OpenTUI 0.7.0 requires Bun 1.3.14 or later. Both versions are pinned exactly in `package.json` (`engines.bun`) and `.bun-version`.
 - Platform binaries arrive as optional dependencies (`@opentui/core-<os>-<arch>`, including musl and Windows variants), so a lockfile from one machine installs on the other.
 - `createCliRenderer({ exitOnCtrlC })`: when the TUI handles Ctrl-C itself (phase 2 must, to save first), pass `exitOnCtrlC: false`, then call `renderer.destroy()` and `await renderer.closed` before `process.exit()` on every shutdown path.
+- When the terminal is closed (the window or tmux session is killed), timers stop firing after `renderer.destroy()` because the event loop spins on the dead terminal, so a SIGHUP handler must save synchronously and call `process.exit` without destroying the renderer or awaiting anything.
 - Linux x64 still needs an eye-test of render and keypress once a Linux machine or CI runner is available.
