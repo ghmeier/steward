@@ -1,4 +1,5 @@
 import { isRecord, sortedKeys } from "./data";
+import type { DecreeLimits } from "./decree";
 import {
 	JOBS,
 	type Job,
@@ -11,6 +12,7 @@ import {
 export type Tuning = {
 	stepMs: number;
 	maxResourceValue: number;
+	decrees: DecreeLimits;
 	economy: {
 		ticksPerSeason: number;
 		seasonYield: Record<Season, number>;
@@ -181,6 +183,25 @@ function parseEconomy(value: unknown): Tuning["economy"] {
 	};
 }
 
+function parseDecreeLimits(value: unknown): DecreeLimits {
+	const limits = record(value, "tuning.decrees");
+	const get = (key: string) => field(limits, "decrees.", key);
+	const name = (key: string) => `tuning.decrees.${key}`;
+	return {
+		maxRules: integerAtLeast(get("maxRules"), name("maxRules"), 1),
+		maxConditionNodes: integerAtLeast(
+			get("maxConditionNodes"),
+			name("maxConditionNodes"),
+			1,
+		),
+		maxConditionDepth: integerAtLeast(
+			get("maxConditionDepth"),
+			name("maxConditionDepth"),
+			1,
+		),
+	};
+}
+
 export function parseTuning(value: unknown): Tuning {
 	if (!isRecord(value)) throw new Error("tuning must be an object");
 
@@ -189,6 +210,7 @@ export function parseTuning(value: unknown): Tuning {
 		field(value, "", "maxResourceValue"),
 		"tuning.maxResourceValue",
 	);
+	const decrees = parseDecreeLimits(field(value, "", "decrees"));
 	const economy = parseEconomy(field(value, "", "economy"));
-	return { stepMs, maxResourceValue, economy };
+	return { stepMs, maxResourceValue, decrees, economy };
 }

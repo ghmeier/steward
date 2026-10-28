@@ -112,8 +112,22 @@ describe("parseCommand", () => {
 		).toEqual({ type: "assignWorker", job: "farm", delta: -1 });
 	});
 
+	test("accepts enactDecree and repealDecree without judging the decree", () => {
+		expect(parseCommand({ type: "enactDecree", decree: { id: 1 } })).toEqual({
+			type: "enactDecree",
+			decree: { id: 1 },
+		});
+		expect(parseCommand({ type: "repealDecree", id: "granary" })).toEqual({
+			type: "repealDecree",
+			id: "granary",
+		});
+	});
+
 	test.each([
 		["a non-object", 5],
+		["a non-object decree", { type: "enactDecree", decree: "granary" }],
+		["a missing decree", { type: "enactDecree" }],
+		["a non-string repeal id", { type: "repealDecree", id: 3 }],
 		["an array", []],
 		["an unknown type", { type: "explode" }],
 		["a missing type", {}],

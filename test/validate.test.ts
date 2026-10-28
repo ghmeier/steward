@@ -136,6 +136,127 @@ describe("validateState", () => {
 	});
 });
 
+describe("validateState decrees", () => {
+	const granary = {
+		id: "granary",
+		petition: "harvest",
+		rules: [],
+		otherwise: "sell",
+	};
+
+	test("accepts a well-formed decree stored under its id", () => {
+		const state = freshGame();
+		setAt(state, ["posting", "decrees"], { granary });
+
+		expect(validateState(state)).toEqual([]);
+	});
+
+	test("reports a decree stored under a key that differs from its id", () => {
+		const state = freshGame();
+		setAt(state, ["posting", "decrees"], { market: granary });
+
+		expect(validateState(state)).toEqual([
+			"$.posting.decrees.market: id must equal its key",
+		]);
+	});
+
+	test("reports a malformed decree with its parse error", () => {
+		const state = freshGame();
+		setAt(state, ["posting", "decrees"], {
+			granary: { ...granary, petition: "tax" },
+		});
+
+		expect(validateState(state).join("\n")).toContain(
+			"$.posting.decrees.granary: decree.petition",
+		);
+	});
+
+	test("reports decrees that are not an object", () => {
+		const state = freshGame();
+		setAt(state, ["posting", "decrees"], []);
+
+		expect(validateState(state)).toEqual([
+			"$.posting.decrees: must be an object",
+		]);
+	});
+
+	test("reports a set whose decrees form a cycle", () => {
+		const state = freshGame();
+		const chose = (decree: string, policy: string) => ({
+			kind: "chose",
+			decree,
+			policy,
+		});
+		setAt(state, ["posting", "decrees"], {
+			a: {
+				...granary,
+				id: "a",
+				rules: [{ when: chose("b", "farming"), policy: "sell" }],
+			},
+			b: {
+				id: "b",
+				petition: "labor",
+				rules: [{ when: chose("a", "sell"), policy: "farming" }],
+				otherwise: "balanced",
+			},
+		});
+
+		expect(validateState(state)).toEqual([
+			"$.posting.decrees: decree cycle: a -> b -> a",
+		]);
+	});
+
+	test("reports a harvest decree with an unknown policy", () => {
+		const state = freshGame();
+		setAt(state, ["posting", "decrees"], {
+			granary: { ...granary, otherwise: "tax" },
+		});
+
+		expect(validateState(state)).toEqual([
+			'$.posting.decrees: decree "granary": policy "tax" is not a harvest policy',
+		]);
+	});
+
+	test("reports only the parse error when a malformed decree sits beside a cyclic pair", () => {
+		const state = freshGame();
+		const chose = (decree: string, policy: string) => ({
+			kind: "chose",
+			decree,
+			policy,
+		});
+		setAt(state, ["posting", "decrees"], {
+			a: {
+				...granary,
+				id: "a",
+				rules: [{ when: chose("b", "farming"), policy: "sell" }],
+			},
+			b: {
+				id: "b",
+				petition: "labor",
+				rules: [{ when: chose("a", "sell"), policy: "farming" }],
+				otherwise: "balanced",
+			},
+			bad: { ...granary, id: "bad", petition: "tax" },
+		});
+
+		expect(validateState(state)).toEqual([
+			'$.posting.decrees.bad: decree.petition: unknown petition "tax"',
+		]);
+	});
+
+	test("reports two decrees on the same petition", () => {
+		const state = freshGame();
+		setAt(state, ["posting", "decrees"], {
+			granary,
+			market: { ...granary, id: "market" },
+		});
+
+		expect(validateState(state)).toEqual([
+			'$.posting.decrees: decree "granary" already handles the harvest petition',
+		]);
+	});
+});
+
 describe("validateState economy", () => {
 	test.each([
 		[

@@ -4,6 +4,7 @@ import {
 	type CommandLogEntry,
 	type CommandResult,
 } from "./commands";
+import { runDecrees } from "./decree-engine";
 import { runEconomy } from "./economy";
 import type { AbsorbedAdditionLog, AddContext } from "./math";
 import type { GameState } from "./state";
@@ -37,8 +38,8 @@ export function step(
 		maxValue: tuning.maxResourceValue,
 		absorbed: options.absorbed,
 	};
-	// Kept for the decree engine, which acts on these flows once it exists.
-	const _flows = runEconomy(state, tuning, context);
+	const flows = runEconomy(state, tuning, context);
+	runDecrees(state, tuning, context, flows);
 
 	if (options.validate) {
 		const problems = validateState(state);

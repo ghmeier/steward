@@ -1,4 +1,6 @@
 import { isRecord, sortedKeys } from "./data";
+import { type Decree, decreeSetProblem, parseDecree } from "./decree";
+import { errorMessage } from "./errors";
 import { JOBS, RESOURCES } from "./realm";
 import { type GameState, SCHEMA_VERSION } from "./state";
 
@@ -119,6 +121,40 @@ function checkEconomy(economy: unknown, problems: string[]): void {
 	}
 }
 
+// Validation has no tuning, so the size caps are enforced when a decree is enacted, not here.
+const UNLIMITED_DECREE = {
+	maxRules: Number.MAX_SAFE_INTEGER,
+	maxConditionNodes: Number.MAX_SAFE_INTEGER,
+	maxConditionDepth: Number.MAX_SAFE_INTEGER,
+};
+
+function checkDecrees(decrees: unknown, problems: string[]): void {
+	if (!isPlainRecord(decrees)) {
+		problems.push("$.posting.decrees: must be an object");
+		return;
+	}
+	const parsed: Record<string, Decree> = {};
+	let wellFormed = true;
+	for (const key of sortedKeys(decrees)) {
+		const path = `$.posting.decrees.${key}`;
+		try {
+			const decree = parseDecree(decrees[key], UNLIMITED_DECREE);
+			if (decree.id === key) parsed[key] = decree;
+			else {
+				wellFormed = false;
+				problems.push(`${path}: id must equal its key`);
+			}
+		} catch (error) {
+			wellFormed = false;
+			problems.push(`${path}: ${errorMessage(error)}`);
+		}
+	}
+	if (!wellFormed) return;
+	// A set that cannot run must fail at load, not mid-run; labor policies need tuning and are checked only when enacting.
+	const problem = decreeSetProblem(parsed, null);
+	if (problem !== null) problems.push(`$.posting.decrees: ${problem}`);
+}
+
 function checkStructure(state: unknown, problems: string[]): void {
 	if (!isPlainRecord(state)) {
 		problems.push("$: must be an object");
@@ -195,6 +231,7 @@ function checkStructure(state: unknown, problems: string[]): void {
 	}
 
 	checkEconomy(posting.economy, problems);
+	checkDecrees(posting.decrees, problems);
 }
 
 export function validateState(state: unknown): string[] {

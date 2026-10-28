@@ -1,9 +1,10 @@
+import type { Decree } from "./decree";
 import type { EconomyState } from "./economy";
 import { RESOURCES } from "./realm";
 import { type RngState, seedStream } from "./rng";
 import type { Tuning } from "./tuning";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export type ResourceId = string;
 
@@ -20,6 +21,7 @@ export type PostingState = {
 	rng: Record<string, RngState>;
 	resources: Record<ResourceId, number>;
 	economy: EconomyState;
+	decrees: Record<string, Decree>;
 };
 
 export type GameState = {
@@ -60,6 +62,7 @@ export function createNewGame(seed: number, tuning: Tuning): GameState {
 				growth: 0,
 				starved: 0,
 			},
+			decrees: {},
 		},
 	};
 }

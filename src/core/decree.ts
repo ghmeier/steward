@@ -242,26 +242,36 @@ export function parseDecree(value: unknown, limits: DecreeLimits): Decree {
 	};
 }
 
-function collectReferences(condition: Condition, into: Set<string>): void {
+function collectChoses(
+	condition: Condition,
+	into: { decree: string; policy: string }[],
+): void {
 	switch (condition.kind) {
 		case "chose":
-			into.add(condition.decree);
+			into.push({ decree: condition.decree, policy: condition.policy });
 			return;
 		case "all":
 		case "any":
-			for (const child of condition.conditions) collectReferences(child, into);
+			for (const child of condition.conditions) collectChoses(child, into);
 			return;
 		case "not":
-			collectReferences(condition.condition, into);
+			collectChoses(condition.condition, into);
 			return;
 		default:
 			return;
 	}
 }
 
+export function choseConditions(
+	decree: Decree,
+): { decree: string; policy: string }[] {
+	const found: { decree: string; policy: string }[] = [];
+	for (const rule of decree.rules) collectChoses(rule.when, found);
+	return found;
+}
+
 export function decreeReferences(decree: Decree): string[] {
-	const found = new Set<string>();
-	for (const rule of decree.rules) collectReferences(rule.when, found);
+	const found = new Set(choseConditions(decree).map((entry) => entry.decree));
 	return [...found].sort(compareKeys);
 }
 
@@ -307,4 +317,73 @@ export function orderDecrees(
 		ok: false,
 		cycle: current === undefined ? walk : walk.slice(walk.indexOf(current)),
 	};
+}
+
+export const HARVEST_POLICIES = ["feed", "sell", "stockpile"] as const;
+
+export function formatCycle(cycle: readonly string[]): string {
+	return [...cycle, cycle[0]].join(" -> ");
+}
+
+/**
+ * The checks on a whole decree set that need no tuning, shared by enacting and by
+ * state validation. Labor policies are only checked when the caller can supply them.
+ * `incoming` is the decree being enacted, so a petition clash names the decree already in place.
+ */
+export function decreeSetProblem(
+	decrees: Readonly<Record<string, Decree>>,
+	laborPolicies: readonly string[] | null,
+	incoming?: string,
+): string | null {
+	const ids = sortedKeys(decrees);
+	const policiesOf = (petition: Petition): readonly string[] | null =>
+		petition === "harvest" ? HARVEST_POLICIES : laborPolicies;
+
+	for (const id of ids) {
+		const decree = decrees[id];
+		if (!decree) continue;
+		const allowed = policiesOf(decree.petition);
+		if (!allowed) continue;
+		const used = [...decree.rules.map((rule) => rule.policy), decree.otherwise];
+		for (const policy of used) {
+			if (!allowed.includes(policy)) {
+				return `decree "${id}": policy "${policy}" is not a ${decree.petition} policy`;
+			}
+		}
+	}
+
+	const handlers = new Map<Petition, string[]>();
+	for (const id of ids) {
+		const petition = decrees[id]?.petition;
+		if (petition)
+			handlers.set(petition, [...(handlers.get(petition) ?? []), id]);
+	}
+	for (const petition of PETITIONS) {
+		const handling = handlers.get(petition) ?? [];
+		if (handling.length > 1) {
+			const other = handling.find((id) => id !== incoming) ?? handling[0];
+			return `decree "${other}" already handles the ${petition} petition`;
+		}
+	}
+
+	for (const id of ids) {
+		const decree = decrees[id];
+		if (!decree) continue;
+		for (const test of choseConditions(decree)) {
+			const target = Object.hasOwn(decrees, test.decree)
+				? decrees[test.decree]
+				: undefined;
+			if (!target) {
+				return `decree "${id}" references unknown decree "${test.decree}"`;
+			}
+			const allowed = policiesOf(target.petition);
+			if (allowed && !allowed.includes(test.policy)) {
+				return `decree "${id}" tests for policy "${test.policy}", which decree "${test.decree}" cannot choose`;
+			}
+		}
+	}
+
+	const order = orderDecrees(decrees);
+	if (!order.ok) return `decree cycle: ${formatCycle(order.cycle)}`;
+	return null;
 }

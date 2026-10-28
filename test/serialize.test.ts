@@ -81,6 +81,7 @@ describe("stateHash", () => {
 		const reordered = {
 			posting: {
 				economy: state.posting.economy,
+				decrees: state.posting.decrees,
 				resources: state.posting.resources,
 				rng: state.posting.rng,
 				seed: state.posting.seed,

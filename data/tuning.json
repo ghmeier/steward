@@ -1,6 +1,7 @@
 {
 	"stepMs": 100,
 	"maxResourceValue": 1e300,
+	"decrees": { "maxRules": 4, "maxConditionNodes": 8, "maxConditionDepth": 3 },
 	"economy": {
 		"ticksPerSeason": 600,
 		"seasonYield": { "autumn": 1, "spring": 1, "summer": 1.5, "winter": 0 },

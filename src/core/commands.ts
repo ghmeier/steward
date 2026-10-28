@@ -1,4 +1,5 @@
 import { isRecord } from "./data";
+import { enactDecree, repealDecree } from "./decree-engine";
 import { idlePeasants } from "./economy";
 import { errorMessage } from "./errors";
 import { JOBS, type Job } from "./realm";
@@ -7,7 +8,9 @@ import type { Tuning } from "./tuning";
 
 export type Command =
 	| { type: "noop" }
-	| { type: "assignWorker"; job: Job; delta: number };
+	| { type: "assignWorker"; job: Job; delta: number }
+	| { type: "enactDecree"; decree: unknown }
+	| { type: "repealDecree"; id: string };
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
 
@@ -41,13 +44,17 @@ function assignWorker(
 export function apply(
 	state: GameState,
 	command: Command,
-	_tuning: Tuning,
+	tuning: Tuning,
 ): CommandResult {
 	switch (command.type) {
 		case "noop":
 			return { ok: true };
 		case "assignWorker":
 			return assignWorker(state, command.job, command.delta);
+		case "enactDecree":
+			return enactDecree(state, command.decree, tuning);
+		case "repealDecree":
+			return repealDecree(state, command.id);
 		default: {
 			const unreachable: never = command;
 			return {
@@ -77,6 +84,18 @@ export function parseCommand(value: unknown): Command {
 				throw new Error("assignWorker delta must be a finite number");
 			}
 			return { type: "assignWorker", job: job as Job, delta };
+		}
+		case "enactDecree": {
+			if (!isRecord(value.decree)) {
+				throw new Error("enactDecree decree must be an object");
+			}
+			return { type: "enactDecree", decree: value.decree };
+		}
+		case "repealDecree": {
+			if (typeof value.id !== "string") {
+				throw new Error("repealDecree id must be a string");
+			}
+			return { type: "repealDecree", id: value.id };
 		}
 		default:
 			throw new Error(`unknown command type ${JSON.stringify(type)}`);

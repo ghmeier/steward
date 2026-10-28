@@ -92,6 +92,41 @@ describe("step", () => {
 	});
 });
 
+describe("step decrees", () => {
+	function farmingVillage(withDecree: boolean) {
+		const state = createNewGame(42, economyTestTuning);
+		state.posting.economy.labor.farm = 8;
+		if (withDecree) {
+			state.posting.decrees.granary = {
+				id: "granary",
+				petition: "harvest",
+				rules: [],
+				otherwise: "sell",
+			};
+		}
+		return state;
+	}
+
+	test("runs the economy before decrees so a harvest decree sells that tick's surplus", () => {
+		const state = farmingVillage(true);
+
+		step(state, [], economyTestTuning, quietOptions);
+
+		// Eight farmers make 0.2 and ten people eat 0.1; the 0.1 surplus sells at 0.5 per grain.
+		expect(state.posting.resources.coin).toBeCloseTo(0.05, 12);
+		expect(state.posting.resources.grain).toBeCloseTo(60, 12);
+	});
+
+	test("without a decree the same surplus stays in grain", () => {
+		const state = farmingVillage(false);
+
+		step(state, [], economyTestTuning, quietOptions);
+
+		expect(state.posting.resources.coin).toBe(0);
+		expect(state.posting.resources.grain).toBeCloseTo(60.1, 12);
+	});
+});
+
 describe("runSteps", () => {
 	test("keeps state valid across 10,000 validated steps", () => {
 		const state = createNewGame(42, tuning);
