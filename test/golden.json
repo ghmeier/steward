@@ -1,0 +1,6 @@
+{
+	"seed": 42,
+	"steps": 10000,
+	"commands": "test/fixtures/command-log.json",
+	"hash": "f85d5477759d93877a99a1f321d1aa9bf7abc237296904baa176266ada3c4b3f"
+}

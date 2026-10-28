@@ -15,6 +15,13 @@ export type StepOptions = {
 	validate: boolean;
 };
 
+/** Called after each step with the tick that step produced and the outcome of each command applied in it. */
+export type StepObserver = (
+	tick: number,
+	commands: readonly Command[],
+	results: readonly CommandResult[],
+) => void;
+
 export const SYSTEMS: readonly {
 	name: string;
 	run: (state: GameState, tuning: Tuning, context: AddContext) => void;
@@ -56,6 +63,7 @@ export function runSteps(
 	tuning: Tuning,
 	log: readonly CommandLogEntry[],
 	options: StepOptions,
+	onStep?: StepObserver,
 ): void {
 	let cursor = 0;
 	// Entries for ticks already produced (resuming from a later state) must not be reapplied.
@@ -73,6 +81,7 @@ export function runSteps(
 			commands.push(entry.command);
 			cursor += 1;
 		}
-		step(state, commands, tuning, options);
+		const results = step(state, commands, tuning, options);
+		onStep?.(state.tick, commands, results);
 	}
 }

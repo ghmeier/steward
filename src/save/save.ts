@@ -9,15 +9,13 @@ import {
 	rmSync,
 	writeSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { canonicalStringify } from "../core/serialize";
 import { type GameState, SCHEMA_VERSION } from "../core/state";
 import { assertValidState } from "../core/validate";
 import { contentHash } from "./content";
 
 export const SAVE_FILE_NAME = "save.json";
-const TEMP_FILE_NAME = "save.json.tmp";
-const BACKUP_FILE_NAME = "save.json.bak";
 
 export type SaveFile = {
 	schemaVersion: number;
@@ -119,32 +117,42 @@ function fsyncDirectory(dir: string): void {
 	}
 }
 
+export function writeSaveFile(
+	path: string,
+	state: GameState,
+	meta: Partial<{ savedAt: string; contentHash: string }> = {},
+	hooks: { afterTempWrite?: () => void } = {},
+): void {
+	const text = serializeSave(state, {
+		savedAt: meta.savedAt ?? new Date().toISOString(),
+		contentHash: meta.contentHash ?? contentHash(),
+	});
+
+	const dir = dirname(path);
+	mkdirSync(dir, { recursive: true });
+	const tempPath = `${path}.tmp`;
+	const backupPath = `${path}.bak`;
+
+	writeFileDurably(tempPath, text);
+	hooks.afterTempWrite?.();
+
+	if (existsSync(path)) {
+		// Windows will not rename over an existing file.
+		if (process.platform === "win32") rmSync(backupPath, { force: true });
+		renameWithRetry(path, backupPath);
+	}
+	renameWithRetry(tempPath, path);
+	fsyncDirectory(dir);
+}
+
 export function saveGame(
 	dir: string,
 	state: GameState,
 	meta: Partial<{ savedAt: string; contentHash: string }> = {},
 	hooks: { afterTempWrite?: () => void } = {},
 ): string {
-	const text = serializeSave(state, {
-		savedAt: meta.savedAt ?? new Date().toISOString(),
-		contentHash: meta.contentHash ?? contentHash(),
-	});
-
-	mkdirSync(dir, { recursive: true });
 	const savePath = join(dir, SAVE_FILE_NAME);
-	const tempPath = join(dir, TEMP_FILE_NAME);
-	const backupPath = join(dir, BACKUP_FILE_NAME);
-
-	writeFileDurably(tempPath, text);
-	hooks.afterTempWrite?.();
-
-	if (existsSync(savePath)) {
-		// Windows will not rename over an existing file.
-		if (process.platform === "win32") rmSync(backupPath, { force: true });
-		renameWithRetry(savePath, backupPath);
-	}
-	renameWithRetry(tempPath, savePath);
-	fsyncDirectory(dir);
+	writeSaveFile(savePath, state, meta, hooks);
 	return savePath;
 }
 
