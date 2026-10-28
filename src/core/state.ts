@@ -1,7 +1,9 @@
+import type { EconomyState } from "./economy";
+import { RESOURCES } from "./realm";
 import { type RngState, seedStream } from "./rng";
 import type { Tuning } from "./tuning";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export type ResourceId = string;
 
@@ -17,7 +19,7 @@ export type PostingState = {
 	seed: number;
 	rng: Record<string, RngState>;
 	resources: Record<ResourceId, number>;
-	toy: { growthPerTick: number };
+	economy: EconomyState;
 };
 
 export type GameState = {
@@ -28,13 +30,17 @@ export type GameState = {
 };
 
 /** Every stream the systems draw from; each is seeded at creation so no system seeds lazily mid-run. */
-export const RNG_STREAMS = ["toy"] as const;
+export const RNG_STREAMS = [] as const;
 
 export function createNewGame(seed: number, tuning: Tuning): GameState {
 	if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
 		throw new RangeError(`seed must be a uint32, got ${seed}`);
 	}
 	const rng: Record<string, RngState> = {};
+	const resources: Record<ResourceId, number> = {};
+	for (const resource of RESOURCES) {
+		resources[resource] = tuning.economy.initialResources[resource];
+	}
 	for (const name of RNG_STREAMS) {
 		rng[name] = seedStream(seed, name);
 	}
@@ -46,8 +52,14 @@ export function createNewGame(seed: number, tuning: Tuning): GameState {
 			postingId: "posting-1",
 			seed,
 			rng,
-			resources: { [tuning.toy.resource]: 0 },
-			toy: { growthPerTick: tuning.toy.initialGrowthPerTick },
+			resources,
+			economy: {
+				population: tuning.economy.initialPopulation,
+				labor: { farm: 0, forest: 0, mine: 0 },
+				hunger: 0,
+				growth: 0,
+				starved: 0,
+			},
 		},
 	};
 }

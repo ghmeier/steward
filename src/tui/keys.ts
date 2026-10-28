@@ -1,4 +1,5 @@
 import type { Command } from "../core/commands";
+import type { Job } from "../core/realm";
 
 export type KeyPress = {
 	name: string;
@@ -11,21 +12,15 @@ export type KeyAction =
 	| { kind: "save" }
 	| { kind: "quit" };
 
-export const RATE_KEY_STEP = 0.5;
+const assign = (job: Job): KeyAction => ({
+	kind: "command",
+	command: { type: "assignWorker", job, delta: 1 },
+});
 
 const BINDINGS: Readonly<Record<string, KeyAction>> = {
-	"+": {
-		kind: "command",
-		command: { type: "adjustToyRate", delta: RATE_KEY_STEP },
-	},
-	"=": {
-		kind: "command",
-		command: { type: "adjustToyRate", delta: RATE_KEY_STEP },
-	},
-	"-": {
-		kind: "command",
-		command: { type: "adjustToyRate", delta: -RATE_KEY_STEP },
-	},
+	f: assign("farm"),
+	w: assign("forest"),
+	m: assign("mine"),
 	s: { kind: "save" },
 	q: { kind: "quit" },
 };
@@ -42,7 +37,7 @@ export function actionForKey(key: KeyPress): KeyAction | null {
 }
 
 export const KEY_HINTS: readonly { keys: string; label: string }[] = [
-	{ keys: "+/-", label: "growth rate" },
+	{ keys: "f/w/m", label: "assign farm/forest/mine" },
 	{ keys: "s", label: "save" },
 	{ keys: "q", label: "quit" },
 ];

@@ -33,6 +33,12 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
 		tick: 0,
 		elapsedSeconds: 0,
 		ledger: [],
+		realm: {
+			population: 10,
+			idle: 10,
+			labor: { farm: 0, forest: 0, mine: 0 },
+			season: "spring",
+		},
 		desk: [],
 		governors: [],
 		crown: null,
@@ -97,6 +103,29 @@ describe("createPanels ledger", () => {
 			endOf(timber, formatAmount(1234567.8)),
 		);
 		expect(endOf(grain, formatRate(1))).toBe(endOf(timber, formatRate(-22.5)));
+	});
+
+	test("shows the realm lines under the resources, aligned with the resource names", async () => {
+		const view = emptyView({
+			ledger: [{ resource: "grain", amount: 5, ratePerSecond: 1 }],
+			realm: {
+				population: 12,
+				idle: 5,
+				labor: { farm: 4, forest: 2, mine: 1 },
+				season: "summer",
+			},
+		});
+
+		const frame = await draw([view], "");
+
+		expect(frame).toContain("Population  12 (5 idle)");
+		expect(frame).toContain("Farm 4  Forest 2  Mine 1");
+		expect(frame).toContain("Season  Summer");
+		const lines = frame.split("\n");
+		const column = (text: string) =>
+			(lines.find((l) => l.includes(text)) ?? "").indexOf(text);
+		expect(column("Population")).toBe(column("Grain"));
+		expect(column("Season")).toBe(column("Grain"));
 	});
 
 	test("replaces old values when updated with a new view", async () => {

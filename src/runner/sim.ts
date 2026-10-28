@@ -165,6 +165,8 @@ export function runSim(
 							tick,
 							hash: stateHash(state),
 							resources: sortedRecord(state.posting.resources),
+							population: state.posting.economy.population,
+							starved: state.posting.economy.starved,
 						}),
 					);
 				}
@@ -181,6 +183,8 @@ export function runSim(
 			tick: state.tick,
 			hash: stateHash(state),
 			resources: sortedRecord(state.posting.resources),
+			population: state.posting.economy.population,
+			starved: state.posting.economy.starved,
 			absorbed: sortedRecord(absorbed),
 			rejectedCommands,
 		}),

@@ -65,7 +65,7 @@ describe("loadTuning", () => {
 
 		expect(DEFAULT_DATA_DIR.endsWith("data")).toBe(true);
 		expect(tuning.stepMs).toBeGreaterThan(0);
-		expect(tuning.toy.resource).not.toBe("");
+		expect(tuning.economy.ticksPerSeason).toBeGreaterThan(0);
 	});
 
 	test("throws when tuning.json is missing", () => {

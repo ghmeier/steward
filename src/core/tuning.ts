@@ -1,13 +1,31 @@
-import { isRecord } from "./data";
+import { isRecord, sortedKeys } from "./data";
+import {
+	JOBS,
+	type Job,
+	RESOURCES,
+	type Resource,
+	SEASONS,
+	type Season,
+} from "./realm";
 
 export type Tuning = {
 	stepMs: number;
 	maxResourceValue: number;
-	toy: {
-		resource: string;
-		initialGrowthPerTick: number;
-		lossChancePerMille: number;
-		maxLoss: number;
+	economy: {
+		ticksPerSeason: number;
+		seasonYield: Record<Season, number>;
+		grainPerFarmer: number;
+		woodPerWorker: number;
+		orePerWorker: number;
+		grainPerPerson: number;
+		starvationHunger: number;
+		grainPrice: number;
+		grainPerPeasant: number;
+		maxPopulation: number;
+		laborMovesPerTick: number;
+		initialPopulation: number;
+		initialResources: Record<Resource, number>;
+		laborAllocations: Record<string, Record<Job, number>>;
 	};
 };
 
@@ -31,49 +49,146 @@ function positiveNumber(value: unknown, name: string): number {
 	return number;
 }
 
+function nonNegativeNumber(value: unknown, name: string): number {
+	const number = finiteNumber(value, name);
+	if (number < 0) throw new Error(`${name} must not be negative`);
+	return number;
+}
+
+function integerAtLeast(value: unknown, name: string, minimum: number): number {
+	const number = finiteNumber(value, name);
+	if (!Number.isInteger(number) || number < minimum) {
+		throw new Error(
+			`${name} must be ${minimum === 0 ? "a non-negative" : "a positive"} integer`,
+		);
+	}
+	return number;
+}
+
+function record(value: unknown, name: string): Record<string, unknown> {
+	if (!isRecord(value)) throw new Error(`${name} must be an object`);
+	return value;
+}
+
+function exactKeys(
+	value: Record<string, unknown>,
+	expected: readonly string[],
+	name: string,
+): void {
+	const actual = sortedKeys(value);
+	const wanted = [...expected].sort();
+	if (actual.join(",") !== wanted.join(",")) {
+		throw new Error(`${name} must have exactly the keys ${wanted.join(", ")}`);
+	}
+}
+
+function numbersByKey<K extends string>(
+	value: unknown,
+	keys: readonly K[],
+	name: string,
+): Record<K, number> {
+	const parent = record(value, name);
+	exactKeys(parent, keys, name);
+	const result = {} as Record<K, number>;
+	for (const key of keys) {
+		result[key] = nonNegativeNumber(parent[key], `${name}.${key}`);
+	}
+	return result;
+}
+
+function parseAllocations(value: unknown): Record<string, Record<Job, number>> {
+	const name = "tuning.economy.laborAllocations";
+	const parent = record(value, name);
+	const ids = sortedKeys(parent);
+	if (ids.length === 0) throw new Error(`${name} must not be empty`);
+	const result: Record<string, Record<Job, number>> = {};
+	for (const id of ids) {
+		const shares = numbersByKey(parent[id], JOBS, `${name}.${id}`);
+		let total = 0;
+		for (const job of JOBS) total += shares[job];
+		if (Math.abs(total - 1) > 1e-9) {
+			throw new Error(`${name}.${id} shares must sum to 1`);
+		}
+		result[id] = shares;
+	}
+	return result;
+}
+
+function parseEconomy(value: unknown): Tuning["economy"] {
+	const path = "economy.";
+	const economy = record(value, "tuning.economy");
+	const get = (key: string) => field(economy, path, key);
+	const name = (key: string) => `tuning.economy.${key}`;
+
+	const maxPopulation = integerAtLeast(
+		get("maxPopulation"),
+		name("maxPopulation"),
+		1,
+	);
+	const initialPopulation = integerAtLeast(
+		get("initialPopulation"),
+		name("initialPopulation"),
+		0,
+	);
+	if (initialPopulation > maxPopulation) {
+		throw new Error(
+			"tuning.economy.initialPopulation must not exceed maxPopulation",
+		);
+	}
+
+	return {
+		ticksPerSeason: integerAtLeast(
+			get("ticksPerSeason"),
+			name("ticksPerSeason"),
+			1,
+		),
+		seasonYield: numbersByKey(get("seasonYield"), SEASONS, name("seasonYield")),
+		grainPerFarmer: nonNegativeNumber(
+			get("grainPerFarmer"),
+			name("grainPerFarmer"),
+		),
+		woodPerWorker: nonNegativeNumber(
+			get("woodPerWorker"),
+			name("woodPerWorker"),
+		),
+		orePerWorker: nonNegativeNumber(get("orePerWorker"), name("orePerWorker")),
+		grainPerPerson: nonNegativeNumber(
+			get("grainPerPerson"),
+			name("grainPerPerson"),
+		),
+		starvationHunger: positiveNumber(
+			get("starvationHunger"),
+			name("starvationHunger"),
+		),
+		grainPrice: nonNegativeNumber(get("grainPrice"), name("grainPrice")),
+		grainPerPeasant: positiveNumber(
+			get("grainPerPeasant"),
+			name("grainPerPeasant"),
+		),
+		maxPopulation,
+		laborMovesPerTick: integerAtLeast(
+			get("laborMovesPerTick"),
+			name("laborMovesPerTick"),
+			1,
+		),
+		initialPopulation,
+		initialResources: numbersByKey(
+			get("initialResources"),
+			RESOURCES,
+			name("initialResources"),
+		),
+		laborAllocations: parseAllocations(get("laborAllocations")),
+	};
+}
+
 export function parseTuning(value: unknown): Tuning {
 	if (!isRecord(value)) throw new Error("tuning must be an object");
-	const toy = field(value, "", "toy");
-	if (!isRecord(toy)) throw new Error("tuning.toy must be an object");
 
 	const stepMs = positiveNumber(field(value, "", "stepMs"), "tuning.stepMs");
 	const maxResourceValue = positiveNumber(
 		field(value, "", "maxResourceValue"),
 		"tuning.maxResourceValue",
 	);
-
-	const resource = field(toy, "toy.", "resource");
-	if (typeof resource !== "string" || resource === "") {
-		throw new Error("tuning.toy.resource must be a non-empty string");
-	}
-	const initialGrowthPerTick = finiteNumber(
-		field(toy, "toy.", "initialGrowthPerTick"),
-		"tuning.toy.initialGrowthPerTick",
-	);
-	const lossChancePerMille = finiteNumber(
-		field(toy, "toy.", "lossChancePerMille"),
-		"tuning.toy.lossChancePerMille",
-	);
-	if (
-		!Number.isInteger(lossChancePerMille) ||
-		lossChancePerMille < 0 ||
-		lossChancePerMille > 1000
-	) {
-		throw new Error(
-			"tuning.toy.lossChancePerMille must be an integer from 0 to 1000",
-		);
-	}
-	const maxLoss = finiteNumber(
-		field(toy, "toy.", "maxLoss"),
-		"tuning.toy.maxLoss",
-	);
-	if (!Number.isInteger(maxLoss) || maxLoss <= 0) {
-		throw new Error("tuning.toy.maxLoss must be a positive integer");
-	}
-
-	return {
-		stepMs,
-		maxResourceValue,
-		toy: { resource, initialGrowthPerTick, lossChancePerMille, maxLoss },
-	};
+	const economy = parseEconomy(field(value, "", "economy"));
+	return { stepMs, maxResourceValue, economy };
 }

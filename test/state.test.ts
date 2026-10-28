@@ -15,29 +15,25 @@ describe("createNewGame", () => {
 		expect(second).toEqual(first);
 	});
 
-	test("returns different rng streams for different seeds", () => {
-		const first = createNewGame(1, tuning);
-
-		const second = createNewGame(2, tuning);
-
-		expect(second.posting.rng).not.toEqual(first.posting.rng);
-	});
-
 	test("produces a state that passes validation", () => {
 		const state = createNewGame(7, tuning);
 
 		expect(validateState(state)).toEqual([]);
 	});
 
-	test("starts at tick zero with tuned toy values and one seeded stream per name", () => {
+	test("starts with the tuned resources and population and an idle village", () => {
 		const state = createNewGame(7, tuning);
 
 		expect(state.schemaVersion).toBe(SCHEMA_VERSION);
 		expect(state.tick).toBe(0);
-		expect(state.posting.resources).toEqual({ [tuning.toy.resource]: 0 });
-		expect(state.posting.toy.growthPerTick).toBe(
-			tuning.toy.initialGrowthPerTick,
-		);
+		expect(state.posting.resources).toEqual(tuning.economy.initialResources);
+		expect(state.posting.economy).toEqual({
+			population: tuning.economy.initialPopulation,
+			labor: { farm: 0, forest: 0, mine: 0 },
+			hunger: 0,
+			growth: 0,
+			starved: 0,
+		});
 		expect(Object.keys(state.posting.rng)).toEqual([...RNG_STREAMS]);
 		for (const name of RNG_STREAMS) {
 			expect(state.posting.rng[name]).toEqual(seedStream(7, name));
@@ -68,29 +64,69 @@ describe("parseTuning", () => {
 		expect(() => parseTuning(rest)).toThrow("stepMs");
 	});
 
-	test("rejects a negative maxLoss", () => {
-		const bad = { ...tuningJson, toy: { ...tuningJson.toy, maxLoss: -1 } };
-
-		expect(() => parseTuning(bad)).toThrow("maxLoss");
-	});
-
-	test("rejects a non-integer lossChancePerMille", () => {
+	test.each([
+		["ticksPerSeason", 0, "ticksPerSeason"],
+		["ticksPerSeason", 1.5, "ticksPerSeason"],
+		["maxPopulation", -1, "maxPopulation"],
+		["initialPopulation", 41, "initialPopulation"],
+		["starvationHunger", 0, "starvationHunger"],
+		["grainPerPeasant", 0, "grainPerPeasant"],
+		["grainPrice", -0.5, "grainPrice"],
+		["laborMovesPerTick", 0, "laborMovesPerTick"],
+	])("rejects economy.%s of %p and names the field", (key, value, named) => {
 		const bad = {
 			...tuningJson,
-			toy: { ...tuningJson.toy, lossChancePerMille: 20.5 },
+			economy: { ...tuningJson.economy, [key]: value },
 		};
 
-		expect(() => parseTuning(bad)).toThrow("lossChancePerMille");
+		expect(() => parseTuning(bad)).toThrow(named);
 	});
 
-	test("accepts an integer lossChancePerMille at both bounds", () => {
-		for (const lossChancePerMille of [0, 1000]) {
-			const ok = {
-				...tuningJson,
-				toy: { ...tuningJson.toy, lossChancePerMille },
-			};
+	test("accepts an initial population equal to the maximum", () => {
+		const ok = {
+			...tuningJson,
+			economy: { ...tuningJson.economy, initialPopulation: 40 },
+		};
 
-			expect(parseTuning(ok).toy.lossChancePerMille).toBe(lossChancePerMille);
-		}
+		expect(parseTuning(ok).economy.initialPopulation).toBe(40);
+	});
+
+	test("rejects a season yield missing a season", () => {
+		const { winter: _omitted, ...seasonYield } = tuningJson.economy.seasonYield;
+		const bad = {
+			...tuningJson,
+			economy: { ...tuningJson.economy, seasonYield },
+		};
+
+		expect(() => parseTuning(bad)).toThrow("seasonYield");
+	});
+
+	test("rejects initial resources with an unknown resource", () => {
+		const bad = {
+			...tuningJson,
+			economy: {
+				...tuningJson.economy,
+				initialResources: { ...tuningJson.economy.initialResources, gold: 1 },
+			},
+		};
+
+		expect(() => parseTuning(bad)).toThrow("initialResources");
+	});
+
+	test.each([
+		["no allocations", {}],
+		[
+			"shares that do not sum to 1",
+			{ odd: { farm: 0.5, forest: 0.5, mine: 0.5 } },
+		],
+		["a negative share", { odd: { farm: 1.5, forest: -0.5, mine: 0 } }],
+		["a missing job", { odd: { farm: 0.5, forest: 0.5 } }],
+	])("rejects laborAllocations with %s", (_name, laborAllocations) => {
+		const bad = {
+			...tuningJson,
+			economy: { ...tuningJson.economy, laborAllocations },
+		};
+
+		expect(() => parseTuning(bad)).toThrow("laborAllocations");
 	});
 });

@@ -1,13 +1,13 @@
 import { isRecord } from "./data";
+import { idlePeasants } from "./economy";
 import { errorMessage } from "./errors";
-import { normalizeZero } from "./math";
+import { JOBS, type Job } from "./realm";
 import type { GameState } from "./state";
 import type { Tuning } from "./tuning";
 
 export type Command =
 	| { type: "noop" }
-	| { type: "setToyRate"; growthPerTick: number }
-	| { type: "adjustToyRate"; delta: number };
+	| { type: "assignWorker"; job: Job; delta: number };
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
 
@@ -18,48 +18,36 @@ export type CommandResult = { ok: true } | { ok: false; reason: string };
  */
 export type CommandLogEntry = { tick: number; command: Command };
 
-function setToyGrowth(
+function assignWorker(
 	state: GameState,
-	rate: number,
-	tuning: Tuning,
+	job: Job,
+	delta: number,
 ): CommandResult {
-	if (rate < 0) return { ok: false, reason: "growth rate cannot go below 0" };
-	if (rate > tuning.maxResourceValue) {
-		return {
-			ok: false,
-			reason: `growth rate cannot go above ${tuning.maxResourceValue}`,
-		};
+	if (delta !== 1 && delta !== -1) {
+		return { ok: false, reason: "delta must be 1 or -1" };
 	}
-	state.posting.toy.growthPerTick = normalizeZero(rate);
+	const economy = state.posting.economy;
+	if (delta === 1) {
+		if (idlePeasants(economy) <= 0) {
+			return { ok: false, reason: "no idle peasants" };
+		}
+	} else if (economy.labor[job] <= 0) {
+		return { ok: false, reason: `no peasants work the ${job}` };
+	}
+	economy.labor[job] += delta;
 	return { ok: true };
 }
 
 export function apply(
 	state: GameState,
 	command: Command,
-	tuning: Tuning,
+	_tuning: Tuning,
 ): CommandResult {
 	switch (command.type) {
 		case "noop":
 			return { ok: true };
-		case "setToyRate": {
-			const rate = command.growthPerTick;
-			if (typeof rate !== "number" || !Number.isFinite(rate)) {
-				return { ok: false, reason: "growthPerTick must be a finite number" };
-			}
-			return setToyGrowth(state, rate, tuning);
-		}
-		case "adjustToyRate": {
-			const delta = command.delta;
-			if (typeof delta !== "number" || !Number.isFinite(delta)) {
-				return { ok: false, reason: "delta must be a finite number" };
-			}
-			return setToyGrowth(
-				state,
-				state.posting.toy.growthPerTick + delta,
-				tuning,
-			);
-		}
+		case "assignWorker":
+			return assignWorker(state, command.job, command.delta);
 		default: {
 			const unreachable: never = command;
 			return {
@@ -76,28 +64,19 @@ export function parseCommand(value: unknown): Command {
 	switch (type) {
 		case "noop":
 			return { type: "noop" };
-		case "setToyRate": {
-			if (!Object.hasOwn(value, "growthPerTick")) {
-				throw new Error("setToyRate command is missing growthPerTick");
-			}
-			const growthPerTick = value.growthPerTick;
+		case "assignWorker": {
+			const job = value.job;
 			if (
-				typeof growthPerTick !== "number" ||
-				!Number.isFinite(growthPerTick)
+				typeof job !== "string" ||
+				!(JOBS as readonly string[]).includes(job)
 			) {
-				throw new Error("setToyRate growthPerTick must be a finite number");
-			}
-			return { type: "setToyRate", growthPerTick };
-		}
-		case "adjustToyRate": {
-			if (!Object.hasOwn(value, "delta")) {
-				throw new Error("adjustToyRate command is missing delta");
+				throw new Error(`assignWorker job must be one of ${JOBS.join(", ")}`);
 			}
 			const delta = value.delta;
 			if (typeof delta !== "number" || !Number.isFinite(delta)) {
-				throw new Error("adjustToyRate delta must be a finite number");
+				throw new Error("assignWorker delta must be a finite number");
 			}
-			return { type: "adjustToyRate", delta };
+			return { type: "assignWorker", job: job as Job, delta };
 		}
 		default:
 			throw new Error(`unknown command type ${JSON.stringify(type)}`);

@@ -136,6 +136,77 @@ describe("validateState", () => {
 	});
 });
 
+describe("validateState economy", () => {
+	test.each([
+		[
+			"a missing economy",
+			["posting", "economy"],
+			undefined,
+			"$.posting.economy",
+		],
+		[
+			"a fractional population",
+			["posting", "economy", "population"],
+			1.5,
+			"population",
+		],
+		[
+			"a negative starved count",
+			["posting", "economy", "starved"],
+			-1,
+			"starved",
+		],
+		[
+			"a fractional labor count",
+			["posting", "economy", "labor", "farm"],
+			0.5,
+			"labor.farm",
+		],
+		["negative hunger", ["posting", "economy", "hunger"], -1, "hunger"],
+		[
+			"infinite growth",
+			["posting", "economy", "growth"],
+			Number.POSITIVE_INFINITY,
+			"growth",
+		],
+		["a missing resource", ["posting", "resources", "wood"], undefined, "wood"],
+	])("reports %s", (_name, path, value, expected) => {
+		const state = freshGame();
+		if (value === undefined) {
+			let node = state;
+			for (const key of path.slice(0, -1)) node = node[key] as Tree;
+			delete node[path[path.length - 1] as string];
+		} else {
+			setAt(state, path, value);
+		}
+
+		expect(validateState(state).join("\n")).toContain(expected);
+	});
+
+	test("reports labor that exceeds the population", () => {
+		const state = freshGame();
+		setAt(state, ["posting", "economy", "labor", "farm"], 11);
+
+		expect(validateState(state).join("\n")).toContain("exceed population");
+	});
+
+	test("reports labor with an unknown job", () => {
+		const state = freshGame();
+		setAt(state, ["posting", "economy", "labor", "bank"], 0);
+
+		expect(validateState(state).join("\n")).toContain(
+			"$.posting.economy.labor",
+		);
+	});
+
+	test("accepts a village whose workers equal the population", () => {
+		const state = freshGame();
+		setAt(state, ["posting", "economy", "labor", "farm"], 10);
+
+		expect(validateState(state)).toEqual([]);
+	});
+});
+
 describe("assertValidState", () => {
 	test("accepts a fresh game", () => {
 		expect(() => assertValidState(freshGame())).not.toThrow();

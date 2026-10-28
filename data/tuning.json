@@ -1,10 +1,23 @@
 {
 	"stepMs": 100,
 	"maxResourceValue": 1e300,
-	"toy": {
-		"resource": "grain",
-		"initialGrowthPerTick": 1.5,
-		"lossChancePerMille": 20,
-		"maxLoss": 50
+	"economy": {
+		"ticksPerSeason": 600,
+		"seasonYield": { "autumn": 1, "spring": 1, "summer": 1.5, "winter": 0 },
+		"grainPerFarmer": 0.025,
+		"woodPerWorker": 0.02,
+		"orePerWorker": 0.01,
+		"grainPerPerson": 0.01,
+		"starvationHunger": 2,
+		"grainPrice": 0.5,
+		"grainPerPeasant": 30,
+		"maxPopulation": 40,
+		"laborMovesPerTick": 1,
+		"initialPopulation": 10,
+		"initialResources": { "coin": 0, "grain": 60, "ore": 0, "wood": 0 },
+		"laborAllocations": {
+			"balanced": { "farm": 0.5, "forest": 0.3, "mine": 0.2 },
+			"farming": { "farm": 0.7, "forest": 0.2, "mine": 0.1 }
+		}
 	}
 }

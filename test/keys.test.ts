@@ -1,31 +1,20 @@
 import { describe, expect, test } from "bun:test";
-import {
-	actionForKey,
-	KEY_HINTS,
-	type KeyPress,
-	RATE_KEY_STEP,
-} from "../src/tui/keys";
+import type { Job } from "../src/core/realm";
+import { actionForKey, KEY_HINTS, type KeyPress } from "../src/tui/keys";
 
 function key(name: string, modifiers: Partial<KeyPress> = {}): KeyPress {
 	return { name, ctrl: false, meta: false, shift: false, ...modifiers };
 }
 
 describe("actionForKey", () => {
-	test("plus raises the growth rate by the key step", () => {
-		expect(actionForKey(key("+"))).toEqual({
+	test.each<[string, Job]>([
+		["f", "farm"],
+		["w", "forest"],
+		["m", "mine"],
+	])("%s assigns one idle peasant to the %s", (name, job) => {
+		expect(actionForKey(key(name))).toEqual({
 			kind: "command",
-			command: { type: "adjustToyRate", delta: RATE_KEY_STEP },
-		});
-	});
-
-	test("equals behaves like plus", () => {
-		expect(actionForKey(key("="))).toEqual(actionForKey(key("+")));
-	});
-
-	test("minus lowers the growth rate by the key step", () => {
-		expect(actionForKey(key("-"))).toEqual({
-			kind: "command",
-			command: { type: "adjustToyRate", delta: -RATE_KEY_STEP },
+			command: { type: "assignWorker", job, delta: 1 },
 		});
 	});
 
@@ -35,14 +24,14 @@ describe("actionForKey", () => {
 	});
 
 	test("mutating a returned action does not change later results", () => {
-		const first = actionForKey(key("+"));
-		if (first?.kind === "command" && first.command.type === "adjustToyRate") {
+		const first = actionForKey(key("f"));
+		if (first?.kind === "command" && first.command.type === "assignWorker") {
 			first.command.delta = 99;
 		}
 
-		expect(actionForKey(key("+"))).toEqual({
+		expect(actionForKey(key("f"))).toEqual({
 			kind: "command",
-			command: { type: "adjustToyRate", delta: RATE_KEY_STEP },
+			command: { type: "assignWorker", job: "farm", delta: 1 },
 		});
 	});
 

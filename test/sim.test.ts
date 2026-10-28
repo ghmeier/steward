@@ -87,23 +87,24 @@ describe("runSim output", () => {
 		expect(summary.rejectedCommands).toHaveLength(1);
 		expect(summary.rejectedCommands[0]).toMatchObject({
 			tick: 2,
-			type: "setToyRate",
+			type: "assignWorker",
 		});
 	});
 });
 
 describe("runSim validation failure", () => {
 	test("exits with code 1 and names the failing tick", () => {
-		// With no cap, 1e308 per tick overflows to Infinity on the second tick.
+		// With no cap, one forester at 1e308 per tick overflows to Infinity on the second tick.
 		const overflowing = {
 			...tuning,
 			maxResourceValue: Number.POSITIVE_INFINITY,
-			toy: { ...tuning.toy, initialGrowthPerTick: 1e308 },
+			economy: { ...tuning.economy, woodPerWorker: 1e308 },
 		};
 
-		const { code, stdout, stderr } = run(["--seed", "1", "--steps", "10"], {
-			tuning: overflowing,
-		});
+		const { code, stdout, stderr } = run(
+			["--seed", "1", "--steps", "10", "--commands", foresterLog()],
+			{ tuning: overflowing },
+		);
 
 		const error = JSON.parse(stderr[0] as string) as {
 			type: string;
@@ -118,12 +119,23 @@ describe("runSim validation failure", () => {
 	});
 });
 
+function foresterLog(): string {
+	const path = join(mkdtempSync(join(tmpdir(), "steward-sim-")), "log.json");
+	writeFileSync(
+		path,
+		JSON.stringify([
+			{ tick: 1, command: { type: "assignWorker", job: "forest", delta: 1 } },
+		]),
+	);
+	return path;
+}
+
 function rejectingLog(): string {
 	const path = join(mkdtempSync(join(tmpdir(), "steward-sim-")), "log.json");
 	writeFileSync(
 		path,
 		JSON.stringify([
-			{ tick: 2, command: { type: "setToyRate", growthPerTick: -5 } },
+			{ tick: 2, command: { type: "assignWorker", job: "farm", delta: 5 } },
 		]),
 	);
 	return path;

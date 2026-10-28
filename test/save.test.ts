@@ -8,7 +8,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createNewGame, type GameState } from "../src/core/state";
+import {
+	createNewGame,
+	type GameState,
+	SCHEMA_VERSION,
+} from "../src/core/state";
 import { loadTuning } from "../src/save/content";
 import {
 	loadGame,
@@ -36,6 +40,7 @@ function awkwardState(): GameState {
 	const state = newState();
 	state.tick = 7;
 	state.posting.resources = {
+		...state.posting.resources,
 		grain: 0.1 + 0.2,
 		huge: 1e300,
 		tiny: 5e-324,
@@ -224,7 +229,7 @@ describe("invalid saves", () => {
 	});
 
 	test("a current-version save with a bad state reports invalid and is not renamed", () => {
-		const text = `${JSON.stringify({ schemaVersion: 1, savedAt: "x", contentHash: "y", state: { tick: -1 } })}\n`;
+		const text = `${JSON.stringify({ schemaVersion: SCHEMA_VERSION, savedAt: "x", contentHash: "y", state: { tick: -1 } })}\n`;
 		writeFileSync(join(dir, "save.json"), text);
 
 		const result = loadGame(dir);

@@ -25,7 +25,18 @@ function ledgerContent(view: GameView): string {
 		([name = "", amount = "", rate = ""]) =>
 			`${name.padEnd(widths[0] ?? 0)}  ${amount.padStart(widths[1] ?? 0)}  ${rate.padStart(widths[2] ?? 0)}`,
 	);
-	return [`Time  ${formatGameTime(view.elapsedSeconds)}`, ...lines].join("\n");
+	const { realm } = view;
+	const realmLines = [
+		`Population  ${realm.population} (${realm.idle} idle)`,
+		`Farm ${realm.labor.farm}  Forest ${realm.labor.forest}  Mine ${realm.labor.mine}`,
+		`Season  ${capitalize(realm.season)}`,
+	];
+	return [
+		`Time  ${formatGameTime(view.elapsedSeconds)}`,
+		...lines,
+		"",
+		...realmLines,
+	].join("\n");
 }
 
 function linesOrPlaceholder(lines: string[], placeholder: string): string {

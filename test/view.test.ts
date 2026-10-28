@@ -2,25 +2,30 @@ import { describe, expect, test } from "bun:test";
 import { createNewGame } from "../src/core/state";
 import { step } from "../src/core/step";
 import { computeView } from "../src/core/view";
-import { quietOptions, tuning } from "./helpers";
+import { quietOptions, economyTestTuning as tuning } from "./helpers";
 
 const oddStepTuning = { ...tuning, stepMs: 250 };
 
-function stateWithTwoResources() {
+function village() {
 	const state = createNewGame(1, tuning);
-	state.posting.resources.zeta = 7;
-	state.posting.resources.alpha = 3;
+	state.posting.economy.population = 12;
+	state.posting.economy.labor = { farm: 4, forest: 2, mine: 1 };
 	return state;
 }
 
 describe("computeView", () => {
 	test("lists every resource sorted by id with the state's amounts", () => {
-		const state = stateWithTwoResources();
+		const state = village();
+		state.posting.resources.wood = 7;
 
 		const view = computeView(state, tuning);
 
-		const ids = view.ledger.map((line) => line.resource);
-		expect(ids).toEqual(Object.keys(state.posting.resources).sort());
+		expect(view.ledger.map((line) => line.resource)).toEqual([
+			"coin",
+			"grain",
+			"ore",
+			"wood",
+		]);
 		for (const line of view.ledger) {
 			expect(line.amount).toBe(
 				state.posting.resources[line.resource] as number,
@@ -28,22 +33,34 @@ describe("computeView", () => {
 		}
 	});
 
-	test("gives the toy resource its steady rate per second and other resources zero", () => {
-		const state = stateWithTwoResources();
-		state.posting.toy.growthPerTick = 0.011;
+	test("derives ledger rates from production and upkeep alone", () => {
+		const state = village();
+		state.tick = 1;
 
 		const view = computeView(state, oddStepTuning);
 
-		const toy = view.ledger.find(
-			(line) => line.resource === tuning.toy.resource,
+		// Per tick in spring: grain 4 * 0.025 - 12 * 0.01, wood 2 * 0.02, ore 1 * 0.01; 4 ticks per second.
+		const rates = Object.fromEntries(
+			view.ledger.map((line) => [line.resource, line.ratePerSecond]),
 		);
-		const other = view.ledger.find(
-			(line) => line.resource !== tuning.toy.resource,
-		);
-		expect(toy?.ratePerSecond).toBe(
-			(state.posting.toy.growthPerTick * 1000) / oddStepTuning.stepMs,
-		);
-		expect(other?.ratePerSecond).toBe(0);
+		expect(rates.grain).toBeCloseTo((0.1 - 0.12) * 4, 12);
+		expect(rates.wood).toBeCloseTo(0.04 * 4, 12);
+		expect(rates.ore).toBeCloseTo(0.01 * 4, 12);
+		expect(rates.coin).toBe(0);
+	});
+
+	test("reports the realm's population, idle peasants, labor and season", () => {
+		const state = village();
+		state.tick = tuning.economy.ticksPerSeason + 1;
+
+		const view = computeView(state, tuning);
+
+		expect(view.realm).toEqual({
+			population: 12,
+			idle: 5,
+			labor: { farm: 4, forest: 2, mine: 1 },
+			season: "summer",
+		});
 	});
 
 	test("derives elapsed seconds from the tick and the step length", () => {
@@ -59,7 +76,7 @@ describe("computeView", () => {
 	});
 
 	test("leaves an earlier view unchanged when the state steps afterwards", () => {
-		const state = stateWithTwoResources();
+		const state = village();
 		const view = computeView(state, tuning);
 		const copy = structuredClone(view);
 
@@ -78,7 +95,7 @@ describe("computeView", () => {
 	});
 
 	test("produces plain JSON that survives a round trip unchanged", () => {
-		const view = computeView(stateWithTwoResources(), tuning);
+		const view = computeView(village(), tuning);
 
 		const roundTripped = JSON.parse(JSON.stringify(view));
 

@@ -4,9 +4,9 @@ import {
 	type CommandLogEntry,
 	type CommandResult,
 } from "./commands";
+import { runEconomy } from "./economy";
 import type { AbsorbedAdditionLog, AddContext } from "./math";
 import type { GameState } from "./state";
-import { runToySystem } from "./toy";
 import type { Tuning } from "./tuning";
 import { validateState } from "./validate";
 
@@ -21,11 +21,6 @@ export type StepObserver = (
 	commands: readonly Command[],
 	results: readonly CommandResult[],
 ) => void;
-
-const SYSTEMS: readonly {
-	name: string;
-	run: (state: GameState, tuning: Tuning, context: AddContext) => void;
-}[] = [{ name: "toy", run: runToySystem }];
 
 export function step(
 	state: GameState,
@@ -42,9 +37,8 @@ export function step(
 		maxValue: tuning.maxResourceValue,
 		absorbed: options.absorbed,
 	};
-	for (const system of SYSTEMS) {
-		system.run(state, tuning, context);
-	}
+	// Kept for the decree engine, which acts on these flows once it exists.
+	const _flows = runEconomy(state, tuning, context);
 
 	if (options.validate) {
 		const problems = validateState(state);

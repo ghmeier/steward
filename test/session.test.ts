@@ -6,7 +6,7 @@ import { stateHash } from "../src/save/hash";
 import { createSession } from "../src/tui/session";
 import { quietOptions, tuning } from "./helpers";
 
-const raiseByOne: Command = { type: "adjustToyRate", delta: 1 };
+const assignFarmer: Command = { type: "assignWorker", job: "farm", delta: 1 };
 
 function setup(maxStepsPerFrame?: number) {
 	let nowMs = 0;
@@ -71,31 +71,31 @@ describe("session frames", () => {
 describe("session commands", () => {
 	test("a command applies in the next step and is logged with that step's tick", () => {
 		const { state, session, advance } = setup();
-		const before = state.posting.toy.growthPerTick;
+		const before = state.posting.economy.labor.farm;
 
-		session.enqueue(raiseByOne);
-		expect(state.posting.toy.growthPerTick).toBe(before);
+		session.enqueue(assignFarmer);
+		expect(state.posting.economy.labor.farm).toBe(before);
 		advance(tuning.stepMs);
 
-		expect(state.posting.toy.growthPerTick).toBe(before + 1);
-		expect(session.commandLog).toEqual([{ tick: 1, command: raiseByOne }]);
+		expect(state.posting.economy.labor.farm).toBe(before + 1);
+		expect(session.commandLog).toEqual([{ tick: 1, command: assignFarmer }]);
 	});
 
 	test("a command enqueued before a zero-step frame stays queued for the next stepping frame", () => {
 		const { session, advance } = setup();
 
-		session.enqueue(raiseByOne);
+		session.enqueue(assignFarmer);
 		advance(1);
 		expect(session.commandLog).toEqual([]);
 		advance(tuning.stepMs);
 
-		expect(session.commandLog).toEqual([{ tick: 1, command: raiseByOne }]);
+		expect(session.commandLog).toEqual([{ tick: 1, command: assignFarmer }]);
 	});
 
 	test("in a multi-step frame only the first step receives queued commands", () => {
 		const { session, advance } = setup();
 
-		session.enqueue(raiseByOne);
+		session.enqueue(assignFarmer);
 		advance(3 * tuning.stepMs);
 
 		expect(session.commandLog.map((entry) => entry.tick)).toEqual([1]);
@@ -103,21 +103,30 @@ describe("session commands", () => {
 
 	test("a rejected command is reported with its tick and reason and still logged", () => {
 		const { session, advance } = setup();
-		const tooLow: Command = { type: "adjustToyRate", delta: -1e9 };
+		const unassignMissingMiner: Command = {
+			type: "assignWorker",
+			job: "mine",
+			delta: -1,
+		};
 
-		session.enqueue(tooLow);
+		session.enqueue(unassignMissingMiner);
 		const result = advance(tuning.stepMs);
 
 		expect(result.rejections).toHaveLength(1);
-		expect(result.rejections[0]).toMatchObject({ tick: 1, command: tooLow });
-		expect(result.rejections[0]?.reason).toContain("below 0");
-		expect(session.commandLog).toEqual([{ tick: 1, command: tooLow }]);
+		expect(result.rejections[0]).toMatchObject({
+			tick: 1,
+			command: unassignMissingMiner,
+		});
+		expect(result.rejections[0]?.reason).toContain("no peasants work the mine");
+		expect(session.commandLog).toEqual([
+			{ tick: 1, command: unassignMissingMiner },
+		]);
 	});
 
 	test("an accepted command produces no rejection", () => {
 		const { session, advance } = setup();
 
-		session.enqueue(raiseByOne);
+		session.enqueue(assignFarmer);
 
 		expect(advance(tuning.stepMs).rejections).toEqual([]);
 	});
@@ -148,11 +157,11 @@ describe("session replay", () => {
 	test("replaying the command log on a fresh clone reproduces the live state hash", () => {
 		const { state, initial, session, advance } = setup();
 		const script: [number, Command | null][] = [
-			[tuning.stepMs, { type: "adjustToyRate", delta: 2 }],
+			[tuning.stepMs, { type: "assignWorker", job: "farm", delta: 1 }],
 			[7 * tuning.stepMs, null],
-			[tuning.stepMs / 2, { type: "adjustToyRate", delta: -1e9 }],
-			[tuning.stepMs, { type: "setToyRate", growthPerTick: 0.75 }],
-			[40 * tuning.stepMs, { type: "adjustToyRate", delta: -0.25 }],
+			[tuning.stepMs / 2, { type: "assignWorker", job: "mine", delta: -1 }],
+			[tuning.stepMs, { type: "assignWorker", job: "forest", delta: 1 }],
+			[40 * tuning.stepMs, { type: "assignWorker", job: "farm", delta: -1 }],
 			[3 * tuning.stepMs, null],
 		];
 

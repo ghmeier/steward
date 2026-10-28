@@ -80,7 +80,7 @@ describe("stateHash", () => {
 		const state = createNewGame(3, tuning);
 		const reordered = {
 			posting: {
-				toy: state.posting.toy,
+				economy: state.posting.economy,
 				resources: state.posting.resources,
 				rng: state.posting.rng,
 				seed: state.posting.seed,

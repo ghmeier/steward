@@ -1,4 +1,5 @@
 import { isRecord, sortedKeys } from "./data";
+import { JOBS, RESOURCES } from "./realm";
 import { type GameState, SCHEMA_VERSION } from "./state";
 
 function isPlainObject(value: object): boolean {
@@ -67,6 +68,57 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 	return isRecord(value) && isPlainObject(value);
 }
 
+function isCount(value: unknown): value is number {
+	return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function checkEconomy(economy: unknown, problems: string[]): void {
+	if (!isPlainRecord(economy)) {
+		problems.push("$.posting.economy: must be an object");
+		return;
+	}
+	for (const key of ["population", "starved"]) {
+		if (!isCount(economy[key])) {
+			problems.push(
+				`$.posting.economy.${key}: must be a non-negative safe integer`,
+			);
+		}
+	}
+	for (const key of ["hunger", "growth"]) {
+		const value = economy[key];
+		if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+			problems.push(
+				`$.posting.economy.${key}: must be a non-negative finite number`,
+			);
+		}
+	}
+	const labor = economy.labor;
+	if (!isPlainRecord(labor)) {
+		problems.push("$.posting.economy.labor: must be an object");
+		return;
+	}
+	if (sortedKeys(labor).join(",") !== JOBS.join(",")) {
+		problems.push(
+			`$.posting.economy.labor: keys must be exactly ${JOBS.join(", ")}`,
+		);
+		return;
+	}
+	let working = 0;
+	for (const job of JOBS) {
+		const count = labor[job];
+		if (!isCount(count)) {
+			problems.push(
+				`$.posting.economy.labor.${job}: must be a non-negative safe integer`,
+			);
+		} else {
+			working += count;
+		}
+	}
+	if (isCount(economy.population) && working > economy.population) {
+		problems.push("$.posting.economy.labor: workers exceed population");
+	}
+}
+
 function checkStructure(state: unknown, problems: string[]): void {
 	if (!isPlainRecord(state)) {
 		problems.push("$: must be an object");
@@ -129,6 +181,11 @@ function checkStructure(state: unknown, problems: string[]): void {
 	if (!isPlainRecord(resources)) {
 		problems.push("$.posting.resources: must be an object");
 	} else {
+		for (const id of RESOURCES) {
+			if (!Object.hasOwn(resources, id)) {
+				problems.push(`$.posting.resources.${id}: is missing`);
+			}
+		}
 		for (const id of sortedKeys(resources)) {
 			const amount = resources[id];
 			if (typeof amount !== "number" || !Number.isFinite(amount)) {
@@ -137,15 +194,7 @@ function checkStructure(state: unknown, problems: string[]): void {
 		}
 	}
 
-	const toy = posting.toy;
-	if (!isPlainRecord(toy)) {
-		problems.push("$.posting.toy: must be an object");
-	} else if (
-		typeof toy.growthPerTick !== "number" ||
-		!Number.isFinite(toy.growthPerTick)
-	) {
-		problems.push("$.posting.toy.growthPerTick: must be a finite number");
-	}
+	checkEconomy(posting.economy, problems);
 }
 
 export function validateState(state: unknown): string[] {

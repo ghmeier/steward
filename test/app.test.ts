@@ -13,8 +13,6 @@ import { createNewGame, type GameState } from "../src/core/state";
 import { stateHash } from "../src/save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../src/save/save";
 import { type App, prepareStartup, startApp } from "../src/tui/app";
-import { formatRate } from "../src/tui/format";
-import { RATE_KEY_STEP } from "../src/tui/keys";
 import { tuning } from "./helpers";
 
 const NEVER_MS = 1e9;
@@ -167,33 +165,31 @@ describe("startApp", () => {
 		expect(screen).toContain("Started a new game.");
 	});
 
-	test("pressing + raises the growth rate shown after the next step", async () => {
+	test("pressing f puts an idle peasant on the farm, shown after the next step", async () => {
 		const harness = await launch();
-		const expected = formatRate(
-			((tuning.toy.initialGrowthPerTick + RATE_KEY_STEP) * 1000) /
-				tuning.stepMs,
-		);
+		const idle = tuning.economy.initialPopulation;
 
-		harness.mockInput.pressKey("+");
+		harness.mockInput.pressKey("f");
 		await harness.advanceStep();
 
-		expect(await harness.screen()).toContain(expected);
+		const screen = await harness.screen();
+		expect(screen).toContain(`Population  ${idle} (${idle - 1} idle)`);
+		expect(screen).toContain("Farm 1  Forest 0  Mine 0");
 	});
 
-	test("lowering the rate below zero shows the rejection reason in the footer", async () => {
+	test("assigning more peasants than are idle shows the rejection reason in the footer", async () => {
 		const harness = await launch();
-		const presses =
-			Math.floor(tuning.toy.initialGrowthPerTick / RATE_KEY_STEP) + 1;
+		const presses = tuning.economy.initialPopulation + 1;
 
-		for (let i = 0; i < presses; i++) harness.mockInput.pressKey("-");
+		for (let i = 0; i < presses; i++) harness.mockInput.pressKey("f");
 		await harness.advanceStep();
 
-		expect(await harness.screen()).toContain("growth rate cannot go below 0");
+		expect(await harness.screen()).toContain("no idle peasants");
 	});
 
 	test("pressing s saves the live state and says so", async () => {
 		const harness = await launch();
-		harness.mockInput.pressKey("+");
+		harness.mockInput.pressKey("f");
 		await harness.advanceStep();
 
 		harness.mockInput.pressKey("s");
@@ -216,7 +212,7 @@ describe("startApp", () => {
 	] as const) {
 		test(`pressing ${name} saves the current state and finishes the app`, async () => {
 			const harness = await launch();
-			harness.mockInput.pressKey("+");
+			harness.mockInput.pressKey("f");
 			await harness.advanceStep();
 
 			press(harness.mockInput);
@@ -230,7 +226,7 @@ describe("startApp", () => {
 
 	test("hangUp saves the live state without touching the renderer", async () => {
 		const harness = await launch();
-		harness.mockInput.pressKey("+");
+		harness.mockInput.pressKey("f");
 		await harness.advanceStep();
 
 		const exit = harness.app.hangUp();

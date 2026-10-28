@@ -1,10 +1,55 @@
 [
-	{ "tick": 10, "command": { "type": "setToyRate", "growthPerTick": 2.25 } },
+	{
+		"tick": 1,
+		"command": { "type": "assignWorker", "job": "farm", "delta": 1 }
+	},
+	{
+		"tick": 2,
+		"command": { "type": "assignWorker", "job": "farm", "delta": 1 }
+	},
+	{
+		"tick": 3,
+		"command": { "type": "assignWorker", "job": "farm", "delta": 1 }
+	},
+	{
+		"tick": 4,
+		"command": { "type": "assignWorker", "job": "farm", "delta": 1 }
+	},
+	{
+		"tick": 5,
+		"command": { "type": "assignWorker", "job": "farm", "delta": 1 }
+	},
+	{
+		"tick": 6,
+		"command": { "type": "assignWorker", "job": "farm", "delta": 1 }
+	},
+	{
+		"tick": 7,
+		"command": { "type": "assignWorker", "job": "farm", "delta": 1 }
+	},
+	{
+		"tick": 8,
+		"command": { "type": "assignWorker", "job": "forest", "delta": 1 }
+	},
+	{
+		"tick": 9,
+		"command": { "type": "assignWorker", "job": "forest", "delta": 1 }
+	},
+	{
+		"tick": 10,
+		"command": { "type": "assignWorker", "job": "mine", "delta": 1 }
+	},
+	{
+		"tick": 11,
+		"command": { "type": "assignWorker", "job": "farm", "delta": 1 }
+	},
 	{ "tick": 2500, "command": { "type": "noop" } },
-	{ "tick": 2500, "command": { "type": "setToyRate", "growthPerTick": 0.5 } },
-	{ "tick": 4999, "command": { "type": "setToyRate", "growthPerTick": 3 } },
-	{ "tick": 5000, "command": { "type": "setToyRate", "growthPerTick": 1.125 } },
-	{ "tick": 5001, "command": { "type": "setToyRate", "growthPerTick": 7.75 } },
-	{ "tick": 5002, "command": { "type": "noop" } },
-	{ "tick": 7500, "command": { "type": "setToyRate", "growthPerTick": 0.25 } }
+	{
+		"tick": 3000,
+		"command": { "type": "assignWorker", "job": "farm", "delta": -1 }
+	},
+	{
+		"tick": 3001,
+		"command": { "type": "assignWorker", "job": "forest", "delta": 1 }
+	}
 ]

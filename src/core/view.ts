@@ -1,4 +1,5 @@
-import { compareKeys } from "./data";
+import { idlePeasants, seasonAt, steadyRates } from "./economy";
+import { type Job, RESOURCES, type Season } from "./realm";
 import type { GameState, ResourceId } from "./state";
 import type { Tuning } from "./tuning";
 
@@ -14,6 +15,12 @@ export type GameView = {
 	tick: number;
 	elapsedSeconds: number;
 	ledger: LedgerLine[];
+	realm: {
+		population: number;
+		idle: number;
+		labor: Record<Job, number>;
+		season: Season;
+	};
 	desk: DeskEntryView[];
 	governors: GovernorView[];
 	crown: CrownDemandView | null;
@@ -23,20 +30,23 @@ export type GameView = {
 // unlock filtering are applied here in later phases, so the UI must never read
 // GameState directly.
 export function computeView(state: GameState, tuning: Tuning): GameView {
-	const ledger: LedgerLine[] = Object.entries(state.posting.resources)
-		.sort(([a], [b]) => compareKeys(a, b))
-		.map(([resource, amount]) => ({
-			resource,
-			amount,
-			ratePerSecond:
-				resource === tuning.toy.resource
-					? (state.posting.toy.growthPerTick * 1000) / tuning.stepMs
-					: 0,
-		}));
+	const rates = steadyRates(state, tuning);
+	const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
+		resource,
+		amount: state.posting.resources[resource] ?? 0,
+		ratePerSecond: (rates[resource] * 1000) / tuning.stepMs,
+	}));
+	const economy = state.posting.economy;
 	return {
 		tick: state.tick,
 		elapsedSeconds: (state.tick * tuning.stepMs) / 1000,
 		ledger,
+		realm: {
+			population: economy.population,
+			idle: idlePeasants(economy),
+			labor: { ...economy.labor },
+			season: seasonAt(state.tick, tuning.economy.ticksPerSeason),
+		},
 		desk: [],
 		governors: [],
 		crown: null,
