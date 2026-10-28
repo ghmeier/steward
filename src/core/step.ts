@@ -1,0 +1,78 @@
+import {
+	apply,
+	type Command,
+	type CommandLogEntry,
+	type CommandResult,
+} from "./commands";
+import type { AbsorbedAdditionLog, AddContext } from "./math";
+import type { GameState } from "./state";
+import { runToySystem } from "./toy";
+import type { Tuning } from "./tuning";
+import { validateState } from "./validate";
+
+export type StepOptions = {
+	absorbed: AbsorbedAdditionLog | null;
+	validate: boolean;
+};
+
+export const SYSTEMS: readonly {
+	name: string;
+	run: (state: GameState, tuning: Tuning, context: AddContext) => void;
+}[] = [{ name: "toy", run: runToySystem }];
+
+export function step(
+	state: GameState,
+	commands: readonly Command[],
+	tuning: Tuning,
+	options: StepOptions,
+): CommandResult[] {
+	state.tick += 1;
+
+	const results = commands.map((command) => apply(state, command, tuning));
+
+	const context: AddContext = {
+		tick: state.tick,
+		maxValue: tuning.maxResourceValue,
+		absorbed: options.absorbed,
+	};
+	for (const system of SYSTEMS) {
+		system.run(state, tuning, context);
+	}
+
+	if (options.validate) {
+		const problems = validateState(state);
+		if (problems.length > 0) {
+			throw new Error(
+				`state invalid at tick ${state.tick}: ${problems.join("; ")}`,
+			);
+		}
+	}
+	return results;
+}
+
+export function runSteps(
+	state: GameState,
+	count: number,
+	tuning: Tuning,
+	log: readonly CommandLogEntry[],
+	options: StepOptions,
+): void {
+	let cursor = 0;
+	// Entries for ticks already produced (resuming from a later state) must not be reapplied.
+	while (cursor < log.length && (log[cursor]?.tick ?? 0) <= state.tick) {
+		cursor += 1;
+	}
+	for (let i = 0; i < count; i++) {
+		const nextTick = state.tick + 1;
+		const commands: Command[] = [];
+		for (
+			let entry = log[cursor];
+			entry !== undefined && entry.tick === nextTick;
+			entry = log[cursor]
+		) {
+			commands.push(entry.command);
+			cursor += 1;
+		}
+		step(state, commands, tuning, options);
+	}
+}
