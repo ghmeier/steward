@@ -43,6 +43,59 @@ const forbiddenGlobals: Record<string, string> = {
 	require: "the core imports only from src/core/",
 };
 
+const bannedMathMembers = [
+	"pow",
+	"log",
+	"log2",
+	"log10",
+	"log1p",
+	"exp",
+	"expm1",
+	"sin",
+	"cos",
+	"tan",
+	"asin",
+	"acos",
+	"atan",
+	"atan2",
+	"sinh",
+	"cosh",
+	"tanh",
+	"asinh",
+	"acosh",
+	"atanh",
+	"cbrt",
+	"hypot",
+];
+
+function bannedMathReason(member: string): string {
+	return member === "pow"
+		? "use powInt from src/core/math.ts"
+		: "implementation-defined results break replay determinism";
+}
+
+function findBannedMath(code: string): string[] {
+	return bannedMathMembers
+		.filter((member) =>
+			new RegExp(`(?<![\\w.$])Math\\s*\\.\\s*${member}(?![\\w$])`).test(code),
+		)
+		.map((member) => `Math.${member}: ${bannedMathReason(member)}`);
+}
+
+function findExponentOperator(code: string): string[] {
+	return /\*\*/.test(code) ? ["**: use powInt from src/core/math.ts"] : [];
+}
+
+// Matches `resources[id] += x`, `resources.food -= 1` and `a.b.resources["x"] += 1`
+// (strings are already stripped to "" by the time this runs).
+function findDirectResourceMutation(code: string): string[] {
+	return /(?<![\w$])resources\s*(?:\.\s*[\w$]+|\[[^\]]*\])\s*[+-]=(?!=)/.test(
+		code,
+	)
+		? ["+=/-= on a resource: use add() so absorbed additions are recorded"]
+		: [];
+}
+
 const files = coreSourceFiles(coreDir);
 
 describe("src/core boundary", () => {
@@ -78,6 +131,33 @@ describe("src/core boundary", () => {
 		},
 	);
 
+	test.each(files.map((file) => [relative(coreDir, file), file]))(
+		"%s uses no banned Math members",
+		(_name, file) => {
+			const code = stripCommentsAndStrings(readFileSync(file, "utf8"));
+
+			expect(findBannedMath(code)).toEqual([]);
+		},
+	);
+
+	test.each(files.map((file) => [relative(coreDir, file), file]))(
+		"%s does not use the ** operator",
+		(_name, file) => {
+			const code = stripCommentsAndStrings(readFileSync(file, "utf8"));
+
+			expect(findExponentOperator(code)).toEqual([]);
+		},
+	);
+
+	test.each(files.map((file) => [relative(coreDir, file), file]))(
+		"%s changes resources only through add()",
+		(_name, file) => {
+			const code = stripCommentsAndStrings(readFileSync(file, "utf8"));
+
+			expect(findDirectResourceMutation(code)).toEqual([]);
+		},
+	);
+
 	test("the scan finds forbidden imports and globals", () => {
 		const code = stripCommentsAndStrings(
 			'import { x } from "node:fs";\nconst t = Date.now(); // Math.random\n',
@@ -88,5 +168,59 @@ describe("src/core boundary", () => {
 		]);
 		expect(/(?<![\w.$])Date(?![\w$])/.test(code)).toBe(true);
 		expect(/(?<![\w.$])Math\s*\.\s*random(?![\w$])/.test(code)).toBe(false);
+	});
+
+	test("the math scan catches banned members and names powInt for pow", () => {
+		for (const member of bannedMathMembers) {
+			const code = stripCommentsAndStrings(`const x = Math.${member}(2, 3);`);
+
+			expect(findBannedMath(code)).toHaveLength(1);
+		}
+		const powCode = stripCommentsAndStrings("Math.pow(2, 3)");
+
+		expect(findBannedMath(powCode)[0]).toContain("powInt");
+	});
+
+	test("the math scan ignores banned members in comments and strings", () => {
+		const code = stripCommentsAndStrings(
+			'// Math.pow(2, 3)\n/* Math.log(1) */\nconst s = "Math.exp(1)";\nMath.floor(1.5); Math.max(1, 2);',
+		);
+
+		expect(findBannedMath(code)).toEqual([]);
+	});
+
+	test("the exponent scan catches ** and **= but ignores comments and strings", () => {
+		const caught = ["const x = a ** 2;", "x **= 2;"].map(
+			(sample) => findExponentOperator(stripCommentsAndStrings(sample)).length,
+		);
+		const ignored = stripCommentsAndStrings(
+			'/** doc */\n// a ** b\nconst s = "a ** b";\nconst y = a * b;',
+		);
+
+		expect(caught).toEqual([1, 1]);
+		expect(findExponentOperator(ignored)).toEqual([]);
+		expect(
+			findExponentOperator(stripCommentsAndStrings("x ** 2"))[0],
+		).toContain("powInt");
+	});
+
+	test("the resource scan catches direct += and -= but ignores comments and strings", () => {
+		const samples = [
+			"resources[id] += x;",
+			"resources.food -= 1;",
+			'state.posting.resources["x"] += 1;',
+		];
+		const ignored = stripCommentsAndStrings(
+			'// resources.food += 1\nconst s = "resources.food += 1";\nresources[id] = 5;\nif (resources.food >= 1) {}',
+		);
+
+		for (const sample of samples) {
+			expect(
+				findDirectResourceMutation(stripCommentsAndStrings(sample)),
+			).toEqual([
+				"+=/-= on a resource: use add() so absorbed additions are recorded",
+			]);
+		}
+		expect(findDirectResourceMutation(ignored)).toEqual([]);
 	});
 });
