@@ -1,9 +1,11 @@
 import { BoxRenderable, type CliRenderer, TextRenderable } from "@opentui/core";
 import type { GameView } from "../core/view";
 import { formatAmount, formatGameTime, formatRate } from "./format";
+import type { MenuRender } from "./menu";
 
 export type Panels = {
 	update(view: GameView, footer: string, selectedId: number | null): void;
+	showMenu(menu: MenuRender | null): void;
 };
 
 const CROWN_PLACEHOLDER = "The crown demands nothing, for now.";
@@ -111,7 +113,22 @@ export function createPanels(renderer: CliRenderer): Panels {
 		height: 1,
 		flexShrink: 0,
 	});
+	// Replaces the grid rather than floating over it, so the menu never fights panel layout.
+	const menuBox = new BoxRenderable(renderer, {
+		id: "menu",
+		border: true,
+		flexGrow: 1,
+		paddingLeft: 1,
+		paddingRight: 1,
+		visible: false,
+	});
+	const menuText = new TextRenderable(renderer, {
+		id: "menu-text",
+		content: "",
+	});
+	menuBox.add(menuText);
 	container.add(grid);
+	container.add(menuBox);
 	container.add(footer);
 	renderer.root.add(container);
 
@@ -128,6 +145,13 @@ export function createPanels(renderer: CliRenderer): Panels {
 				PEASANTS_PLACEHOLDER,
 			);
 			footer.content = footerText;
+		},
+		showMenu(menu) {
+			grid.visible = menu === null;
+			menuBox.visible = menu !== null;
+			if (menu === null) return;
+			menuBox.title = menu.title;
+			menuText.content = menu.lines.join("\n");
 		},
 	};
 }

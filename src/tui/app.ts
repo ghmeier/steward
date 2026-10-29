@@ -4,7 +4,9 @@ import { createNewGame, type GameState } from "../core/state";
 import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
 import { type Cursor, moveCursor, reconcileCursor } from "./cursor";
-import { actionForKey, KEY_HINTS } from "./keys";
+import { decreeMenu } from "./decree-menu";
+import { actionForKey, isInterrupt, KEY_HINTS } from "./keys";
+import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
 import { createPanels } from "./panels";
 import { createSession } from "./session";
 
@@ -75,13 +77,20 @@ export function startApp(options: {
 	let footer = "";
 	let cursor: Cursor | null = reconcileCursor(session.view().delegates, null);
 
-	const composeFooter = () =>
-		message === null ? HINTS_TEXT : `${HINTS_TEXT}  ${message}`;
+	let menu: MenuState | null = null;
+
+	const menuContext = () => ({ view: session.view(), tuning });
+	const composeFooter = () => {
+		const hints =
+			menu === null ? HINTS_TEXT : renderMenu(menu, menuContext()).hints;
+		return message === null ? hints : `${hints}  ${message}`;
+	};
 	const redraw = () => {
 		footer = composeFooter();
 		const view = session.view();
 		cursor = reconcileCursor(view.delegates, cursor);
 		panels.update(view, footer, cursor?.id ?? null);
+		panels.showMenu(menu === null ? null : renderMenu(menu, menuContext()));
 		renderer.requestRender();
 	};
 
@@ -111,8 +120,20 @@ export function startApp(options: {
 		resolveDone = resolve;
 	});
 	const onKeyPress = (key: KeyEvent) => {
+		if (menu !== null && !isInterrupt(key)) {
+			const result = menuKey(menu, key, menuContext());
+			menu = result.state;
+			for (const command of result.commands) session.enqueue(command);
+			redraw();
+			return;
+		}
 		const action = actionForKey(key);
 		if (action === null) return;
+		if (action.kind === "decrees") {
+			menu = openMenu(decreeMenu);
+			redraw();
+			return;
+		}
 		if (action.kind === "move") {
 			cursor = moveCursor(session.view().delegates, cursor, action.delta);
 			redraw();

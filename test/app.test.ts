@@ -36,13 +36,18 @@ function savedHash(dir: string): string {
 }
 
 async function launch(
-	options: { saveDir?: string; notice?: string | null } = {},
+	options: {
+		saveDir?: string;
+		notice?: string | null;
+		kittyKeyboard?: boolean;
+	} = {},
 ) {
 	const saveDir = options.saveDir ?? tempDir();
 	const setup = await createTestRenderer({
 		width: 120,
 		height: 30,
 		exitOnCtrlC: false,
+		kittyKeyboard: options.kittyKeyboard ?? false,
 	});
 	const state: GameState = createNewGame(5, tuning);
 	let nowMs = 0;
@@ -336,5 +341,64 @@ describe("startApp", () => {
 		await harness.advanceStep();
 
 		expect(harness.renders()).toBeGreaterThan(before);
+	});
+});
+
+describe("decree menu in the app", () => {
+	test("d opens the decree menu in place of the panel grid", async () => {
+		const harness = await launch();
+
+		harness.mockInput.pressKey("d");
+
+		const screen = await harness.screen();
+		expect(screen).toContain("Decrees");
+		expect(screen).toContain("Enact harvest decree");
+		expect(screen).not.toContain("Ledger");
+	});
+
+	test("game keys do nothing while the menu is open", async () => {
+		const harness = await launch();
+		harness.mockInput.pressKey("d");
+
+		harness.mockInput.pressKey("f");
+		await harness.advanceStep();
+
+		expect(harness.state.posting.delegates.every((p) => p.job === "idle")).toBe(
+			true,
+		);
+	});
+
+	test("escape closes the menu and brings the panels back", async () => {
+		const harness = await launch({ kittyKeyboard: true });
+		harness.mockInput.pressKey("d");
+
+		harness.mockInput.pressEscape();
+
+		expect(await harness.screen()).toContain("Ledger");
+	});
+
+	test("a decree enacted from the menu reaches the game state through the session", async () => {
+		const harness = await launch();
+		harness.mockInput.pressKey("d");
+
+		harness.mockInput.pressEnter();
+		harness.mockInput.pressKey("j");
+		harness.mockInput.pressKey("j");
+		harness.mockInput.pressKey("j");
+		harness.mockInput.pressEnter();
+		await harness.advanceStep();
+
+		expect(Object.keys(harness.state.posting.decrees)).toEqual(["harvest"]);
+		expect(await harness.screen()).toContain("Ledger");
+	});
+
+	test("ctrl-c still quits with the menu open", async () => {
+		const harness = await launch();
+		harness.mockInput.pressKey("d");
+
+		harness.mockInput.pressCtrlC();
+		await harness.app.done;
+
+		expect(harness.destroyCalls()).toBe(1);
 	});
 });
