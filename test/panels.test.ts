@@ -45,6 +45,8 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
 		desk: [],
 		governors: [],
 		crown: null,
+		promotion: { target: 20, promotedAt: 0, promotedAtSeconds: 0 },
+		lockedPanels: [],
 		...overrides,
 	};
 }
@@ -158,7 +160,14 @@ describe("createPanels placeholders", () => {
 	test("shows entries instead of placeholders when present", async () => {
 		const view = emptyView({
 			crown: { label: "Tribute due" },
-			desk: [{ id: 1, label: "Sign the decree", options: [] }],
+			desk: [
+				{
+					id: 1,
+					label: "Sign the decree",
+					parties: ["Ada", "Bram"],
+					options: [],
+				},
+			],
 			delegates: [{ id: 3, name: "Ada", job: "farm", grudgeTicks: 0 }],
 		});
 
@@ -187,5 +196,107 @@ describe("createPanels peasants", () => {
 		expect(frame).toMatch(/ {2}Ada {2}farm/);
 		expect(frame).toMatch(/> Bram {2}idle \(grudge\)/);
 		expect(frame).not.toMatch(/> Ada/);
+	});
+});
+
+describe("createPanels locked panels", () => {
+	test("a locked panel keeps its title but reads Locked. in place of its content", async () => {
+		const view = emptyView({
+			lockedPanels: ["crown"],
+			crown: { label: "Tribute due" },
+		});
+
+		const frame = await draw([view], "");
+
+		expect(frame).toContain("Crown");
+		expect(frame).toContain("Locked.");
+		expect(frame).not.toContain("Tribute due");
+		expect(frame).not.toContain("The crown demands nothing");
+	});
+
+	test("panels that are not locked show their content", async () => {
+		const frame = await draw([emptyView()], "");
+
+		expect(frame).not.toContain("Locked.");
+		expect(frame).toContain("The crown demands nothing, for now.");
+	});
+});
+
+describe("createPanels promotion", () => {
+	test("before promotion the ledger shows progress toward the target", async () => {
+		const view = emptyView({
+			promotion: { target: 20, promotedAt: 0, promotedAtSeconds: 0 },
+			realm: {
+				population: 14,
+				idle: 0,
+				labor: { farm: 14, forest: 0, mine: 0 },
+				season: "spring",
+			},
+		});
+
+		const frame = await draw([view], "");
+
+		expect(frame).toContain("Promotion  14 / 20 peasants");
+		expect(frame).not.toContain("Promoted to steward");
+	});
+
+	test("after promotion the ledger names the game time of the promotion", async () => {
+		const view = emptyView({
+			promotion: { target: 20, promotedAt: 1200, promotedAtSeconds: 120 },
+		});
+
+		const frame = await draw([view], "");
+
+		expect(frame).toContain(`Promoted to steward on ${formatGameTime(120)}`);
+		expect(frame).not.toContain("Promotion  ");
+	});
+});
+
+describe("createPanels desk hint", () => {
+	test("the court hint appears when a dispute waits", async () => {
+		const view = emptyView({
+			desk: [
+				{ id: 1, label: "A squabble", parties: ["Ada", "Bram"], options: [] },
+			],
+		});
+
+		const frame = await draw([view], "");
+
+		expect(frame).toContain("A squabble");
+		expect(frame).toContain("Press c to hold court.");
+	});
+
+	test("the court hint is absent when the desk is clear", async () => {
+		const frame = await draw([emptyView()], "");
+
+		expect(frame).toContain("The desk is clear.");
+		expect(frame).not.toContain("Press c to hold court.");
+	});
+});
+
+describe("createPanels peasant scrolling", () => {
+	const crowd = emptyView({
+		delegates: Array.from({ length: 40 }, (_, index) => ({
+			id: index + 1,
+			name: `Peasant${index + 1}`,
+			job: "idle" as const,
+			grudgeTicks: 0,
+		})),
+	});
+
+	test("a selected peasant far down the list is drawn with the hidden counts", async () => {
+		const frame = await draw([crowd], "", { width: 100, height: 30 }, 30);
+
+		expect(frame).toContain("> Peasant30  idle");
+		expect(frame).toMatch(/↑ \d+ more/);
+		expect(frame).toMatch(/↓ \d+ more/);
+	});
+
+	test("the first peasant shows no above-line", async () => {
+		const frame = await draw([crowd], "", { width: 100, height: 30 }, 1);
+
+		expect(frame).toContain("> Peasant1  idle");
+		expect(frame).not.toContain("↑");
+		expect(frame).toMatch(/↓ \d+ more/);
 	});
 });

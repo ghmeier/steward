@@ -2,8 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createNewGame } from "../src/core/state";
+import { runSteps } from "../src/core/step";
 import { runSim } from "../src/runner/sim";
-import type { StrategyStats } from "../src/runner/strategy";
+import {
+	createStrategyPlayer,
+	parseStrategy,
+	type StrategyStats,
+} from "../src/runner/strategy";
 import { tuning } from "./helpers";
 
 const STEPS = "24000";
@@ -87,5 +93,43 @@ describe("scripted strategies over ten game years", () => {
 
 		expect(readFileSync(record, "utf8")).toContain("enactDecree");
 		expect(replayed.hash).toBe(played.hash);
+	});
+});
+
+describe("promotion under the reference strategy", () => {
+	test("reference is promoted within ten years at the first tick the village reaches the target, and stays promoted", () => {
+		const strategy = parseStrategy(
+			JSON.parse(readFileSync("strategies/reference.json", "utf8")),
+			tuning.decrees,
+		);
+		const player = createStrategyPlayer(strategy);
+		const state = createNewGame(1, tuning);
+		let firstAtTarget = 0;
+		let unpromotedAfter = false;
+
+		runSteps(
+			state,
+			24000,
+			tuning,
+			[],
+			{ absorbed: null, validate: false },
+			() => {
+				if (
+					firstAtTarget === 0 &&
+					state.posting.delegates.length >= tuning.village.promotionPopulation
+				) {
+					firstAtTarget = state.tick;
+				}
+				if (firstAtTarget > 0 && state.career.promotedAt === 0) {
+					unpromotedAfter = true;
+				}
+				player.observe(state, tuning);
+			},
+			player.next,
+		);
+
+		expect(state.career.promotedAt).toBeGreaterThan(0);
+		expect(state.career.promotedAt).toBe(firstAtTarget);
+		expect(unpromotedAfter).toBe(false);
 	});
 });

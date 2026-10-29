@@ -1,4 +1,4 @@
-import { compareKeys } from "./data";
+import { compareKeys, sortedKeys } from "./data";
 import type { Decree } from "./decree";
 import { idleCount, laborCounts } from "./delegates";
 import { fillNames, shortfall, templateOf } from "./desk";
@@ -17,10 +17,16 @@ export type DeskOptionView = {
 	label: string;
 	affordable: boolean;
 	expiry: boolean;
+	/** Resource deltas, keys sorted. */
+	resources: Record<string, number>;
+	/** Which party will sulk if this option is chosen. */
+	grudge: "first" | "second" | "none";
 };
 export type DeskEntryView = {
 	id: number;
 	label: string;
+	/** Names of the two parties, so an option's grudge can be shown by name. */
+	parties: [string, string];
 	options: DeskOptionView[];
 };
 export type GovernorView = { id: string; name: string };
@@ -30,6 +36,7 @@ export type DelegateView = {
 	job: Job | "idle";
 	grudgeTicks: number;
 };
+export type PanelId = "crown" | "desk" | "ledger" | "peasants";
 export type CrownDemandView = { label: string };
 export type GameView = {
 	tick: number;
@@ -46,7 +53,13 @@ export type GameView = {
 	desk: DeskEntryView[];
 	governors: GovernorView[];
 	crown: CrownDemandView | null;
+	promotion: { target: number; promotedAt: number; promotedAtSeconds: number };
+	lockedPanels: PanelId[];
 };
+
+// The village answers to no crown until promotion is acted on in phase 8; phase 5 moves this list
+// into the unlock registry.
+const LOCKED_PANELS: readonly PanelId[] = ["crown"];
 
 // The view is plain truth only in phase 2. Illusion, governor exaggeration and
 // unlock filtering are applied here in later phases, so the UI must never read
@@ -81,6 +94,12 @@ export function computeView(state: GameState, tuning: Tuning): GameView {
 		desk: deskView(state, tuning),
 		governors: [],
 		crown: null,
+		promotion: {
+			target: tuning.village.promotionPopulation,
+			promotedAt: state.career.promotedAt,
+			promotedAtSeconds: (state.career.promotedAt * tuning.stepMs) / 1000,
+		},
+		lockedPanels: [...LOCKED_PANELS],
 	};
 }
 
@@ -99,12 +118,21 @@ function deskView(state: GameState, tuning: Tuning): DeskEntryView[] {
 		return {
 			id: dispute.id,
 			label: fillNames(template.text, first, second),
+			parties: [first, second],
 			options: template.options.map((option) => ({
 				id: option.id,
 				label: fillNames(option.label, first, second),
 				affordable: shortfall(state, option) === null,
 				expiry: option.id === template.expiry,
+				resources: sortedResources(option.resources ?? {}),
+				grudge: option.grudge ?? "none",
 			})),
 		};
 	});
+}
+
+function sortedResources(resources: Record<string, number>) {
+	const sorted: Record<string, number> = {};
+	for (const key of sortedKeys(resources)) sorted[key] = resources[key] ?? 0;
+	return sorted;
 }

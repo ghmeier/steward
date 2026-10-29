@@ -61,6 +61,7 @@
 		"Godwin"
 	],
 	"deskSlots": 3,
+	"promotionPopulation": 20,
 	"disputeArrival": {
 		"minTicks": 900,
 		"maxTicks": 1800

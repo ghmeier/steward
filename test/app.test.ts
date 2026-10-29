@@ -9,6 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createTestRenderer } from "@opentui/core/testing";
+import { bearPeasant } from "../src/core/delegates";
 import { createNewGame, type GameState } from "../src/core/state";
 import { stateHash } from "../src/save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../src/save/save";
@@ -40,6 +41,7 @@ async function launch(
 		saveDir?: string;
 		notice?: string | null;
 		kittyKeyboard?: boolean;
+		state?: GameState;
 	} = {},
 ) {
 	const saveDir = options.saveDir ?? tempDir();
@@ -49,7 +51,7 @@ async function launch(
 		exitOnCtrlC: false,
 		kittyKeyboard: options.kittyKeyboard ?? false,
 	});
-	const state: GameState = createNewGame(5, tuning);
+	const state: GameState = options.state ?? createNewGame(5, tuning);
 	let nowMs = 0;
 	const app = startApp({
 		renderer: setup.renderer,
@@ -400,5 +402,82 @@ describe("decree menu in the app", () => {
 		await harness.app.done;
 
 		expect(harness.destroyCalls()).toBe(1);
+	});
+});
+
+function holdHenDispute(state: GameState): void {
+	state.posting.desk.disputes = [
+		{ id: 1, template: "stolen-hen", parties: [1, 2], arrivedAt: 0 },
+	];
+	state.posting.desk.nextDisputeId = 2;
+}
+
+describe("court menu in the app", () => {
+	test("c opens the court menu listing the waiting dispute", async () => {
+		const harness = await launch();
+		holdHenDispute(harness.state);
+		await harness.advanceStep();
+
+		harness.mockInput.pressKey("c");
+
+		const screen = await harness.screen();
+		expect(screen).toContain("Hold court");
+		expect(screen).toContain("accuses");
+		expect(screen).not.toContain("Ledger");
+	});
+
+	test("settling a dispute through the menu removes it from the game state", async () => {
+		const harness = await launch();
+		holdHenDispute(harness.state);
+		await harness.advanceStep();
+
+		harness.mockInput.pressKey("c");
+		harness.mockInput.pressEnter();
+		harness.mockInput.pressKey("j");
+		harness.mockInput.pressKey("j");
+		harness.mockInput.pressEnter();
+		await harness.advanceStep();
+
+		expect(harness.state.posting.desk.disputes).toEqual([]);
+		expect(await harness.screen()).toContain("No disputes wait on the desk.");
+	});
+});
+
+describe("promotion notice in the app", () => {
+	const notice = "The crown has noticed you. You are promoted to steward.";
+
+	function nearlyPromoted(): GameState {
+		const state = createNewGame(5, tuning);
+		while (
+			state.posting.delegates.length < tuning.village.promotionPopulation
+		) {
+			bearPeasant(state.posting, tuning.village.names);
+		}
+		return state;
+	}
+
+	test("promotion during the session is announced once", async () => {
+		const harness = await launch({ state: nearlyPromoted() });
+
+		await harness.advanceStep();
+		const announced = await harness.screen();
+		harness.mockInput.pressKey("s");
+		await harness.advanceStep();
+		await harness.advanceStep();
+		const later = await harness.screen();
+
+		expect(announced).toContain(notice);
+		expect(later).not.toContain(notice);
+	});
+
+	test("a loaded save that was already promoted is not announced", async () => {
+		const state = nearlyPromoted();
+		state.tick = 5;
+		state.career.promotedAt = 3;
+		const harness = await launch({ state });
+
+		await harness.advanceStep();
+
+		expect(await harness.screen()).not.toContain(notice);
 	});
 });

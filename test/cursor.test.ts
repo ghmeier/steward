@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { moveCursor, reconcileCursor } from "../src/tui/cursor";
+import { moveCursor, reconcileCursor, rowWindow } from "../src/tui/cursor";
 
 const rows = (...ids: number[]) => ids.map((id) => ({ id }));
 
@@ -68,5 +68,41 @@ describe("moveCursor", () => {
 
 	test("returns null with no rows", () => {
 		expect(moveCursor([], null, 1)).toBeNull();
+	});
+});
+
+describe("rowWindow", () => {
+	test("shows every row with no more-lines when they all fit", () => {
+		expect(rowWindow(5, 2, 8)).toEqual({ start: 0, end: 5 });
+	});
+
+	test("at the top the window starts at row 0 and leaves room for one below-line", () => {
+		const { start, end } = rowWindow(40, 0, 10);
+
+		expect(start).toBe(0);
+		expect(end).toBe(9);
+		expect(40 - end).toBe(31);
+	});
+
+	test("at the bottom the window ends at the last row and leaves room for one above-line", () => {
+		const { start, end } = rowWindow(40, 39, 10);
+
+		expect(end).toBe(40);
+		expect(start).toBe(31);
+	});
+
+	test("every cursor position stays inside a window that fits the height and the rows", () => {
+		for (const total of [11, 19, 40]) {
+			for (let cursor = 0; cursor < total; cursor++) {
+				const { start, end } = rowWindow(total, cursor, 10);
+				const lines = end - start + (start > 0 ? 1 : 0) + (end < total ? 1 : 0);
+
+				expect(start).toBeGreaterThanOrEqual(0);
+				expect(end).toBeLessThanOrEqual(total);
+				expect(cursor).toBeGreaterThanOrEqual(start);
+				expect(cursor).toBeLessThan(end);
+				expect(lines).toBeLessThanOrEqual(10);
+			}
+		}
 	});
 });

@@ -1,5 +1,6 @@
 import { BoxRenderable, type CliRenderer, TextRenderable } from "@opentui/core";
-import type { GameView } from "../core/view";
+import type { GameView, PanelId } from "../core/view";
+import { rowWindow } from "./cursor";
 import { formatAmount, formatGameTime, formatRate } from "./format";
 import type { MenuRender } from "./menu";
 
@@ -9,11 +10,27 @@ export type Panels = {
 };
 
 const CROWN_PLACEHOLDER = "The crown demands nothing, for now.";
+const FOOTER_LINES = 2;
+const LOCKED_BODY = "Locked.";
+const COURT_HINT = "Press c to hold court.";
 const DESK_PLACEHOLDER = "The desk is clear.";
 const PEASANTS_PLACEHOLDER = "No peasants live here.";
 
 function capitalize(id: string): string {
 	return id.charAt(0).toUpperCase() + id.slice(1);
+}
+
+function promotionLine(view: GameView): string {
+	const { target, promotedAt, promotedAtSeconds } = view.promotion;
+	if (promotedAt > 0) {
+		return `Promoted to steward on ${formatGameTime(promotedAtSeconds)}`;
+	}
+	return `Promotion  ${view.realm.population} / ${target} peasants`;
+}
+
+function deskLines(view: GameView): string[] {
+	if (view.desk.length === 0) return [];
+	return [...view.desk.map((entry) => entry.label), "", COURT_HINT];
 }
 
 function ledgerContent(view: GameView): string {
@@ -34,6 +51,7 @@ function ledgerContent(view: GameView): string {
 		`Population  ${realm.population} (${realm.idle} idle)`,
 		`Farm ${realm.labor.farm}  Forest ${realm.labor.forest}  Mine ${realm.labor.mine}`,
 		`Season  ${capitalize(realm.season)}`,
+		promotionLine(view),
 	];
 	return [
 		`Time  ${formatGameTime(view.elapsedSeconds)}`,
@@ -46,12 +64,21 @@ function ledgerContent(view: GameView): string {
 export function peasantLines(
 	view: GameView,
 	selectedId: number | null,
+	height = Number.POSITIVE_INFINITY,
 ): string[] {
-	return view.delegates.map((delegate) => {
+	const rows = view.delegates.map((delegate) => {
 		const cursor = delegate.id === selectedId ? ">" : " ";
 		const grudge = delegate.grudgeTicks > 0 ? " (grudge)" : "";
 		return `${cursor} ${delegate.name}  ${delegate.job}${grudge}`;
 	});
+	const selected = view.delegates.findIndex(
+		(delegate) => delegate.id === selectedId,
+	);
+	const { start, end } = rowWindow(rows.length, selected, height);
+	const lines = rows.slice(start, end);
+	if (start > 0) lines.unshift(`\u2191 ${start} more`);
+	if (end < rows.length) lines.push(`\u2193 ${rows.length - end} more`);
+	return lines;
 }
 
 function linesOrPlaceholder(lines: string[], placeholder: string): string {
@@ -110,7 +137,7 @@ export function createPanels(renderer: CliRenderer): Panels {
 	const footer = new TextRenderable(renderer, {
 		id: "footer",
 		content: "",
-		height: 1,
+		height: 2,
 		flexShrink: 0,
 	});
 	// Replaces the grid rather than floating over it, so the menu never fights panel layout.
@@ -132,17 +159,30 @@ export function createPanels(renderer: CliRenderer): Panels {
 	container.add(footer);
 	renderer.root.add(container);
 
+	// OpenTUI computes layout lazily, so the bottom row's inner height is derived from the terminal:
+	// the two footer lines come off, the grid splits in two equal rows, and each border takes two lines.
+	const peasantRowCapacity = () =>
+		Math.max(1, Math.floor((renderer.height - FOOTER_LINES) / 2) - 2);
+
 	return {
 		update(view, footerText, selectedId) {
-			ledger.text.content = ledgerContent(view);
-			crown.text.content = view.crown?.label ?? CROWN_PLACEHOLDER;
-			desk.text.content = linesOrPlaceholder(
-				view.desk.map((entry) => entry.label),
-				DESK_PLACEHOLDER,
+			const body = (id: PanelId, content: string) =>
+				view.lockedPanels.includes(id) ? LOCKED_BODY : content;
+			ledger.text.content = body("ledger", ledgerContent(view));
+			crown.text.content = body(
+				"crown",
+				view.crown?.label ?? CROWN_PLACEHOLDER,
 			);
-			peasants.text.content = linesOrPlaceholder(
-				peasantLines(view, selectedId),
-				PEASANTS_PLACEHOLDER,
+			desk.text.content = body(
+				"desk",
+				linesOrPlaceholder(deskLines(view), DESK_PLACEHOLDER),
+			);
+			peasants.text.content = body(
+				"peasants",
+				linesOrPlaceholder(
+					peasantLines(view, selectedId, peasantRowCapacity()),
+					PEASANTS_PLACEHOLDER,
+				),
 			);
 			footer.content = footerText;
 		},

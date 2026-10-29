@@ -49,6 +49,7 @@ export type DisputeTemplate = {
 export type VillageTuning = {
 	names: string[];
 	deskSlots: number;
+	promotionPopulation: number;
 	disputeArrival: { minTicks: number; maxTicks: number };
 	grudgeTicks: number;
 	disputes: DisputeTemplate[];
@@ -322,6 +323,16 @@ function parseDisputes(value: unknown): DisputeTemplate[] {
 	return templates;
 }
 
+function promotionPopulation(value: unknown, maxPopulation: number): number {
+	const target = integerAtLeast(value, "village.promotionPopulation", 1);
+	if (target > maxPopulation) {
+		throw new Error(
+			`village.promotionPopulation must not exceed economy.maxPopulation (${maxPopulation})`,
+		);
+	}
+	return target;
+}
+
 function parseVillage(
 	value: unknown,
 	maxPopulation: number,
@@ -375,6 +386,10 @@ function parseVillage(
 			field(village, "village.", "grudgeTicks"),
 			"village.grudgeTicks",
 			1,
+		),
+		promotionPopulation: promotionPopulation(
+			field(village, "village.", "promotionPopulation"),
+			maxPopulation,
 		),
 		disputes: parseDisputes(field(village, "village.", "disputes")),
 	};

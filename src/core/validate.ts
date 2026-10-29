@@ -281,6 +281,12 @@ function checkStructure(state: unknown, problems: string[]): void {
 				problems.push(`$.career.${key}: must be an array`);
 			}
 		}
+		const promotedAt = career.promotedAt;
+		if (!isCount(promotedAt)) {
+			problems.push("$.career.promotedAt: must be a non-negative safe integer");
+		} else if (typeof tick === "number" && promotedAt > tick) {
+			problems.push("$.career.promotedAt: must not exceed tick");
+		}
 	}
 
 	const posting = state.posting;

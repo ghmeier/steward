@@ -6,7 +6,7 @@ import { RESOURCES } from "./realm";
 import { type RngState, seedStream } from "./rng";
 import type { Tuning } from "./tuning";
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export type ResourceId = string;
 
@@ -15,6 +15,8 @@ export type CareerState = {
 	savedDecrees: Record<string, unknown>;
 	followers: string[];
 	formerStaff: string[];
+	/** 0 until promotion; a promotion can only happen at tick 1 or later. */
+	promotedAt: number;
 };
 
 export type PostingState = {
@@ -71,7 +73,13 @@ export function createNewGame(seed: number, tuning: Tuning): GameState {
 	return {
 		schemaVersion: SCHEMA_VERSION,
 		tick: 0,
-		career: { unlocks: {}, savedDecrees: {}, followers: [], formerStaff: [] },
+		career: {
+			unlocks: {},
+			savedDecrees: {},
+			followers: [],
+			formerStaff: [],
+			promotedAt: 0,
+		},
 		posting,
 	};
 }

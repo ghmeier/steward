@@ -474,6 +474,27 @@ describe("village tuning parse", () => {
 			"deskSlots",
 		],
 		[
+			"a zero promotionPopulation",
+			(v) => {
+				v.promotionPopulation = 0;
+			},
+			"promotionPopulation",
+		],
+		[
+			"a fractional promotionPopulation",
+			(v) => {
+				v.promotionPopulation = 12.5;
+			},
+			"promotionPopulation",
+		],
+		[
+			"a promotionPopulation above maxPopulation",
+			(v) => {
+				v.promotionPopulation = 10_000;
+			},
+			"promotionPopulation",
+		],
+		[
 			"a fractional grudgeTicks",
 			(v) => {
 				v.grudgeTicks = 1.5;

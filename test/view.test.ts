@@ -145,3 +145,68 @@ describe("computeView roster", () => {
 		expect(state.posting.decrees.a?.rules).toEqual([]);
 	});
 });
+
+describe("computeView promotion and desk options", () => {
+	test("locks the crown panel and passes the promotion target and tick through", () => {
+		const state = village();
+		state.career.promotedAt = 7;
+		state.tick = 9;
+
+		const view = computeView(state, tuning);
+
+		expect(view.lockedPanels).toEqual(["crown"]);
+		expect(view.promotion).toEqual({
+			target: tuning.village.promotionPopulation,
+			promotedAt: 7,
+			promotedAtSeconds: (7 * tuning.stepMs) / 1000,
+		});
+	});
+
+	test("desk options carry their sorted resources, grudge and party names", () => {
+		const state = village();
+		state.posting.desk.disputes = [
+			{ id: 1, template: "boundary", parties: [1, 2], arrivedAt: 0 },
+		];
+
+		const [entry] = computeView(state, tuning).desk;
+
+		const names = state.posting.delegates.map((delegate) => delegate.name);
+		expect(entry?.parties).toEqual([names[0] as string, names[1] as string]);
+		const byId = Object.fromEntries(
+			(entry?.options ?? []).map((option) => [option.id, option]),
+		);
+		expect(byId.pay?.resources).toEqual({ coin: -10 });
+		expect(byId.pay?.grudge).toBe("none");
+		expect(byId["for-first"]?.resources).toEqual({ grain: 5 });
+		expect(byId["for-first"]?.grudge).toBe("second");
+		expect(byId["for-second"]?.resources).toEqual({});
+		expect(byId["for-second"]?.grudge).toBe("first");
+	});
+
+	test("an option with several resources lists them in sorted key order", () => {
+		const custom = structuredClone(tuning);
+		custom.village.disputes = [
+			{
+				id: "mixed",
+				text: "{first} and {second} argue.",
+				options: [
+					{
+						id: "split",
+						label: "Split it",
+						resources: { wood: -1, grain: -2 },
+					},
+				],
+				expiry: "split",
+			},
+		];
+		const state = village();
+		state.posting.desk.disputes = [
+			{ id: 1, template: "mixed", parties: [1, 2], arrivedAt: 0 },
+		];
+
+		const [entry] = computeView(state, custom).desk;
+
+		const option = entry?.options[0];
+		expect(Object.keys(option?.resources ?? {})).toEqual(["grain", "wood"]);
+	});
+});

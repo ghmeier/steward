@@ -387,3 +387,29 @@ describe("assertValidState", () => {
 		);
 	});
 });
+
+describe("promotedAt validation", () => {
+	test.each([
+		["negative", -1, 10],
+		["fractional", 1.5, 10],
+		["later than the current tick", 11, 10],
+	])("rejects a promotedAt that is %s", (_name, promotedAt, tick) => {
+		const state = freshGame();
+		state.tick = tick;
+		setAt(state, ["career", "promotedAt"], promotedAt);
+
+		const problems = validateState(state);
+
+		expect(problems.some((p) => p.startsWith("$.career.promotedAt"))).toBe(
+			true,
+		);
+	});
+
+	test("accepts a promotedAt equal to the current tick", () => {
+		const state = freshGame();
+		state.tick = 10;
+		setAt(state, ["career", "promotedAt"], 10);
+
+		expect(validateState(state)).toEqual([]);
+	});
+});

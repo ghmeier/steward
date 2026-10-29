@@ -12,6 +12,7 @@ export type KeyAction =
 	| { kind: "assign"; job: Job | "idle" }
 	| { kind: "save" }
 	| { kind: "decrees" }
+	| { kind: "court" }
 	| { kind: "quit" };
 
 const BINDINGS: Readonly<Record<string, KeyAction>> = {
@@ -24,6 +25,7 @@ const BINDINGS: Readonly<Record<string, KeyAction>> = {
 	m: { kind: "assign", job: "mine" },
 	i: { kind: "assign", job: "idle" },
 	d: { kind: "decrees" },
+	c: { kind: "court" },
 	s: { kind: "save" },
 	q: { kind: "quit" },
 };
@@ -47,6 +49,7 @@ export const KEY_HINTS: readonly { keys: string; label: string }[] = [
 	{ keys: "j/k", label: "select peasant" },
 	{ keys: "f/w/m/i", label: "assign farm/forest/mine/idle" },
 	{ keys: "d", label: "decrees" },
+	{ keys: "c", label: "court" },
 	{ keys: "s", label: "save" },
 	{ keys: "q", label: "quit" },
 ];

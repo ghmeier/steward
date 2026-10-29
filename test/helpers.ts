@@ -35,6 +35,7 @@ export const economyTestTuning: Tuning = {
 	village: {
 		names: villageJson.names,
 		deskSlots: 3,
+		promotionPopulation: 12,
 		disputeArrival: { minTicks: 900, maxTicks: 1800 },
 		grudgeTicks: 600,
 		disputes: [

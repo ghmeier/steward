@@ -8,6 +8,7 @@ import { runDecrees } from "./decree-engine";
 import { runDesk } from "./desk";
 import { runEconomy } from "./economy";
 import type { AbsorbedAdditionLog, AddContext } from "./math";
+import { checkPromotion } from "./promotion";
 import type { GameState } from "./state";
 import type { Tuning } from "./tuning";
 import { validateState } from "./validate";
@@ -43,6 +44,7 @@ export function step(
 	const flows = runEconomy(state, tuning, context);
 	runDecrees(state, tuning, context, flows);
 	runDesk(state, tuning, context);
+	checkPromotion(state, tuning);
 
 	if (options.validate) {
 		const problems = validateState(state);

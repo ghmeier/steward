@@ -3,6 +3,7 @@ import { errorMessage } from "../core/errors";
 import { createNewGame, type GameState } from "../core/state";
 import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
+import { courtMenu } from "./court-menu";
 import { type Cursor, moveCursor, reconcileCursor } from "./cursor";
 import { decreeMenu } from "./decree-menu";
 import { actionForKey, isInterrupt, KEY_HINTS } from "./keys";
@@ -78,12 +79,13 @@ export function startApp(options: {
 	let cursor: Cursor | null = reconcileCursor(session.view().delegates, null);
 
 	let menu: MenuState | null = null;
+	let promotionAnnounced = session.view().promotion.promotedAt > 0;
 
 	const menuContext = () => ({ view: session.view(), tuning });
 	const composeFooter = () => {
 		const hints =
 			menu === null ? HINTS_TEXT : renderMenu(menu, menuContext()).hints;
-		return message === null ? hints : `${hints}  ${message}`;
+		return `${message ?? ""}\n${hints}`;
 	};
 	const redraw = () => {
 		footer = composeFooter();
@@ -134,6 +136,11 @@ export function startApp(options: {
 			redraw();
 			return;
 		}
+		if (action.kind === "court") {
+			menu = openMenu(courtMenu);
+			redraw();
+			return;
+		}
 		if (action.kind === "move") {
 			cursor = moveCursor(session.view().delegates, cursor, action.delta);
 			redraw();
@@ -157,6 +164,10 @@ export function startApp(options: {
 		const result = session.frame();
 		const lastRejection = result.rejections.at(-1);
 		if (lastRejection !== undefined) message = lastRejection.reason;
+		if (!promotionAnnounced && session.view().promotion.promotedAt > 0) {
+			promotionAnnounced = true;
+			message = "The crown has noticed you. You are promoted to steward.";
+		}
 		if (result.viewChanged || composeFooter() !== footer) redraw();
 	}
 
