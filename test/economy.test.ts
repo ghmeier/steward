@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { idleCount, laborCounts } from "../src/core/delegates";
 import {
 	feedGrain,
 	grainSeasons,
-	idlePeasants,
 	laborTargets,
 	moveLaborToward,
 	runEconomy,
@@ -13,7 +13,7 @@ import {
 import type { AddContext } from "../src/core/math";
 import type { Job, Season } from "../src/core/realm";
 import { createNewGame } from "../src/core/state";
-import { economyTestTuning as tuning } from "./helpers";
+import { setRoster, economyTestTuning as tuning } from "./helpers";
 
 const context: AddContext = { tick: 1, maxValue: 1e300, absorbed: null };
 const perSeason = tuning.economy.ticksPerSeason;
@@ -28,13 +28,9 @@ function villageAt(
 ) {
 	const state = createNewGame(1, tuning);
 	state.tick = tick;
-	state.posting.economy.population = village.population ?? 10;
-	state.posting.economy.labor = {
-		farm: 0,
-		forest: 0,
-		mine: 0,
-		...village.labor,
-	};
+	const labor = { farm: 0, forest: 0, mine: 0, ...village.labor };
+	const working = labor.farm + labor.forest + labor.mine;
+	setRoster(state, { ...labor, idle: (village.population ?? 10) - working });
 	state.posting.resources.grain = village.grain ?? 1000;
 	return state;
 }
@@ -105,7 +101,7 @@ describe("runEconomy eating", () => {
 
 		expect(state.posting.resources.grain).toBe(0);
 		expect(state.posting.economy.hunger).toBeCloseTo(0.06, 12);
-		expect(state.posting.economy.population).toBe(10);
+		expect(state.posting.delegates.length).toBe(10);
 		expect(state.posting.economy.starved).toBe(0);
 	});
 
@@ -116,7 +112,7 @@ describe("runEconomy eating", () => {
 		runEconomy(state, tuning, context);
 
 		expect(state.posting.economy.hunger).toBe(0);
-		expect(state.posting.economy.population).toBe(10);
+		expect(state.posting.delegates.length).toBe(10);
 	});
 
 	test("hunger at the threshold kills idle peasants before workers", () => {
@@ -129,8 +125,8 @@ describe("runEconomy eating", () => {
 		runEconomy(state, tuning, context);
 
 		// Winter, so no grain arrives: 1.95 + 0.1 reaches the threshold once, leaving 0.05.
-		expect(state.posting.economy.population).toBe(9);
-		expect(state.posting.economy.labor).toEqual({
+		expect(state.posting.delegates.length).toBe(9);
+		expect(laborCounts(state.posting.delegates)).toEqual({
 			farm: 4,
 			forest: 0,
 			mine: 1,
@@ -149,7 +145,7 @@ describe("runEconomy eating", () => {
 		for (const hunger of [2, 2, 2]) {
 			state.posting.economy.hunger = hunger;
 			runEconomy(state, tuning, context);
-			const { farm, forest, mine } = state.posting.economy.labor;
+			const { farm, forest, mine } = laborCounts(state.posting.delegates);
 			deaths.push([farm, forest, mine]);
 		}
 
@@ -167,13 +163,13 @@ describe("runEconomy eating", () => {
 
 		runEconomy(state, tuning, context);
 
-		expect(state.posting.economy.population).toBe(0);
+		expect(state.posting.delegates.length).toBe(0);
 		expect(state.posting.economy.starved).toBe(1);
 
 		const before = structuredClone(state);
 		runEconomy(state, tuning, context);
 
-		expect(state.posting.economy.population).toBe(0);
+		expect(state.posting.delegates.length).toBe(0);
 		expect(state.posting.economy.starved).toBe(before.posting.economy.starved);
 		expect(state.posting.resources.grain).toBe(0);
 	});
@@ -217,9 +213,9 @@ describe("feedGrain", () => {
 
 		// 10 + 55 = 65 growth is two peasants at 30 each with 5 left over.
 		expect(state.posting.resources.grain).toBe(45);
-		expect(state.posting.economy.population).toBe(12);
+		expect(state.posting.delegates.length).toBe(12);
 		expect(state.posting.economy.growth).toBe(5);
-		expect(idlePeasants(state.posting.economy)).toBe(12);
+		expect(idleCount(state.posting.delegates)).toBe(12);
 	});
 
 	test("keeps growth below the price of a peasant as growth only", () => {
@@ -227,7 +223,7 @@ describe("feedGrain", () => {
 
 		feedGrain(state, 29, tuning, context);
 
-		expect(state.posting.economy.population).toBe(10);
+		expect(state.posting.delegates.length).toBe(10);
 		expect(state.posting.economy.growth).toBe(29);
 	});
 
@@ -236,7 +232,7 @@ describe("feedGrain", () => {
 
 		feedGrain(state, 90, tuning, context);
 
-		expect(state.posting.economy.population).toBe(40);
+		expect(state.posting.delegates.length).toBe(40);
 		expect(state.posting.resources.grain).toBe(10);
 		expect(state.posting.economy.growth).toBe(60);
 	});
@@ -277,9 +273,13 @@ describe("moveLaborToward", () => {
 	test("takes from idle peasants first", () => {
 		const state = villageAt(1, { population: 10, labor: { mine: 4 } });
 
-		moveLaborToward(state.posting.economy, { farm: 3, forest: 0, mine: 2 }, 2);
+		moveLaborToward(
+			state.posting.delegates,
+			{ farm: 3, forest: 0, mine: 2 },
+			2,
+		);
 
-		expect(state.posting.economy.labor).toEqual({
+		expect(laborCounts(state.posting.delegates)).toEqual({
 			farm: 2,
 			forest: 0,
 			mine: 4,
@@ -292,9 +292,13 @@ describe("moveLaborToward", () => {
 			labor: { farm: 0, forest: 4, mine: 6 },
 		});
 
-		moveLaborToward(state.posting.economy, { farm: 4, forest: 3, mine: 3 }, 1);
+		moveLaborToward(
+			state.posting.delegates,
+			{ farm: 4, forest: 3, mine: 3 },
+			1,
+		);
 
-		expect(state.posting.economy.labor).toEqual({
+		expect(laborCounts(state.posting.delegates)).toEqual({
 			farm: 1,
 			forest: 4,
 			mine: 5,
@@ -304,9 +308,13 @@ describe("moveLaborToward", () => {
 	test("moves at most the allowed number of peasants", () => {
 		const state = villageAt(1, { population: 10 });
 
-		moveLaborToward(state.posting.economy, { farm: 5, forest: 5, mine: 0 }, 3);
+		moveLaborToward(
+			state.posting.delegates,
+			{ farm: 5, forest: 5, mine: 0 },
+			3,
+		);
 
-		expect(state.posting.economy.labor).toEqual({
+		expect(laborCounts(state.posting.delegates)).toEqual({
 			farm: 2,
 			forest: 1,
 			mine: 0,
@@ -320,11 +328,11 @@ describe("moveLaborToward", () => {
 		"does nothing when labor is already at the target %s",
 		(_name, population, labor) => {
 			const state = villageAt(1, { population, labor });
-			const before = structuredClone(state.posting.economy);
+			const before = structuredClone(state.posting.delegates);
 
-			moveLaborToward(state.posting.economy, labor, 4);
+			moveLaborToward(state.posting.delegates, labor, 4);
 
-			expect(state.posting.economy).toEqual(before);
+			expect(state.posting.delegates).toEqual(before);
 		},
 	);
 });
@@ -352,11 +360,14 @@ describe("grainSeasons", () => {
 
 describe("steadyRates", () => {
 	test("is production minus upkeep for grain and production for wood and ore", () => {
-		const state = villageAt(1, { labor: { farm: 8, forest: 2, mine: 1 } });
+		const state = villageAt(1, {
+			population: 11,
+			labor: { farm: 8, forest: 2, mine: 1 },
+		});
 
 		const rates = steadyRates(state, tuning);
 
-		expect(rates.grain).toBeCloseTo(0.2 - 0.1, 12);
+		expect(rates.grain).toBeCloseTo(0.2 - 0.11, 12);
 		expect(rates.wood).toBeCloseTo(0.04, 12);
 		expect(rates.ore).toBeCloseTo(0.01, 12);
 		expect(rates.coin).toBe(0);

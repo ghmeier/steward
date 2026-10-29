@@ -1,12 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import type { Command } from "../src/core/commands";
+import { laborCounts } from "../src/core/delegates";
 import { createNewGame } from "../src/core/state";
 import { runSteps } from "../src/core/step";
 import { stateHash } from "../src/save/hash";
 import { createSession } from "../src/tui/session";
 import { quietOptions, tuning } from "./helpers";
 
-const assignFarmer: Command = { type: "assignWorker", job: "farm", delta: 1 };
+const assignFarmer: Command = {
+	type: "assignPeasant",
+	peasant: 1,
+	job: "farm",
+};
 
 function setup(maxStepsPerFrame?: number) {
 	let nowMs = 0;
@@ -71,13 +76,14 @@ describe("session frames", () => {
 describe("session commands", () => {
 	test("a command applies in the next step and is logged with that step's tick", () => {
 		const { state, session, advance } = setup();
-		const before = state.posting.economy.labor.farm;
+		const farmers = () => laborCounts(state.posting.delegates).farm;
+		const before = farmers();
 
 		session.enqueue(assignFarmer);
-		expect(state.posting.economy.labor.farm).toBe(before);
+		expect(farmers()).toBe(before);
 		advance(tuning.stepMs);
 
-		expect(state.posting.economy.labor.farm).toBe(before + 1);
+		expect(farmers()).toBe(before + 1);
 		expect(session.commandLog).toEqual([{ tick: 1, command: assignFarmer }]);
 	});
 
@@ -104,9 +110,9 @@ describe("session commands", () => {
 	test("a rejected command is reported with its tick and reason and still logged", () => {
 		const { session, advance } = setup();
 		const unassignMissingMiner: Command = {
-			type: "assignWorker",
+			type: "assignPeasant",
+			peasant: 9999,
 			job: "mine",
-			delta: -1,
 		};
 
 		session.enqueue(unassignMissingMiner);
@@ -117,7 +123,7 @@ describe("session commands", () => {
 			tick: 1,
 			command: unassignMissingMiner,
 		});
-		expect(result.rejections[0]?.reason).toContain("no peasants work the mine");
+		expect(result.rejections[0]?.reason).toContain("no peasant 9999");
 		expect(session.commandLog).toEqual([
 			{ tick: 1, command: unassignMissingMiner },
 		]);
@@ -157,11 +163,11 @@ describe("session replay", () => {
 	test("replaying the command log on a fresh clone reproduces the live state hash", () => {
 		const { state, initial, session, advance } = setup();
 		const script: [number, Command | null][] = [
-			[tuning.stepMs, { type: "assignWorker", job: "farm", delta: 1 }],
+			[tuning.stepMs, { type: "assignPeasant", peasant: 1, job: "farm" }],
 			[7 * tuning.stepMs, null],
-			[tuning.stepMs / 2, { type: "assignWorker", job: "mine", delta: -1 }],
-			[tuning.stepMs, { type: "assignWorker", job: "forest", delta: 1 }],
-			[40 * tuning.stepMs, { type: "assignWorker", job: "farm", delta: -1 }],
+			[tuning.stepMs / 2, { type: "assignPeasant", peasant: 2, job: "idle" }],
+			[tuning.stepMs, { type: "assignPeasant", peasant: 3, job: "forest" }],
+			[40 * tuning.stepMs, { type: "assignPeasant", peasant: 1, job: "idle" }],
 			[3 * tuning.stepMs, null],
 		];
 

@@ -1,6 +1,5 @@
 import { isRecord } from "./data";
 import { enactDecree, repealDecree } from "./decree-engine";
-import { idlePeasants } from "./economy";
 import { errorMessage } from "./errors";
 import { JOBS, type Job } from "./realm";
 import type { GameState } from "./state";
@@ -8,7 +7,7 @@ import type { Tuning } from "./tuning";
 
 export type Command =
 	| { type: "noop" }
-	| { type: "assignWorker"; job: Job; delta: number }
+	| { type: "assignPeasant"; peasant: number; job: Job | "idle" }
 	| { type: "enactDecree"; decree: unknown }
 	| { type: "repealDecree"; id: string };
 
@@ -21,23 +20,27 @@ export type CommandResult = { ok: true } | { ok: false; reason: string };
  */
 export type CommandLogEntry = { tick: number; command: Command };
 
-function assignWorker(
+function assignPeasant(
 	state: GameState,
-	job: Job,
-	delta: number,
+	peasantId: number,
+	job: Job | "idle",
 ): CommandResult {
-	if (delta !== 1 && delta !== -1) {
-		return { ok: false, reason: "delta must be 1 or -1" };
+	const peasant = state.posting.delegates.find(
+		(delegate) => delegate.id === peasantId,
+	);
+	if (peasant === undefined) {
+		return { ok: false, reason: `no peasant ${peasantId}` };
 	}
-	const economy = state.posting.economy;
-	if (delta === 1) {
-		if (idlePeasants(economy) <= 0) {
-			return { ok: false, reason: "no idle peasants" };
-		}
-	} else if (economy.labor[job] <= 0) {
-		return { ok: false, reason: `no peasants work the ${job}` };
+	if (peasant.job === job) {
+		return {
+			ok: false,
+			reason:
+				job === "idle"
+					? `${peasant.name} is already idle`
+					: `${peasant.name} already works the ${job}`,
+		};
 	}
-	economy.labor[job] += delta;
+	peasant.job = job;
 	return { ok: true };
 }
 
@@ -49,8 +52,8 @@ export function apply(
 	switch (command.type) {
 		case "noop":
 			return { ok: true };
-		case "assignWorker":
-			return assignWorker(state, command.job, command.delta);
+		case "assignPeasant":
+			return assignPeasant(state, command.peasant, command.job);
 		case "enactDecree":
 			return enactDecree(state, command.decree, tuning);
 		case "repealDecree":
@@ -71,19 +74,21 @@ export function parseCommand(value: unknown): Command {
 	switch (type) {
 		case "noop":
 			return { type: "noop" };
-		case "assignWorker": {
+		case "assignPeasant": {
+			const peasant = value.peasant;
+			if (typeof peasant !== "number" || !Number.isSafeInteger(peasant)) {
+				throw new Error("assignPeasant peasant must be an integer");
+			}
 			const job = value.job;
 			if (
 				typeof job !== "string" ||
-				!(JOBS as readonly string[]).includes(job)
+				!(job === "idle" || (JOBS as readonly string[]).includes(job))
 			) {
-				throw new Error(`assignWorker job must be one of ${JOBS.join(", ")}`);
+				throw new Error(
+					`assignPeasant job must be one of ${JOBS.join(", ")}, idle`,
+				);
 			}
-			const delta = value.delta;
-			if (typeof delta !== "number" || !Number.isFinite(delta)) {
-				throw new Error("assignWorker delta must be a finite number");
-			}
-			return { type: "assignWorker", job: job as Job, delta };
+			return { type: "assignPeasant", peasant, job: job as Job | "idle" };
 		}
 		case "enactDecree": {
 			if (!isRecord(value.decree)) {

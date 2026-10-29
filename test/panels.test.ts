@@ -15,13 +15,14 @@ async function draw(
 	views: GameView[],
 	footer: string,
 	size = { width: 100, height: 30 },
+	selectedId: number | null = null,
 ) {
 	const setup = await createTestRenderer({ ...size, exitOnCtrlC: false });
 	setups.push(setup);
 	const panels = createPanels(setup.renderer);
 	let frame = "";
 	for (const view of views) {
-		panels.update(view, footer);
+		panels.update(view, footer, selectedId);
 		await setup.renderOnce();
 		frame = setup.captureCharFrame();
 	}
@@ -39,6 +40,8 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
 			labor: { farm: 0, forest: 0, mine: 0 },
 			season: "spring",
 		},
+		delegates: [],
+		decrees: [],
 		desk: [],
 		governors: [],
 		crown: null,
@@ -54,7 +57,7 @@ describe("createPanels layout", () => {
 		test(`shows all four titles and the footer at ${size.width}x${size.height}`, async () => {
 			const frame = await draw([emptyView()], "q quit  space pause", size);
 
-			for (const title of ["Ledger", "Crown", "Desk", "Governors"]) {
+			for (const title of ["Ledger", "Crown", "Desk", "Peasants"]) {
 				expect(frame).toContain(title);
 			}
 			expect(frame).toContain("q quit  space pause");
@@ -144,28 +147,45 @@ describe("createPanels ledger", () => {
 });
 
 describe("createPanels placeholders", () => {
-	test("shows placeholders when the crown, desk and governors are empty", async () => {
+	test("shows placeholders when the crown, desk and peasants are empty", async () => {
 		const frame = await draw([emptyView()], "");
 
 		expect(frame).toContain("The crown demands nothing, for now.");
 		expect(frame).toContain("The desk is clear.");
-		expect(frame).toContain("No governors serve you yet.");
+		expect(frame).toContain("No peasants live here.");
 	});
 
 	test("shows entries instead of placeholders when present", async () => {
 		const view = emptyView({
 			crown: { label: "Tribute due" },
 			desk: [{ id: "a", label: "Sign the decree" }],
-			governors: [{ id: "g", name: "Lord Harwick" }],
+			delegates: [{ id: 3, name: "Ada", job: "farm", grudgeTicks: 0 }],
 		});
 
 		const frame = await draw([view], "");
 
 		expect(frame).toContain("Tribute due");
 		expect(frame).toContain("Sign the decree");
-		expect(frame).toContain("Lord Harwick");
+		expect(frame).toContain("Ada");
 		expect(frame).not.toContain("The crown demands nothing");
 		expect(frame).not.toContain("The desk is clear.");
-		expect(frame).not.toContain("No governors serve you yet.");
+		expect(frame).not.toContain("No peasants live here.");
+	});
+});
+
+describe("createPanels peasants", () => {
+	const view = emptyView({
+		delegates: [
+			{ id: 1, name: "Ada", job: "farm", grudgeTicks: 0 },
+			{ id: 2, name: "Bram", job: "idle", grudgeTicks: 30 },
+		],
+	});
+
+	test("lists each peasant with a job, a cursor on the selected row and a grudge marker", async () => {
+		const frame = await draw([view], "", undefined, 2);
+
+		expect(frame).toMatch(/ {2}Ada {2}farm/);
+		expect(frame).toMatch(/> Bram {2}idle \(grudge\)/);
+		expect(frame).not.toMatch(/> Ada/);
 	});
 });

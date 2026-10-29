@@ -159,13 +159,13 @@ describe("startApp", () => {
 
 		const screen = await harness.screen();
 
-		for (const title of ["Ledger", "Crown", "Desk", "Governors"]) {
+		for (const title of ["Ledger", "Crown", "Desk", "Peasants"]) {
 			expect(screen).toContain(title);
 		}
 		expect(screen).toContain("Started a new game.");
 	});
 
-	test("pressing f puts an idle peasant on the farm, shown after the next step", async () => {
+	test("pressing f puts the selected peasant on the farm, shown after the next step", async () => {
 		const harness = await launch();
 		const idle = tuning.economy.initialPopulation;
 
@@ -177,14 +177,30 @@ describe("startApp", () => {
 		expect(screen).toContain("Farm 1  Forest 0  Mine 0");
 	});
 
-	test("assigning more peasants than are idle shows the rejection reason in the footer", async () => {
+	test("j moves the cursor so the next assignment goes to the second peasant", async () => {
 		const harness = await launch();
-		const presses = tuning.economy.initialPopulation + 1;
 
-		for (let i = 0; i < presses; i++) harness.mockInput.pressKey("f");
+		harness.mockInput.pressKey("j");
+		harness.mockInput.pressKey("m");
 		await harness.advanceStep();
 
-		expect(await harness.screen()).toContain("no idle peasants");
+		const [first, second] = harness.state.posting.delegates;
+		expect(first?.job).toBe("idle");
+		expect(second?.job).toBe("mine");
+		expect(await harness.screen()).toMatch(
+			new RegExp(`> ${second?.name} {2}mine`),
+		);
+	});
+
+	test("assigning the selected peasant to the job they already hold shows the rejection reason in the footer", async () => {
+		const harness = await launch();
+
+		harness.mockInput.pressKey("f");
+		harness.mockInput.pressKey("f");
+		await harness.advanceStep();
+
+		const name = harness.state.posting.delegates[0]?.name;
+		expect(await harness.screen()).toContain(`${name} already works the farm`);
 	});
 
 	test("pressing s saves the live state and says so", async () => {

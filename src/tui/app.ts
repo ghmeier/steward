@@ -3,6 +3,7 @@ import { errorMessage } from "../core/errors";
 import { createNewGame, type GameState } from "../core/state";
 import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
+import { type Cursor, moveCursor, reconcileCursor } from "./cursor";
 import { actionForKey, KEY_HINTS } from "./keys";
 import { createPanels } from "./panels";
 import { createSession } from "./session";
@@ -72,12 +73,15 @@ export function startApp(options: {
 	const panels = createPanels(renderer);
 	let message = options.notice;
 	let footer = "";
+	let cursor: Cursor | null = reconcileCursor(session.view().delegates, null);
 
 	const composeFooter = () =>
 		message === null ? HINTS_TEXT : `${HINTS_TEXT}  ${message}`;
 	const redraw = () => {
 		footer = composeFooter();
-		panels.update(session.view(), footer);
+		const view = session.view();
+		cursor = reconcileCursor(view.delegates, cursor);
+		panels.update(view, footer, cursor?.id ?? null);
 		renderer.requestRender();
 	};
 
@@ -109,8 +113,21 @@ export function startApp(options: {
 	const onKeyPress = (key: KeyEvent) => {
 		const action = actionForKey(key);
 		if (action === null) return;
-		if (action.kind === "command") session.enqueue(action.command);
-		else if (action.kind === "save") saveAndAnnounce(true);
+		if (action.kind === "move") {
+			cursor = moveCursor(session.view().delegates, cursor, action.delta);
+			redraw();
+		} else if (action.kind === "assign") {
+			if (cursor === null) message = "No peasant is selected.";
+			else {
+				session.enqueue({
+					type: "assignPeasant",
+					peasant: cursor.id,
+					job: action.job,
+				});
+				return;
+			}
+			redraw();
+		} else if (action.kind === "save") saveAndAnnounce(true);
 		else void shutdown();
 	};
 

@@ -2,5 +2,5 @@
 	"seed": 42,
 	"steps": 10000,
 	"commands": "test/fixtures/command-log.json",
-	"hash": "698190146dc7358e3cc4b69ed2828e8bb711f15925e0568388250ffaef569ccb"
+	"hash": "09501dd1176f1cc34504843d398c5df71a7b278dc077f323a246ff428076e792"
 }

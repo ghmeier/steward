@@ -29,6 +29,7 @@ export type Tuning = {
 		initialResources: Record<Resource, number>;
 		laborAllocations: Record<string, Record<Job, number>>;
 	};
+	village: { names: string[] };
 };
 
 function field(parent: Record<string, unknown>, path: string, key: string) {
@@ -202,6 +203,34 @@ function parseDecreeLimits(value: unknown): DecreeLimits {
 	};
 }
 
+function parseVillage(
+	value: unknown,
+	maxPopulation: number,
+): Tuning["village"] {
+	const village = record(value, "village");
+	const rawNames = field(village, "village.", "names");
+	if (!Array.isArray(rawNames)) {
+		throw new Error("village.names must be an array");
+	}
+	const names: string[] = [];
+	const seen = new Set<string>();
+	for (const [index, name] of rawNames.entries()) {
+		if (typeof name !== "string" || name === "") {
+			throw new Error(`village.names[${index}] must be a non-empty string`);
+		}
+		if (seen.has(name)) throw new Error(`village.names repeats "${name}"`);
+		seen.add(name);
+		names.push(name);
+	}
+	if (names.length < maxPopulation) {
+		throw new Error(
+			`village.names needs at least maxPopulation (${maxPopulation}) names, got ${names.length}`,
+		);
+	}
+	return { names };
+}
+
+/** Takes the merged contents of tuning.json and village.json. */
 export function parseTuning(value: unknown): Tuning {
 	if (!isRecord(value)) throw new Error("tuning must be an object");
 
@@ -212,5 +241,9 @@ export function parseTuning(value: unknown): Tuning {
 	);
 	const decrees = parseDecreeLimits(field(value, "", "decrees"));
 	const economy = parseEconomy(field(value, "", "economy"));
-	return { stepMs, maxResourceValue, decrees, economy };
+	const village = parseVillage(
+		field(value, "", "village"),
+		economy.maxPopulation,
+	);
+	return { stepMs, maxResourceValue, decrees, economy, village };
 }

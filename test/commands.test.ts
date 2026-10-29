@@ -5,93 +5,95 @@ import {
 	parseCommand,
 	parseCommandLog,
 } from "../src/core/commands";
-import { idlePeasants } from "../src/core/economy";
+import { idleCount, laborCounts } from "../src/core/delegates";
 import { canonicalStringify } from "../src/core/serialize";
 import { createNewGame } from "../src/core/state";
 import { tuning } from "./helpers";
 
 describe("apply", () => {
-	test("assignWorker +1 moves one idle peasant into the job", () => {
+	test("assignPeasant moves exactly the named peasant", () => {
 		const state = createNewGame(1, tuning);
+		const [first, second] = state.posting.delegates;
 
 		const result = apply(
 			state,
-			{ type: "assignWorker", job: "forest", delta: 1 },
+			{ type: "assignPeasant", peasant: second?.id ?? 0, job: "forest" },
 			tuning,
 		);
 
 		expect(result).toEqual({ ok: true });
-		expect(state.posting.economy.labor).toEqual({
+		expect(second?.job).toBe("forest");
+		expect(first?.job).toBe("idle");
+		expect(laborCounts(state.posting.delegates)).toEqual({
 			farm: 0,
 			forest: 1,
 			mine: 0,
 		});
-		expect(idlePeasants(state.posting.economy)).toBe(
+		expect(idleCount(state.posting.delegates)).toBe(
 			tuning.economy.initialPopulation - 1,
 		);
 	});
 
-	test("assignWorker +1 is rejected when no peasant is idle", () => {
+	test("assignPeasant can send a worker back to idle", () => {
 		const state = createNewGame(1, tuning);
-		state.posting.economy.labor.farm = state.posting.economy.population;
-		const before = canonicalStringify(state);
+		const peasant = state.posting.delegates[0];
+		if (peasant) peasant.job = "mine";
 
 		const result = apply(
 			state,
-			{ type: "assignWorker", job: "mine", delta: 1 },
-			tuning,
-		);
-
-		expect(result).toEqual({ ok: false, reason: "no idle peasants" });
-		expect(canonicalStringify(state)).toBe(before);
-	});
-
-	test("assignWorker -1 returns one worker of that job to idle", () => {
-		const state = createNewGame(1, tuning);
-		state.posting.economy.labor.mine = 2;
-
-		const result = apply(
-			state,
-			{ type: "assignWorker", job: "mine", delta: -1 },
+			{ type: "assignPeasant", peasant: peasant?.id ?? 0, job: "idle" },
 			tuning,
 		);
 
 		expect(result).toEqual({ ok: true });
-		expect(state.posting.economy.labor.mine).toBe(1);
+		expect(peasant?.job).toBe("idle");
 	});
 
-	test("assignWorker -1 is rejected when nobody works that job", () => {
+	test("assignPeasant is rejected for a peasant who does not exist", () => {
 		const state = createNewGame(1, tuning);
-		state.posting.economy.labor.farm = 3;
 		const before = canonicalStringify(state);
 
 		const result = apply(
 			state,
-			{ type: "assignWorker", job: "mine", delta: -1 },
+			{ type: "assignPeasant", peasant: 7777, job: "mine" },
 			tuning,
 		);
 
-		expect(result).toEqual({ ok: false, reason: "no peasants work the mine" });
+		expect(result).toEqual({ ok: false, reason: "no peasant 7777" });
 		expect(canonicalStringify(state)).toBe(before);
 	});
 
-	test.each([0, 2, -2, 0.5, Number.NaN])(
-		"assignWorker rejects a delta of %p and changes nothing",
-		(delta) => {
-			const state = createNewGame(1, tuning);
-			state.posting.economy.labor.farm = 3;
-			const before = canonicalStringify(state);
+	test("assignPeasant is rejected when the peasant already has that job", () => {
+		const state = createNewGame(1, tuning);
+		const peasant = state.posting.delegates[0];
+		if (peasant) peasant.job = "farm";
+		const before = canonicalStringify(state);
 
-			const result = apply(
-				state,
-				{ type: "assignWorker", job: "farm", delta },
-				tuning,
-			);
+		const working = apply(
+			state,
+			{ type: "assignPeasant", peasant: peasant?.id ?? 0, job: "farm" },
+			tuning,
+		);
+		const idle = apply(
+			state,
+			{
+				type: "assignPeasant",
+				peasant: state.posting.delegates[1]?.id ?? 0,
+				job: "idle",
+			},
+			tuning,
+		);
 
-			expect(result.ok).toBe(false);
-			expect(canonicalStringify(state)).toBe(before);
-		},
-	);
+		expect(working).toEqual({
+			ok: false,
+			reason: `${peasant?.name} already works the farm`,
+		});
+		expect(idle).toEqual({
+			ok: false,
+			reason: `${state.posting.delegates[1]?.name} is already idle`,
+		});
+		expect(canonicalStringify(state)).toBe(before);
+	});
 
 	test("noop changes nothing", () => {
 		const state = createNewGame(1, tuning);
@@ -105,11 +107,14 @@ describe("apply", () => {
 });
 
 describe("parseCommand", () => {
-	test("accepts noop and assignWorker", () => {
+	test("accepts noop and assignPeasant", () => {
 		expect(parseCommand({ type: "noop" })).toEqual({ type: "noop" });
 		expect(
-			parseCommand({ type: "assignWorker", job: "farm", delta: -1 }),
-		).toEqual({ type: "assignWorker", job: "farm", delta: -1 });
+			parseCommand({ type: "assignPeasant", peasant: 3, job: "idle" }),
+		).toEqual({ type: "assignPeasant", peasant: 3, job: "idle" });
+		expect(
+			parseCommand({ type: "assignPeasant", peasant: 4, job: "farm" }),
+		).toEqual({ type: "assignPeasant", peasant: 4, job: "farm" });
 	});
 
 	test("accepts enactDecree and repealDecree without judging the decree", () => {
@@ -131,14 +136,22 @@ describe("parseCommand", () => {
 		["an array", []],
 		["an unknown type", { type: "explode" }],
 		["a missing type", {}],
-		["a missing job", { type: "assignWorker", delta: 1 }],
-		["an unknown job", { type: "assignWorker", job: "bank", delta: 1 }],
-		["a missing delta", { type: "assignWorker", job: "farm" }],
-		["a string delta", { type: "assignWorker", job: "farm", delta: "1" }],
-		["a null delta", { type: "assignWorker", job: "farm", delta: null }],
+		["a missing job", { type: "assignPeasant", peasant: 1 }],
+		["an unknown job", { type: "assignPeasant", peasant: 1, job: "bank" }],
+		["a missing peasant", { type: "assignPeasant", job: "farm" }],
+		["a string peasant", { type: "assignPeasant", peasant: "1", job: "farm" }],
+		["a null peasant", { type: "assignPeasant", peasant: null, job: "farm" }],
 		[
-			"an infinite delta",
-			{ type: "assignWorker", job: "farm", delta: Number.POSITIVE_INFINITY },
+			"a fractional peasant",
+			{ type: "assignPeasant", peasant: 1.5, job: "farm" },
+		],
+		[
+			"an infinite peasant",
+			{ type: "assignPeasant", peasant: Number.POSITIVE_INFINITY, job: "farm" },
+		],
+		[
+			"the retired assignWorker",
+			{ type: "assignWorker", job: "farm", delta: 1 },
 		],
 	])("rejects %s", (_name, input) => {
 		expect(() => parseCommand(input)).toThrow();
@@ -149,8 +162,14 @@ describe("parseCommandLog", () => {
 	test("accepts a sorted log and keeps same-tick entries in file order", () => {
 		const input: CommandLogEntry[] = [
 			{ tick: 1, command: { type: "noop" } },
-			{ tick: 3, command: { type: "assignWorker", job: "farm", delta: 1 } },
-			{ tick: 3, command: { type: "assignWorker", job: "mine", delta: -1 } },
+			{
+				tick: 3,
+				command: { type: "assignPeasant", peasant: 1, job: "farm" },
+			},
+			{
+				tick: 3,
+				command: { type: "assignPeasant", peasant: 2, job: "idle" },
+			},
 		];
 
 		const log = parseCommandLog(input);

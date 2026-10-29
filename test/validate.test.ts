@@ -266,22 +266,10 @@ describe("validateState economy", () => {
 			"$.posting.economy",
 		],
 		[
-			"a fractional population",
-			["posting", "economy", "population"],
-			1.5,
-			"population",
-		],
-		[
 			"a negative starved count",
 			["posting", "economy", "starved"],
 			-1,
 			"starved",
-		],
-		[
-			"a fractional labor count",
-			["posting", "economy", "labor", "farm"],
-			0.5,
-			"labor.farm",
 		],
 		["negative hunger", ["posting", "economy", "hunger"], -1, "hunger"],
 		[
@@ -303,28 +291,84 @@ describe("validateState economy", () => {
 
 		expect(validateState(state).join("\n")).toContain(expected);
 	});
+});
 
-	test("reports labor that exceeds the population", () => {
+describe("validateState delegates", () => {
+	const delegateAt = (state: Tree, index: number) =>
+		((state.posting as Tree).delegates as Tree[])[index] as Tree;
+
+	test("accepts a roster with a worker, a grudge and gaps in the ids", () => {
 		const state = freshGame();
-		setAt(state, ["posting", "economy", "labor", "farm"], 11);
+		delegateAt(state, 2).job = "mine";
+		delegateAt(state, 3).grudgeUntil = 40;
+		(state.posting as Tree).delegates = [
+			delegateAt(state, 0),
+			delegateAt(state, 2),
+			delegateAt(state, 3),
+		];
 
-		expect(validateState(state).join("\n")).toContain("exceed population");
+		expect(validateState(state)).toEqual([]);
 	});
 
-	test("reports labor with an unknown job", () => {
+	test("reports a duplicate id", () => {
 		const state = freshGame();
-		setAt(state, ["posting", "economy", "labor", "bank"], 0);
+		delegateAt(state, 1).id = delegateAt(state, 0).id;
+
+		expect(validateState(state).join("\n")).toContain("strictly ascending");
+	});
+
+	test("reports ids that are out of order", () => {
+		const state = freshGame();
+		const delegates = (state.posting as Tree).delegates as Tree[];
+		delegates.reverse();
+
+		expect(validateState(state).join("\n")).toContain("strictly ascending");
+	});
+
+	test("reports an id that is not below nextDelegateId", () => {
+		const state = freshGame();
+		const last = tuning.economy.initialPopulation - 1;
+		setAt(state, ["posting", "nextDelegateId"], delegateAt(state, last).id);
+
+		expect(validateState(state).join("\n")).toContain("below nextDelegateId");
+	});
+
+	test("reports two living peasants who share a name", () => {
+		const state = freshGame();
+		delegateAt(state, 1).name = delegateAt(state, 0).name;
+
+		expect(validateState(state).join("\n")).toContain("held by another");
+	});
+
+	test.each([
+		["an empty name", "name", ""],
+		["an unknown job", "job", "bank"],
+		["a governor kind", "kind", "governor"],
+		["a fractional grudge", "grudgeUntil", 1.5],
+		["a negative grudge", "grudgeUntil", -1],
+	])("reports %s", (_name, key, value) => {
+		const state = freshGame();
+		delegateAt(state, 0)[key] = value;
 
 		expect(validateState(state).join("\n")).toContain(
-			"$.posting.economy.labor",
+			`$.posting.delegates[0].${key}`,
 		);
 	});
 
-	test("accepts a village whose workers equal the population", () => {
+	test("reports a null anywhere in the roster", () => {
 		const state = freshGame();
-		setAt(state, ["posting", "economy", "labor", "farm"], 10);
+		delegateAt(state, 0).job = null;
 
-		expect(validateState(state)).toEqual([]);
+		expect(validateState(state).join("\n")).toContain(
+			"$.posting.delegates[0].job: null is not allowed",
+		);
+	});
+
+	test("reports a missing roster", () => {
+		const state = freshGame();
+		delete (state.posting as Tree).delegates;
+
+		expect(validateState(state).join("\n")).toContain("$.posting.delegates");
 	});
 });
 

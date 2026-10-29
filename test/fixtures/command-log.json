@@ -2,89 +2,89 @@
 	{
 		"tick": 1,
 		"command": {
-			"type": "assignWorker",
-			"job": "farm",
-			"delta": 1
+			"type": "assignPeasant",
+			"peasant": 1,
+			"job": "farm"
 		}
 	},
 	{
 		"tick": 2,
 		"command": {
-			"type": "assignWorker",
-			"job": "farm",
-			"delta": 1
+			"type": "assignPeasant",
+			"peasant": 2,
+			"job": "farm"
 		}
 	},
 	{
 		"tick": 3,
 		"command": {
-			"type": "assignWorker",
-			"job": "farm",
-			"delta": 1
+			"type": "assignPeasant",
+			"peasant": 3,
+			"job": "farm"
 		}
 	},
 	{
 		"tick": 4,
 		"command": {
-			"type": "assignWorker",
-			"job": "farm",
-			"delta": 1
+			"type": "assignPeasant",
+			"peasant": 4,
+			"job": "farm"
 		}
 	},
 	{
 		"tick": 5,
 		"command": {
-			"type": "assignWorker",
-			"job": "farm",
-			"delta": 1
+			"type": "assignPeasant",
+			"peasant": 5,
+			"job": "farm"
 		}
 	},
 	{
 		"tick": 6,
 		"command": {
-			"type": "assignWorker",
-			"job": "farm",
-			"delta": 1
+			"type": "assignPeasant",
+			"peasant": 6,
+			"job": "farm"
 		}
 	},
 	{
 		"tick": 7,
 		"command": {
-			"type": "assignWorker",
-			"job": "farm",
-			"delta": 1
+			"type": "assignPeasant",
+			"peasant": 7,
+			"job": "farm"
 		}
 	},
 	{
 		"tick": 8,
 		"command": {
-			"type": "assignWorker",
-			"job": "forest",
-			"delta": 1
+			"type": "assignPeasant",
+			"peasant": 8,
+			"job": "forest"
 		}
 	},
 	{
 		"tick": 9,
 		"command": {
-			"type": "assignWorker",
-			"job": "forest",
-			"delta": 1
+			"type": "assignPeasant",
+			"peasant": 9,
+			"job": "forest"
 		}
 	},
 	{
 		"tick": 10,
 		"command": {
-			"type": "assignWorker",
-			"job": "mine",
-			"delta": 1
+			"type": "assignPeasant",
+			"peasant": 10,
+			"job": "mine"
 		}
 	},
 	{
 		"tick": 11,
 		"command": {
-			"type": "assignWorker",
-			"job": "farm",
-			"delta": 1
+			"type": "assignPeasant",
+			"peasant": 1,
+			"job": "farm"
 		}
 	},
 	{
@@ -187,17 +187,17 @@
 	{
 		"tick": 3000,
 		"command": {
-			"type": "assignWorker",
-			"job": "farm",
-			"delta": -1
+			"type": "assignPeasant",
+			"peasant": 1,
+			"job": "idle"
 		}
 	},
 	{
 		"tick": 3001,
 		"command": {
-			"type": "assignWorker",
-			"job": "forest",
-			"delta": 1
+			"type": "assignPeasant",
+			"peasant": 1,
+			"job": "forest"
 		}
 	},
 	{

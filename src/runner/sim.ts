@@ -164,7 +164,7 @@ export function runSim(
 	const absorbed: AbsorbedAdditionLog = {};
 	const rejectedCommands: { tick: number; type: string; reason: string }[] = [];
 	const issued: CommandLogEntry[] = [];
-	let minPopulation = state.posting.economy.population;
+	let minPopulation = state.posting.delegates.length;
 	let stepsDone = 0;
 	const commandSource = player === null ? undefined : player.next;
 	try {
@@ -188,10 +188,7 @@ export function runSim(
 					for (const command of commands) issued.push({ tick, command });
 				}
 				player?.observe(state, tuning);
-				minPopulation = Math.min(
-					minPopulation,
-					state.posting.economy.population,
-				);
+				minPopulation = Math.min(minPopulation, state.posting.delegates.length);
 				stepsDone += 1;
 				if (options.trace !== null && stepsDone % options.trace === 0) {
 					io.stdout(
@@ -200,7 +197,7 @@ export function runSim(
 							tick,
 							hash: stateHash(state),
 							resources: sortedRecord(state.posting.resources),
-							population: state.posting.economy.population,
+							population: state.posting.delegates.length,
 							starved: state.posting.economy.starved,
 						}),
 					);
@@ -222,7 +219,7 @@ export function runSim(
 			tick: state.tick,
 			hash: stateHash(state),
 			resources: sortedRecord(state.posting.resources),
-			population: state.posting.economy.population,
+			population: state.posting.delegates.length,
 			starved: state.posting.economy.starved,
 			minPopulation,
 			...(player

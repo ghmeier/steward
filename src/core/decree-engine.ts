@@ -12,11 +12,11 @@ import {
 	parseDecree,
 	type Quantity,
 } from "./decree";
+import { idleCount } from "./delegates";
 import {
 	type EconomyFlows,
 	feedGrain,
 	grainSeasons,
-	idlePeasants,
 	laborTargets,
 	moveLaborToward,
 	seasonAt,
@@ -43,7 +43,7 @@ export function quantityValue(
 	state: GameState,
 	tuning: Tuning,
 ): number {
-	const { resources, economy } = state.posting;
+	const { resources, delegates } = state.posting;
 	switch (quantity) {
 		case "coin":
 		case "grain":
@@ -51,9 +51,9 @@ export function quantityValue(
 		case "wood":
 			return resources[quantity] ?? 0;
 		case "population":
-			return economy.population;
+			return delegates.length;
 		case "idle":
-			return idlePeasants(economy);
+			return idleCount(delegates);
 		case "grainSeasons":
 			return grainSeasons(state, tuning);
 	}
@@ -173,8 +173,8 @@ export function runDecrees(
 				: undefined;
 			if (!shares) throw new Error(`unknown labor policy "${policy}"`);
 			moveLaborToward(
-				state.posting.economy,
-				laborTargets(state.posting.economy.population, shares),
+				state.posting.delegates,
+				laborTargets(state.posting.delegates.length, shares),
 				tuning.economy.laborMovesPerTick,
 			);
 		}

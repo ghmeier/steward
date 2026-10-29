@@ -1,10 +1,11 @@
 import type { Decree } from "./decree";
+import { bearPeasant, type Delegate } from "./delegates";
 import type { EconomyState } from "./economy";
 import { RESOURCES } from "./realm";
 import { type RngState, seedStream } from "./rng";
 import type { Tuning } from "./tuning";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export type ResourceId = string;
 
@@ -21,6 +22,8 @@ export type PostingState = {
 	rng: Record<string, RngState>;
 	resources: Record<ResourceId, number>;
 	economy: EconomyState;
+	delegates: Delegate[];
+	nextDelegateId: number;
 	decrees: Record<string, Decree>;
 };
 
@@ -32,7 +35,7 @@ export type GameState = {
 };
 
 /** Every stream the systems draw from; each is seeded at creation so no system seeds lazily mid-run. */
-export const RNG_STREAMS = [] as const;
+export const RNG_STREAMS = ["names"] as const;
 
 export function createNewGame(seed: number, tuning: Tuning): GameState {
 	if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
@@ -46,23 +49,23 @@ export function createNewGame(seed: number, tuning: Tuning): GameState {
 	for (const name of RNG_STREAMS) {
 		rng[name] = seedStream(seed, name);
 	}
+	const posting: PostingState = {
+		postingId: "posting-1",
+		seed,
+		rng,
+		resources,
+		economy: { hunger: 0, growth: 0, starved: 0 },
+		delegates: [],
+		nextDelegateId: 1,
+		decrees: {},
+	};
+	for (let i = 0; i < tuning.economy.initialPopulation; i++) {
+		bearPeasant(posting, tuning.village.names);
+	}
 	return {
 		schemaVersion: SCHEMA_VERSION,
 		tick: 0,
 		career: { unlocks: {}, savedDecrees: {}, followers: [], formerStaff: [] },
-		posting: {
-			postingId: "posting-1",
-			seed,
-			rng,
-			resources,
-			economy: {
-				population: tuning.economy.initialPopulation,
-				labor: { farm: 0, forest: 0, mine: 0 },
-				hunger: 0,
-				growth: 0,
-				starved: 0,
-			},
-			decrees: {},
-		},
+		posting,
 	};
 }

@@ -8,9 +8,10 @@ import {
 	repealDecree,
 	runDecrees,
 } from "../src/core/decree-engine";
+import { laborCounts } from "../src/core/delegates";
 import type { AddContext } from "../src/core/math";
 import { createNewGame } from "../src/core/state";
-import { economyTestTuning as tuning } from "./helpers";
+import { setRoster, economyTestTuning as tuning } from "./helpers";
 
 const context: AddContext = { tick: 1, maxValue: 1e300, absorbed: null };
 
@@ -271,7 +272,7 @@ describe("repealDecree", () => {
 describe("quantityValue", () => {
 	test("reads each quantity from the state", () => {
 		const state = freshState();
-		state.posting.economy.labor.farm = 3;
+		setRoster(state, { farm: 3, idle: 7 });
 
 		expect(quantityValue("grain", state, tuning)).toBe(60);
 		expect(quantityValue("coin", state, tuning)).toBe(0);
@@ -412,14 +413,14 @@ describe("runDecrees", () => {
 		enactOk(state, labor("crew", [], "farming"));
 
 		runDecrees(state, tuning, context, surplus);
-		expect(state.posting.economy.labor).toEqual({
+		expect(laborCounts(state.posting.delegates)).toEqual({
 			farm: 1,
 			forest: 0,
 			mine: 0,
 		});
 
 		runDecrees(state, tuning, context, surplus);
-		expect(state.posting.economy.labor).toEqual({
+		expect(laborCounts(state.posting.delegates)).toEqual({
 			farm: 2,
 			forest: 0,
 			mine: 0,
@@ -430,7 +431,7 @@ describe("runDecrees", () => {
 		// With five farmers, farming (7/2/1) adds a farmer and balanced (5/3/2) adds a forester.
 		function chained(granaryOtherwise: string) {
 			const state = freshState();
-			state.posting.economy.labor.farm = 5;
+			setRoster(state, { farm: 5, idle: 5 });
 			enactOk(state, harvest("granary", [], granaryOtherwise));
 			enactOk(
 				state,
@@ -447,7 +448,7 @@ describe("runDecrees", () => {
 			const chosen = runDecrees(state, tuning, context, surplus);
 
 			expect(chosen).toEqual({ "a-workforce": "farming", granary: "sell" });
-			expect(state.posting.economy.labor.farm).toBe(6);
+			expect(laborCounts(state.posting.delegates).farm).toBe(6);
 		});
 
 		test("a different choice by the earlier decree changes the later outcome", () => {
@@ -456,7 +457,7 @@ describe("runDecrees", () => {
 			const chosen = runDecrees(state, tuning, context, surplus);
 
 			expect(chosen["a-workforce"]).toBe("balanced");
-			expect(state.posting.economy.labor.forest).toBe(1);
+			expect(laborCounts(state.posting.delegates).forest).toBe(1);
 		});
 	});
 

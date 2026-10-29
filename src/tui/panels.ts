@@ -2,11 +2,13 @@ import { BoxRenderable, type CliRenderer, TextRenderable } from "@opentui/core";
 import type { GameView } from "../core/view";
 import { formatAmount, formatGameTime, formatRate } from "./format";
 
-export type Panels = { update(view: GameView, footer: string): void };
+export type Panels = {
+	update(view: GameView, footer: string, selectedId: number | null): void;
+};
 
 const CROWN_PLACEHOLDER = "The crown demands nothing, for now.";
 const DESK_PLACEHOLDER = "The desk is clear.";
-const GOVERNORS_PLACEHOLDER = "No governors serve you yet.";
+const PEASANTS_PLACEHOLDER = "No peasants live here.";
 
 function capitalize(id: string): string {
 	return id.charAt(0).toUpperCase() + id.slice(1);
@@ -37,6 +39,17 @@ function ledgerContent(view: GameView): string {
 		"",
 		...realmLines,
 	].join("\n");
+}
+
+export function peasantLines(
+	view: GameView,
+	selectedId: number | null,
+): string[] {
+	return view.delegates.map((delegate) => {
+		const cursor = delegate.id === selectedId ? ">" : " ";
+		const grudge = delegate.grudgeTicks > 0 ? " (grudge)" : "";
+		return `${cursor} ${delegate.name}  ${delegate.job}${grudge}`;
+	});
 }
 
 function linesOrPlaceholder(lines: string[], placeholder: string): string {
@@ -76,7 +89,7 @@ export function createPanels(renderer: CliRenderer): Panels {
 	const ledger = makePanel("ledger", "Ledger");
 	const crown = makePanel("crown", "Crown");
 	const desk = makePanel("desk", "Desk");
-	const governors = makePanel("governors", "Governors");
+	const peasants = makePanel("peasants", "Peasants");
 
 	const makeRow = (id: string, left: BoxRenderable, right: BoxRenderable) => {
 		const row = new BoxRenderable(renderer, {
@@ -90,7 +103,7 @@ export function createPanels(renderer: CliRenderer): Panels {
 		return row;
 	};
 	grid.add(makeRow("top-row", ledger.box, crown.box));
-	grid.add(makeRow("bottom-row", desk.box, governors.box));
+	grid.add(makeRow("bottom-row", desk.box, peasants.box));
 
 	const footer = new TextRenderable(renderer, {
 		id: "footer",
@@ -103,16 +116,16 @@ export function createPanels(renderer: CliRenderer): Panels {
 	renderer.root.add(container);
 
 	return {
-		update(view, footerText) {
+		update(view, footerText, selectedId) {
 			ledger.text.content = ledgerContent(view);
 			crown.text.content = view.crown?.label ?? CROWN_PLACEHOLDER;
 			desk.text.content = linesOrPlaceholder(
 				view.desk.map((entry) => entry.label),
 				DESK_PLACEHOLDER,
 			);
-			governors.text.content = linesOrPlaceholder(
-				view.governors.map((governor) => governor.name),
-				GOVERNORS_PLACEHOLDER,
+			peasants.text.content = linesOrPlaceholder(
+				peasantLines(view, selectedId),
+				PEASANTS_PLACEHOLDER,
 			);
 			footer.content = footerText;
 		},

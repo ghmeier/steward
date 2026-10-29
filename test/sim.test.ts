@@ -101,7 +101,7 @@ describe("runSim output", () => {
 		expect(summary.rejectedCommands).toHaveLength(1);
 		expect(summary.rejectedCommands[0]).toMatchObject({
 			tick: 2,
-			type: "assignWorker",
+			type: "assignPeasant",
 		});
 	});
 });
@@ -138,7 +138,10 @@ function foresterLog(): string {
 	writeFileSync(
 		path,
 		JSON.stringify([
-			{ tick: 1, command: { type: "assignWorker", job: "forest", delta: 1 } },
+			{
+				tick: 1,
+				command: { type: "assignPeasant", peasant: 1, job: "forest" },
+			},
 		]),
 	);
 	return path;
@@ -149,7 +152,10 @@ function rejectingLog(): string {
 	writeFileSync(
 		path,
 		JSON.stringify([
-			{ tick: 2, command: { type: "assignWorker", job: "farm", delta: 5 } },
+			{
+				tick: 2,
+				command: { type: "assignPeasant", peasant: 999, job: "farm" },
+			},
 		]),
 	);
 	return path;

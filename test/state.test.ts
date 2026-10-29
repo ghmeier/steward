@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import tuningJson from "../data/tuning.json";
+import villageJson from "../data/village.json";
 import { seedStream } from "../src/core/rng";
 import { createNewGame, RNG_STREAMS, SCHEMA_VERSION } from "../src/core/state";
 import { parseTuning } from "../src/core/tuning";
 import { validateState } from "../src/core/validate";
 import { tuning } from "./helpers";
+
+const fullTuningJson = { ...tuningJson, village: villageJson };
 
 describe("createNewGame", () => {
 	test("returns deeply equal states for the same seed", () => {
@@ -28,13 +31,24 @@ describe("createNewGame", () => {
 		expect(state.tick).toBe(0);
 		expect(state.posting.resources).toEqual(tuning.economy.initialResources);
 		expect(state.posting.economy).toEqual({
-			population: tuning.economy.initialPopulation,
-			labor: { farm: 0, forest: 0, mine: 0 },
 			hunger: 0,
 			growth: 0,
 			starved: 0,
 		});
 		expect(Object.keys(state.posting.rng)).toEqual([...RNG_STREAMS]);
+		expect(state.posting.nextDelegateId).toBe(
+			tuning.economy.initialPopulation + 1,
+		);
+	});
+
+	test("seeds every stream from the seed and its name when nobody is born", () => {
+		const empty = {
+			...tuning,
+			economy: { ...tuning.economy, initialPopulation: 0 },
+		};
+
+		const state = createNewGame(7, empty);
+
 		for (const name of RNG_STREAMS) {
 			expect(state.posting.rng[name]).toEqual(seedStream(7, name));
 		}
@@ -55,11 +69,11 @@ describe("createNewGame", () => {
 
 describe("parseTuning", () => {
 	test("accepts data/tuning.json", () => {
-		expect(parseTuning(tuningJson)).toEqual(tuningJson);
+		expect(parseTuning(fullTuningJson)).toEqual(fullTuningJson);
 	});
 
 	test("rejects a missing field and names it", () => {
-		const { stepMs: _omitted, ...rest } = tuningJson;
+		const { stepMs: _omitted, ...rest } = fullTuningJson;
 
 		expect(() => parseTuning(rest)).toThrow("stepMs");
 	});
@@ -75,7 +89,7 @@ describe("parseTuning", () => {
 		["laborMovesPerTick", 0, "laborMovesPerTick"],
 	])("rejects economy.%s of %p and names the field", (key, value, named) => {
 		const bad = {
-			...tuningJson,
+			...fullTuningJson,
 			economy: { ...tuningJson.economy, [key]: value },
 		};
 
@@ -84,7 +98,7 @@ describe("parseTuning", () => {
 
 	test("accepts an initial population equal to the maximum", () => {
 		const ok = {
-			...tuningJson,
+			...fullTuningJson,
 			economy: { ...tuningJson.economy, initialPopulation: 40 },
 		};
 
@@ -94,7 +108,7 @@ describe("parseTuning", () => {
 	test("rejects a season yield missing a season", () => {
 		const { winter: _omitted, ...seasonYield } = tuningJson.economy.seasonYield;
 		const bad = {
-			...tuningJson,
+			...fullTuningJson,
 			economy: { ...tuningJson.economy, seasonYield },
 		};
 
@@ -103,7 +117,7 @@ describe("parseTuning", () => {
 
 	test("rejects initial resources with an unknown resource", () => {
 		const bad = {
-			...tuningJson,
+			...fullTuningJson,
 			economy: {
 				...tuningJson.economy,
 				initialResources: { ...tuningJson.economy.initialResources, gold: 1 },
@@ -123,10 +137,50 @@ describe("parseTuning", () => {
 		["a missing job", { odd: { farm: 0.5, forest: 0.5 } }],
 	])("rejects laborAllocations with %s", (_name, laborAllocations) => {
 		const bad = {
-			...tuningJson,
+			...fullTuningJson,
 			economy: { ...tuningJson.economy, laborAllocations },
 		};
 
 		expect(() => parseTuning(bad)).toThrow("laborAllocations");
+	});
+});
+
+describe("parseTuning village names", () => {
+	const withNames = (names: unknown) => ({
+		...fullTuningJson,
+		village: { names },
+	});
+
+	test("rejects a name list shorter than the maximum population", () => {
+		const names = villageJson.names.slice(
+			0,
+			tuningJson.economy.maxPopulation - 1,
+		);
+
+		expect(() => parseTuning(withNames(names))).toThrow("maxPopulation");
+	});
+
+	test("accepts a name list exactly as long as the maximum population", () => {
+		const names = villageJson.names.slice(0, tuningJson.economy.maxPopulation);
+
+		expect(parseTuning(withNames(names)).village.names).toEqual(names);
+	});
+
+	test("rejects an empty name", () => {
+		const names = [...villageJson.names];
+		names[3] = "";
+
+		expect(() => parseTuning(withNames(names))).toThrow("non-empty");
+	});
+
+	test("rejects a repeated name", () => {
+		const names = [...villageJson.names];
+		names[5] = names[2] as string;
+
+		expect(() => parseTuning(withNames(names))).toThrow("repeats");
+	});
+
+	test("rejects a missing village section", () => {
+		expect(() => parseTuning(tuningJson)).toThrow("village");
 	});
 });

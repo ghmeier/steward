@@ -1,11 +1,17 @@
+import {
+	bearPeasant,
+	type Delegate,
+	laborCounts,
+	lowestInJob,
+	removeDelegate,
+	workingCounts,
+} from "./delegates";
 import { type AddContext, add } from "./math";
 import { JOBS, type Job, type Resource, SEASONS, type Season } from "./realm";
 import type { GameState } from "./state";
 import type { Tuning } from "./tuning";
 
 export type EconomyState = {
-	population: number;
-	labor: Record<Job, number>;
 	hunger: number;
 	growth: number;
 	starved: number;
@@ -19,17 +25,11 @@ export function seasonAt(tick: number, ticksPerSeason: number): Season {
 	return SEASONS[index] ?? "spring";
 }
 
-export function idlePeasants(economy: EconomyState): number {
-	let working = 0;
-	for (const job of JOBS) working += economy.labor[job];
-	return economy.population - working;
-}
-
 export function grainSeasons(state: GameState, tuning: Tuning): number {
 	const { economy } = tuning;
 	const grain = state.posting.resources.grain ?? 0;
 	const upkeepPerSeason =
-		state.posting.economy.population *
+		state.posting.delegates.length *
 		economy.grainPerPerson *
 		economy.ticksPerSeason;
 	if (upkeepPerSeason === 0) return grain === 0 ? 0 : tuning.maxResourceValue;
@@ -40,28 +40,25 @@ function grainProduced(state: GameState, tuning: Tuning): number {
 	const { economy } = tuning;
 	const season = seasonAt(state.tick, economy.ticksPerSeason);
 	return (
-		state.posting.economy.labor.farm *
+		workingCounts(state.posting.delegates, state.tick).farm *
 		economy.grainPerFarmer *
 		economy.seasonYield[season]
 	);
 }
 
 function upkeepOf(state: GameState, tuning: Tuning): number {
-	return state.posting.economy.population * tuning.economy.grainPerPerson;
+	return state.posting.delegates.length * tuning.economy.grainPerPerson;
 }
 
 // Idle peasants die first so that a starving village loses its workers last; among
 // workers the order is fixed (mine, forest, farm) so replay never depends on state shape.
-function killOnePeasant(economy: EconomyState): void {
-	if (idlePeasants(economy) <= 0) {
-		for (const job of ["mine", "forest", "farm"] as const) {
-			if (economy.labor[job] > 0) {
-				economy.labor[job] -= 1;
-				break;
-			}
-		}
-	}
-	economy.population -= 1;
+function killOnePeasant(delegates: Delegate[]): void {
+	const victim =
+		lowestInJob(delegates, "idle") ??
+		lowestInJob(delegates, "mine") ??
+		lowestInJob(delegates, "forest") ??
+		lowestInJob(delegates, "farm");
+	if (victim !== undefined) removeDelegate(delegates, victim.id);
 }
 
 export function runEconomy(
@@ -71,17 +68,13 @@ export function runEconomy(
 ): EconomyFlows {
 	const settings = tuning.economy;
 	const resources = state.posting.resources;
-	const economy = state.posting.economy;
+	const { economy, delegates } = state.posting;
+	const working = workingCounts(delegates, state.tick);
 
 	const produced = grainProduced(state, tuning);
 	add(resources, "grain", produced, context);
-	add(
-		resources,
-		"wood",
-		economy.labor.forest * settings.woodPerWorker,
-		context,
-	);
-	add(resources, "ore", economy.labor.mine * settings.orePerWorker, context);
+	add(resources, "wood", working.forest * settings.woodPerWorker, context);
+	add(resources, "ore", working.mine * settings.orePerWorker, context);
 
 	const upkeep = upkeepOf(state, tuning);
 	const grain = resources.grain ?? 0;
@@ -93,9 +86,9 @@ export function runEconomy(
 		add(resources, "grain", -grain, context);
 		while (
 			economy.hunger >= settings.starvationHunger &&
-			economy.population > 0
+			delegates.length > 0
 		) {
-			killOnePeasant(economy);
+			killOnePeasant(delegates);
 			economy.hunger -= settings.starvationHunger;
 			economy.starved += 1;
 		}
@@ -122,16 +115,16 @@ export function feedGrain(
 	context: AddContext,
 ): void {
 	const settings = tuning.economy;
-	const economy = state.posting.economy;
-	if (economy.population >= settings.maxPopulation) return;
+	const { economy, delegates } = state.posting;
+	if (delegates.length >= settings.maxPopulation) return;
 
 	add(state.posting.resources, "grain", -amount, context);
 	economy.growth += amount;
 	while (
 		economy.growth >= settings.grainPerPeasant &&
-		economy.population < settings.maxPopulation
+		delegates.length < settings.maxPopulation
 	) {
-		economy.population += 1;
+		bearPeasant(state.posting, tuning.village.names);
 		economy.growth -= settings.grainPerPeasant;
 	}
 }
@@ -164,15 +157,16 @@ export function laborTargets(
 }
 
 export function moveLaborToward(
-	economy: EconomyState,
+	delegates: readonly Delegate[],
 	target: Readonly<Record<Job, number>>,
 	moves: number,
 ): void {
 	for (let done = 0; done < moves; done++) {
+		const labor = laborCounts(delegates);
 		let short: Job | null = null;
 		let shortBy = 0;
 		for (const job of JOBS) {
-			const gap = target[job] - economy.labor[job];
+			const gap = target[job] - labor[job];
 			if (gap > shortBy) {
 				short = job;
 				shortBy = gap;
@@ -180,20 +174,22 @@ export function moveLaborToward(
 		}
 		if (short === null) return;
 
-		if (idlePeasants(economy) <= 0) {
+		let mover = lowestInJob(delegates, "idle");
+		if (mover === undefined) {
 			let source: Job | null = null;
 			let excess = 0;
 			for (const job of JOBS) {
-				const over = economy.labor[job] - target[job];
+				const over = labor[job] - target[job];
 				if (over > excess) {
 					source = job;
 					excess = over;
 				}
 			}
 			if (source === null) return;
-			economy.labor[source] -= 1;
+			mover = lowestInJob(delegates, source);
 		}
-		economy.labor[short] += 1;
+		if (mover === undefined) return;
+		mover.job = short;
 	}
 }
 
@@ -202,7 +198,7 @@ export function steadyRates(
 	tuning: Tuning,
 ): Record<Resource, number> {
 	const settings = tuning.economy;
-	const labor = state.posting.economy.labor;
+	const labor = workingCounts(state.posting.delegates, state.tick);
 	return {
 		coin: 0,
 		grain: grainProduced(state, tuning) - upkeepOf(state, tuning),

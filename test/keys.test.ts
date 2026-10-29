@@ -7,15 +7,22 @@ function key(name: string, modifiers: Partial<KeyPress> = {}): KeyPress {
 }
 
 describe("actionForKey", () => {
-	test.each<[string, Job]>([
+	test.each<[string, Job | "idle"]>([
 		["f", "farm"],
 		["w", "forest"],
 		["m", "mine"],
-	])("%s assigns one idle peasant to the %s", (name, job) => {
-		expect(actionForKey(key(name))).toEqual({
-			kind: "command",
-			command: { type: "assignWorker", job, delta: 1 },
-		});
+		["i", "idle"],
+	])("%s asks to assign the selected peasant to %s", (name, job) => {
+		expect(actionForKey(key(name))).toEqual({ kind: "assign", job });
+	});
+
+	test.each<[string, -1 | 1]>([
+		["up", -1],
+		["k", -1],
+		["down", 1],
+		["j", 1],
+	])("%s moves the cursor by %p", (name, delta) => {
+		expect(actionForKey(key(name))).toEqual({ kind: "move", delta });
 	});
 
 	test("s saves and q quits", () => {
@@ -25,14 +32,9 @@ describe("actionForKey", () => {
 
 	test("mutating a returned action does not change later results", () => {
 		const first = actionForKey(key("f"));
-		if (first?.kind === "command" && first.command.type === "assignWorker") {
-			first.command.delta = 99;
-		}
+		if (first?.kind === "assign") first.job = "mine";
 
-		expect(actionForKey(key("f"))).toEqual({
-			kind: "command",
-			command: { type: "assignWorker", job: "farm", delta: 1 },
-		});
+		expect(actionForKey(key("f"))).toEqual({ kind: "assign", job: "farm" });
 	});
 
 	test("Ctrl-C quits", () => {

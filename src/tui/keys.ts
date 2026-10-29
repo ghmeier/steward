@@ -1,4 +1,3 @@
-import type { Command } from "../core/commands";
 import type { Job } from "../core/realm";
 
 export type KeyPress = {
@@ -7,20 +6,22 @@ export type KeyPress = {
 	meta: boolean;
 	shift: boolean;
 };
+/** What a key asks for; the app turns an assignment into a command for the selected peasant. */
 export type KeyAction =
-	| { kind: "command"; command: Command }
+	| { kind: "move"; delta: -1 | 1 }
+	| { kind: "assign"; job: Job | "idle" }
 	| { kind: "save" }
 	| { kind: "quit" };
 
-const assign = (job: Job): KeyAction => ({
-	kind: "command",
-	command: { type: "assignWorker", job, delta: 1 },
-});
-
 const BINDINGS: Readonly<Record<string, KeyAction>> = {
-	f: assign("farm"),
-	w: assign("forest"),
-	m: assign("mine"),
+	up: { kind: "move", delta: -1 },
+	k: { kind: "move", delta: -1 },
+	down: { kind: "move", delta: 1 },
+	j: { kind: "move", delta: 1 },
+	f: { kind: "assign", job: "farm" },
+	w: { kind: "assign", job: "forest" },
+	m: { kind: "assign", job: "mine" },
+	i: { kind: "assign", job: "idle" },
 	s: { kind: "save" },
 	q: { kind: "quit" },
 };
@@ -37,7 +38,8 @@ export function actionForKey(key: KeyPress): KeyAction | null {
 }
 
 export const KEY_HINTS: readonly { keys: string; label: string }[] = [
-	{ keys: "f/w/m", label: "assign farm/forest/mine" },
+	{ keys: "j/k", label: "select peasant" },
+	{ keys: "f/w/m/i", label: "assign farm/forest/mine/idle" },
 	{ keys: "s", label: "save" },
 	{ keys: "q", label: "quit" },
 ];

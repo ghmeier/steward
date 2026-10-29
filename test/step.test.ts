@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { CommandLogEntry } from "../src/core/commands";
+import { laborCounts } from "../src/core/delegates";
 import { canonicalStringify } from "../src/core/serialize";
 import { createNewGame } from "../src/core/state";
 import { runSteps, step } from "../src/core/step";
@@ -8,6 +9,7 @@ import {
 	economyTestTuning,
 	quietOptions,
 	sampleCommandLog,
+	setRoster,
 	tuning,
 } from "./helpers";
 
@@ -25,8 +27,8 @@ describe("step", () => {
 			state,
 			[
 				{ type: "noop" },
-				{ type: "assignWorker", job: "mine", delta: -1 },
-				{ type: "assignWorker", job: "mine", delta: 1 },
+				{ type: "assignPeasant", peasant: 999, job: "mine" },
+				{ type: "assignPeasant", peasant: 1, job: "mine" },
 			],
 			tuning,
 			quietOptions,
@@ -42,7 +44,7 @@ describe("step", () => {
 
 		step(
 			state,
-			[{ type: "assignWorker", job: "farm", delta: 1 }],
+			[{ type: "assignPeasant", peasant: 1, job: "farm" }],
 			economyTestTuning,
 			quietOptions,
 		);
@@ -59,12 +61,12 @@ describe("step", () => {
 
 		step(
 			state,
-			[{ type: "assignWorker", job: "mine", delta: -1 }],
+			[{ type: "assignPeasant", peasant: 999, job: "mine" }],
 			economyTestTuning,
 			quietOptions,
 		);
 
-		expect(state.posting.economy.labor).toEqual({
+		expect(laborCounts(state.posting.delegates)).toEqual({
 			farm: 0,
 			forest: 0,
 			mine: 0,
@@ -95,7 +97,7 @@ describe("step", () => {
 describe("step decrees", () => {
 	function farmingVillage(withDecree: boolean) {
 		const state = createNewGame(42, economyTestTuning);
-		state.posting.economy.labor.farm = 8;
+		setRoster(state, { farm: 8, idle: 2 });
 		if (withDecree) {
 			state.posting.decrees.granary = {
 				id: "granary",
@@ -142,39 +144,39 @@ describe("runSteps", () => {
 
 	test("does not reapply log entries for ticks already passed when resuming", () => {
 		const log: CommandLogEntry[] = [
-			{ tick: 2, command: { type: "assignWorker", job: "farm", delta: 1 } },
+			{ tick: 2, command: { type: "assignPeasant", peasant: 1, job: "farm" } },
 		];
 		const state = createNewGame(42, tuning);
 		state.tick = 5;
 
 		runSteps(state, 3, tuning, log, quietOptions);
 
-		expect(state.posting.economy.labor.farm).toBe(0);
+		expect(laborCounts(state.posting.delegates).farm).toBe(0);
 	});
 
 	test("applies log entries for the tick being produced when resuming", () => {
 		const log: CommandLogEntry[] = [
-			{ tick: 6, command: { type: "assignWorker", job: "farm", delta: 1 } },
+			{ tick: 6, command: { type: "assignPeasant", peasant: 1, job: "farm" } },
 		];
 		const state = createNewGame(42, tuning);
 		state.tick = 5;
 
 		runSteps(state, 3, tuning, log, quietOptions);
 
-		expect(state.posting.economy.labor.farm).toBe(1);
+		expect(laborCounts(state.posting.delegates).farm).toBe(1);
 	});
 
 	test("applies same-tick entries in file order", () => {
 		const log: CommandLogEntry[] = [
-			{ tick: 1, command: { type: "assignWorker", job: "farm", delta: 1 } },
-			{ tick: 1, command: { type: "assignWorker", job: "farm", delta: -1 } },
-			{ tick: 1, command: { type: "assignWorker", job: "mine", delta: 1 } },
+			{ tick: 1, command: { type: "assignPeasant", peasant: 1, job: "farm" } },
+			{ tick: 1, command: { type: "assignPeasant", peasant: 1, job: "idle" } },
+			{ tick: 1, command: { type: "assignPeasant", peasant: 1, job: "mine" } },
 		];
 		const state = createNewGame(42, tuning);
 
 		runSteps(state, 1, tuning, log, quietOptions);
 
-		expect(state.posting.economy.labor).toEqual({
+		expect(laborCounts(state.posting.delegates)).toEqual({
 			farm: 0,
 			forest: 0,
 			mine: 1,

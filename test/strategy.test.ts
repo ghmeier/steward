@@ -7,7 +7,7 @@ import {
 	parseStrategy,
 	type Reaction,
 } from "../src/runner/strategy";
-import { tuning } from "./helpers";
+import { setRoster, tuning } from "./helpers";
 
 const noop: Command = { type: "noop" };
 const sell: Command = {
@@ -131,7 +131,7 @@ describe("createStrategyPlayer", () => {
 		population: number,
 	) {
 		const state = createNewGame(1, tuning);
-		state.posting.economy.population = population;
+		setRoster(state, { idle: population });
 		player.observe(state, tuning);
 	}
 

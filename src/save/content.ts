@@ -6,8 +6,12 @@ import { parseTuning, type Tuning } from "../core/tuning";
 export const DEFAULT_DATA_DIR = resolve(import.meta.dir, "..", "..", "data");
 
 export function loadTuning(dataDir: string = DEFAULT_DATA_DIR): Tuning {
-	const text = readFileSync(join(dataDir, "tuning.json"), "utf8");
-	return parseTuning(JSON.parse(text));
+	const read = (file: string): unknown =>
+		JSON.parse(readFileSync(join(dataDir, file), "utf8"));
+	return parseTuning({
+		...(read("tuning.json") as object),
+		village: read("village.json"),
+	});
 }
 
 function listFiles(root: string, relativeDir: string, out: string[]): void {

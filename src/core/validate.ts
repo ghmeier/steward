@@ -79,12 +79,10 @@ function checkEconomy(economy: unknown, problems: string[]): void {
 		problems.push("$.posting.economy: must be an object");
 		return;
 	}
-	for (const key of ["population", "starved"]) {
-		if (!isCount(economy[key])) {
-			problems.push(
-				`$.posting.economy.${key}: must be a non-negative safe integer`,
-			);
-		}
+	if (!isCount(economy.starved)) {
+		problems.push(
+			"$.posting.economy.starved: must be a non-negative safe integer",
+		);
 	}
 	for (const key of ["hunger", "growth"]) {
 		const value = economy[key];
@@ -94,30 +92,56 @@ function checkEconomy(economy: unknown, problems: string[]): void {
 			);
 		}
 	}
-	const labor = economy.labor;
-	if (!isPlainRecord(labor)) {
-		problems.push("$.posting.economy.labor: must be an object");
+}
+
+function checkDelegates(posting: Record<string, unknown>, problems: string[]) {
+	const next = posting.nextDelegateId;
+	if (!isCount(next) || next < 1) {
+		problems.push("$.posting.nextDelegateId: must be a positive safe integer");
+	}
+	const delegates = posting.delegates;
+	if (!Array.isArray(delegates)) {
+		problems.push("$.posting.delegates: must be an array");
 		return;
 	}
-	if (sortedKeys(labor).join(",") !== JOBS.join(",")) {
-		problems.push(
-			`$.posting.economy.labor: keys must be exactly ${JOBS.join(", ")}`,
-		);
-		return;
-	}
-	let working = 0;
-	for (const job of JOBS) {
-		const count = labor[job];
-		if (!isCount(count)) {
-			problems.push(
-				`$.posting.economy.labor.${job}: must be a non-negative safe integer`,
-			);
-		} else {
-			working += count;
+	let previousId = 0;
+	const names = new Set<string>();
+	for (const [index, raw] of delegates.entries()) {
+		const path = `$.posting.delegates[${index}]`;
+		if (!isPlainRecord(raw)) {
+			problems.push(`${path}: must be an object`);
+			continue;
 		}
-	}
-	if (isCount(economy.population) && working > economy.population) {
-		problems.push("$.posting.economy.labor: workers exceed population");
+		const id = raw.id;
+		if (!isCount(id) || id < 1) {
+			problems.push(`${path}.id: must be a positive safe integer`);
+		} else {
+			if (id <= previousId) {
+				problems.push(`${path}.id: ids must be strictly ascending`);
+			}
+			if (isCount(next) && id >= next) {
+				problems.push(`${path}.id: must be below nextDelegateId`);
+			}
+			previousId = id;
+		}
+		const name = raw.name;
+		if (typeof name !== "string" || name === "") {
+			problems.push(`${path}.name: must be a non-empty string`);
+		} else if (names.has(name)) {
+			problems.push(`${path}.name: "${name}" is held by another peasant`);
+		} else {
+			names.add(name);
+		}
+		if (raw.kind !== "peasant") {
+			problems.push(`${path}.kind: must be "peasant"`);
+		}
+		const job = raw.job;
+		if (job !== "idle" && !(JOBS as readonly unknown[]).includes(job)) {
+			problems.push(`${path}.job: must be idle or one of ${JOBS.join(", ")}`);
+		}
+		if (!isCount(raw.grudgeUntil)) {
+			problems.push(`${path}.grudgeUntil: must be a non-negative safe integer`);
+		}
 	}
 }
 
@@ -231,6 +255,7 @@ function checkStructure(state: unknown, problems: string[]): void {
 	}
 
 	checkEconomy(posting.economy, problems);
+	checkDelegates(posting, problems);
 	checkDecrees(posting.decrees, problems);
 }
 

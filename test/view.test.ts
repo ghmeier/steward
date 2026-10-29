@@ -2,14 +2,17 @@ import { describe, expect, test } from "bun:test";
 import { createNewGame } from "../src/core/state";
 import { step } from "../src/core/step";
 import { computeView } from "../src/core/view";
-import { quietOptions, economyTestTuning as tuning } from "./helpers";
+import {
+	quietOptions,
+	setRoster,
+	economyTestTuning as tuning,
+} from "./helpers";
 
 const oddStepTuning = { ...tuning, stepMs: 250 };
 
 function village() {
 	const state = createNewGame(1, tuning);
-	state.posting.economy.population = 12;
-	state.posting.economy.labor = { farm: 4, forest: 2, mine: 1 };
+	setRoster(state, { farm: 4, forest: 2, mine: 1, idle: 5 });
 	return state;
 }
 
@@ -100,5 +103,45 @@ describe("computeView", () => {
 		const roundTripped = JSON.parse(JSON.stringify(view));
 
 		expect(roundTripped).toStrictEqual(view);
+	});
+});
+
+describe("computeView roster", () => {
+	test("lists delegates in id order with grudge ticks left", () => {
+		const state = village();
+		state.tick = 10;
+		const [first, second] = state.posting.delegates;
+		if (first) first.grudgeUntil = 25;
+		if (second) second.grudgeUntil = 10;
+
+		const view = computeView(state, tuning);
+
+		expect(view.delegates.map((delegate) => delegate.id)).toEqual(
+			state.posting.delegates.map((delegate) => delegate.id),
+		);
+		expect(view.delegates[0]?.grudgeTicks).toBe(15);
+		expect(view.delegates[1]?.grudgeTicks).toBe(0);
+		expect(view.delegates[0]?.name).toBe(first?.name ?? "");
+	});
+
+	test("lists decrees sorted by id as copies", () => {
+		const state = village();
+		for (const id of ["b", "a"]) {
+			state.posting.decrees[id] = {
+				id,
+				petition: "harvest",
+				rules: [],
+				otherwise: "sell",
+			};
+		}
+
+		const view = computeView(state, tuning);
+		view.decrees[0]?.rules.push({
+			when: { kind: "season", season: "spring" },
+			policy: "feed",
+		});
+
+		expect(view.decrees.map((decree) => decree.id)).toEqual(["a", "b"]);
+		expect(state.posting.decrees.a?.rules).toEqual([]);
 	});
 });
