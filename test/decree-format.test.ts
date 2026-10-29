@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Condition, Decree } from "../src/core/decree";
-import { formatDecree } from "../src/tui/decree-format";
+import { describePolicy, formatDecree } from "../src/tui/decree-format";
+import { tuning } from "./helpers";
 
 function decreeWith(when: Condition): Decree {
 	return {
@@ -92,5 +93,42 @@ describe("formatDecree", () => {
 		};
 
 		expect(formatDecree(bare)).toBe("labor (labor): otherwise balanced");
+	});
+});
+
+describe("describePolicy", () => {
+	const inline = {
+		...tuning,
+		economy: {
+			...tuning.economy,
+			laborAllocations: {
+				lumberjacks: { farm: 0, forest: 1, mine: 0 },
+				halves: { farm: 0.25, forest: 0.25, mine: 0.5 },
+			},
+		},
+	};
+
+	test("a single-job labor policy says everyone does that job", () => {
+		expect(describePolicy("labor", "lumberjacks", inline)).toBe(
+			"lumberjacks: everyone works the forest",
+		);
+	});
+
+	test("a mixed labor split lists each job with its percentage", () => {
+		expect(describePolicy("labor", "halves", inline)).toBe(
+			"halves: farm 25%, forest 25%, mine 50%",
+		);
+	});
+
+	test("each harvest policy says what happens to the surplus", () => {
+		expect(describePolicy("harvest", "feed", tuning)).toBe(
+			"feed: the surplus grows the village",
+		);
+		expect(describePolicy("harvest", "sell", tuning)).toBe(
+			"sell: the surplus is sold for coin",
+		);
+		expect(describePolicy("harvest", "stockpile", tuning)).toBe(
+			"stockpile: the surplus is stored",
+		);
 	});
 });

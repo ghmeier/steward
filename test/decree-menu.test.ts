@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { Command } from "../src/core/commands";
 import type { Decree } from "../src/core/decree";
+import { policiesFor } from "../src/core/decree-engine";
 import { createNewGame } from "../src/core/state";
+import { step } from "../src/core/step";
 import { computeView } from "../src/core/view";
+import { describePolicy } from "../src/tui/decree-format";
 import { decreeMenu } from "../src/tui/decree-menu";
 import {
 	type MenuContext,
@@ -11,7 +14,7 @@ import {
 	openMenu,
 	renderMenu,
 } from "../src/tui/menu";
-import { tuning } from "./helpers";
+import { quietOptions, setRoster, tuning } from "./helpers";
 
 function contextWith(decrees: Decree[]): MenuContext {
 	const state = createNewGame(1, tuning);
@@ -123,6 +126,71 @@ describe("decree menu", () => {
 
 		const [first] = Object.keys(tuning.economy.laborAllocations).sort();
 		expect(walk.lines().join("|")).toContain(`Otherwise: ${first}`);
+	});
+
+	test("the otherwise list shows every labor policy in sorted order with its description", () => {
+		const walk = new Walker(contextWith([]));
+		walk.choose("Enact labor decree");
+		const names = policiesFor("labor", tuning);
+
+		walk.choose("Otherwise");
+
+		const items = walk.lines().map((line) => line.slice(2));
+		expect(items).toEqual(
+			names.map((name) => describePolicy("labor", name, tuning)),
+		);
+		const sortedNames = Object.keys(tuning.economy.laborAllocations).sort();
+		sortedNames.forEach((name, index) => {
+			expect(items[index]?.startsWith(`${name}:`)).toBe(true);
+		});
+		expect(items).toHaveLength(sortedNames.length);
+		expect(items).toContain("farm: everyone farms");
+	});
+
+	test("choosing a described policy enacts the bare policy name", () => {
+		const walk = new Walker(contextWith([]));
+		const [, second] = policiesFor("labor", tuning);
+		if (second === undefined) throw new Error("need two labor policies");
+		walk.choose("Enact labor decree");
+
+		walk.choose("Otherwise");
+		walk.choose(`${second}:`);
+		walk.choose("Enact");
+
+		expect(walk.commands).toMatchObject([
+			{ type: "enactDecree", decree: { otherwise: second } },
+		]);
+	});
+
+	test("a menu-built seasonal labor decree sends peasants to the mine in winter and the farm otherwise", () => {
+		const walk = new Walker(contextWith([]));
+		walk.choose("Enact labor decree");
+		walk.choose("Add rule");
+		walk.choose("It is a given season");
+		walk.choose("winter");
+		walk.choose("mine:");
+		walk.choose("Otherwise");
+		walk.choose("farm:");
+		walk.choose("Enact");
+		const ticks = tuning.economy.ticksPerSeason;
+		const peasants = 4;
+		const settle = Math.ceil(peasants / tuning.economy.laborMovesPerTick) + 1;
+
+		const inSeason = (tick: number) => {
+			const state = createNewGame(1, tuning);
+			setRoster(state, { idle: peasants });
+			state.tick = tick;
+			const [enact] = walk.commands;
+			if (enact === undefined) throw new Error("nothing enacted");
+			expect(step(state, [enact], tuning, quietOptions)).toEqual([
+				{ ok: true },
+			]);
+			for (let i = 0; i < settle; i++) step(state, [], tuning, quietOptions);
+			return state.posting.delegates.map((delegate) => delegate.job);
+		};
+
+		expect(inSeason(3 * ticks)).toEqual(Array(peasants).fill("mine"));
+		expect(inSeason(0)).toEqual(Array(peasants).fill("farm"));
 	});
 
 	test("add rule is unavailable once the draft holds maxRules rules", () => {

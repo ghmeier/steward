@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { policiesFor } from "../src/core/decree-engine";
 import { createNewGame } from "../src/core/state";
 import type { Tuning } from "../src/core/tuning";
 import { computeView } from "../src/core/view";
+import { describePolicy } from "../src/tui/decree-format";
 import { helpMenu } from "../src/tui/help-menu";
 import { KEY_HINTS } from "../src/tui/keys";
 import { menuKey, openMenu, renderMenu } from "../src/tui/menu";
@@ -146,10 +148,10 @@ describe("help topics follow tuning", () => {
 
 		const text = topicText("Harvest and labor", changed);
 
-		for (const name of Object.keys(changed.economy.laborAllocations)) {
-			expect(text).toContain(name);
+		for (const name of policiesFor("labor", changed)) {
+			expect(text).toContain(describePolicy("labor", name, changed));
 		}
-		expect(text).toContain("forest 80%");
+		expect(text).toContain("lumber: farm 10%, forest 80%, mine 10%");
 	});
 });
 

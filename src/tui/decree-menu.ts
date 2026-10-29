@@ -8,7 +8,12 @@ import {
 } from "../core/decree";
 import { policiesFor } from "../core/decree-engine";
 import { SEASONS } from "../core/realm";
-import { formatDecree, formatRule, words } from "./decree-format";
+import {
+	describePolicy,
+	formatDecree,
+	formatRule,
+	words,
+} from "./decree-format";
 import type { MenuContext, MenuItem, Screen, ScreenBuilder } from "./menu";
 
 type Draft = {
@@ -106,7 +111,7 @@ function otherwiseScreen(draft: Draft): ScreenBuilder {
 		kind: "list",
 		title: "Otherwise",
 		items: policiesFor(draft.petition, context.tuning).map((policy) => ({
-			label: policy,
+			label: describePolicy(draft.petition, policy, context.tuning),
 			action: {
 				kind: "replace",
 				pop: 2,
@@ -126,7 +131,7 @@ function policyScreen(
 		kind: "list",
 		title: "Then choose",
 		items: policiesFor(draft.petition, context.tuning).map((policy) => ({
-			label: policy,
+			label: describePolicy(draft.petition, policy, context.tuning),
 			action: {
 				kind: "replace",
 				pop: pops + 1,

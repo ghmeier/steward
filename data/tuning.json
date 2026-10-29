@@ -18,7 +18,10 @@
 		"initialResources": { "coin": 0, "grain": 60, "ore": 0, "wood": 0 },
 		"laborAllocations": {
 			"balanced": { "farm": 0.5, "forest": 0.3, "mine": 0.2 },
-			"farming": { "farm": 0.7, "forest": 0.2, "mine": 0.1 }
+			"farming": { "farm": 0.7, "forest": 0.2, "mine": 0.1 },
+			"farm": { "farm": 1, "forest": 0, "mine": 0 },
+			"forest": { "farm": 0, "forest": 1, "mine": 0 },
+			"mine": { "farm": 0, "forest": 0, "mine": 1 }
 		}
 	}
 }

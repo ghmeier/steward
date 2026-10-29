@@ -1,5 +1,7 @@
+import { policiesFor } from "../core/decree-engine";
 import { type Resource, SEASONS } from "../core/realm";
 import type { Tuning } from "../core/tuning";
+import { describePolicy, plain } from "./decree-format";
 import { KEY_HINTS } from "./keys";
 import type { MenuContext, Screen, ScreenBuilder } from "./menu";
 
@@ -8,20 +10,12 @@ const BACK_ITEM = {
 	action: { kind: "replace", pop: 1 },
 } as const;
 
-function plain(value: number): string {
-	return String(Number(value.toPrecision(3)));
-}
-
 function perSecond(perTick: number, tuning: Tuning): string {
 	return `${plain((perTick * 1000) / tuning.stepMs)}/s`;
 }
 
 function seconds(ticks: number, tuning: Tuning): string {
 	return `${plain((ticks * tuning.stepMs) / 1000)} s`;
-}
-
-function percent(share: number): string {
-	return `${plain(share * 100)}%`;
 }
 
 function rulingsTouching(
@@ -132,12 +126,9 @@ function decreeLines(): string[] {
 function harvestAndLaborLines(tuning: Tuning): string[] {
 	const { economy } = tuning;
 	const moves = economy.laborMovesPerTick;
-	const allocations = Object.entries(economy.laborAllocations)
-		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-		.map(
-			([name, shares]) =>
-				`${name} (farm ${percent(shares.farm)}, forest ${percent(shares.forest)}, mine ${percent(shares.mine)})`,
-		);
+	const allocations = policiesFor("labor", tuning).map((name) =>
+		describePolicy("labor", name, tuning),
+	);
 	return [
 		"Harvest: each tick, only the grain grown beyond what everyone eats is fed, sold or stockpiled.",
 		"  Stored grain is never fed or sold, so in a season that grows nothing there is nothing to do.",
@@ -146,6 +137,8 @@ function harvestAndLaborLines(tuning: Tuning): string[] {
 		`Labor: each tick, ${plain(moves)} ${moves === 1 ? "peasant moves" : "peasants move"} toward a split of farm, forest and mine:`,
 		...allocations.map((line) => `  ${line}`),
 		"  A labor decree overrides the jobs you assign by hand.",
+		"",
+		"Example, a labor decree: mine when it is winter; otherwise farm.",
 	];
 }
 
