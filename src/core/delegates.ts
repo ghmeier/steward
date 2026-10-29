@@ -47,6 +47,17 @@ export function lowestInJob(
 	return delegates.find((delegate) => delegate.job === job);
 }
 
+/** A peasant under a grudge refuses new work, so labor moves skip them. */
+export function lowestFreeInJob(
+	delegates: readonly Delegate[],
+	job: Job | "idle",
+	tick: number,
+): Delegate | undefined {
+	return delegates.find(
+		(delegate) => delegate.job === job && tick >= delegate.grudgeUntil,
+	);
+}
+
 export function removeDelegate(delegates: Delegate[], id: number): void {
 	const index = delegates.findIndex((delegate) => delegate.id === id);
 	if (index >= 0) delegates.splice(index, 1);

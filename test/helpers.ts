@@ -2,6 +2,7 @@ import tuningJson from "../data/tuning.json";
 import villageJson from "../data/village.json";
 import type { CommandLogEntry } from "../src/core/commands";
 import type { Delegate } from "../src/core/delegates";
+import type { AddContext } from "../src/core/math";
 import type { GameState } from "../src/core/state";
 import { parseTuning, type Tuning } from "../src/core/tuning";
 
@@ -31,7 +32,42 @@ export const economyTestTuning: Tuning = {
 			farming: { farm: 0.7, forest: 0.2, mine: 0.1 },
 		},
 	},
-	village: { names: villageJson.names },
+	village: {
+		names: villageJson.names,
+		deskSlots: 3,
+		disputeArrival: { minTicks: 900, maxTicks: 1800 },
+		grudgeTicks: 600,
+		disputes: [
+			{
+				id: "boundary",
+				text: "{first} accuses {second} of moving a stone.",
+				options: [
+					{ id: "pay", label: "Pay the surveyor", resources: { coin: -10 } },
+					{
+						id: "for-first",
+						label: "Rule for {first}",
+						resources: { grain: 5 },
+						grudge: "second",
+					},
+					{
+						id: "for-second",
+						label: "Rule for {second}",
+						grudge: "first",
+					},
+				],
+				expiry: "pay",
+			},
+			{
+				id: "hen",
+				text: "{second} kept {first}'s hen.",
+				options: [
+					{ id: "buy", label: "Buy a hen", resources: { grain: -10 } },
+					{ id: "dismiss", label: "Dismiss it" },
+				],
+				expiry: "buy",
+			},
+		],
+	},
 };
 
 export const sampleCommandLog: CommandLogEntry[] = [
@@ -99,4 +135,8 @@ export function rosterOf(counts: RosterCounts): Delegate[] {
 export function setRoster(state: GameState, counts: RosterCounts): void {
 	state.posting.delegates = rosterOf(counts);
 	state.posting.nextDelegateId = state.posting.delegates.length + 1;
+}
+
+export function contextFor(state: GameState): AddContext {
+	return { tick: state.tick, maxValue: 1e300, absorbed: null };
 }

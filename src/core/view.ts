@@ -1,6 +1,7 @@
 import { compareKeys } from "./data";
 import type { Decree } from "./decree";
 import { idleCount, laborCounts } from "./delegates";
+import { fillNames, shortfall, templateOf } from "./desk";
 import { seasonAt, steadyRates } from "./economy";
 import { type Job, RESOURCES, type Season } from "./realm";
 import type { GameState, ResourceId } from "./state";
@@ -11,7 +12,17 @@ export type LedgerLine = {
 	amount: number;
 	ratePerSecond: number;
 };
-export type DeskEntryView = { id: string; label: string };
+export type DeskOptionView = {
+	id: string;
+	label: string;
+	affordable: boolean;
+	expiry: boolean;
+};
+export type DeskEntryView = {
+	id: number;
+	label: string;
+	options: DeskOptionView[];
+};
 export type GovernorView = { id: string; name: string };
 export type DelegateView = {
 	id: number;
@@ -67,8 +78,33 @@ export function computeView(state: GameState, tuning: Tuning): GameView {
 		decrees: Object.entries(decrees)
 			.sort(([a], [b]) => compareKeys(a, b))
 			.map(([, decree]) => structuredClone(decree)),
-		desk: [],
+		desk: deskView(state, tuning),
 		governors: [],
 		crown: null,
 	};
+}
+
+function deskView(state: GameState, tuning: Tuning): DeskEntryView[] {
+	const { delegates, desk } = state.posting;
+	const nameOf = (id: number) => {
+		const found = delegates.find((delegate) => delegate.id === id);
+		if (found === undefined)
+			throw new Error(`dispute party ${id} is not in the roster`);
+		return found.name;
+	};
+	return desk.disputes.map((dispute) => {
+		const template = templateOf(dispute, tuning);
+		const first = nameOf(dispute.parties[0]);
+		const second = nameOf(dispute.parties[1]);
+		return {
+			id: dispute.id,
+			label: fillNames(template.text, first, second),
+			options: template.options.map((option) => ({
+				id: option.id,
+				label: fillNames(option.label, first, second),
+				affordable: shortfall(state, option) === null,
+				expiry: option.id === template.expiry,
+			})),
+		};
+	});
 }

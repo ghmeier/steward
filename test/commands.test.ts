@@ -8,7 +8,7 @@ import {
 import { idleCount, laborCounts } from "../src/core/delegates";
 import { canonicalStringify } from "../src/core/serialize";
 import { createNewGame } from "../src/core/state";
-import { tuning } from "./helpers";
+import { contextFor, tuning } from "./helpers";
 
 describe("apply", () => {
 	test("assignPeasant moves exactly the named peasant", () => {
@@ -19,6 +19,7 @@ describe("apply", () => {
 			state,
 			{ type: "assignPeasant", peasant: second?.id ?? 0, job: "forest" },
 			tuning,
+			contextFor(state),
 		);
 
 		expect(result).toEqual({ ok: true });
@@ -43,6 +44,7 @@ describe("apply", () => {
 			state,
 			{ type: "assignPeasant", peasant: peasant?.id ?? 0, job: "idle" },
 			tuning,
+			contextFor(state),
 		);
 
 		expect(result).toEqual({ ok: true });
@@ -57,6 +59,7 @@ describe("apply", () => {
 			state,
 			{ type: "assignPeasant", peasant: 7777, job: "mine" },
 			tuning,
+			contextFor(state),
 		);
 
 		expect(result).toEqual({ ok: false, reason: "no peasant 7777" });
@@ -73,6 +76,7 @@ describe("apply", () => {
 			state,
 			{ type: "assignPeasant", peasant: peasant?.id ?? 0, job: "farm" },
 			tuning,
+			contextFor(state),
 		);
 		const idle = apply(
 			state,
@@ -82,6 +86,7 @@ describe("apply", () => {
 				job: "idle",
 			},
 			tuning,
+			contextFor(state),
 		);
 
 		expect(working).toEqual({
@@ -95,11 +100,54 @@ describe("apply", () => {
 		expect(canonicalStringify(state)).toBe(before);
 	});
 
+	test("assignPeasant refuses a grudged peasant a job but allows idle", () => {
+		const state = createNewGame(1, tuning);
+		state.tick = 10;
+		const peasant = state.posting.delegates[0];
+		if (peasant === undefined) throw new Error("no peasant");
+		peasant.grudgeUntil = 20;
+		peasant.job = "farm";
+		const send = (job: "mine" | "idle") =>
+			apply(
+				state,
+				{ type: "assignPeasant", peasant: peasant.id, job },
+				tuning,
+				contextFor(state),
+			);
+
+		expect(send("mine")).toEqual({
+			ok: false,
+			reason: `${peasant.name} refuses to work (grudge)`,
+		});
+		expect(peasant.job).toBe("farm");
+		expect(send("idle")).toEqual({ ok: true });
+		expect<string>(peasant.job).toBe("idle");
+	});
+
+	test("assignPeasant accepts a job once the grudge has ended", () => {
+		const state = createNewGame(1, tuning);
+		const peasant = state.posting.delegates[0];
+		if (peasant === undefined) throw new Error("no peasant");
+		peasant.grudgeUntil = 20;
+		const send = () =>
+			apply(
+				state,
+				{ type: "assignPeasant", peasant: peasant.id, job: "mine" },
+				tuning,
+				contextFor(state),
+			);
+
+		state.tick = 19;
+		expect(send().ok).toBe(false);
+		state.tick = 20;
+		expect(send()).toEqual({ ok: true });
+	});
+
 	test("noop changes nothing", () => {
 		const state = createNewGame(1, tuning);
 		const before = canonicalStringify(state);
 
-		const result = apply(state, { type: "noop" }, tuning);
+		const result = apply(state, { type: "noop" }, tuning, contextFor(state));
 
 		expect(result).toEqual({ ok: true });
 		expect(canonicalStringify(state)).toBe(before);

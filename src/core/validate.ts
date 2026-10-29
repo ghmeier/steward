@@ -152,6 +152,81 @@ const UNLIMITED_DECREE = {
 	maxConditionDepth: Number.MAX_SAFE_INTEGER,
 };
 
+function checkDesk(
+	posting: Record<string, unknown>,
+	tick: unknown,
+	problems: string[],
+) {
+	const desk = posting.desk;
+	if (!isPlainRecord(desk)) {
+		problems.push("$.posting.desk: must be an object");
+		return;
+	}
+	const next = desk.nextDisputeId;
+	if (!isCount(next) || next < 1) {
+		problems.push(
+			"$.posting.desk.nextDisputeId: must be a positive safe integer",
+		);
+	}
+	if (!isCount(desk.nextArrivalTick)) {
+		problems.push(
+			"$.posting.desk.nextArrivalTick: must be a non-negative safe integer",
+		);
+	}
+	const disputes = desk.disputes;
+	if (!Array.isArray(disputes)) {
+		problems.push("$.posting.desk.disputes: must be an array");
+		return;
+	}
+	const living = new Set<unknown>(
+		Array.isArray(posting.delegates)
+			? posting.delegates.map((delegate) =>
+					isPlainRecord(delegate) ? delegate.id : undefined,
+				)
+			: [],
+	);
+	let previousId = 0;
+	for (const [index, raw] of disputes.entries()) {
+		const path = `$.posting.desk.disputes[${index}]`;
+		if (!isPlainRecord(raw)) {
+			problems.push(`${path}: must be an object`);
+			continue;
+		}
+		const id = raw.id;
+		if (!isCount(id) || id < 1) {
+			problems.push(`${path}.id: must be a positive safe integer`);
+		} else {
+			if (id <= previousId) {
+				problems.push(`${path}.id: ids must be strictly ascending`);
+			}
+			if (isCount(next) && id >= next) {
+				problems.push(`${path}.id: must be below nextDisputeId`);
+			}
+			previousId = id;
+		}
+		if (typeof raw.template !== "string" || raw.template === "") {
+			problems.push(`${path}.template: must be a non-empty string`);
+		}
+		const parties = raw.parties;
+		if (
+			!Array.isArray(parties) ||
+			parties.length !== 2 ||
+			parties[0] === parties[1] ||
+			!parties.every((party) => living.has(party))
+		) {
+			problems.push(
+				`${path}.parties: must be two distinct peasants in the roster`,
+			);
+		}
+		const arrivedAt = raw.arrivedAt;
+		if (!isCount(arrivedAt) || (typeof tick === "number" && arrivedAt > tick)) {
+			problems.push(
+				`${path}.arrivedAt: must be an integer no later than the tick`,
+			);
+		}
+	}
+}
+
 function checkDecrees(decrees: unknown, problems: string[]): void {
 	if (!isPlainRecord(decrees)) {
 		problems.push("$.posting.decrees: must be an object");
@@ -257,6 +332,7 @@ function checkStructure(state: unknown, problems: string[]): void {
 	checkEconomy(posting.economy, problems);
 	checkDelegates(posting, problems);
 	checkDecrees(posting.decrees, problems);
+	checkDesk(posting, state.tick, problems);
 }
 
 export function validateState(state: unknown): string[] {

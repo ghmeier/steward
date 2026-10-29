@@ -49,7 +49,8 @@ describe("createNewGame", () => {
 
 		const state = createNewGame(7, empty);
 
-		for (const name of RNG_STREAMS) {
+		// The disputes stream has already drawn the first arrival delay.
+		for (const name of RNG_STREAMS.filter((name) => name !== "disputes")) {
 			expect(state.posting.rng[name]).toEqual(seedStream(7, name));
 		}
 	});
@@ -69,7 +70,7 @@ describe("createNewGame", () => {
 
 describe("parseTuning", () => {
 	test("accepts data/tuning.json", () => {
-		expect(parseTuning(fullTuningJson)).toEqual(fullTuningJson);
+		expect(parseTuning(fullTuningJson) as unknown).toEqual(fullTuningJson);
 	});
 
 	test("rejects a missing field and names it", () => {
@@ -148,7 +149,7 @@ describe("parseTuning", () => {
 describe("parseTuning village names", () => {
 	const withNames = (names: unknown) => ({
 		...fullTuningJson,
-		village: { names },
+		village: { ...villageJson, names },
 	});
 
 	test("rejects a name list shorter than the maximum population", () => {

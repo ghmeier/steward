@@ -57,6 +57,7 @@ describe("births", () => {
 		const exact = {
 			...tuning,
 			village: {
+				...tuning.village,
 				names: tuning.village.names.slice(0, tuning.economy.maxPopulation),
 			},
 		};
@@ -193,6 +194,7 @@ describe("labor decrees move named peasants", () => {
 			state.posting.delegates,
 			{ farm: 2, forest: 0, mine: 2 },
 			1,
+			0,
 		);
 
 		expect(state.posting.delegates.map((d) => d.job)).toEqual([
@@ -212,6 +214,7 @@ describe("labor decrees move named peasants", () => {
 			state.posting.delegates,
 			{ farm: 2, forest: 2, mine: 1 },
 			1,
+			0,
 		);
 
 		expect(state.posting.delegates.map((d) => d.job)).toEqual([
@@ -231,6 +234,7 @@ describe("labor decrees move named peasants", () => {
 			state.posting.delegates,
 			{ farm: 2, forest: 2, mine: 0 },
 			1,
+			0,
 		);
 
 		expect(state.posting.delegates.map((d) => d.job)).toEqual([
@@ -249,6 +253,7 @@ describe("labor decrees move named peasants", () => {
 			state.posting.delegates,
 			{ farm: 1, forest: 1, mine: 1 },
 			1,
+			0,
 		);
 
 		expect(state.posting.delegates.map((d) => d.job)).toEqual([
@@ -257,5 +262,89 @@ describe("labor decrees move named peasants", () => {
 			"mine",
 			"mine",
 		]);
+	});
+});
+
+function grudge(state: GameState, index: number, until: number): void {
+	const delegate = state.posting.delegates[index];
+	if (delegate === undefined) throw new Error(`no peasant at ${index}`);
+	delegate.grudgeUntil = until;
+}
+
+describe("labor decrees skip grudged peasants", () => {
+	test("a grudged idle peasant is passed over for the next idle one", () => {
+		const state = createNewGame(3, tuning);
+		setRoster(state, { mine: 1, idle: 3 });
+		grudge(state, 1, 50);
+
+		moveLaborToward(
+			state.posting.delegates,
+			{ farm: 1, forest: 0, mine: 1 },
+			1,
+			10,
+		);
+
+		expect(state.posting.delegates.map((d) => d.job)).toEqual([
+			"mine",
+			"idle",
+			"farm",
+			"idle",
+		]);
+	});
+
+	test("the same idle peasant is taken once the grudge has ended", () => {
+		const state = createNewGame(3, tuning);
+		setRoster(state, { mine: 1, idle: 3 });
+		grudge(state, 1, 50);
+
+		moveLaborToward(
+			state.posting.delegates,
+			{ farm: 1, forest: 0, mine: 1 },
+			1,
+			50,
+		);
+
+		expect(state.posting.delegates.map((d) => d.job)).toEqual([
+			"mine",
+			"farm",
+			"idle",
+			"idle",
+		]);
+	});
+
+	test("a grudged worker in the excess job is skipped for the next one", () => {
+		const state = createNewGame(3, tuning);
+		setRoster(state, { forest: 1, mine: 3 });
+		grudge(state, 1, 50);
+
+		moveLaborToward(
+			state.posting.delegates,
+			{ farm: 1, forest: 1, mine: 2 },
+			1,
+			10,
+		);
+
+		expect(state.posting.delegates.map((d) => d.job)).toEqual([
+			"forest",
+			"mine",
+			"farm",
+			"mine",
+		]);
+	});
+
+	test("when every worker in the excess job is grudged nobody moves", () => {
+		const state = createNewGame(3, tuning);
+		setRoster(state, { forest: 1, mine: 2 });
+		for (const d of state.posting.delegates.slice(1)) d.grudgeUntil = 50;
+		const before = structuredClone(state.posting.delegates);
+
+		moveLaborToward(
+			state.posting.delegates,
+			{ farm: 1, forest: 1, mine: 1 },
+			1,
+			10,
+		);
+
+		expect(state.posting.delegates).toEqual(before);
 	});
 });

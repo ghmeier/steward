@@ -176,6 +176,7 @@ export function runDecrees(
 				state.posting.delegates,
 				laborTargets(state.posting.delegates.length, shares),
 				tuning.economy.laborMovesPerTick,
+				state.tick,
 			);
 		}
 	}

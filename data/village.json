@@ -59,5 +59,179 @@
 		"Wymond",
 		"Yvette",
 		"Godwin"
+	],
+	"deskSlots": 3,
+	"disputeArrival": {
+		"minTicks": 900,
+		"maxTicks": 1800
+	},
+	"grudgeTicks": 600,
+	"disputes": [
+		{
+			"id": "boundary-stone",
+			"text": "{first} says {second} moved the boundary stone a furrow's width. {second} says it was always there.",
+			"options": [
+				{
+					"id": "survey",
+					"label": "Hire a surveyor and split the difference",
+					"resources": {
+						"coin": -8
+					}
+				},
+				{
+					"id": "for-first",
+					"label": "Rule for {first} and cover the surveyor's fee",
+					"resources": {
+						"coin": -3
+					},
+					"grudge": "second"
+				},
+				{
+					"id": "for-second",
+					"label": "Rule for {second} and waive the field's tithe",
+					"resources": {
+						"grain": -4
+					},
+					"grudge": "first"
+				}
+			],
+			"expiry": "survey"
+		},
+		{
+			"id": "borrowed-plough",
+			"text": "{first} lent {second} a plough in spring. It came back with one handle.",
+			"options": [
+				{
+					"id": "replace",
+					"label": "Pay for a new handle",
+					"resources": {
+						"wood": -4,
+						"coin": -3
+					}
+				},
+				{
+					"id": "for-first",
+					"label": "Make {second} pay {first} for it",
+					"grudge": "second"
+				},
+				{
+					"id": "for-second",
+					"label": "Call it fair wear",
+					"grudge": "first"
+				}
+			],
+			"expiry": "replace"
+		},
+		{
+			"id": "stolen-hen",
+			"text": "{first} accuses {second} of stealing a hen. {second} has a hen, and a great deal to say about it.",
+			"options": [
+				{
+					"id": "compensate",
+					"label": "Buy {first} a new hen",
+					"resources": {
+						"grain": -6
+					}
+				},
+				{
+					"id": "fine-second",
+					"label": "Fine {second} for the steward's trouble",
+					"resources": {
+						"coin": 6
+					},
+					"grudge": "second"
+				},
+				{
+					"id": "dismiss",
+					"label": "Dismiss the charge",
+					"grudge": "first"
+				}
+			],
+			"expiry": "compensate"
+		},
+		{
+			"id": "dowry",
+			"text": "{first} promised a dowry to {second}'s family and now disputes the count of the sheaves.",
+			"options": [
+				{
+					"id": "top-up",
+					"label": "Make up the shortfall from the stores",
+					"resources": {
+						"grain": -12
+					}
+				},
+				{
+					"id": "hold-first",
+					"label": "Hold {first} to the full count",
+					"grudge": "first"
+				},
+				{
+					"id": "hold-second",
+					"label": "Tell {second} to accept less, with a gift to ease the sting",
+					"resources": {
+						"coin": -4
+					},
+					"grudge": "second"
+				}
+			],
+			"expiry": "top-up"
+		},
+		{
+			"id": "mill-rights",
+			"text": "{first} and {second} both claim the first grinding of the day at the mill.",
+			"options": [
+				{
+					"id": "rota",
+					"label": "Draw up a rota and a fee",
+					"resources": {
+						"coin": -5
+					}
+				},
+				{
+					"id": "for-first",
+					"label": "Give {first} the mornings, fee waived",
+					"resources": {
+						"coin": -3
+					},
+					"grudge": "second"
+				},
+				{
+					"id": "for-second",
+					"label": "Give {second} the mornings and a sack of flour on the house",
+					"resources": {
+						"grain": -3
+					},
+					"grudge": "first"
+				}
+			],
+			"expiry": "rota"
+		},
+		{
+			"id": "fence-pigs",
+			"text": "{second}'s pigs have eaten through {first}'s fence and, by report, most of {first}'s cabbages.",
+			"options": [
+				{
+					"id": "mend",
+					"label": "Pay to mend the fence",
+					"resources": {
+						"wood": -6
+					}
+				},
+				{
+					"id": "for-first",
+					"label": "Order {second} to pay {first}, less a fee for the paperwork",
+					"resources": {
+						"coin": 3
+					},
+					"grudge": "second"
+				},
+				{
+					"id": "pigs",
+					"label": "Say pigs will be pigs",
+					"grudge": "first"
+				}
+			],
+			"expiry": "mend"
+		}
 	]
 }

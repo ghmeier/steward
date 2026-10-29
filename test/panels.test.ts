@@ -158,7 +158,7 @@ describe("createPanels placeholders", () => {
 	test("shows entries instead of placeholders when present", async () => {
 		const view = emptyView({
 			crown: { label: "Tribute due" },
-			desk: [{ id: "a", label: "Sign the decree" }],
+			desk: [{ id: 1, label: "Sign the decree", options: [] }],
 			delegates: [{ id: 3, name: "Ada", job: "farm", grudgeTicks: 0 }],
 		});
 

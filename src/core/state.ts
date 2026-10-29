@@ -1,11 +1,12 @@
 import type { Decree } from "./decree";
 import { bearPeasant, type Delegate } from "./delegates";
+import { type DeskState, drawArrivalDelay } from "./desk";
 import type { EconomyState } from "./economy";
 import { RESOURCES } from "./realm";
 import { type RngState, seedStream } from "./rng";
 import type { Tuning } from "./tuning";
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export type ResourceId = string;
 
@@ -25,6 +26,7 @@ export type PostingState = {
 	delegates: Delegate[];
 	nextDelegateId: number;
 	decrees: Record<string, Decree>;
+	desk: DeskState;
 };
 
 export type GameState = {
@@ -35,7 +37,7 @@ export type GameState = {
 };
 
 /** Every stream the systems draw from; each is seeded at creation so no system seeds lazily mid-run. */
-export const RNG_STREAMS = ["names"] as const;
+export const RNG_STREAMS = ["disputes", "names"] as const;
 
 export function createNewGame(seed: number, tuning: Tuning): GameState {
 	if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
@@ -58,7 +60,11 @@ export function createNewGame(seed: number, tuning: Tuning): GameState {
 		delegates: [],
 		nextDelegateId: 1,
 		decrees: {},
+		desk: { nextDisputeId: 1, nextArrivalTick: 0, disputes: [] },
 	};
+	const arrivals = rng.disputes;
+	if (arrivals === undefined) throw new Error("the disputes stream is missing");
+	posting.desk.nextArrivalTick = drawArrivalDelay(arrivals, tuning);
 	for (let i = 0; i < tuning.economy.initialPopulation; i++) {
 		bearPeasant(posting, tuning.village.names);
 	}

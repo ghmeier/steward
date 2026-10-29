@@ -1,6 +1,8 @@
 import { isRecord } from "./data";
 import { enactDecree, repealDecree } from "./decree-engine";
+import { settleDispute } from "./desk";
 import { errorMessage } from "./errors";
+import type { AddContext } from "./math";
 import { JOBS, type Job } from "./realm";
 import type { GameState } from "./state";
 import type { Tuning } from "./tuning";
@@ -9,7 +11,8 @@ export type Command =
 	| { type: "noop" }
 	| { type: "assignPeasant"; peasant: number; job: Job | "idle" }
 	| { type: "enactDecree"; decree: unknown }
-	| { type: "repealDecree"; id: string };
+	| { type: "repealDecree"; id: string }
+	| { type: "settleDispute"; dispute: number; option: string };
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
 
@@ -40,6 +43,9 @@ function assignPeasant(
 					: `${peasant.name} already works the ${job}`,
 		};
 	}
+	if (job !== "idle" && state.tick < peasant.grudgeUntil) {
+		return { ok: false, reason: `${peasant.name} refuses to work (grudge)` };
+	}
 	peasant.job = job;
 	return { ok: true };
 }
@@ -48,6 +54,7 @@ export function apply(
 	state: GameState,
 	command: Command,
 	tuning: Tuning,
+	context: AddContext,
 ): CommandResult {
 	switch (command.type) {
 		case "noop":
@@ -58,6 +65,14 @@ export function apply(
 			return enactDecree(state, command.decree, tuning);
 		case "repealDecree":
 			return repealDecree(state, command.id);
+		case "settleDispute":
+			return settleDispute(
+				state,
+				command.dispute,
+				command.option,
+				tuning,
+				context,
+			);
 		default: {
 			const unreachable: never = command;
 			return {
@@ -101,6 +116,16 @@ export function parseCommand(value: unknown): Command {
 				throw new Error("repealDecree id must be a string");
 			}
 			return { type: "repealDecree", id: value.id };
+		}
+		case "settleDispute": {
+			const dispute = value.dispute;
+			if (typeof dispute !== "number" || !Number.isSafeInteger(dispute)) {
+				throw new Error("settleDispute dispute must be an integer");
+			}
+			if (typeof value.option !== "string") {
+				throw new Error("settleDispute option must be a string");
+			}
+			return { type: "settleDispute", dispute, option: value.option };
 		}
 		default:
 			throw new Error(`unknown command type ${JSON.stringify(type)}`);

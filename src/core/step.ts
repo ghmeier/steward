@@ -5,6 +5,7 @@ import {
 	type CommandResult,
 } from "./commands";
 import { runDecrees } from "./decree-engine";
+import { runDesk } from "./desk";
 import { runEconomy } from "./economy";
 import type { AbsorbedAdditionLog, AddContext } from "./math";
 import type { GameState } from "./state";
@@ -31,15 +32,17 @@ export function step(
 ): CommandResult[] {
 	state.tick += 1;
 
-	const results = commands.map((command) => apply(state, command, tuning));
-
 	const context: AddContext = {
 		tick: state.tick,
 		maxValue: tuning.maxResourceValue,
 		absorbed: options.absorbed,
 	};
+	const results = commands.map((command) =>
+		apply(state, command, tuning, context),
+	);
 	const flows = runEconomy(state, tuning, context);
 	runDecrees(state, tuning, context, flows);
+	runDesk(state, tuning, context);
 
 	if (options.validate) {
 		const problems = validateState(state);

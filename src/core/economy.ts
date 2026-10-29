@@ -2,6 +2,7 @@ import {
 	bearPeasant,
 	type Delegate,
 	laborCounts,
+	lowestFreeInJob,
 	lowestInJob,
 	removeDelegate,
 	workingCounts,
@@ -160,6 +161,7 @@ export function moveLaborToward(
 	delegates: readonly Delegate[],
 	target: Readonly<Record<Job, number>>,
 	moves: number,
+	tick: number,
 ): void {
 	for (let done = 0; done < moves; done++) {
 		const labor = laborCounts(delegates);
@@ -174,7 +176,7 @@ export function moveLaborToward(
 		}
 		if (short === null) return;
 
-		let mover = lowestInJob(delegates, "idle");
+		let mover = lowestFreeInJob(delegates, "idle", tick);
 		if (mover === undefined) {
 			let source: Job | null = null;
 			let excess = 0;
@@ -186,7 +188,7 @@ export function moveLaborToward(
 				}
 			}
 			if (source === null) return;
-			mover = lowestInJob(delegates, source);
+			mover = lowestFreeInJob(delegates, source, tick);
 		}
 		if (mover === undefined) return;
 		mover.job = short;

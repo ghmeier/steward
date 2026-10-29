@@ -277,6 +277,7 @@ describe("moveLaborToward", () => {
 			state.posting.delegates,
 			{ farm: 3, forest: 0, mine: 2 },
 			2,
+			0,
 		);
 
 		expect(laborCounts(state.posting.delegates)).toEqual({
@@ -296,6 +297,7 @@ describe("moveLaborToward", () => {
 			state.posting.delegates,
 			{ farm: 4, forest: 3, mine: 3 },
 			1,
+			0,
 		);
 
 		expect(laborCounts(state.posting.delegates)).toEqual({
@@ -312,6 +314,7 @@ describe("moveLaborToward", () => {
 			state.posting.delegates,
 			{ farm: 5, forest: 5, mine: 0 },
 			3,
+			0,
 		);
 
 		expect(laborCounts(state.posting.delegates)).toEqual({
@@ -330,7 +333,7 @@ describe("moveLaborToward", () => {
 			const state = villageAt(1, { population, labor });
 			const before = structuredClone(state.posting.delegates);
 
-			moveLaborToward(state.posting.delegates, labor, 4);
+			moveLaborToward(state.posting.delegates, labor, 4, 0);
 
 			expect(state.posting.delegates).toEqual(before);
 		},

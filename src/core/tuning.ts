@@ -29,7 +29,29 @@ export type Tuning = {
 		initialResources: Record<Resource, number>;
 		laborAllocations: Record<string, Record<Job, number>>;
 	};
-	village: { names: string[] };
+	village: VillageTuning;
+};
+
+export type DisputeOption = {
+	id: string;
+	label: string;
+	resources?: Partial<Record<Resource, number>>;
+	grudge?: "first" | "second";
+};
+
+export type DisputeTemplate = {
+	id: string;
+	text: string;
+	options: DisputeOption[];
+	expiry: string;
+};
+
+export type VillageTuning = {
+	names: string[];
+	deskSlots: number;
+	disputeArrival: { minTicks: number; maxTicks: number };
+	grudgeTicks: number;
+	disputes: DisputeTemplate[];
 };
 
 function field(parent: Record<string, unknown>, path: string, key: string) {
@@ -203,6 +225,103 @@ function parseDecreeLimits(value: unknown): DecreeLimits {
 	};
 }
 
+function checkPlaceholders(text: string, name: string): void {
+	for (const match of text.matchAll(/\{([^{}]*)\}/g)) {
+		if (match[1] !== "first" && match[1] !== "second") {
+			throw new Error(`${name} has unknown placeholder ${match[0]}`);
+		}
+	}
+}
+
+function parseOption(value: unknown, name: string): DisputeOption {
+	const raw = record(value, name);
+	const id = raw.id;
+	if (typeof id !== "string" || id === "") {
+		throw new Error(`${name}.id must be a non-empty string`);
+	}
+	const label = raw.label;
+	if (typeof label !== "string" || label === "") {
+		throw new Error(`${name}.label must be a non-empty string`);
+	}
+	checkPlaceholders(label, `${name}.label`);
+	const option: DisputeOption = { id, label };
+	if (raw.resources !== undefined) {
+		const rawResources = record(raw.resources, `${name}.resources`);
+		const resources: Partial<Record<Resource, number>> = {};
+		for (const key of sortedKeys(rawResources)) {
+			if (!(RESOURCES as readonly string[]).includes(key)) {
+				throw new Error(`${name}.resources has unknown resource "${key}"`);
+			}
+			resources[key as Resource] = finiteNumber(
+				rawResources[key],
+				`${name}.resources.${key}`,
+			);
+		}
+		option.resources = resources;
+	}
+	if (raw.grudge !== undefined) {
+		if (raw.grudge !== "first" && raw.grudge !== "second") {
+			throw new Error(`${name}.grudge must be "first" or "second"`);
+		}
+		option.grudge = raw.grudge;
+	}
+	return option;
+}
+
+function parseTemplate(value: unknown, name: string): DisputeTemplate {
+	const raw = record(value, name);
+	const id = raw.id;
+	if (typeof id !== "string" || id === "") {
+		throw new Error(`${name}.id must be a non-empty string`);
+	}
+	const text = raw.text;
+	if (typeof text !== "string" || text === "") {
+		throw new Error(`${name}.text must be a non-empty string`);
+	}
+	checkPlaceholders(text, `${name}.text`);
+	if (!Array.isArray(raw.options) || raw.options.length < 2) {
+		throw new Error(`${name}.options must list at least 2 options`);
+	}
+	const options: DisputeOption[] = [];
+	for (const [index, rawOption] of raw.options.entries()) {
+		const option = parseOption(rawOption, `${name}.options[${index}]`);
+		if (options.some((other) => other.id === option.id)) {
+			throw new Error(`${name} repeats option id "${option.id}"`);
+		}
+		options.push(option);
+	}
+	const expiry = options.find((option) => option.id === raw.expiry);
+	if (expiry === undefined) {
+		throw new Error(`${name}.expiry must name one of its options`);
+	}
+	if (expiry.grudge !== undefined) {
+		throw new Error(`${name} expiry option "${expiry.id}" must not grudge`);
+	}
+	for (const resource of sortedKeys(expiry.resources ?? {})) {
+		if ((expiry.resources?.[resource as Resource] ?? 0) > 0) {
+			throw new Error(
+				`${name} expiry option "${expiry.id}" must not gain ${resource}`,
+			);
+		}
+	}
+	return { id, text, options, expiry: expiry.id };
+}
+
+function parseDisputes(value: unknown): DisputeTemplate[] {
+	if (!Array.isArray(value) || value.length === 0) {
+		throw new Error("village.disputes must be a non-empty array");
+	}
+	const templates: DisputeTemplate[] = [];
+	for (const [index, raw] of value.entries()) {
+		const template = parseTemplate(raw, `village.disputes[${index}]`);
+		if (templates.some((other) => other.id === template.id)) {
+			throw new Error(`village.disputes repeats id "${template.id}"`);
+		}
+		templates.push(template);
+	}
+	return templates;
+}
+
 function parseVillage(
 	value: unknown,
 	maxPopulation: number,
@@ -227,7 +346,38 @@ function parseVillage(
 			`village.names needs at least maxPopulation (${maxPopulation}) names, got ${names.length}`,
 		);
 	}
-	return { names };
+	const arrival = record(
+		field(village, "village.", "disputeArrival"),
+		"village.disputeArrival",
+	);
+	const minTicks = integerAtLeast(
+		field(arrival, "village.disputeArrival.", "minTicks"),
+		"village.disputeArrival.minTicks",
+		1,
+	);
+	const maxTicks = integerAtLeast(
+		field(arrival, "village.disputeArrival.", "maxTicks"),
+		"village.disputeArrival.maxTicks",
+		1,
+	);
+	if (minTicks > maxTicks) {
+		throw new Error("village.disputeArrival.minTicks must not exceed maxTicks");
+	}
+	return {
+		names,
+		deskSlots: integerAtLeast(
+			field(village, "village.", "deskSlots"),
+			"village.deskSlots",
+			1,
+		),
+		disputeArrival: { minTicks, maxTicks },
+		grudgeTicks: integerAtLeast(
+			field(village, "village.", "grudgeTicks"),
+			"village.grudgeTicks",
+			1,
+		),
+		disputes: parseDisputes(field(village, "village.", "disputes")),
+	};
 }
 
 /** Takes the merged contents of tuning.json and village.json. */
