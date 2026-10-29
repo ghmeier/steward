@@ -3,7 +3,7 @@ import type { Decree } from "./decree";
 import { idleCount, laborCounts } from "./delegates";
 import { fillNames, shortfall, templateOf } from "./desk";
 import { seasonAt } from "./economy";
-import { projectedRates } from "./projection";
+import { projectFlows } from "./projection";
 import { type Job, RESOURCES, type Season } from "./realm";
 import type { GameState, ResourceId } from "./state";
 import type { Tuning } from "./tuning";
@@ -57,6 +57,7 @@ export type GameView = {
 	governors: GovernorView[];
 	crown: CrownDemandView | null;
 	promotion: { target: number; promotedAt: number; promotedAtSeconds: number };
+	growth: { stored: number; needed: number; perSecond: number; full: boolean };
 	lockedPanels: PanelId[];
 };
 
@@ -68,7 +69,7 @@ const LOCKED_PANELS: readonly PanelId[] = ["crown"];
 // unlock filtering are applied here in later phases, so the UI must never read
 // GameState directly.
 export function computeView(state: GameState, tuning: Tuning): GameView {
-	const rates = projectedRates(state, tuning);
+	const { rates, growthPerTick } = projectFlows(state, tuning);
 	const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
 		resource,
 		amount: state.posting.resources[resource] ?? 0,
@@ -102,6 +103,12 @@ export function computeView(state: GameState, tuning: Tuning): GameView {
 			target: tuning.village.promotionPopulation,
 			promotedAt: state.career.promotedAt,
 			promotedAtSeconds: (state.career.promotedAt * tuning.stepMs) / 1000,
+		},
+		growth: {
+			stored: state.posting.economy.growth,
+			needed: tuning.economy.grainPerPeasant,
+			perSecond: (growthPerTick * 1000) / tuning.stepMs,
+			full: delegates.length >= tuning.economy.maxPopulation,
 		},
 		lockedPanels: [...LOCKED_PANELS],
 	};

@@ -47,6 +47,7 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
 		governors: [],
 		crown: null,
 		promotion: { target: 20, promotedAt: 0, promotedAtSeconds: 0 },
+		growth: { stored: 0, needed: 25, perSecond: 0, full: false },
 		lockedPanels: [],
 		...overrides,
 	};
@@ -275,6 +276,33 @@ describe("createPanels promotion", () => {
 
 		expect(frame).toContain(`Promoted to steward on ${formatGameTime(120)}`);
 		expect(frame).not.toContain("Promotion  ");
+	});
+});
+
+describe("createPanels next peasant", () => {
+	test("a feeding village shows progress and the time to the next peasant", async () => {
+		const growth = { stored: 12.4, needed: 25, perSecond: 0.5, full: false };
+
+		const frame = await draw([emptyView({ growth })], "");
+
+		expect(frame).toContain("Next peasant  12.4 / 25 grain  (~26s)");
+	});
+
+	test("a village that is not feeding shows the grain with no estimate", async () => {
+		const growth = { stored: 12.4, needed: 25, perSecond: 0, full: false };
+
+		const frame = await draw([emptyView({ growth })], "");
+
+		expect(frame).toContain("Next peasant  12.4 / 25 grain");
+		expect(frame).not.toContain("12.4 / 25 grain  (");
+	});
+
+	test("a full village shows no next peasant line", async () => {
+		const growth = { stored: 3, needed: 25, perSecond: 0.5, full: true };
+
+		const frame = await draw([emptyView({ growth })], "");
+
+		expect(frame).not.toContain("Next peasant");
 	});
 });
 

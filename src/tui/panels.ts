@@ -1,6 +1,7 @@
 import { BoxRenderable, type CliRenderer, TextRenderable } from "@opentui/core";
 import type { GameView, PanelId } from "../core/view";
 import { rowWindow } from "./cursor";
+import { plain } from "./decree-format";
 import { formatAmount, formatGameTime, formatRate } from "./format";
 import type { MenuRender } from "./menu";
 
@@ -28,6 +29,15 @@ function promotionLine(view: GameView): string {
 	return `Promotion  ${view.realm.population} / ${target} peasants`;
 }
 
+export function nextPeasantLine(view: GameView): string | null {
+	const { stored, needed, perSecond, full } = view.growth;
+	if (full) return null;
+	const progress = `${formatAmount(stored)} / ${plain(needed)} grain`;
+	if (perSecond <= 0) return `Next peasant  ${progress}`;
+	const seconds = Math.ceil((needed - stored) / perSecond);
+	return `Next peasant  ${progress}  (~${formatGameTime(seconds)})`;
+}
+
 function deskLines(view: GameView): string[] {
 	if (view.desk.length === 0) return [];
 	return [...view.desk.map((entry) => entry.label), "", COURT_HINT];
@@ -47,17 +57,18 @@ function ledgerContent(view: GameView): string {
 			`${name.padEnd(widths[0] ?? 0)}  ${amount.padStart(widths[1] ?? 0)}  ${rate.padStart(widths[2] ?? 0)}`,
 	);
 	const { realm } = view;
-	const realmLines = [
+	const realmLines: (string | null)[] = [
 		`Population  ${realm.population} (${realm.idle} idle)`,
 		`Farm ${realm.labor.farm}  Forest ${realm.labor.forest}  Mine ${realm.labor.mine}`,
 		`Season  ${capitalize(realm.season)}`,
 		promotionLine(view),
+		nextPeasantLine(view),
 	];
 	return [
 		`Time  ${formatGameTime(view.elapsedSeconds)}`,
 		...lines,
 		"",
-		...realmLines,
+		...realmLines.filter((line) => line !== null),
 	].join("\n");
 }
 

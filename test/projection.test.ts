@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { enactDecree } from "../src/core/decree-engine";
-import { projectedRates } from "../src/core/projection";
+import { projectedRates, projectFlows } from "../src/core/projection";
 import { RESOURCES } from "../src/core/realm";
 import { createNewGame } from "../src/core/state";
 import { step } from "../src/core/step";
@@ -191,5 +191,51 @@ describe("projectedRates", () => {
 			}
 		}
 		expect(compared).toBeGreaterThan(1000);
+	});
+});
+
+describe("projectFlows growthPerTick", () => {
+	function realGrowthChange(state: ReturnType<typeof villageAt>) {
+		const before = state.posting.economy.growth;
+		const after = structuredClone(state);
+		step(after, [], tuning, quietOptions);
+		return after.posting.economy.growth - before;
+	}
+
+	test("equals the grain fed on the next tick when no birth happens", () => {
+		const state = villageAt(midSpring, 8, 2);
+		enactHarvest(state, "feed");
+
+		const { growthPerTick } = projectFlows(state, tuning);
+
+		expect(growthPerTick).toBeGreaterThan(0);
+		expect(growthPerTick).toBeCloseTo(realGrowthChange(state), 12);
+	});
+
+	test("stays the grain fed on a tick that completes a birth", () => {
+		const state = villageAt(midSpring, 8, 2);
+		enactHarvest(state, "feed");
+		const fed = projectFlows(state, tuning).growthPerTick;
+		state.posting.economy.growth = economy.grainPerPeasant - fed / 2;
+		const after = structuredClone(state);
+		step(after, [], tuning, quietOptions);
+
+		const { growthPerTick } = projectFlows(state, tuning);
+
+		expect(after.posting.delegates.length).toBe(
+			state.posting.delegates.length + 1,
+		);
+		expect(growthPerTick).toBeCloseTo(
+			after.posting.economy.growth -
+				state.posting.economy.growth +
+				economy.grainPerPeasant,
+			12,
+		);
+	});
+
+	test("is zero with no feed decree", () => {
+		const state = villageAt(midSpring, 8, 2);
+
+		expect(projectFlows(state, tuning).growthPerTick).toBe(0);
 	});
 });

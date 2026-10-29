@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { projectedRates } from "../src/core/projection";
+import { projectedRates, projectFlows } from "../src/core/projection";
 import { createNewGame } from "../src/core/state";
 import { step } from "../src/core/step";
 import { computeView } from "../src/core/view";
@@ -256,5 +256,45 @@ describe("computeView promotion and desk options", () => {
 
 		const option = entry?.options[0];
 		expect(Object.keys(option?.resources ?? {})).toEqual(["grain", "wood"]);
+	});
+});
+
+describe("computeView growth", () => {
+	function feeding() {
+		const state = village();
+		state.posting.decrees.harvest = {
+			id: "harvest",
+			petition: "harvest",
+			rules: [],
+			otherwise: "feed",
+		};
+		state.tick = 100;
+		setRoster(state, { farm: 8, idle: 2 });
+		state.posting.economy.growth = 7;
+		return state;
+	}
+
+	test("reports stored growth, the needed grain from tuning and a per-second feed rate", () => {
+		const state = feeding();
+
+		const { growth } = computeView(state, oddStepTuning);
+
+		expect(growth.stored).toBe(state.posting.economy.growth);
+		expect(growth.needed).toBe(tuning.economy.grainPerPeasant);
+		expect(growth.perSecond).toBeGreaterThan(0);
+		expect(growth.perSecond).toBeCloseTo(
+			(projectFlows(state, oddStepTuning).growthPerTick * 1000) /
+				oddStepTuning.stepMs,
+			12,
+		);
+	});
+
+	test("is full exactly when the village has reached maxPopulation", () => {
+		const below = village();
+		const atCap = village();
+		setRoster(atCap, { idle: tuning.economy.maxPopulation });
+
+		expect(computeView(below, tuning).growth.full).toBe(false);
+		expect(computeView(atCap, tuning).growth.full).toBe(true);
 	});
 });
