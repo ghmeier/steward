@@ -6,7 +6,8 @@ import { loadGame, saveGame } from "../save/save";
 import { courtMenu } from "./court-menu";
 import { type Cursor, moveCursor, reconcileCursor } from "./cursor";
 import { decreeMenu } from "./decree-menu";
-import { actionForKey, isInterrupt, KEY_HINTS } from "./keys";
+import { helpMenu } from "./help-menu";
+import { actionForKey, HINTS_TEXT, isInterrupt } from "./keys";
 import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
 import { createPanels } from "./panels";
 import { createSession } from "./session";
@@ -52,10 +53,6 @@ export type App = {
 	hangUp(): AppExit;
 	readonly done: Promise<AppExit>;
 };
-
-const HINTS_TEXT = KEY_HINTS.map((hint) => `${hint.keys} ${hint.label}`).join(
-	" · ",
-);
 
 export function startApp(options: {
 	renderer: CliRenderer;
@@ -138,6 +135,11 @@ export function startApp(options: {
 		}
 		if (action.kind === "court") {
 			menu = openMenu(courtMenu);
+			redraw();
+			return;
+		}
+		if (action.kind === "help") {
+			menu = openMenu(helpMenu);
 			redraw();
 			return;
 		}

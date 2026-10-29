@@ -14,6 +14,7 @@ import { createNewGame, type GameState } from "../src/core/state";
 import { stateHash } from "../src/save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../src/save/save";
 import { type App, prepareStartup, startApp } from "../src/tui/app";
+import { HINTS_TEXT } from "../src/tui/keys";
 import { tuning } from "./helpers";
 
 const NEVER_MS = 1e9;
@@ -479,5 +480,48 @@ describe("promotion notice in the app", () => {
 		await harness.advanceStep();
 
 		expect(await harness.screen()).not.toContain(notice);
+	});
+});
+
+describe("help menu in the app", () => {
+	test("? opens the help menu in place of the panel grid", async () => {
+		const harness = await launch();
+
+		harness.mockInput.pressKey("?");
+
+		const screen = await harness.screen();
+		expect(screen).toContain("Grain and growth");
+		expect(screen).not.toContain("Ledger");
+	});
+
+	test("escape backs out of a topic and then out of the menu", async () => {
+		const harness = await launch({ kittyKeyboard: true });
+		harness.mockInput.pressKey("?");
+		harness.mockInput.pressEnter();
+		expect(await harness.screen()).toContain("Back");
+
+		harness.mockInput.pressEscape();
+		expect(await harness.screen()).toContain("Grain and growth");
+
+		harness.mockInput.pressEscape();
+		expect(await harness.screen()).toContain("Ledger");
+	});
+
+	test("game keys do nothing while help is open", async () => {
+		const harness = await launch();
+		harness.mockInput.pressKey("?");
+
+		harness.mockInput.pressKey("f");
+		harness.mockInput.pressKey("c");
+		await harness.advanceStep();
+
+		expect(harness.state.posting.delegates.every((p) => p.job === "idle")).toBe(
+			true,
+		);
+		expect(await harness.screen()).toContain("Keys");
+	});
+
+	test("the hints line fits the footer width", () => {
+		expect(HINTS_TEXT.length).toBeLessThanOrEqual(120);
 	});
 });

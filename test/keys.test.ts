@@ -30,6 +30,12 @@ describe("actionForKey", () => {
 		expect(actionForKey(key("q"))).toEqual({ kind: "quit" });
 	});
 
+	test("? and shift-slash both open help, plain slash does not", () => {
+		expect(actionForKey(key("?"))).toEqual({ kind: "help" });
+		expect(actionForKey(key("/", { shift: true }))).toEqual({ kind: "help" });
+		expect(actionForKey(key("/"))).toBeNull();
+	});
+
 	test("mutating a returned action does not change later results", () => {
 		const first = actionForKey(key("f"));
 		if (first?.kind === "assign") first.job = "mine";

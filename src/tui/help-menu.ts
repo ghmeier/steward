@@ -1,0 +1,207 @@
+import { type Resource, SEASONS } from "../core/realm";
+import type { Tuning } from "../core/tuning";
+import { KEY_HINTS } from "./keys";
+import type { MenuContext, Screen, ScreenBuilder } from "./menu";
+
+const BACK_ITEM = {
+	label: "Back",
+	action: { kind: "replace", pop: 1 },
+} as const;
+
+function plain(value: number): string {
+	return String(Number(value.toPrecision(3)));
+}
+
+function perSecond(perTick: number, tuning: Tuning): string {
+	return `${plain((perTick * 1000) / tuning.stepMs)}/s`;
+}
+
+function seconds(ticks: number, tuning: Tuning): string {
+	return `${plain((ticks * tuning.stepMs) / 1000)} s`;
+}
+
+function percent(share: number): string {
+	return `${plain(share * 100)}%`;
+}
+
+function rulingsTouching(
+	tuning: Tuning,
+	resource: Resource,
+	sign: "costs" | "pays",
+): boolean {
+	return tuning.village.disputes.some((dispute) =>
+		dispute.options.some((option) => {
+			const amount = option.resources?.[resource] ?? 0;
+			return sign === "costs" ? amount < 0 : amount > 0;
+		}),
+	);
+}
+
+function keysLines(): string[] {
+	const width = Math.max(...KEY_HINTS.map((hint) => hint.keys.length));
+	return [
+		...KEY_HINTS.map((hint) => `${hint.keys.padEnd(width)}  ${hint.label}`),
+		"",
+		"In any menu: up/down to move, enter to choose, esc to go back.",
+		"The farm, forest and mine keys act on the selected peasant.",
+	];
+}
+
+function capitalize(text: string): string {
+	return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function grainLines(tuning: Tuning): string[] {
+	const { economy } = tuning;
+	const yields = SEASONS.map(
+		(season) =>
+			`${season} ${perSecond(economy.grainPerFarmer * economy.seasonYield[season], tuning)}`,
+	).join(", ");
+	const meanYield =
+		SEASONS.reduce((sum, season) => sum + economy.seasonYield[season], 0) /
+		SEASONS.length;
+	const feeds = plain(
+		(economy.grainPerFarmer * meanYield) / economy.grainPerPerson,
+	);
+	const barren = SEASONS.filter((season) => economy.seasonYield[season] === 0);
+	const barrenLine =
+		barren.length === 0
+			? ""
+			: ` ${capitalize(barren.join(" and "))} grows nothing, so store grain before it.`;
+	return [
+		`Farmers grow grain, per farmer: ${yields}.`,
+		`Every peasant eats ${perSecond(economy.grainPerPerson, tuning)}, so over a year one farmer feeds about ${feeds} peasants.`,
+		`A season lasts ${seconds(economy.ticksPerSeason, tuning)}.${barrenLine}`,
+		`A season with no harvest costs each peasant ${plain(economy.grainPerPerson * economy.ticksPerSeason)} grain, so the stores must grow with the village.`,
+		"That is why rules on grain seasons are safer than rules on a fixed amount of grain.",
+		`Once the stores are empty, every ${plain(economy.starvationHunger)} grain of unmet eating kills a peasant, idle ones first.`,
+		"",
+		`New peasants come only from feeding: every ${plain(economy.grainPerPeasant)} grain fed makes one,`,
+		`up to ${plain(economy.maxPopulation)} peasants. Only grain can be fed.`,
+		"Feeding happens through a harvest decree (see Harvest and labor).",
+	];
+}
+
+function coinLines(tuning: Tuning): string[] {
+	const lines = [
+		`The only steady source of coin is selling grain, at ${plain(tuning.economy.grainPrice)} coin per grain.`,
+		"Selling happens through a harvest decree (see Harvest and labor).",
+	];
+	if (rulingsTouching(tuning, "coin", "pays")) {
+		lines.push("Some dispute fines pay a little coin as well.");
+	}
+	if (rulingsTouching(tuning, "coin", "costs")) {
+		lines.push("", "Coin is spent on dispute rulings.");
+	}
+	return lines;
+}
+
+function resourceUse(tuning: Tuning, resource: Resource, name: string) {
+	return rulingsTouching(tuning, resource, "costs")
+		? `${name} pays for some dispute rulings.`
+		: `${name} has no use yet.`;
+}
+
+function woodAndOreLines(tuning: Tuning): string[] {
+	const { economy } = tuning;
+	return [
+		`Foresters cut wood at ${perSecond(economy.woodPerWorker, tuning)} each.`,
+		`Miners dig ore at ${perSecond(economy.orePerWorker, tuning)} each.`,
+		"",
+		resourceUse(tuning, "wood", "Wood"),
+		resourceUse(tuning, "ore", "Ore"),
+		"Neither can be sold.",
+	];
+}
+
+function decreeLines(): string[] {
+	return [
+		"A decree answers one of two petitions, harvest or labor, and each petition holds one decree.",
+		"Rules are checked in order and the first match wins. Otherwise applies when none match.",
+		'"Grain seasons" is how many seasons the stores would feed everyone.',
+		"",
+		"Example, a harvest decree: sell when grain seasons above 3; feed when above 2;",
+		"otherwise stockpile.",
+		"  While the stores are above 3 seasons, each tick's new surplus is sold.",
+		"  Between 2 and 3 it is fed, to grow the village. Below 2 it is kept.",
+		"  At 3.5 seasons both rules match, and sell wins by coming first.",
+		"  Swap them and feed catches everything above 2, so nothing is ever sold.",
+	];
+}
+
+function harvestAndLaborLines(tuning: Tuning): string[] {
+	const { economy } = tuning;
+	const moves = economy.laborMovesPerTick;
+	const allocations = Object.entries(economy.laborAllocations)
+		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+		.map(
+			([name, shares]) =>
+				`${name} (farm ${percent(shares.farm)}, forest ${percent(shares.forest)}, mine ${percent(shares.mine)})`,
+		);
+	return [
+		"Harvest: each tick, only the grain grown beyond what everyone eats is fed, sold or stockpiled.",
+		"  Stored grain is never fed or sold, so in a season that grows nothing there is nothing to do.",
+		"  With no harvest decree, the surplus is stockpiled.",
+		"",
+		`Labor: each tick, ${plain(moves)} ${moves === 1 ? "peasant moves" : "peasants move"} toward a split of farm, forest and mine:`,
+		...allocations.map((line) => `  ${line}`),
+		"  A labor decree overrides the jobs you assign by hand.",
+	];
+}
+
+function disputeLines(tuning: Tuning): string[] {
+	const { village } = tuning;
+	const { minTicks, maxTicks } = village.disputeArrival;
+	const range = `${seconds(minTicks, tuning)} to ${seconds(maxTicks, tuning)}`;
+	return [
+		`A dispute arrives every ${range}, onto a desk of ${plain(village.deskSlots)} slots.`,
+		"When the desk overflows, the oldest dispute takes its default ruling.",
+		"",
+		"A ruling can cost stores, or make one party sulk.",
+		`A sulking peasant produces nothing and refuses a job, for ${seconds(village.grudgeTicks, tuning)}.`,
+		"",
+		"Press c to hold court and settle what is waiting.",
+	];
+}
+
+function promotionLines(tuning: Tuning): string[] {
+	return [
+		`Reach ${plain(tuning.village.promotionPopulation)} peasants and the crown notices you.`,
+		"Promotion happens once, and it is not taken back.",
+	];
+}
+
+const TOPICS: readonly {
+	label: string;
+	lines: (tuning: Tuning) => string[];
+}[] = [
+	{ label: "Keys", lines: keysLines },
+	{ label: "Grain and growth", lines: grainLines },
+	{ label: "Coin", lines: coinLines },
+	{ label: "Wood and ore", lines: woodAndOreLines },
+	{ label: "Decrees", lines: decreeLines },
+	{ label: "Harvest and labor", lines: harvestAndLaborLines },
+	{ label: "Disputes", lines: disputeLines },
+	{ label: "Promotion", lines: promotionLines },
+];
+
+function topicScreen(
+	label: string,
+	lines: (tuning: Tuning) => string[],
+): ScreenBuilder {
+	return (context: MenuContext): Screen => ({
+		kind: "list",
+		title: label,
+		notes: lines(context.tuning),
+		items: [BACK_ITEM],
+	});
+}
+
+export const helpMenu: ScreenBuilder = () => ({
+	kind: "list",
+	title: "Help",
+	items: TOPICS.map((topic) => ({
+		label: topic.label,
+		action: { kind: "push", screen: topicScreen(topic.label, topic.lines) },
+	})),
+});

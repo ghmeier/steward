@@ -13,6 +13,7 @@ export type KeyAction =
 	| { kind: "save" }
 	| { kind: "decrees" }
 	| { kind: "court" }
+	| { kind: "help" }
 	| { kind: "quit" };
 
 const BINDINGS: Readonly<Record<string, KeyAction>> = {
@@ -26,6 +27,7 @@ const BINDINGS: Readonly<Record<string, KeyAction>> = {
 	i: { kind: "assign", job: "idle" },
 	d: { kind: "decrees" },
 	c: { kind: "court" },
+	"?": { kind: "help" },
 	s: { kind: "save" },
 	q: { kind: "quit" },
 };
@@ -38,9 +40,9 @@ export function actionForKey(key: KeyPress): KeyAction | null {
 	// In raw mode Ctrl-C arrives as a keypress, not SIGINT.
 	if (isInterrupt(key)) return { kind: "quit" };
 	if (key.ctrl || key.meta) return null;
-	const action = Object.hasOwn(BINDINGS, key.name)
-		? BINDINGS[key.name]
-		: undefined;
+	// Kitty-protocol terminals report ? as shift plus the slash key.
+	const name = key.name === "/" && key.shift ? "?" : key.name;
+	const action = Object.hasOwn(BINDINGS, name) ? BINDINGS[name] : undefined;
 	// A copy keeps callers (and the command log) from sharing and mutating table entries.
 	return action === undefined ? null : structuredClone(action);
 }
@@ -51,5 +53,10 @@ export const KEY_HINTS: readonly { keys: string; label: string }[] = [
 	{ keys: "d", label: "decrees" },
 	{ keys: "c", label: "court" },
 	{ keys: "s", label: "save" },
+	{ keys: "?", label: "help" },
 	{ keys: "q", label: "quit" },
 ];
+
+export const HINTS_TEXT = KEY_HINTS.map(
+	(hint) => `${hint.keys} ${hint.label}`,
+).join(" · ");
