@@ -25,6 +25,16 @@ export type StepObserver = (
 	results: readonly CommandResult[],
 ) => void;
 
+/** The phases that move resources every tick; the ledger projects its rates by running exactly this. */
+export function runFlows(
+	state: GameState,
+	tuning: Tuning,
+	context: AddContext,
+): void {
+	const flows = runEconomy(state, tuning, context);
+	runDecrees(state, tuning, context, flows);
+}
+
 export function step(
 	state: GameState,
 	commands: readonly Command[],
@@ -41,8 +51,7 @@ export function step(
 	const results = commands.map((command) =>
 		apply(state, command, tuning, context),
 	);
-	const flows = runEconomy(state, tuning, context);
-	runDecrees(state, tuning, context, flows);
+	runFlows(state, tuning, context);
 	runDesk(state, tuning, context);
 	checkPromotion(state, tuning);
 

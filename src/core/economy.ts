@@ -8,7 +8,7 @@ import {
 	workingCounts,
 } from "./delegates";
 import { type AddContext, add } from "./math";
-import { JOBS, type Job, type Resource, SEASONS, type Season } from "./realm";
+import { JOBS, type Job, SEASONS, type Season } from "./realm";
 import type { GameState } from "./state";
 import type { Tuning } from "./tuning";
 
@@ -193,18 +193,4 @@ export function moveLaborToward(
 		if (mover === undefined) return;
 		mover.job = short;
 	}
-}
-
-export function steadyRates(
-	state: GameState,
-	tuning: Tuning,
-): Record<Resource, number> {
-	const settings = tuning.economy;
-	const labor = workingCounts(state.posting.delegates, state.tick);
-	return {
-		coin: 0,
-		grain: grainProduced(state, tuning) - upkeepOf(state, tuning),
-		ore: labor.mine * settings.orePerWorker,
-		wood: labor.forest * settings.woodPerWorker,
-	};
 }

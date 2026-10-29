@@ -2,7 +2,8 @@ import { compareKeys, sortedKeys } from "./data";
 import type { Decree } from "./decree";
 import { idleCount, laborCounts } from "./delegates";
 import { fillNames, shortfall, templateOf } from "./desk";
-import { seasonAt, steadyRates } from "./economy";
+import { seasonAt } from "./economy";
+import { projectedRates } from "./projection";
 import { type Job, RESOURCES, type Season } from "./realm";
 import type { GameState, ResourceId } from "./state";
 import type { Tuning } from "./tuning";
@@ -67,7 +68,7 @@ const LOCKED_PANELS: readonly PanelId[] = ["crown"];
 // unlock filtering are applied here in later phases, so the UI must never read
 // GameState directly.
 export function computeView(state: GameState, tuning: Tuning): GameView {
-	const rates = steadyRates(state, tuning);
+	const rates = projectedRates(state, tuning);
 	const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
 		resource,
 		amount: state.posting.resources[resource] ?? 0,

@@ -1,12 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { laborCounts, workingCounts } from "../src/core/delegates";
-import {
-	feedGrain,
-	moveLaborToward,
-	runEconomy,
-	steadyRates,
-} from "../src/core/economy";
+import { feedGrain, moveLaborToward, runEconomy } from "../src/core/economy";
 import type { AddContext } from "../src/core/math";
+import { projectedRates } from "../src/core/projection";
 import { createNewGame, type GameState } from "../src/core/state";
 import { setRoster, economyTestTuning as tuning } from "./helpers";
 
@@ -163,7 +159,7 @@ describe("grudges", () => {
 		// Three farmers make 0.075 and all ten people eat 0.1; the miner is idle in effect.
 		expect(state.posting.resources.grain).toBeCloseTo(100 + 0.075 - 0.1, 12);
 		expect(state.posting.resources.ore).toBe(0);
-		expect(steadyRates(state, tuning).ore).toBe(0);
+		expect(projectedRates(state, tuning).ore).toBe(0);
 	});
 
 	test("a peasant is still grudged one tick before grudgeUntil", () => {

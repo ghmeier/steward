@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { projectedRates } from "../src/core/projection";
 import { createNewGame } from "../src/core/state";
 import { step } from "../src/core/step";
 import { computeView } from "../src/core/view";
@@ -36,7 +37,7 @@ describe("computeView", () => {
 		}
 	});
 
-	test("derives ledger rates from production and upkeep alone", () => {
+	test("with no decrees, ledger rates are production minus upkeep per second", () => {
 		const state = village();
 		state.tick = 1;
 
@@ -50,6 +51,43 @@ describe("computeView", () => {
 		expect(rates.wood).toBeCloseTo(0.04 * 4, 12);
 		expect(rates.ore).toBeCloseTo(0.01 * 4, 12);
 		expect(rates.coin).toBe(0);
+	});
+
+	test("ledger rates are the projected per-tick rates converted to per second", () => {
+		const state = village();
+		state.posting.decrees.harvest = {
+			id: "harvest",
+			petition: "harvest",
+			rules: [],
+			otherwise: "sell",
+		};
+		state.tick = 5;
+
+		const view = computeView(state, oddStepTuning);
+
+		const projected = projectedRates(state, oddStepTuning);
+		for (const line of view.ledger) {
+			expect(line.ratePerSecond).toBe(
+				(projected[line.resource as keyof typeof projected] * 1000) /
+					oddStepTuning.stepMs,
+			);
+		}
+	});
+
+	test("leaves the state untouched, RNG streams included", () => {
+		const state = village();
+		state.posting.decrees.harvest = {
+			id: "harvest",
+			petition: "harvest",
+			rules: [],
+			otherwise: "feed",
+		};
+		state.posting.economy.growth = tuning.economy.grainPerPeasant - 0.001;
+		const before = structuredClone(state);
+
+		computeView(state, tuning);
+
+		expect(state).toEqual(before);
 	});
 
 	test("reports the realm's population, idle peasants, labor and season", () => {

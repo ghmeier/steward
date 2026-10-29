@@ -8,7 +8,6 @@ import {
 	runEconomy,
 	seasonAt,
 	sellGrain,
-	steadyRates,
 } from "../src/core/economy";
 import type { AddContext } from "../src/core/math";
 import type { Job, Season } from "../src/core/realm";
@@ -358,27 +357,5 @@ describe("grainSeasons", () => {
 		const state = villageAt(1, { population: 0, grain: 5 });
 
 		expect(grainSeasons(state, tuning)).toBe(tuning.maxResourceValue);
-	});
-});
-
-describe("steadyRates", () => {
-	test("is production minus upkeep for grain and production for wood and ore", () => {
-		const state = villageAt(1, {
-			population: 11,
-			labor: { farm: 8, forest: 2, mine: 1 },
-		});
-
-		const rates = steadyRates(state, tuning);
-
-		expect(rates.grain).toBeCloseTo(0.2 - 0.11, 12);
-		expect(rates.wood).toBeCloseTo(0.04, 12);
-		expect(rates.ore).toBeCloseTo(0.01, 12);
-		expect(rates.coin).toBe(0);
-	});
-
-	test("follows the season of the state's tick", () => {
-		const state = villageAt(3 * perSeason + 1, { labor: { farm: 8 } });
-
-		expect(steadyRates(state, tuning).grain).toBeCloseTo(-0.1, 12);
 	});
 });
