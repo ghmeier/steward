@@ -1,0 +1,52 @@
+{
+	"name": "reference",
+	"setup": [
+		{
+			"type": "enactDecree",
+			"decree": {
+				"id": "granary",
+				"petition": "harvest",
+				"rules": [
+					{
+						"when": {
+							"kind": "compare",
+							"quantity": "grainSeasons",
+							"comparison": "above",
+							"value": 3
+						},
+						"policy": "sell"
+					},
+					{
+						"when": {
+							"kind": "compare",
+							"quantity": "grainSeasons",
+							"comparison": "above",
+							"value": 2
+						},
+						"policy": "feed"
+					}
+				],
+				"otherwise": "stockpile"
+			}
+		},
+		{
+			"type": "enactDecree",
+			"decree": {
+				"id": "workforce",
+				"petition": "labor",
+				"rules": [
+					{
+						"when": {
+							"kind": "chose",
+							"decree": "granary",
+							"policy": "stockpile"
+						},
+						"policy": "farming"
+					}
+				],
+				"otherwise": "balanced"
+			}
+		}
+	],
+	"reactions": []
+}

@@ -59,6 +59,7 @@ export function runSteps(
 	log: readonly CommandLogEntry[],
 	options: StepOptions,
 	onStep?: StepObserver,
+	commandSource?: () => readonly Command[],
 ): void {
 	let cursor = 0;
 	// Entries for ticks already produced (resuming from a later state) must not be reapplied.
@@ -67,7 +68,7 @@ export function runSteps(
 	}
 	for (let i = 0; i < count; i++) {
 		const nextTick = state.tick + 1;
-		const commands: Command[] = [];
+		const commands: Command[] = commandSource ? [...commandSource()] : [];
 		for (
 			let entry = log[cursor];
 			entry !== undefined && entry.tick === nextTick;

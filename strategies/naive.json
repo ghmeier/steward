@@ -1,0 +1,24 @@
+{
+	"name": "naive",
+	"setup": [
+		{
+			"type": "enactDecree",
+			"decree": {
+				"id": "granary",
+				"petition": "harvest",
+				"rules": [],
+				"otherwise": "sell"
+			}
+		},
+		{
+			"type": "enactDecree",
+			"decree": {
+				"id": "workforce",
+				"petition": "labor",
+				"rules": [],
+				"otherwise": "farming"
+			}
+		}
+	],
+	"reactions": []
+}

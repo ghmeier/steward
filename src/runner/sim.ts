@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { type CommandLogEntry, parseCommandLog } from "../core/commands";
 import { sortedKeys } from "../core/data";
@@ -10,6 +10,11 @@ import type { Tuning } from "../core/tuning";
 import { loadTuning } from "../save/content";
 import { stateHash } from "../save/hash";
 import { readSaveFile, writeSaveFile } from "../save/save";
+import {
+	createStrategyPlayer,
+	parseStrategy,
+	type StrategyPlayer,
+} from "./strategy";
 
 export type SimIo = {
 	stdout(line: string): void;
@@ -26,7 +31,8 @@ const USAGE = `usage: bun run sim (--seed <uint32> | --load <path>) --steps <n> 
   --commands <path>  JSON command log to replay
   --out <path>       write the final save to this file
   --trace <n>        print a trace line every n steps
-  --strategy <file>  reserved for phase 3`;
+  --strategy <path>  JSON strategy file to play (excludes --commands)
+  --record <path>    with --strategy, write the issued commands as a command log`;
 
 class UsageError extends Error {}
 
@@ -51,6 +57,8 @@ type Options = {
 	commands: string | null;
 	out: string | null;
 	trace: number | null;
+	strategy: string | null;
+	record: string | null;
 };
 
 function parseFlags(argv: string[]) {
@@ -67,6 +75,7 @@ function parseFlags(argv: string[]) {
 				out: { type: "string" },
 				trace: { type: "string" },
 				strategy: { type: "string" },
+				record: { type: "string" },
 			},
 		}).values;
 	} catch (error) {
@@ -76,8 +85,11 @@ function parseFlags(argv: string[]) {
 
 function parseOptions(argv: string[]): Options {
 	const flags = parseFlags(argv);
-	if (flags.strategy !== undefined) {
-		throw new UsageError("--strategy is not available until phase 3");
+	if (flags.strategy !== undefined && flags.commands !== undefined) {
+		throw new UsageError("--strategy and --commands are mutually exclusive");
+	}
+	if (flags.record !== undefined && flags.strategy === undefined) {
+		throw new UsageError("--record requires --strategy");
 	}
 	if ((flags.seed === undefined) === (flags.load === undefined)) {
 		throw new UsageError("exactly one of --seed and --load is required");
@@ -96,6 +108,8 @@ function parseOptions(argv: string[]): Options {
 		out: flags.out ?? null,
 		trace:
 			flags.trace === undefined ? null : parseCount(flags.trace, "--trace", 1),
+		strategy: flags.strategy ?? null,
+		record: flags.record ?? null,
 	};
 }
 
@@ -124,6 +138,8 @@ export function runSim(
 	let tuning: Tuning;
 	let state: GameState;
 	let log: CommandLogEntry[] = [];
+	let player: StrategyPlayer | null = null;
+	let strategyName = "";
 	try {
 		tuning = dependencies.tuning ?? loadTuning();
 		state =
@@ -133,13 +149,24 @@ export function runSim(
 		if (options.commands !== null) {
 			log = parseCommandLog(JSON.parse(readFileSync(options.commands, "utf8")));
 		}
+		if (options.strategy !== null) {
+			const strategy = parseStrategy(
+				JSON.parse(readFileSync(options.strategy, "utf8")),
+				tuning.decrees,
+			);
+			strategyName = strategy.name;
+			player = createStrategyPlayer(strategy);
+		}
 	} catch (error) {
 		return reportError(io, null, error);
 	}
 
 	const absorbed: AbsorbedAdditionLog = {};
 	const rejectedCommands: { tick: number; type: string; reason: string }[] = [];
+	const issued: CommandLogEntry[] = [];
+	let minPopulation = state.posting.economy.population;
 	let stepsDone = 0;
+	const commandSource = player === null ? undefined : player.next;
 	try {
 		runSteps(
 			state,
@@ -157,6 +184,14 @@ export function runSim(
 						});
 					}
 				}
+				if (options.record !== null) {
+					for (const command of commands) issued.push({ tick, command });
+				}
+				player?.observe(state, tuning);
+				minPopulation = Math.min(
+					minPopulation,
+					state.posting.economy.population,
+				);
 				stepsDone += 1;
 				if (options.trace !== null && stepsDone % options.trace === 0) {
 					io.stdout(
@@ -171,8 +206,12 @@ export function runSim(
 					);
 				}
 			},
+			commandSource,
 		);
 		if (options.out !== null) writeSaveFile(options.out, state);
+		if (options.record !== null) {
+			writeFileSync(options.record, `${JSON.stringify(issued, null, "\t")}\n`);
+		}
 	} catch (error) {
 		return reportError(io, state.tick, error);
 	}
@@ -185,6 +224,10 @@ export function runSim(
 			resources: sortedRecord(state.posting.resources),
 			population: state.posting.economy.population,
 			starved: state.posting.economy.starved,
+			minPopulation,
+			...(player
+				? { strategy: { name: strategyName, ...player.stats() } }
+				: {}),
 			absorbed: sortedRecord(absorbed),
 			rejectedCommands,
 		}),

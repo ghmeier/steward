@@ -1,0 +1,63 @@
+{
+	"name": "seasonal",
+	"setup": [
+		{
+			"type": "enactDecree",
+			"decree": {
+				"id": "granary",
+				"petition": "harvest",
+				"rules": [],
+				"otherwise": "sell"
+			}
+		},
+		{
+			"type": "enactDecree",
+			"decree": {
+				"id": "workforce",
+				"petition": "labor",
+				"rules": [],
+				"otherwise": "farming"
+			}
+		}
+	],
+	"reactions": [
+		{
+			"when": {
+				"kind": "compare",
+				"quantity": "grainSeasons",
+				"comparison": "below",
+				"value": 1.5
+			},
+			"commands": [
+				{
+					"type": "enactDecree",
+					"decree": {
+						"id": "granary",
+						"petition": "harvest",
+						"rules": [],
+						"otherwise": "stockpile"
+					}
+				}
+			]
+		},
+		{
+			"when": {
+				"kind": "compare",
+				"quantity": "grainSeasons",
+				"comparison": "above",
+				"value": 2
+			},
+			"commands": [
+				{
+					"type": "enactDecree",
+					"decree": {
+						"id": "granary",
+						"petition": "harvest",
+						"rules": [],
+						"otherwise": "sell"
+					}
+				}
+			]
+		}
+	]
+}

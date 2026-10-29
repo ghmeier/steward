@@ -29,26 +29,29 @@ describe("runSim argument errors", () => {
 		["seed above uint32", ["--seed", "4294967296", "--steps", "1"]],
 		["zero --trace", ["--seed", "1", "--steps", "1", "--trace", "0"]],
 		["unknown flag", ["--seed", "1", "--steps", "1", "--bogus"]],
-		["--strategy", ["--seed", "1", "--steps", "1", "--strategy", "s.ts"]],
+		[
+			"--strategy with --commands",
+			[
+				"--seed",
+				"1",
+				"--steps",
+				"1",
+				"--strategy",
+				"s.json",
+				"--commands",
+				"c.json",
+			],
+		],
+		[
+			"--record without --strategy",
+			["--seed", "1", "--steps", "1", "--record", "r.json"],
+		],
 	])("%s exits with code 2 and a usage message", (_name, argv) => {
 		const { code, stdout, stderr } = run(argv);
 
 		expect(code).toBe(2);
 		expect(stdout).toEqual([]);
 		expect(stderr.join("\n")).toContain("usage:");
-	});
-
-	test("--strategy says strategies arrive in phase 3", () => {
-		const { stderr } = run([
-			"--seed",
-			"1",
-			"--steps",
-			"1",
-			"--strategy",
-			"s.ts",
-		]);
-
-		expect(stderr.join("\n")).toContain("phase 3");
 	});
 });
 
@@ -68,6 +71,17 @@ describe("runSim output", () => {
 		expect(objects).toHaveLength(11);
 		expect(objects.slice(0, 10).every((o) => o.type === "trace")).toBe(true);
 		expect(objects[10]?.type).toBe("summary");
+	});
+
+	test("the summary reports the lowest population seen, including the start", () => {
+		const { stdout } = run(["--seed", "1", "--steps", "5"]);
+
+		const summary = JSON.parse(stdout[0] as string) as {
+			minPopulation: number;
+			population: number;
+		};
+		expect(summary.minPopulation).toBe(tuning.economy.initialPopulation);
+		expect(summary.minPopulation).toBeLessThanOrEqual(summary.population);
 	});
 
 	test("rejected commands are reported with their tick, type and reason", () => {
