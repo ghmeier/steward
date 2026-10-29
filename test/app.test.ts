@@ -15,7 +15,7 @@ import { stateHash } from "../src/save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../src/save/save";
 import { type App, prepareStartup, startApp } from "../src/tui/app";
 import { HINTS_TEXT } from "../src/tui/keys";
-import { setRoster, tuning } from "./helpers";
+import { setFamineDue, setRoster, tuning } from "./helpers";
 
 const NEVER_MS = 1e9;
 const NEW_SEED = 321;
@@ -538,7 +538,7 @@ describe("starvation notice in the app", () => {
 	function starvingNextStep(): GameState {
 		const state = createNewGame(5, tuning);
 		state.posting.resources.grain = 0;
-		state.posting.economy.hunger = tuning.economy.starvationHunger;
+		setFamineDue(state, 1, tuning.economy.ticksPerSeason);
 		return state;
 	}
 

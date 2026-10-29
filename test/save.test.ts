@@ -163,6 +163,39 @@ describe("atomic write", () => {
 	});
 });
 
+describe("schema 6 migration", () => {
+	function schema6Text(state: GameState): string {
+		const old = structuredClone(state) as unknown as Record<string, unknown>;
+		old.schemaVersion = 6;
+		const economy = (old.posting as Record<string, Record<string, unknown>>)
+			.economy as Record<string, unknown>;
+		delete economy.famine;
+		economy.hunger = 1.5;
+		return JSON.stringify({
+			schemaVersion: 6,
+			savedAt: "x",
+			contentHash: "y",
+			state: old,
+		});
+	}
+
+	test("parseSave loads a schema 6 save as a valid schema 7 state with a zeroed famine", () => {
+		const original = newState();
+
+		const loadedSave = parseSave(schema6Text(original));
+
+		expect(loadedSave.schemaVersion).toBe(SCHEMA_VERSION);
+		expect(loadedSave.state).toEqual(original);
+		expect(loadedSave.state.posting.economy).not.toHaveProperty("hunger");
+	});
+
+	test("a schema 5 save is still refused", () => {
+		const text = JSON.stringify({ schemaVersion: 5, state: {} });
+
+		expect(() => parseSave(text)).toThrow(SaveVersionError);
+	});
+});
+
 describe("version refusal", () => {
 	function writeOldSave(version: number): string {
 		const text = `${JSON.stringify({ schemaVersion: version, savedAt: "x", contentHash: "y", state: {} })}\n`;

@@ -31,7 +31,7 @@ describe("createNewGame", () => {
 		expect(state.tick).toBe(0);
 		expect(state.posting.resources).toEqual(tuning.economy.initialResources);
 		expect(state.posting.economy).toEqual({
-			hunger: 0,
+			famine: { startPopulation: 0, ticks: 0, deaths: 0 },
 			growth: 0,
 			starved: 0,
 		});
@@ -84,7 +84,6 @@ describe("parseTuning", () => {
 		["ticksPerSeason", 1.5, "ticksPerSeason"],
 		["maxPopulation", -1, "maxPopulation"],
 		["initialPopulation", 41, "initialPopulation"],
-		["starvationHunger", 0, "starvationHunger"],
 		["grainPerPeasant", 0, "grainPerPeasant"],
 		["grainPrice", -0.5, "grainPrice"],
 		["woodPrice", -0.5, "woodPrice"],

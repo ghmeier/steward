@@ -6,7 +6,7 @@ import { RESOURCES } from "./realm";
 import { type RngState, seedStream } from "./rng";
 import type { Tuning } from "./tuning";
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export type ResourceId = string;
 
@@ -58,7 +58,11 @@ export function createNewGame(seed: number, tuning: Tuning): GameState {
 		seed,
 		rng,
 		resources,
-		economy: { hunger: 0, growth: 0, starved: 0 },
+		economy: {
+			famine: { startPopulation: 0, ticks: 0, deaths: 0 },
+			growth: 0,
+			starved: 0,
+		},
 		delegates: [],
 		nextDelegateId: 1,
 		decrees: {},

@@ -59,13 +59,18 @@ describe("scripted strategies over ten game years", () => {
 		expect(summary.strategy.longestQuietTicks).toBe(24000);
 	});
 
-	test.each(["none", "naive"])("%s lets people starve", (name) => {
-		const summary = play(name);
+	test("none keeps its lone peasant because one peasant never starves", () => {
+		const summary = play("none");
+
+		expect(summary.starved).toBe(0);
+		expect(summary.population).toBe(tuning.economy.initialPopulation);
+	});
+
+	test("naive lets people starve but famine never empties the village", () => {
+		const summary = play("naive");
 
 		expect(summary.starved).toBeGreaterThan(0);
-		expect(summary.minPopulation).toBeLessThan(
-			tuning.economy.initialPopulation,
-		);
+		expect(summary.minPopulation).toBeGreaterThan(0);
 	});
 
 	test("seasonal grows without starving but has to act at least once a year", () => {

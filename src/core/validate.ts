@@ -84,11 +84,23 @@ function checkEconomy(economy: unknown, problems: string[]): void {
 			"$.posting.economy.starved: must be a non-negative safe integer",
 		);
 	}
-	for (const key of ["hunger", "growth"]) {
-		const value = economy[key];
-		if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+	if (
+		typeof economy.growth !== "number" ||
+		!Number.isFinite(economy.growth) ||
+		economy.growth < 0
+	) {
+		problems.push(
+			"$.posting.economy.growth: must be a non-negative finite number",
+		);
+	}
+	if (!isPlainRecord(economy.famine)) {
+		problems.push("$.posting.economy.famine: must be an object");
+		return;
+	}
+	for (const key of ["startPopulation", "ticks", "deaths"]) {
+		if (!isCount(economy.famine[key])) {
 			problems.push(
-				`$.posting.economy.${key}: must be a non-negative finite number`,
+				`$.posting.economy.famine.${key}: must be a non-negative safe integer`,
 			);
 		}
 	}

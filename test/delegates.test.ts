@@ -5,6 +5,7 @@ import type { AddContext } from "../src/core/math";
 import { projectedRates } from "../src/core/projection";
 import { createNewGame, type GameState } from "../src/core/state";
 import {
+	setFamineDue,
 	setRoster,
 	tuning as shippedTuning,
 	economyTestTuning as tuning,
@@ -20,10 +21,8 @@ const idsOf = (state: GameState) =>
 function starve(state: GameState, deaths: number): void {
 	state.posting.resources.grain = 0;
 	state.tick = 3 * tuning.economy.ticksPerSeason + 1;
-	for (let i = 0; i < deaths; i++) {
-		state.posting.economy.hunger = tuning.economy.starvationHunger;
-		runEconomy(state, tuning, context);
-	}
+	setFamineDue(state, deaths, tuning.economy.ticksPerSeason);
+	runEconomy(state, tuning, context);
 }
 
 describe("a new game's roster", () => {

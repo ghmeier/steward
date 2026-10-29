@@ -13,8 +13,14 @@ import { JOBS, type Job, SEASONS, type Season } from "./realm";
 import type { GameState } from "./state";
 import type { Tuning } from "./tuning";
 
+export type Famine = {
+	startPopulation: number;
+	ticks: number;
+	deaths: number;
+};
+
 export type EconomyState = {
-	hunger: number;
+	famine: Famine;
 	growth: number;
 	starved: number;
 };
@@ -63,6 +69,25 @@ function killOnePeasant(delegates: Delegate[]): void {
 	if (victim !== undefined) removeDelegate(delegates, victim.id);
 }
 
+// Deaths are paced against the starting population so a famine takes at most half the
+// village, spread evenly over one season; integer arithmetic keeps the schedule exact.
+function advanceFamine(
+	economy: EconomyState,
+	delegates: Delegate[],
+	ticksPerSeason: number,
+): void {
+	const famine = economy.famine;
+	if (famine.ticks === 0) famine.startPopulation = delegates.length;
+	famine.ticks += 1;
+	const cap = Math.floor(famine.startPopulation / 2);
+	const due = Math.min(cap, Math.floor((famine.ticks * cap) / ticksPerSeason));
+	while (famine.deaths < due && delegates.length > 0) {
+		killOnePeasant(delegates);
+		famine.deaths += 1;
+		economy.starved += 1;
+	}
+}
+
 export function runEconomy(
 	state: GameState,
 	tuning: Tuning,
@@ -84,18 +109,10 @@ export function runEconomy(
 	const grain = resources.grain ?? 0;
 	if (grain >= upkeep) {
 		add(resources, "grain", -upkeep, context);
-		economy.hunger = 0;
+		economy.famine = { startPopulation: 0, ticks: 0, deaths: 0 };
 	} else {
-		economy.hunger += upkeep - grain;
 		add(resources, "grain", -grain, context);
-		while (
-			economy.hunger >= settings.starvationHunger &&
-			delegates.length > 0
-		) {
-			killOnePeasant(delegates);
-			economy.hunger -= settings.starvationHunger;
-			economy.starved += 1;
-		}
+		advanceFamine(economy, delegates, settings.ticksPerSeason);
 	}
 
 	return {

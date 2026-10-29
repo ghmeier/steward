@@ -96,18 +96,20 @@ describe("help topics follow tuning", () => {
 		);
 	});
 
-	test("grain shows what a season of eating costs each peasant and the starvation rate", () => {
+	test("grain shows what a season of eating costs each peasant and the famine rule", () => {
 		const text = topicText(
 			"Grain and growth",
 			withEconomy({
 				grainPerPerson: 0.02,
 				ticksPerSeason: 500,
-				starvationHunger: 3,
 			}),
 		);
 
 		expect(text).toContain("costs each peasant 10 grain");
-		expect(text).toContain("every 3 grain of unmet eating");
+		expect(text).toContain(
+			"a famine takes at most half the village, spread over a season (50 s)",
+		);
+		expect(text).toContain("famine ends as soon as everyone eats again");
 	});
 
 	test("labor moves are pluralized by count", () => {

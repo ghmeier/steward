@@ -284,7 +284,24 @@ describe("validateState economy", () => {
 			-1,
 			"starved",
 		],
-		["negative hunger", ["posting", "economy", "hunger"], -1, "hunger"],
+		[
+			"a negative famine length",
+			["posting", "economy", "famine", "ticks"],
+			-1,
+			"famine.ticks",
+		],
+		[
+			"a fractional famine death count",
+			["posting", "economy", "famine", "deaths"],
+			1.5,
+			"famine.deaths",
+		],
+		[
+			"a negative famine starting population",
+			["posting", "economy", "famine", "startPopulation"],
+			-1,
+			"famine.startPopulation",
+		],
 		[
 			"infinite growth",
 			["posting", "economy", "growth"],

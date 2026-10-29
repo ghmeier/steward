@@ -12,7 +12,11 @@ import {
 import type { AddContext } from "../src/core/math";
 import type { Job, Season } from "../src/core/realm";
 import { createNewGame } from "../src/core/state";
-import { setRoster, economyTestTuning as tuning } from "./helpers";
+import {
+	setFamineDue,
+	setRoster,
+	economyTestTuning as tuning,
+} from "./helpers";
 
 const context: AddContext = { tick: 1, maxValue: 1e300, absorbed: null };
 const perSeason = tuning.economy.ticksPerSeason;
@@ -82,48 +86,126 @@ describe("runEconomy production", () => {
 	});
 });
 
+const noFamine = { startPopulation: 0, ticks: 0, deaths: 0 };
+
+function starveFor(state: ReturnType<typeof villageAt>, ticks: number): void {
+	for (let i = 0; i < ticks; i++) runEconomy(state, tuning, context);
+}
+
 describe("runEconomy eating", () => {
-	test("a fed village pays upkeep and resets hunger", () => {
+	test("a fed village pays upkeep and ends any famine", () => {
 		const state = villageAt(1, { grain: 5 });
-		state.posting.economy.hunger = 1.5;
+		state.posting.economy.famine = { startPopulation: 10, ticks: 7, deaths: 2 };
 
 		runEconomy(state, tuning, context);
 
 		expect(state.posting.resources.grain).toBeCloseTo(4.9, 12);
-		expect(state.posting.economy.hunger).toBe(0);
+		expect(state.posting.economy.famine).toEqual(noFamine);
 	});
 
-	test("an unfed village empties the granary and accumulates hunger", () => {
+	test("an unfed village empties the granary and starts a famine without killing yet", () => {
 		const state = villageAt(1, { grain: 0.04 });
 
 		runEconomy(state, tuning, context);
 
 		expect(state.posting.resources.grain).toBe(0);
-		expect(state.posting.economy.hunger).toBeCloseTo(0.06, 12);
+		expect(state.posting.economy.famine).toEqual({
+			startPopulation: 10,
+			ticks: 1,
+			deaths: 0,
+		});
 		expect(state.posting.delegates.length).toBe(10);
 		expect(state.posting.economy.starved).toBe(0);
 	});
 
 	test("a village with exactly enough grain is fed", () => {
 		const state = villageAt(1, { grain: 0.1 });
-		state.posting.economy.hunger = 1;
+		state.posting.economy.famine = { startPopulation: 10, ticks: 3, deaths: 0 };
 
 		runEconomy(state, tuning, context);
 
-		expect(state.posting.economy.hunger).toBe(0);
+		expect(state.posting.economy.famine).toEqual(noFamine);
 		expect(state.posting.delegates.length).toBe(10);
 	});
 
-	test("hunger at the threshold kills idle peasants before workers", () => {
+	test("the first peasant dies only after a spaced interval of famine, not on the first tick", () => {
+		const state = villageAt(3 * perSeason + 1, { population: 40, grain: 0 });
+
+		starveFor(state, 29);
+		const before = state.posting.delegates.length;
+		starveFor(state, 1);
+
+		expect(perSeason).toBe(600);
+		expect(before).toBe(40);
+		expect(state.posting.delegates.length).toBe(39);
+		expect(state.posting.economy.starved).toBe(1);
+	});
+
+	test("deaths are spread evenly across the season for 37 peasants", () => {
+		const state = villageAt(3 * perSeason + 1, { population: 37, grain: 0 });
+
+		let elapsed = 0;
+		for (const [ticks, deaths] of [
+			[1, 0],
+			[33, 0],
+			[34, 1],
+			[100, 3],
+			[299, 8],
+			[300, 9],
+			[450, 13],
+			[600, 18],
+		] as const) {
+			starveFor(state, ticks - elapsed);
+			elapsed = ticks;
+
+			expect(state.posting.economy.famine.deaths).toBe(deaths);
+		}
+		expect(state.posting.economy.starved).toBe(18);
+	});
+
+	test("a famine that never ends kills exactly half the village, even after several seasons", () => {
+		const state = villageAt(3 * perSeason + 1, { population: 11, grain: 0 });
+
+		starveFor(state, 4 * perSeason);
+
+		expect(state.posting.economy.starved).toBe(5);
+		expect(state.posting.delegates.length).toBe(6);
+	});
+
+	test("a village of one peasant never starves", () => {
+		const state = villageAt(3 * perSeason + 1, { population: 1, grain: 0 });
+
+		starveFor(state, 3 * perSeason);
+
+		expect(state.posting.delegates.length).toBe(1);
+		expect(state.posting.economy.starved).toBe(0);
+	});
+
+	test("a later famine takes its cap from the population at that time", () => {
+		const state = villageAt(3 * perSeason + 1, { population: 20, grain: 0 });
+		starveFor(state, perSeason);
+		const survivors = state.posting.delegates.length;
+		state.posting.resources.grain = 1000;
+		runEconomy(state, tuning, context);
+		state.posting.resources.grain = 0;
+
+		starveFor(state, 2 * perSeason);
+
+		expect(survivors).toBe(10);
+		expect(state.posting.economy.famine.startPopulation).toBe(survivors);
+		expect(state.posting.delegates.length).toBe(survivors - survivors / 2);
+		expect(state.posting.economy.starved).toBe(10 + survivors / 2);
+	});
+
+	test("famine deaths take idle peasants before workers", () => {
 		const state = villageAt(3 * perSeason + 1, {
 			grain: 0,
 			labor: { farm: 4, mine: 1 },
 		});
-		state.posting.economy.hunger = 1.95;
+		setFamineDue(state, 1, perSeason);
 
 		runEconomy(state, tuning, context);
 
-		// Winter, so no grain arrives: 1.95 + 0.1 reaches the threshold once, leaving 0.05.
 		expect(state.posting.delegates.length).toBe(9);
 		expect(laborCounts(state.posting.delegates)).toEqual({
 			farm: 4,
@@ -131,46 +213,37 @@ describe("runEconomy eating", () => {
 			mine: 1,
 		});
 		expect(state.posting.economy.starved).toBe(1);
-		expect(state.posting.economy.hunger).toBeCloseTo(0.05, 12);
 	});
 
 	test("with no idle peasants starvation takes mine, then forest, then farm", () => {
 		const state = villageAt(3 * perSeason + 1, {
-			population: 3,
+			population: 6,
 			grain: 0,
-			labor: { farm: 1, forest: 1, mine: 1 },
+			labor: { farm: 2, forest: 2, mine: 2 },
 		});
 		const deaths: number[][] = [];
-		for (const hunger of [2, 2, 2]) {
-			state.posting.economy.hunger = hunger;
+		for (const due of [1, 2, 3]) {
+			setFamineDue(state, due, perSeason);
 			runEconomy(state, tuning, context);
 			const { farm, forest, mine } = laborCounts(state.posting.delegates);
 			deaths.push([farm, forest, mine]);
 		}
 
 		expect(deaths).toEqual([
-			[1, 1, 0],
-			[1, 0, 0],
-			[0, 0, 0],
+			[2, 2, 1],
+			[2, 2, 0],
+			[2, 1, 0],
 		]);
 		expect(state.posting.economy.starved).toBe(3);
 	});
 
-	test("population never goes below zero and an empty village does nothing", () => {
-		const state = villageAt(1, { population: 1, grain: 0 });
-		state.posting.economy.hunger = 100;
+	test("an empty village does nothing", () => {
+		const state = villageAt(1, { population: 0, grain: 0 });
 
 		runEconomy(state, tuning, context);
 
 		expect(state.posting.delegates.length).toBe(0);
-		expect(state.posting.economy.starved).toBe(1);
-
-		const before = structuredClone(state);
-		runEconomy(state, tuning, context);
-
-		expect(state.posting.delegates.length).toBe(0);
-		expect(state.posting.economy.starved).toBe(before.posting.economy.starved);
-		expect(state.posting.resources.grain).toBe(0);
+		expect(state.posting.economy.starved).toBe(0);
 	});
 });
 

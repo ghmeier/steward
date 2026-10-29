@@ -20,7 +20,6 @@ export const economyTestTuning: Tuning = {
 		woodPerWorker: 0.02,
 		orePerWorker: 0.01,
 		grainPerPerson: 0.01,
-		starvationHunger: 2,
 		grainPrice: 0.5,
 		woodPrice: 0.5,
 		orePrice: 1,
@@ -149,4 +148,17 @@ export function sampleVillage(seed: number): GameState {
 	const state = createNewGame(seed, tuning);
 	setRoster(state, { idle: 10 });
 	return state;
+}
+
+/** Arranges a famine so that the next unfed tick brings the total deaths due up to `totalDeaths`. */
+export function setFamineDue(
+	state: GameState,
+	totalDeaths: number,
+	ticksPerSeason: number,
+): void {
+	state.posting.economy.famine = {
+		startPopulation: 2 * totalDeaths,
+		ticks: ticksPerSeason - 1,
+		deaths: state.posting.economy.famine.deaths,
+	};
 }
