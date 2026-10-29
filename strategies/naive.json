@@ -7,7 +7,7 @@
 				"id": "granary",
 				"petition": "harvest",
 				"rules": [],
-				"otherwise": "sell"
+				"otherwise": "feed"
 			}
 		},
 		{

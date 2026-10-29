@@ -11,10 +11,10 @@
 		"grainPerPerson": 0.01,
 		"starvationHunger": 2,
 		"grainPrice": 0.5,
-		"grainPerPeasant": 30,
+		"grainPerPeasant": 25,
 		"maxPopulation": 40,
 		"laborMovesPerTick": 1,
-		"initialPopulation": 10,
+		"initialPopulation": 1,
 		"initialResources": { "coin": 0, "grain": 60, "ore": 0, "wood": 0 },
 		"laborAllocations": {
 			"balanced": { "farm": 0.5, "forest": 0.3, "mine": 0.2 },

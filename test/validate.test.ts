@@ -1,12 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { createNewGame, SCHEMA_VERSION } from "../src/core/state";
 import { assertValidState, validateState } from "../src/core/validate";
-import { tuning } from "./helpers";
+import { setRoster, tuning } from "./helpers";
 
 type Tree = Record<string, unknown>;
 
-function freshGame(): Tree {
-	return createNewGame(5, tuning) as unknown as Tree;
+function freshGame(peasants = 1): Tree {
+	const state = createNewGame(5, tuning);
+	setRoster(state, { idle: peasants });
+	return state as unknown as Tree;
 }
 
 function setAt(root: Tree, path: string[], value: unknown): void {
@@ -298,7 +300,7 @@ describe("validateState delegates", () => {
 		((state.posting as Tree).delegates as Tree[])[index] as Tree;
 
 	test("accepts a roster with a worker, a grudge and gaps in the ids", () => {
-		const state = freshGame();
+		const state = freshGame(4);
 		delegateAt(state, 2).job = "mine";
 		delegateAt(state, 3).grudgeUntil = 40;
 		(state.posting as Tree).delegates = [
@@ -311,14 +313,14 @@ describe("validateState delegates", () => {
 	});
 
 	test("reports a duplicate id", () => {
-		const state = freshGame();
+		const state = freshGame(4);
 		delegateAt(state, 1).id = delegateAt(state, 0).id;
 
 		expect(validateState(state).join("\n")).toContain("strictly ascending");
 	});
 
 	test("reports ids that are out of order", () => {
-		const state = freshGame();
+		const state = freshGame(4);
 		const delegates = (state.posting as Tree).delegates as Tree[];
 		delegates.reverse();
 
@@ -334,7 +336,7 @@ describe("validateState delegates", () => {
 	});
 
 	test("reports two living peasants who share a name", () => {
-		const state = freshGame();
+		const state = freshGame(4);
 		delegateAt(state, 1).name = delegateAt(state, 0).name;
 
 		expect(validateState(state).join("\n")).toContain("held by another");

@@ -9,12 +9,13 @@ import {
 	economyTestTuning,
 	quietOptions,
 	sampleCommandLog,
+	sampleVillage,
 	setRoster,
 	tuning,
 } from "./helpers";
 
 function runFresh(seed: number, count: number, log = sampleCommandLog) {
-	const state = createNewGame(seed, tuning);
+	const state = sampleVillage(seed);
 	runSteps(state, count, tuning, log, quietOptions);
 	return state;
 }
@@ -131,7 +132,7 @@ describe("step decrees", () => {
 
 describe("runSteps", () => {
 	test("keeps state valid across 10,000 validated steps", () => {
-		const state = createNewGame(42, tuning);
+		const state = sampleVillage(42);
 
 		expect(() =>
 			runSteps(state, 10_000, tuning, sampleCommandLog, {
@@ -204,7 +205,7 @@ describe("determinism", () => {
 	test("splitting a run at 5,000 ticks with a JSON round trip matches an uninterrupted run", () => {
 		const uninterrupted = runFresh(42, 10_000);
 
-		const resumed = createNewGame(42, tuning);
+		const resumed = sampleVillage(42);
 		runSteps(resumed, 5_000, tuning, sampleCommandLog, quietOptions);
 		const reloaded = JSON.parse(canonicalStringify(resumed));
 		runSteps(reloaded, 5_000, tuning, sampleCommandLog, quietOptions);

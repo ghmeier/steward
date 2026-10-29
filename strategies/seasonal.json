@@ -7,7 +7,7 @@
 				"id": "granary",
 				"petition": "harvest",
 				"rules": [],
-				"otherwise": "sell"
+				"otherwise": "feed"
 			}
 		},
 		{
@@ -16,17 +16,15 @@
 				"id": "workforce",
 				"petition": "labor",
 				"rules": [],
-				"otherwise": "farming"
+				"otherwise": "farm"
 			}
 		}
 	],
 	"reactions": [
 		{
 			"when": {
-				"kind": "compare",
-				"quantity": "grainSeasons",
-				"comparison": "below",
-				"value": 1.5
+				"kind": "season",
+				"season": "autumn"
 			},
 			"commands": [
 				{
@@ -42,10 +40,8 @@
 		},
 		{
 			"when": {
-				"kind": "compare",
-				"quantity": "grainSeasons",
-				"comparison": "above",
-				"value": 2
+				"kind": "season",
+				"season": "spring"
 			},
 			"commands": [
 				{
@@ -54,7 +50,7 @@
 						"id": "granary",
 						"petition": "harvest",
 						"rules": [],
-						"otherwise": "sell"
+						"otherwise": "feed"
 					}
 				}
 			]

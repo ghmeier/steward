@@ -15,7 +15,7 @@ import { stateHash } from "../src/save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../src/save/save";
 import { type App, prepareStartup, startApp } from "../src/tui/app";
 import { HINTS_TEXT } from "../src/tui/keys";
-import { tuning } from "./helpers";
+import { setRoster, tuning } from "./helpers";
 
 const NEVER_MS = 1e9;
 const NEW_SEED = 321;
@@ -188,7 +188,7 @@ describe("startApp", () => {
 	});
 
 	test("j moves the cursor so the next assignment goes to the second peasant", async () => {
-		const harness = await launch();
+		const harness = await launch({ state: villageOf(3) });
 
 		harness.mockInput.pressKey("j");
 		harness.mockInput.pressKey("m");
@@ -408,6 +408,12 @@ describe("decree menu in the app", () => {
 	});
 });
 
+function villageOf(peasants: number): GameState {
+	const state = createNewGame(5, tuning);
+	setRoster(state, { idle: peasants });
+	return state;
+}
+
 function holdHenDispute(state: GameState): void {
 	state.posting.desk.disputes = [
 		{ id: 1, template: "stolen-hen", parties: [1, 2], arrivedAt: 0 },
@@ -417,7 +423,7 @@ function holdHenDispute(state: GameState): void {
 
 describe("court menu in the app", () => {
 	test("c opens the court menu listing the waiting dispute", async () => {
-		const harness = await launch();
+		const harness = await launch({ state: villageOf(2) });
 		holdHenDispute(harness.state);
 		await harness.advanceStep();
 
@@ -430,7 +436,7 @@ describe("court menu in the app", () => {
 	});
 
 	test("settling a dispute through the menu removes it from the game state", async () => {
-		const harness = await launch();
+		const harness = await launch({ state: villageOf(2) });
 		holdHenDispute(harness.state);
 		await harness.advanceStep();
 

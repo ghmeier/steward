@@ -8,11 +8,12 @@ import {
 import { idleCount, laborCounts } from "../src/core/delegates";
 import { canonicalStringify } from "../src/core/serialize";
 import { createNewGame } from "../src/core/state";
-import { contextFor, tuning } from "./helpers";
+import { contextFor, setRoster, tuning } from "./helpers";
 
 describe("apply", () => {
 	test("assignPeasant moves exactly the named peasant", () => {
 		const state = createNewGame(1, tuning);
+		setRoster(state, { idle: 3 });
 		const [first, second] = state.posting.delegates;
 
 		const result = apply(
@@ -30,9 +31,7 @@ describe("apply", () => {
 			forest: 1,
 			mine: 0,
 		});
-		expect(idleCount(state.posting.delegates)).toBe(
-			tuning.economy.initialPopulation - 1,
-		);
+		expect(idleCount(state.posting.delegates)).toBe(2);
 	});
 
 	test("assignPeasant can send a worker back to idle", () => {
@@ -68,6 +67,7 @@ describe("apply", () => {
 
 	test("assignPeasant is rejected when the peasant already has that job", () => {
 		const state = createNewGame(1, tuning);
+		setRoster(state, { idle: 2 });
 		const peasant = state.posting.delegates[0];
 		if (peasant) peasant.job = "farm";
 		const before = canonicalStringify(state);

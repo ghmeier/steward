@@ -68,11 +68,17 @@ describe("scripted strategies over ten game years", () => {
 		);
 	});
 
-	test("seasonal never starves but has to keep acting", () => {
+	test("seasonal grows without starving but has to act at least once a year", () => {
 		const summary = play("seasonal");
 
 		expect(summary.starved).toBe(0);
+		expect(summary.population).toBeGreaterThan(
+			tuning.economy.initialPopulation,
+		);
 		expect(summary.strategy.reactionCommands).toBeGreaterThan(0);
+		expect(summary.strategy.longestQuietTicks).toBeLessThan(
+			4 * tuning.economy.ticksPerSeason,
+		);
 	});
 
 	test("a recorded seasonal run replays to the same hash", () => {
@@ -97,7 +103,7 @@ describe("scripted strategies over ten game years", () => {
 });
 
 describe("promotion under the reference strategy", () => {
-	test("reference is promoted within ten years at the first tick the village reaches the target, and stays promoted", () => {
+	test("reference has its first birth within three minutes, is promoted within ten years at the first tick the village reaches the target, and stays promoted", () => {
 		const strategy = parseStrategy(
 			JSON.parse(readFileSync("strategies/reference.json", "utf8")),
 			tuning.decrees,
@@ -105,6 +111,7 @@ describe("promotion under the reference strategy", () => {
 		const player = createStrategyPlayer(strategy);
 		const state = createNewGame(1, tuning);
 		let firstAtTarget = 0;
+		let firstBirth = 0;
 		let unpromotedAfter = false;
 
 		runSteps(
@@ -114,6 +121,12 @@ describe("promotion under the reference strategy", () => {
 			[],
 			{ absorbed: null, validate: false },
 			() => {
+				if (
+					firstBirth === 0 &&
+					state.posting.nextDelegateId > tuning.economy.initialPopulation + 1
+				) {
+					firstBirth = state.tick;
+				}
 				if (
 					firstAtTarget === 0 &&
 					state.posting.delegates.length >= tuning.village.promotionPopulation
@@ -128,6 +141,9 @@ describe("promotion under the reference strategy", () => {
 			player.next,
 		);
 
+		const threeMinutesInTicks = (3 * 60 * 1000) / tuning.stepMs;
+		expect(firstBirth).toBeGreaterThan(0);
+		expect(firstBirth).toBeLessThanOrEqual(threeMinutesInTicks);
 		expect(state.career.promotedAt).toBeGreaterThan(0);
 		expect(state.career.promotedAt).toBe(firstAtTarget);
 		expect(unpromotedAfter).toBe(false);

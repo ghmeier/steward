@@ -4,7 +4,11 @@ import { feedGrain, moveLaborToward, runEconomy } from "../src/core/economy";
 import type { AddContext } from "../src/core/math";
 import { projectedRates } from "../src/core/projection";
 import { createNewGame, type GameState } from "../src/core/state";
-import { setRoster, economyTestTuning as tuning } from "./helpers";
+import {
+	setRoster,
+	tuning as shippedTuning,
+	economyTestTuning as tuning,
+} from "./helpers";
 
 const context: AddContext = { tick: 1, maxValue: 1e300, absorbed: null };
 
@@ -23,6 +27,11 @@ function starve(state: GameState, deaths: number): void {
 }
 
 describe("a new game's roster", () => {
+	test("the shipped data starts the village with a single peasant", () => {
+		expect(shippedTuning.economy.initialPopulation).toBe(1);
+		expect(createNewGame(5, shippedTuning).posting.delegates).toHaveLength(1);
+	});
+
 	test("holds the initial population as idle peasants with ids 1 to N and distinct names", () => {
 		const state = createNewGame(5, tuning);
 

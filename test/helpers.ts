@@ -3,7 +3,7 @@ import villageJson from "../data/village.json";
 import type { CommandLogEntry } from "../src/core/commands";
 import type { Delegate } from "../src/core/delegates";
 import type { AddContext } from "../src/core/math";
-import type { GameState } from "../src/core/state";
+import { createNewGame, type GameState } from "../src/core/state";
 import { parseTuning, type Tuning } from "../src/core/tuning";
 
 export const tuning = parseTuning({ ...tuningJson, village: villageJson });
@@ -140,4 +140,11 @@ export function setRoster(state: GameState, counts: RosterCounts): void {
 
 export function contextFor(state: GameState): AddContext {
 	return { tick: state.tick, maxValue: 1e300, absorbed: null };
+}
+
+/** The ten-peasant village the sample command log was written for, so the desk and multi-peasant labor stay covered. */
+export function sampleVillage(seed: number): GameState {
+	const state = createNewGame(seed, tuning);
+	setRoster(state, { idle: 10 });
+	return state;
 }
