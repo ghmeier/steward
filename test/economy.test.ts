@@ -7,7 +7,7 @@ import {
 	moveLaborToward,
 	runEconomy,
 	seasonAt,
-	sellGrain,
+	sellResource,
 } from "../src/core/economy";
 import type { AddContext } from "../src/core/math";
 import type { Job, Season } from "../src/core/realm";
@@ -175,28 +175,28 @@ describe("runEconomy eating", () => {
 });
 
 describe("runEconomy flows", () => {
-	test("grainSurplus is production minus upkeep when production is higher", () => {
+	test("harvest flow is production minus upkeep when production is higher", () => {
 		const state = villageAt(1, { labor: { farm: 8 } });
 
 		const flows = runEconomy(state, tuning, context);
 
-		expect(flows.grainSurplus).toBeCloseTo(0.2 - 0.1, 12);
+		expect(flows.harvest).toBeCloseTo(0.2 - 0.1, 12);
 	});
 
-	test("grainSurplus is zero when upkeep exceeds production", () => {
+	test("harvest flow is zero when upkeep exceeds production", () => {
 		const state = villageAt(1, { labor: { farm: 2 } });
 
 		const flows = runEconomy(state, tuning, context);
 
-		expect(flows.grainSurplus).toBe(0);
+		expect(flows.harvest).toBe(0);
 	});
 });
 
-describe("sellGrain", () => {
+describe("sellResource", () => {
 	test("converts grain to coin at the grain price", () => {
 		const state = villageAt(1, { grain: 100 });
 
-		sellGrain(state, 30, tuning, context);
+		sellResource(state, "grain", 30, tuning, context);
 
 		expect(state.posting.resources.grain).toBe(70);
 		expect(state.posting.resources.coin).toBe(15);

@@ -8,9 +8,12 @@ import {
 	formatCycle,
 	HARVEST_POLICIES,
 	orderDecrees,
+	PETITION_RESOURCE,
 	type Petition,
 	parseDecree,
 	type Quantity,
+	type ResourcePetition,
+	STORE_POLICIES,
 } from "./decree";
 import { idleCount } from "./delegates";
 import {
@@ -20,7 +23,7 @@ import {
 	laborTargets,
 	moveLaborToward,
 	seasonAt,
-	sellGrain,
+	sellResource,
 } from "./economy";
 import { errorMessage } from "./errors";
 import type { AddContext } from "./math";
@@ -33,9 +36,9 @@ export function policiesFor(
 	petition: Petition,
 	tuning: Tuning,
 ): readonly string[] {
-	return petition === "harvest"
-		? HARVEST_POLICIES
-		: sortedKeys(tuning.economy.laborAllocations);
+	if (petition === "harvest") return HARVEST_POLICIES;
+	if (petition === "labor") return sortedKeys(tuning.economy.laborAllocations);
+	return STORE_POLICIES;
 }
 
 export function quantityValue(
@@ -136,6 +139,24 @@ export function repealDecree(state: GameState, id: string): CommandResult {
 	return { ok: true };
 }
 
+// A bare "resource above N" rule means everything over N, not just this tick's production.
+function resourceAmount(
+	state: GameState,
+	resource: (typeof PETITION_RESOURCE)[ResourcePetition],
+	when: Condition | undefined,
+	produced: number,
+): number {
+	const stock = state.posting.resources[resource] ?? 0;
+	if (
+		when?.kind === "compare" &&
+		when.comparison === "above" &&
+		when.quantity === resource
+	) {
+		return Math.max(0, stock - Math.max(0, when.value));
+	}
+	return Math.min(produced, stock);
+}
+
 export function runDecrees(
 	state: GameState,
 	tuning: Tuning,
@@ -158,13 +179,20 @@ export function runDecrees(
 		const policy = matched ? matched.policy : decree.otherwise;
 		chosen[id] = policy;
 
-		if (decree.petition === "harvest") {
+		if (decree.petition !== "labor") {
+			const resource = PETITION_RESOURCE[decree.petition];
+			const amount = resourceAmount(
+				state,
+				resource,
+				matched?.when,
+				flows[decree.petition],
+			);
 			if (policy === "sell") {
-				sellGrain(state, flows.grainSurplus, tuning, context);
-			} else if (policy === "feed") {
-				feedGrain(state, flows.grainSurplus, tuning, context);
+				sellResource(state, resource, amount, tuning, context);
+			} else if (policy === "feed" && decree.petition === "harvest") {
+				feedGrain(state, amount, tuning, context);
 			} else if (policy !== "stockpile") {
-				throw new Error(`unknown harvest policy "${policy}"`);
+				throw new Error(`unknown ${decree.petition} policy "${policy}"`);
 			}
 		} else {
 			const allocations = tuning.economy.laborAllocations;

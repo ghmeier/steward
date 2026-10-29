@@ -4,6 +4,7 @@ import type {
 	DecreeRule,
 	HARVEST_POLICIES,
 	Petition,
+	STORE_POLICIES,
 } from "../core/decree";
 import { JOBS, type Job } from "../core/realm";
 import type { Tuning } from "../core/tuning";
@@ -55,6 +56,13 @@ const HARVEST_DESCRIPTIONS: Readonly<
 	stockpile: "the surplus is stored",
 };
 
+const STORE_DESCRIPTIONS: Readonly<
+	Record<(typeof STORE_POLICIES)[number], (resource: string) => string>
+> = {
+	sell: (resource) => `the ${resource} is sold for coin`,
+	stockpile: (resource) => `the ${resource} is stored`,
+};
+
 const EVERYONE: Readonly<Record<Job, string>> = {
 	farm: "everyone farms",
 	forest: "everyone works the forest",
@@ -71,6 +79,14 @@ export function describePolicy(
 			policy
 		];
 		return text === undefined ? policy : `${policy}: ${text}`;
+	}
+	if (petition === "wood" || petition === "ore") {
+		const describe = (
+			STORE_DESCRIPTIONS as Readonly<
+				Record<string, (resource: string) => string>
+			>
+		)[policy];
+		return describe === undefined ? policy : `${policy}: ${describe(petition)}`;
 	}
 	const shares = tuning.economy.laborAllocations[policy];
 	if (shares === undefined) return policy;

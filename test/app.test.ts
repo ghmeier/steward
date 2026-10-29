@@ -357,7 +357,7 @@ describe("decree menu in the app", () => {
 
 		const screen = await harness.screen();
 		expect(screen).toContain("Decrees");
-		expect(screen).toContain("Enact harvest decree");
+		expect(screen).toContain("Enact harvest (grain) decree");
 		expect(screen).not.toContain("Ledger");
 	});
 

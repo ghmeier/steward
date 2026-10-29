@@ -71,7 +71,7 @@ describe("decree menu", () => {
 	test("enacting a harvest rule with otherwise stockpile emits that decree under the id harvest", () => {
 		const walk = new Walker(contextWith([]));
 
-		walk.choose("Enact harvest decree");
+		walk.choose("Enact harvest (grain) decree");
 		walk.choose("Add rule");
 		walk.choose("A quantity");
 		walk.choose("grain seasons");
@@ -109,7 +109,7 @@ describe("decree menu", () => {
 	test("enacting for a petition with an active decree reuses its id", () => {
 		const walk = new Walker(contextWith([granary]));
 
-		walk.choose("Enact harvest decree");
+		walk.choose("Enact harvest (grain) decree");
 		walk.choose("Enact");
 
 		const [command] = walk.commands;
@@ -117,6 +117,33 @@ describe("decree menu", () => {
 			type: "enactDecree",
 			decree: { id: "granary", rules: [] },
 		});
+	});
+
+	test("the root screen offers all four petitions", () => {
+		const walk = new Walker(contextWith([]));
+
+		const text = walk.lines().join("|");
+
+		for (const label of [
+			"Enact harvest (grain) decree",
+			"Enact wood decree",
+			"Enact ore decree",
+			"Enact labor decree",
+		]) {
+			expect(text).toContain(label);
+		}
+	});
+
+	test("the otherwise list for a wood decree offers only sell and stockpile", () => {
+		const walk = new Walker(contextWith([]));
+		walk.choose("Enact wood decree");
+
+		walk.choose("Otherwise");
+
+		const text = walk.lines().join("|");
+		expect(text).toContain(describePolicy("wood", "sell", tuning));
+		expect(text).toContain(describePolicy("wood", "stockpile", tuning));
+		expect(text).not.toContain("feed");
 	});
 
 	test("the draft starts with the first policy as otherwise", () => {
@@ -195,7 +222,7 @@ describe("decree menu", () => {
 
 	test("add rule is unavailable once the draft holds maxRules rules", () => {
 		const walk = new Walker(contextWith([]));
-		walk.choose("Enact harvest decree");
+		walk.choose("Enact harvest (grain) decree");
 
 		for (let i = 0; i < tuning.decrees.maxRules; i++) {
 			walk.choose("Add rule");
@@ -212,7 +239,7 @@ describe("decree menu", () => {
 
 	test("remove last rule drops only the newest rule", () => {
 		const walk = new Walker(contextWith([]));
-		walk.choose("Enact harvest decree");
+		walk.choose("Enact harvest (grain) decree");
 		for (const season of ["spring", "winter"]) {
 			walk.choose("Add rule");
 			walk.choose("It is a given season");
@@ -233,7 +260,7 @@ describe("decree menu", () => {
 	test("the season path emits a season condition", () => {
 		const walk = new Walker(contextWith([]));
 
-		walk.choose("Enact harvest decree");
+		walk.choose("Enact harvest (grain) decree");
 		walk.choose("Add rule");
 		walk.choose("It is a given season");
 		walk.choose("winter");
@@ -262,8 +289,8 @@ describe("decree menu", () => {
 		const flagged = new Walker(contextWith([hard]));
 		const plain = new Walker(contextWith([granary]));
 
-		flagged.choose("Enact harvest decree");
-		plain.choose("Enact harvest decree");
+		flagged.choose("Enact harvest (grain) decree");
+		plain.choose("Enact harvest (grain) decree");
 
 		expect(flagged.lines().join("|")).toContain(
 			'Enacting will replace "granary"',

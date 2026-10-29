@@ -120,6 +120,15 @@ describe("describePolicy", () => {
 		);
 	});
 
+	test("wood and ore policies name their resource", () => {
+		expect(describePolicy("wood", "sell", tuning)).toBe(
+			"sell: the wood is sold for coin",
+		);
+		expect(describePolicy("ore", "stockpile", tuning)).toBe(
+			"stockpile: the ore is stored",
+		);
+	});
+
 	test("each harvest policy says what happens to the surplus", () => {
 		expect(describePolicy("harvest", "feed", tuning)).toBe(
 			"feed: the surplus grows the village",

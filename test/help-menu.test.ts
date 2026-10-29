@@ -42,10 +42,15 @@ function withEconomy(changes: Partial<Tuning["economy"]>): Tuning {
 }
 
 describe("help topics follow tuning", () => {
-	test("coin shows the grain price from tuning", () => {
-		const text = topicText("Coin", withEconomy({ grainPrice: 0.25 }));
+	test("coin shows the grain, wood and ore prices from tuning", () => {
+		const text = topicText(
+			"Coin",
+			withEconomy({ grainPrice: 0.25, woodPrice: 0.75, orePrice: 3 }),
+		);
 
-		expect(text).toContain("0.25 coin per grain");
+		expect(text).toContain(
+			"grain at 0.25 coin each, wood at 0.75 and ore at 3",
+		);
 	});
 
 	test("grain shows the feeding cost, population cap and season length from tuning", () => {

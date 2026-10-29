@@ -22,6 +22,8 @@ export type Tuning = {
 		grainPerPerson: number;
 		starvationHunger: number;
 		grainPrice: number;
+		woodPrice: number;
+		orePrice: number;
 		grainPerPeasant: number;
 		maxPopulation: number;
 		laborMovesPerTick: number;
@@ -187,6 +189,8 @@ function parseEconomy(value: unknown): Tuning["economy"] {
 			name("starvationHunger"),
 		),
 		grainPrice: nonNegativeNumber(get("grainPrice"), name("grainPrice")),
+		woodPrice: nonNegativeNumber(get("woodPrice"), name("woodPrice")),
+		orePrice: nonNegativeNumber(get("orePrice"), name("orePrice")),
 		grainPerPeasant: positiveNumber(
 			get("grainPerPeasant"),
 			name("grainPerPeasant"),

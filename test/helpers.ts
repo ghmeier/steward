@@ -22,6 +22,8 @@ export const economyTestTuning: Tuning = {
 		grainPerPerson: 0.01,
 		starvationHunger: 2,
 		grainPrice: 0.5,
+		woodPrice: 0.5,
+		orePrice: 1,
 		grainPerPeasant: 30,
 		maxPopulation: 40,
 		laborMovesPerTick: 1,

@@ -1,7 +1,7 @@
 import { compareKeys, isRecord, sortedKeys } from "./data";
 import { SEASONS, type Season } from "./realm";
 
-export const PETITIONS = ["harvest", "labor"] as const;
+export const PETITIONS = ["harvest", "wood", "ore", "labor"] as const;
 export type Petition = (typeof PETITIONS)[number];
 export const QUANTITIES = [
 	"coin",
@@ -320,6 +320,15 @@ export function orderDecrees(
 }
 
 export const HARVEST_POLICIES = ["feed", "sell", "stockpile"] as const;
+export const STORE_POLICIES = ["sell", "stockpile"] as const;
+
+/** The resource each resource petition governs; `harvest` keeps its id for grain so saves stay valid. */
+export const PETITION_RESOURCE = {
+	harvest: "grain",
+	wood: "wood",
+	ore: "ore",
+} as const;
+export type ResourcePetition = keyof typeof PETITION_RESOURCE;
 
 export function formatCycle(cycle: readonly string[]): string {
 	return [...cycle, cycle[0]].join(" -> ");
@@ -336,8 +345,11 @@ export function decreeSetProblem(
 	incoming?: string,
 ): string | null {
 	const ids = sortedKeys(decrees);
-	const policiesOf = (petition: Petition): readonly string[] | null =>
-		petition === "harvest" ? HARVEST_POLICIES : laborPolicies;
+	const policiesOf = (petition: Petition): readonly string[] | null => {
+		if (petition === "harvest") return HARVEST_POLICIES;
+		if (petition === "labor") return laborPolicies;
+		return STORE_POLICIES;
+	};
 
 	for (const id of ids) {
 		const decree = decrees[id];

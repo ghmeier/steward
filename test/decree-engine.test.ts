@@ -62,6 +62,11 @@ function enactOk(state: ReturnType<typeof freshState>, value: unknown) {
 }
 
 describe("policiesFor", () => {
+	test("wood and ore offer only sell and stockpile", () => {
+		expect(policiesFor("wood", tuning)).toEqual(["sell", "stockpile"]);
+		expect(policiesFor("ore", tuning)).toEqual(["sell", "stockpile"]);
+	});
+
 	test("lists the fixed harvest policies and the sorted tuned labor allocations", () => {
 		expect(policiesFor("harvest", tuning)).toEqual([
 			"feed",
@@ -333,8 +338,176 @@ describe("evaluateCondition", () => {
 	});
 });
 
+function aboveResource(
+	quantity: "grain" | "wood" | "ore",
+	value: number,
+): Condition {
+	return { kind: "compare", quantity, comparison: "above", value };
+}
+
+describe("resource decrees", () => {
+	const none = { harvest: 0, wood: 0, ore: 0 };
+
+	test.each([
+		["wood", "woodPrice"],
+		["ore", "orePrice"],
+	] as const)(
+		"selling %s above a threshold sells the whole stock above it",
+		(petition, price) => {
+			const state = freshState();
+			state.posting.resources[petition] = 80;
+			enactOk(
+				state,
+				decreeOf(
+					petition,
+					petition,
+					[{ when: aboveResource(petition, 50), policy: "sell" }],
+					"stockpile",
+				),
+			);
+
+			runDecrees(state, tuning, context, { ...none, [petition]: 1 });
+
+			expect(state.posting.resources[petition]).toBe(50);
+			expect(state.posting.resources.coin).toBe(30 * tuning.economy[price]);
+		},
+	);
+
+	test("sell through otherwise sells only the new production and keeps the stock", () => {
+		const state = freshState();
+		state.posting.resources.wood = 80;
+		enactOk(state, decreeOf("timber", "wood", [], "sell"));
+
+		runDecrees(state, tuning, context, { ...none, wood: 4 });
+
+		expect(state.posting.resources.wood).toBe(76);
+		expect(state.posting.resources.coin).toBe(4 * tuning.economy.woodPrice);
+	});
+
+	test("a threshold on a different resource acts on new production only", () => {
+		const state = freshState();
+		state.posting.resources.wood = 80;
+		state.posting.resources.ore = 30;
+		enactOk(
+			state,
+			decreeOf(
+				"timber",
+				"wood",
+				[{ when: aboveResource("ore", 20), policy: "sell" }],
+				"stockpile",
+			),
+		);
+
+		runDecrees(state, tuning, context, { ...none, wood: 4 });
+
+		expect(state.posting.resources.wood).toBe(76);
+	});
+
+	test("a negative threshold sells down to zero, never below", () => {
+		const state = freshState();
+		state.posting.resources.wood = 5;
+		enactOk(
+			state,
+			decreeOf(
+				"timber",
+				"wood",
+				[{ when: aboveResource("wood", -10), policy: "sell" }],
+				"stockpile",
+			),
+		);
+
+		runDecrees(state, tuning, context, none);
+
+		expect(state.posting.resources.wood).toBe(0);
+		expect(state.posting.resources.coin).toBe(5 * tuning.economy.woodPrice);
+	});
+
+	test("never sells more than the stock", () => {
+		const state = freshState();
+		state.posting.resources.ore = 2;
+		enactOk(state, decreeOf("mine", "ore", [], "sell"));
+
+		runDecrees(state, tuning, context, { ...none, ore: 5 });
+
+		expect(state.posting.resources.ore).toBe(0);
+		expect(state.posting.resources.coin).toBe(2 * tuning.economy.orePrice);
+	});
+
+	test("feed above a grain threshold feeds the excess into growth", () => {
+		const state = freshState();
+		state.posting.resources.grain = 75 + 1.5 * tuning.economy.grainPerPeasant;
+		enactOk(
+			state,
+			harvest(
+				"granary",
+				[{ when: aboveResource("grain", 75), policy: "feed" }],
+				"stockpile",
+			),
+		);
+		const population = state.posting.delegates.length;
+
+		runDecrees(state, tuning, context, none);
+
+		expect(state.posting.resources.grain).toBe(75);
+		expect(state.posting.delegates.length).toBeGreaterThan(population);
+	});
+
+	test.each(["wood", "ore"] as const)(
+		"a %s decree refuses feed in a rule or otherwise",
+		(petition) => {
+			const state = freshState();
+			const inRule = decreeOf(
+				"a",
+				petition,
+				[{ when: above(1), policy: "feed" }],
+				"sell",
+			);
+			const inOtherwise = decreeOf("a", petition, [], "feed");
+
+			expect(enactDecree(state, inRule, tuning).ok).toBe(false);
+			expect(enactDecree(state, inOtherwise, tuning).ok).toBe(false);
+			expect(
+				enactDecree(state, decreeOf("a", petition, [], "sell"), tuning),
+			).toEqual({
+				ok: true,
+			});
+		},
+	);
+
+	test("a chose test against a wood decree cannot name feed", () => {
+		const state = freshState();
+		enactOk(state, decreeOf("timber", "wood", [], "sell"));
+
+		const result = enactDecree(
+			state,
+			harvest("granary", [{ when: chose("timber", "feed"), policy: "sell" }]),
+			tuning,
+		);
+
+		expect(result.ok).toBe(false);
+	});
+
+	test("a wood decree and a harvest decree coexist, one per petition", () => {
+		const state = freshState();
+		enactOk(state, harvest("granary"));
+		enactOk(state, decreeOf("timber", "wood", [], "sell"));
+
+		const clash = enactDecree(
+			state,
+			decreeOf("lumber", "wood", [], "sell"),
+			tuning,
+		);
+
+		expect(clash.ok).toBe(false);
+		expect(Object.keys(state.posting.decrees).sort()).toEqual([
+			"granary",
+			"timber",
+		]);
+	});
+});
+
 describe("runDecrees", () => {
-	const surplus = { grainSurplus: 3 };
+	const surplus = { harvest: 3, wood: 0, ore: 0 };
 
 	test("changes nothing when no decree is active", () => {
 		const state = freshState();

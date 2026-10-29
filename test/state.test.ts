@@ -87,6 +87,8 @@ describe("parseTuning", () => {
 		["starvationHunger", 0, "starvationHunger"],
 		["grainPerPeasant", 0, "grainPerPeasant"],
 		["grainPrice", -0.5, "grainPrice"],
+		["woodPrice", -0.5, "woodPrice"],
+		["orePrice", -1, "orePrice"],
 		["laborMovesPerTick", 0, "laborMovesPerTick"],
 	])("rejects economy.%s of %p and names the field", (key, value, named) => {
 		const bad = {

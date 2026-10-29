@@ -219,6 +219,17 @@ describe("validateState decrees", () => {
 		]);
 	});
 
+	test("reports a feed policy in a wood decree", () => {
+		const state = freshGame();
+		setAt(state, ["posting", "decrees"], {
+			timber: { id: "timber", petition: "wood", rules: [], otherwise: "feed" },
+		});
+
+		expect(validateState(state)).toEqual([
+			'$.posting.decrees: decree "timber": policy "feed" is not a wood policy',
+		]);
+	});
+
 	test("reports only the parse error when a malformed decree sits beside a cyclic pair", () => {
 		const state = freshGame();
 		const chose = (decree: string, policy: string) => ({

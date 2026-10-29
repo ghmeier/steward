@@ -78,8 +78,8 @@ function grainLines(tuning: Tuning): string[] {
 
 function coinLines(tuning: Tuning): string[] {
 	const lines = [
-		`The only steady source of coin is selling grain, at ${plain(tuning.economy.grainPrice)} coin per grain.`,
-		"Selling happens through a harvest decree (see Harvest and labor).",
+		`The only steady source of coin is selling: grain at ${plain(tuning.economy.grainPrice)} coin each, wood at ${plain(tuning.economy.woodPrice)} and ore at ${plain(tuning.economy.orePrice)}.`,
+		"Selling happens through a harvest, wood or ore decree (see Harvest and labor).",
 	];
 	if (rulingsTouching(tuning, "coin", "pays")) {
 		lines.push("Some dispute fines pay a little coin as well.");
@@ -104,13 +104,13 @@ function woodAndOreLines(tuning: Tuning): string[] {
 		"",
 		resourceUse(tuning, "wood", "Wood"),
 		resourceUse(tuning, "ore", "Ore"),
-		"Neither can be sold.",
+		`Wood sells for ${plain(economy.woodPrice)} coin and ore for ${plain(economy.orePrice)}, through a wood or ore decree (see Harvest and labor).`,
 	];
 }
 
 function decreeLines(): string[] {
 	return [
-		"A decree answers one of two petitions, harvest or labor, and each petition holds one decree.",
+		"A decree answers one of four petitions, harvest (grain), wood, ore or labor, and each petition holds one decree.",
 		"Rules are checked in order and the first match wins. Otherwise applies when none match.",
 		'"Grain seasons" is how many seasons the stores would feed everyone.',
 		"",
@@ -130,9 +130,11 @@ function harvestAndLaborLines(tuning: Tuning): string[] {
 		describePolicy("labor", name, tuning),
 	);
 	return [
-		"Harvest: each tick, only the grain grown beyond what everyone eats is fed, sold or stockpiled.",
-		"  Stored grain is never fed or sold, so in a season that grows nothing there is nothing to do.",
-		"  With no harvest decree, the surplus is stockpiled.",
+		"Harvest, wood and ore: each tick, a decree feeds (grain only), sells or stockpiles that resource.",
+		'  Exception: a rule like "sell when wood above 50" (the decree\'s own resource, above a number)',
+		"  acts on everything above that number, so it brings the stock back down to 50 at once.",
+		"  Any other rule, and otherwise, acts on only that tick's new production (for grain, the surplus beyond what everyone eats).",
+		"  With no decree for a resource, it is stockpiled.",
 		"",
 		`Labor: each tick, ${plain(moves)} ${moves === 1 ? "peasant moves" : "peasants move"} toward a split of farm, forest and mine:`,
 		...allocations.map((line) => `  ${line}`),

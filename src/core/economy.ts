@@ -1,3 +1,4 @@
+import type { ResourcePetition } from "./decree";
 import {
 	bearPeasant,
 	type Delegate,
@@ -18,7 +19,7 @@ export type EconomyState = {
 	starved: number;
 };
 
-export type EconomyFlows = { grainSurplus: number };
+export type EconomyFlows = Readonly<Record<ResourcePetition, number>>;
 
 export function seasonAt(tick: number, ticksPerSeason: number): Season {
 	if (tick < 1) return "spring";
@@ -74,8 +75,10 @@ export function runEconomy(
 
 	const produced = grainProduced(state, tuning);
 	add(resources, "grain", produced, context);
-	add(resources, "wood", working.forest * settings.woodPerWorker, context);
-	add(resources, "ore", working.mine * settings.orePerWorker, context);
+	const woodCut = working.forest * settings.woodPerWorker;
+	const oreDug = working.mine * settings.orePerWorker;
+	add(resources, "wood", woodCut, context);
+	add(resources, "ore", oreDug, context);
 
 	const upkeep = upkeepOf(state, tuning);
 	const grain = resources.grain ?? 0;
@@ -95,18 +98,29 @@ export function runEconomy(
 		}
 	}
 
-	return { grainSurplus: Math.max(0, produced - upkeep) };
+	return {
+		harvest: Math.max(0, produced - upkeep),
+		wood: woodCut,
+		ore: oreDug,
+	};
 }
 
-export function sellGrain(
+const PRICE_KEY = {
+	grain: "grainPrice",
+	wood: "woodPrice",
+	ore: "orePrice",
+} as const;
+
+export function sellResource(
 	state: GameState,
+	resource: keyof typeof PRICE_KEY,
 	amount: number,
 	tuning: Tuning,
 	context: AddContext,
 ): void {
 	const resources = state.posting.resources;
-	add(resources, "grain", -amount, context);
-	add(resources, "coin", amount * tuning.economy.grainPrice, context);
+	add(resources, resource, -amount, context);
+	add(resources, "coin", amount * tuning.economy[PRICE_KEY[resource]], context);
 }
 
 export function feedGrain(

@@ -209,7 +209,7 @@ export const decreeMenu: ScreenBuilder = (context) => {
 			? ["No decrees are in force."]
 			: decrees.map(formatDecree);
 	const items: MenuItem[] = PETITIONS.map((petition) => ({
-		label: `Enact ${petition} decree…`,
+		label: `Enact ${petition === "harvest" ? "harvest (grain)" : petition} decree…`,
 		action: {
 			kind: "push",
 			screen: draftScreen({ petition, rules: [], otherwise: null }),
