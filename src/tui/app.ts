@@ -9,8 +9,10 @@ import { decreeMenu } from "./decree-menu";
 import { helpMenu } from "./help-menu";
 import { actionForKey, HINTS_TEXT, isInterrupt } from "./keys";
 import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
+import { newGameMenu } from "./new-game-menu";
 import { createPanels } from "./panels";
-import { createSession } from "./session";
+import { createSession, type Session } from "./session";
+import { starvationNotice } from "./starvation-notice";
 
 const FRAME_INTERVAL_MS = 50;
 const AUTOSAVE_INTERVAL_MS = 30_000;
@@ -60,16 +62,15 @@ export function startApp(options: {
 	tuning: Tuning;
 	saveDir: string;
 	now: () => number;
+	newSeed: () => number;
 	notice: string | null;
 	frameIntervalMs?: number;
 	autosaveIntervalMs?: number;
 }): App {
 	const { renderer, tuning, saveDir } = options;
-	const session = createSession({
-		state: options.state,
-		tuning,
-		now: options.now,
-	});
+	const makeSession = (state: GameState): Session =>
+		createSession({ state, tuning, now: options.now });
+	let session = makeSession(options.state);
 	const panels = createPanels(renderer);
 	let message = options.notice;
 	let footer = "";
@@ -77,6 +78,7 @@ export function startApp(options: {
 
 	let menu: MenuState | null = null;
 	let promotionAnnounced = session.view().promotion.promotedAt > 0;
+	let lastView = session.view();
 
 	const menuContext = () => ({ view: session.view(), tuning });
 	const composeFooter = () => {
@@ -110,6 +112,16 @@ export function startApp(options: {
 		redraw();
 	};
 
+	const foundNewVillage = () => {
+		session = makeSession(createNewGame(options.newSeed(), tuning));
+		lastView = session.view();
+		promotionAnnounced = lastView.promotion.promotedAt > 0;
+		cursor = reconcileCursor(lastView.delegates, null);
+		const error = save();
+		message =
+			error === null ? "A new village is founded." : `Save failed: ${error}`;
+	};
+
 	let frameTimer: ReturnType<typeof setInterval> | undefined;
 	let autosaveTimer: ReturnType<typeof setInterval> | undefined;
 	let shutdownPromise: Promise<AppExit> | null = null;
@@ -123,6 +135,7 @@ export function startApp(options: {
 			const result = menuKey(menu, key, menuContext());
 			menu = result.state;
 			for (const command of result.commands) session.enqueue(command);
+			if (result.requests.includes("newGame")) foundNewVillage();
 			redraw();
 			return;
 		}
@@ -135,6 +148,11 @@ export function startApp(options: {
 		}
 		if (action.kind === "court") {
 			menu = openMenu(courtMenu);
+			redraw();
+			return;
+		}
+		if (action.kind === "newGame") {
+			menu = openMenu(newGameMenu);
 			redraw();
 			return;
 		}
@@ -166,6 +184,9 @@ export function startApp(options: {
 		const result = session.frame();
 		const lastRejection = result.rejections.at(-1);
 		if (lastRejection !== undefined) message = lastRejection.reason;
+		const starved = starvationNotice(lastView, session.view());
+		if (starved !== null) message = starved;
+		lastView = session.view();
 		if (!promotionAnnounced && session.view().promotion.promotedAt > 0) {
 			promotionAnnounced = true;
 			message = "The crown has noticed you. You are promoted to steward.";

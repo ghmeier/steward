@@ -47,6 +47,8 @@ export type GameView = {
 		idle: number;
 		labor: Record<Job, number>;
 		season: Season;
+		/** Running total of peasants lost to hunger. */
+		starved: number;
 	};
 	delegates: DelegateView[];
 	decrees: Decree[];
@@ -81,6 +83,7 @@ export function computeView(state: GameState, tuning: Tuning): GameView {
 			idle: idleCount(delegates),
 			labor: laborCounts(delegates),
 			season: seasonAt(state.tick, tuning.economy.ticksPerSeason),
+			starved: state.posting.economy.starved,
 		},
 		delegates: delegates.map((delegate) => ({
 			id: delegate.id,

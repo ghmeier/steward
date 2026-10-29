@@ -14,6 +14,7 @@ export type KeyAction =
 	| { kind: "decrees" }
 	| { kind: "court" }
 	| { kind: "help" }
+	| { kind: "newGame" }
 	| { kind: "quit" };
 
 const BINDINGS: Readonly<Record<string, KeyAction>> = {
@@ -28,6 +29,7 @@ const BINDINGS: Readonly<Record<string, KeyAction>> = {
 	d: { kind: "decrees" },
 	c: { kind: "court" },
 	"?": { kind: "help" },
+	n: { kind: "newGame" },
 	s: { kind: "save" },
 	q: { kind: "quit" },
 };
@@ -48,11 +50,12 @@ export function actionForKey(key: KeyPress): KeyAction | null {
 }
 
 export const KEY_HINTS: readonly { keys: string; label: string }[] = [
-	{ keys: "j/k", label: "select peasant" },
+	{ keys: "j/k", label: "select" },
 	{ keys: "f/w/m/i", label: "assign farm/forest/mine/idle" },
 	{ keys: "d", label: "decrees" },
 	{ keys: "c", label: "court" },
 	{ keys: "s", label: "save" },
+	{ keys: "n", label: "new village" },
 	{ keys: "?", label: "help" },
 	{ keys: "q", label: "quit" },
 ];

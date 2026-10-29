@@ -18,6 +18,7 @@ import { HINTS_TEXT } from "../src/tui/keys";
 import { tuning } from "./helpers";
 
 const NEVER_MS = 1e9;
+const NEW_SEED = 321;
 const dirs: string[] = [];
 const apps: App[] = [];
 
@@ -60,6 +61,7 @@ async function launch(
 		tuning,
 		saveDir,
 		now: () => nowMs,
+		newSeed: () => NEW_SEED,
 		notice: options.notice ?? null,
 		frameIntervalMs: NEVER_MS,
 		autosaveIntervalMs: NEVER_MS,
@@ -523,5 +525,118 @@ describe("help menu in the app", () => {
 
 	test("the hints line fits the footer width", () => {
 		expect(HINTS_TEXT.length).toBeLessThanOrEqual(120);
+	});
+});
+
+describe("starvation notice in the app", () => {
+	function starvingNextStep(): GameState {
+		const state = createNewGame(5, tuning);
+		state.posting.resources.grain = 0;
+		state.posting.economy.hunger = tuning.economy.starvationHunger;
+		return state;
+	}
+
+	test("a peasant starving during the session is named in the footer", async () => {
+		const state = starvingNextStep();
+		const first = state.posting.delegates[0]?.name as string;
+		const harness = await launch({ state });
+
+		await harness.advanceStep();
+
+		expect(state.posting.economy.starved).toBe(1);
+		expect(await harness.screen()).toContain(`${first} starved.`);
+	});
+
+	test("a fed village shows no starvation notice", async () => {
+		const harness = await launch();
+
+		await harness.advanceStep();
+
+		expect(await harness.screen()).not.toContain("starved");
+	});
+});
+
+describe("new village in the app", () => {
+	function openNewVillageMenu(harness: Awaited<ReturnType<typeof launch>>) {
+		harness.mockInput.pressKey("n");
+	}
+
+	test("n opens a confirmation in place of the panel grid", async () => {
+		const harness = await launch();
+
+		openNewVillageMenu(harness);
+
+		const screen = await harness.screen();
+		expect(screen).toContain("Found a new village?");
+		expect(screen).not.toContain("Ledger");
+	});
+
+	test("choosing yes founds a new game, and saves it at once", async () => {
+		const harness = await launch();
+		harness.mockInput.pressKey("f");
+		await harness.advanceStep();
+		saveGame(harness.saveDir, harness.state);
+
+		openNewVillageMenu(harness);
+		harness.mockInput.pressKey("j");
+		harness.mockInput.pressEnter();
+
+		const saved = readSaveFile(join(harness.saveDir, SAVE_FILE_NAME)).state;
+		expect(stateHash(saved)).toBe(stateHash(createNewGame(NEW_SEED, tuning)));
+		expect(saved.tick).toBe(0);
+		expect(saved.posting.delegates).toHaveLength(
+			tuning.economy.initialPopulation,
+		);
+		expect(
+			stateHash(
+				readSaveFile(join(harness.saveDir, `${SAVE_FILE_NAME}.bak`)).state,
+			),
+		).toBe(stateHash(harness.state));
+		const screen = await harness.screen();
+		expect(screen).toContain("A new village is founded.");
+		expect(screen).toContain("Ledger");
+	});
+
+	test("the new village runs on its own state and the first peasant is selected again", async () => {
+		const harness = await launch();
+		harness.mockInput.pressKey("j");
+		harness.mockInput.pressKey("j");
+		openNewVillageMenu(harness);
+		harness.mockInput.pressKey("j");
+		harness.mockInput.pressEnter();
+
+		harness.mockInput.pressKey("f");
+		await harness.advanceStep();
+		await harness.advanceStep();
+		harness.mockInput.pressKey("s");
+
+		const saved = readSaveFile(join(harness.saveDir, SAVE_FILE_NAME)).state;
+		expect(saved.tick).toBeGreaterThan(0);
+		expect(saved.posting.delegates[0]?.job).toBe("farm");
+		expect(harness.state.tick).toBe(0);
+	});
+
+	test("choosing no leaves the game and the save untouched", async () => {
+		const harness = await launch();
+		const before = stateHash(harness.state);
+
+		openNewVillageMenu(harness);
+		harness.mockInput.pressEnter();
+
+		expect(stateHash(harness.state)).toBe(before);
+		expect(existsSync(join(harness.saveDir, SAVE_FILE_NAME))).toBe(false);
+		expect(await harness.screen()).toContain("Ledger");
+	});
+
+	test("escape closes the confirmation without founding a village", async () => {
+		const harness = await launch({ kittyKeyboard: true });
+		const before = stateHash(harness.state);
+
+		openNewVillageMenu(harness);
+		harness.mockInput.pressEscape();
+
+		expect(stateHash(harness.state)).toBe(before);
+		expect(existsSync(join(harness.saveDir, SAVE_FILE_NAME))).toBe(false);
+		expect(await harness.screen()).toContain("Ledger");
 	});
 });

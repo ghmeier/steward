@@ -14,7 +14,7 @@ const FOOTER_LINES = 2;
 const LOCKED_BODY = "Locked.";
 const COURT_HINT = "Press c to hold court.";
 const DESK_PLACEHOLDER = "The desk is clear.";
-const PEASANTS_PLACEHOLDER = "No peasants live here.";
+const EMPTY_VILLAGE = "The village is empty. Press n to found a new one.";
 
 function capitalize(id: string): string {
 	return id.charAt(0).toUpperCase() + id.slice(1);
@@ -83,6 +83,15 @@ export function peasantLines(
 
 function linesOrPlaceholder(lines: string[], placeholder: string): string {
 	return lines.length > 0 ? lines.join("\n") : placeholder;
+}
+
+function peasantsBody(
+	view: GameView,
+	selectedId: number | null,
+	height: number,
+): string {
+	if (view.realm.population === 0) return EMPTY_VILLAGE;
+	return peasantLines(view, selectedId, height).join("\n");
 }
 
 export function createPanels(renderer: CliRenderer): Panels {
@@ -179,10 +188,7 @@ export function createPanels(renderer: CliRenderer): Panels {
 			);
 			peasants.text.content = body(
 				"peasants",
-				linesOrPlaceholder(
-					peasantLines(view, selectedId, peasantRowCapacity()),
-					PEASANTS_PLACEHOLDER,
-				),
+				peasantsBody(view, selectedId, peasantRowCapacity()),
 			);
 			footer.content = footerText;
 		},

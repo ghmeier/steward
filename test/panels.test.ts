@@ -39,6 +39,7 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
 			idle: 10,
 			labor: { farm: 0, forest: 0, mine: 0 },
 			season: "spring",
+			starved: 0,
 		},
 		delegates: [],
 		decrees: [],
@@ -118,6 +119,7 @@ describe("createPanels ledger", () => {
 				idle: 5,
 				labor: { farm: 4, forest: 2, mine: 1 },
 				season: "summer",
+				starved: 0,
 			},
 		});
 
@@ -154,7 +156,6 @@ describe("createPanels placeholders", () => {
 
 		expect(frame).toContain("The crown demands nothing, for now.");
 		expect(frame).toContain("The desk is clear.");
-		expect(frame).toContain("No peasants live here.");
 	});
 
 	test("shows entries instead of placeholders when present", async () => {
@@ -178,7 +179,31 @@ describe("createPanels placeholders", () => {
 		expect(frame).toContain("Ada");
 		expect(frame).not.toContain("The crown demands nothing");
 		expect(frame).not.toContain("The desk is clear.");
-		expect(frame).not.toContain("No peasants live here.");
+	});
+});
+
+describe("createPanels empty village", () => {
+	const emptyVillage = "The village is empty. Press n to found a new one.";
+
+	test("an empty roster says the village is empty and how to start again", async () => {
+		const view = emptyView({
+			realm: { ...emptyView().realm, population: 0, idle: 0 },
+		});
+
+		const frame = await draw([view], "", { width: 160, height: 30 });
+
+		expect(frame).toContain(emptyVillage);
+	});
+
+	test("a village with peasants lists them instead of the empty line", async () => {
+		const view = emptyView({
+			delegates: [{ id: 3, name: "Ada", job: "farm", grudgeTicks: 0 }],
+		});
+
+		const frame = await draw([view], "");
+
+		expect(frame).toContain("Ada");
+		expect(frame).not.toContain(emptyVillage);
 	});
 });
 
@@ -231,6 +256,7 @@ describe("createPanels promotion", () => {
 				idle: 0,
 				labor: { farm: 14, forest: 0, mine: 0 },
 				season: "spring",
+				starved: 0,
 			},
 		});
 

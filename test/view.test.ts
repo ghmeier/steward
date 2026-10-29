@@ -63,7 +63,17 @@ describe("computeView", () => {
 			idle: 5,
 			labor: { farm: 4, forest: 2, mine: 1 },
 			season: "summer",
+			starved: 0,
 		});
+	});
+
+	test("reports the running starved total from the state", () => {
+		const state = village();
+		state.posting.economy.starved = 7;
+
+		const view = computeView(state, tuning);
+
+		expect(view.realm.starved).toBe(7);
 	});
 
 	test("derives elapsed seconds from the tick and the step length", () => {

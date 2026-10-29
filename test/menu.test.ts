@@ -182,3 +182,25 @@ describe("menu numeric field", () => {
 		},
 	);
 });
+
+describe("menu app requests", () => {
+	const asking: ScreenBuilder = () => ({
+		kind: "list",
+		title: "Ask",
+		items: [{ label: "go", action: { kind: "app", request: "newGame" } }],
+	});
+
+	test("an app item returns the request, emits no command and closes", () => {
+		const step = menuKey(openMenu(asking), key("return"), context);
+
+		expect(step.requests).toEqual(["newGame"]);
+		expect(step.commands).toEqual([]);
+		expect(step.state).toBeNull();
+	});
+
+	test("a command item returns no app request", () => {
+		const step = menuKey(press(openMenu(root), "j"), key("return"), context);
+
+		expect(step.requests).toEqual([]);
+	});
+});

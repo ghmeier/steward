@@ -7,11 +7,8 @@ import { prepareStartup, startApp } from "./app";
 async function main(): Promise<number> {
 	const tuning = loadTuning();
 	const saveDir = defaultSaveDir();
-	const startup = prepareStartup(
-		saveDir,
-		tuning,
-		() => crypto.getRandomValues(new Uint32Array(1))[0] ?? 0,
-	);
+	const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
+	const startup = prepareStartup(saveDir, tuning, newSeed);
 	if (startup.kind === "refused") {
 		console.error(
 			`Steward cannot read its save: ${startup.error}\nThe save at ${saveDir}/${SAVE_FILE_NAME} was left untouched. Fix or move it, then start again.`,
@@ -31,6 +28,7 @@ async function main(): Promise<number> {
 			tuning,
 			saveDir,
 			now: () => performance.now(),
+			newSeed,
 			notice: startup.notice,
 		});
 		for (const signal of ["SIGINT", "SIGTERM"] as const) {

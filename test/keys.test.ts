@@ -25,6 +25,10 @@ describe("actionForKey", () => {
 		expect(actionForKey(key(name))).toEqual({ kind: "move", delta });
 	});
 
+	test("n asks for a new village", () => {
+		expect(actionForKey(key("n"))).toEqual({ kind: "newGame" });
+	});
+
 	test("s saves and q quits", () => {
 		expect(actionForKey(key("s"))).toEqual({ kind: "save" });
 		expect(actionForKey(key("q"))).toEqual({ kind: "quit" });

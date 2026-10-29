@@ -5,11 +5,15 @@ import type { KeyPress } from "./keys";
 
 export type MenuContext = { view: GameView; tuning: Tuning };
 
+/** Something a menu asks the app to do that is not a game command, so it never enters the command log. */
+export type AppRequest = "newGame";
+
 /** What choosing an item (or accepting a number) does. `pop` counts screens removed before any push. */
 export type MenuAction =
 	| { kind: "push"; screen: ScreenBuilder }
 	| { kind: "replace"; pop: number; screen?: ScreenBuilder }
 	| { kind: "command"; command: Command; after: "close" | "pop" }
+	| { kind: "app"; request: AppRequest }
 	| { kind: "close" };
 
 export type MenuItem = {
@@ -38,7 +42,11 @@ export type ScreenBuilder = (context: MenuContext) => Screen;
 type Frame = { build: ScreenBuilder; cursor: number; text: string };
 export type MenuState = { readonly frames: readonly Frame[] };
 
-export type MenuStep = { state: MenuState | null; commands: Command[] };
+export type MenuStep = {
+	state: MenuState | null;
+	commands: Command[];
+	requests: AppRequest[];
+};
 export type MenuRender = { title: string; lines: string[]; hints: string };
 
 const LIST_HINTS = "up/down select · enter choose · esc back";
@@ -56,14 +64,21 @@ function clampCursor(screen: Screen, cursor: number): number {
 function applyAction(
 	frames: readonly Frame[],
 	action: MenuAction,
-): { frames: readonly Frame[] | null; commands: Command[] } {
+): {
+	frames: readonly Frame[] | null;
+	commands: Command[];
+	requests: AppRequest[];
+} {
 	switch (action.kind) {
 		case "close":
-			return { frames: null, commands: [] };
+			return { frames: null, commands: [], requests: [] };
+		case "app":
+			return { frames: null, commands: [], requests: [action.request] };
 		case "push":
 			return {
 				frames: [...frames, { build: action.screen, cursor: 0, text: "" }],
 				commands: [],
+				requests: [],
 			};
 		case "replace": {
 			const kept = frames.slice(0, Math.max(0, frames.length - action.pop));
@@ -71,14 +86,20 @@ function applyAction(
 				return {
 					frames: [...kept, { build: action.screen, cursor: 0, text: "" }],
 					commands: [],
+					requests: [],
 				};
 			}
-			return { frames: kept.length === 0 ? null : kept, commands: [] };
+			return {
+				frames: kept.length === 0 ? null : kept,
+				commands: [],
+				requests: [],
+			};
 		}
 		case "command":
 			return {
 				frames: action.after === "close" ? null : frames.slice(0, -1),
 				commands: [action.command],
+				requests: [],
 			};
 	}
 }
@@ -88,6 +109,7 @@ function finish(result: ReturnType<typeof applyAction>): MenuStep {
 	return {
 		state: frames === null || frames.length === 0 ? null : { frames },
 		commands: result.commands,
+		requests: result.requests,
 	};
 }
 
@@ -102,9 +124,9 @@ export function menuKey(
 	context: MenuContext,
 ): MenuStep {
 	const top = state.frames.at(-1);
-	if (top === undefined) return { state: null, commands: [] };
+	if (top === undefined) return { state: null, commands: [], requests: [] };
 	const screen = top.build(context);
-	const stay: MenuStep = { state, commands: [] };
+	const stay: MenuStep = { state, commands: [], requests: [] };
 	if (key.ctrl || key.meta) return stay;
 
 	if (key.name === "escape") {
@@ -117,6 +139,7 @@ export function menuKey(
 			return {
 				state: replaceTop(state, { ...top, cursor: Math.max(0, cursor - 1) }),
 				commands: [],
+				requests: [],
 			};
 		}
 		if (key.name === "down" || key.name === "j") {
@@ -127,6 +150,7 @@ export function menuKey(
 					cursor: Math.min(last, cursor + 1),
 				}),
 				commands: [],
+				requests: [],
 			};
 		}
 		if (key.name === "return" || key.name === "enter") {
@@ -141,6 +165,7 @@ export function menuKey(
 		return {
 			state: replaceTop(state, { ...top, text: top.text.slice(0, -1) }),
 			commands: [],
+			requests: [],
 		};
 	}
 	if (key.name === "return" || key.name === "enter") {
@@ -155,6 +180,7 @@ export function menuKey(
 		return {
 			state: replaceTop(state, { ...top, text: top.text + typed }),
 			commands: [],
+			requests: [],
 		};
 	}
 	return stay;
