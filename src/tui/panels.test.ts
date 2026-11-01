@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createTestRenderer } from "@opentui/core/testing";
+import { Job } from "../core/realm";
 import type { GameView } from "../core/view";
 import { formatAmount, formatGameTime, formatRate } from "./format";
 import { createPanels } from "./panels";
@@ -36,8 +37,7 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
     ledger: [],
     realm: {
       population: 10,
-      idle: 10,
-      labor: { farm: 0, forest: 0, mine: 0 },
+      labor: { farm: 0, forest: 0, mine: 0, idle: 10 },
       season: "spring",
       starved: 0,
     },
@@ -56,7 +56,7 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
   };
 }
 
-const ada = { id: 3, name: "Ada", job: "farm" as const, grudgeTicks: 0 };
+const ada = { id: 3, name: "Ada", job: Job.FARM, grudgeTicks: 0 };
 const dispute = {
   id: 1,
   label: "A squabble",
@@ -119,8 +119,7 @@ describe("createPanels", () => {
       ledger: [{ resource: "grain", amount: 5, ratePerSecond: 1 }],
       realm: realmOf({
         population: 12,
-        idle: 5,
-        labor: { farm: 4, forest: 2, mine: 1 },
+        labor: { farm: 4, forest: 2, mine: 1, idle: 5 },
         season: "summer",
       }),
     });
@@ -151,7 +150,12 @@ describe("createPanels", () => {
     ["the desk", emptyView(), "is clear"],
     [
       "the roster",
-      emptyView({ realm: realmOf({ population: 0, idle: 0 }) }),
+      emptyView({
+        realm: realmOf({
+          population: 0,
+          labor: { farm: 0, forest: 0, mine: 0, idle: 0 },
+        }),
+      }),
       "village is empty",
     ],
   ])(
@@ -185,7 +189,7 @@ describe("createPanels", () => {
     const view = emptyView({
       delegates: [
         ada,
-        { ...ada, id: 4, name: "Bram", job: "idle", grudgeTicks: 30 },
+        { ...ada, id: 4, name: "Bram", job: Job.IDLE, grudgeTicks: 30 },
       ],
     });
 
@@ -266,7 +270,7 @@ describe("createPanels", () => {
           ...ada,
           id: index + 1,
           name: `Peasant${index + 1}`,
-          job: "idle" as const,
+          job: Job.IDLE,
         })),
       });
 

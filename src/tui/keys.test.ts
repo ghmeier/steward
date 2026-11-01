@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { key } from "../../test/tui-helpers";
+import { Job } from "../core/realm";
 import { ARCHIVE_PANEL, PALETTE_UNLOCK } from "../core/unlocks";
 import { actionForKey, hintsText, type KeyAction, keyHints } from "./keys";
 
@@ -16,10 +17,10 @@ describe("actionForKey", () => {
 		readonly string[],
 		KeyAction | null,
 	][] = [
-		["f assigns farm", key("f"), [], { kind: "assign", job: "farm" }],
-		["w assigns forest", key("w"), [], { kind: "assign", job: "forest" }],
-		["m assigns mine", key("m"), [], { kind: "assign", job: "mine" }],
-		["i assigns idle", key("i"), [], { kind: "assign", job: "idle" }],
+		["f assigns farm", key("f"), [], { kind: "assign", job: Job.FARM }],
+		["w assigns forest", key("w"), [], { kind: "assign", job: Job.FOREST }],
+		["m assigns mine", key("m"), [], { kind: "assign", job: Job.MINE }],
+		["i assigns idle", key("i"), [], { kind: "assign", job: Job.IDLE }],
 		["up moves back", key("up"), [], { kind: "move", delta: -1 }],
 		["k moves back", key("k"), [], { kind: "move", delta: -1 }],
 		["down moves on", key("down"), [], { kind: "move", delta: 1 }],
@@ -50,11 +51,11 @@ describe("actionForKey", () => {
 
   test("mutating a returned action does not change later results", () => {
     const first = actionForKey(key("f"), everything);
-    if (first?.kind === "assign") first.job = "mine";
+    if (first?.kind === "assign") first.job = Job.MINE;
 
     expect(actionForKey(key("f"), everything)).toEqual({
       kind: "assign",
-      job: "farm",
+      job: Job.FARM,
     });
   });
 

@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { tuning } from "../../test/helpers";
 import { key } from "../../test/tui-helpers";
-import { createNewGame } from "../core/state";
-import { computeView } from "../core/view";
+import { Game } from "../core/game";
 import {
   type MenuContext,
   type MenuState,
@@ -13,7 +12,7 @@ import {
 } from "./menu";
 
 const context: MenuContext = {
-  view: computeView(createNewGame(1, tuning), tuning),
+  view: Game.create(1, tuning).view.compute(),
   tuning,
 };
 
