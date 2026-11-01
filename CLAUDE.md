@@ -22,6 +22,17 @@ State is plain JSON data: no `Map`, `Set`, classes, `undefined`, `NaN`, `-0`, or
 
 Biome enforces the import and global rules; `test/core-boundary.test.ts` is the backstop and also covers what Biome cannot (`**`, banned `Math` members).
 
+## Tests
+
+Every implementer reads the tests before changing an area, so test size is paid again on every task. Keep the suite small and sharp:
+
+- Test behavior through public entry points (`step`, `apply`, `computeView`, `parseLine`, the app harness). Don't add a test for a helper that an entry-point test already exercises.
+- A test earns its place by catching a plausible bug no other test catches. Before adding one, name that bug; before deleting one, check another test still catches it. Line coverage doesn't show this.
+- Prefer one `test.each` table over several near-identical tests. A row that asserts a problem names its path and a distinguishing fragment (`tuning.archive: repeats id`), so the row proves its own rule.
+- Data shapes are declared with `src/core/schema.ts`. Don't write per-field rejection tests; `test/schema.test.ts` covers the combinators. Test only cross-field rules.
+- Don't pin UI copy word for word. Assert the values shown, tied to their noun (`"grain at 0.25"`).
+- Exactly one golden test (`test/golden.json`).
+
 ## Conventions
 
 - TypeScript strict with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. Tabs, double quotes (Biome).
