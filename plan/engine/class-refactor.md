@@ -4,7 +4,7 @@ status: active
 tags: [engine, refactor]
 created: 2026-11-01
 updated: 2026-11-01
-next_step: Phase 2 dispatched (four test-rewrite branches off refactor-classes-api)
+next_step: Refactor pass running on refactor-classes-polish; then TUI smoke test and PR to main
 ---
 # Finish the class-based refactor around a composed Game root
 
@@ -122,3 +122,5 @@ Acceptance per branch: its files typecheck and pass with `bun test <files>`.
 - 2026-11-01: User approved the plan. Phase 1 dispatched on `refactor-classes-api`.
 - 2026-11-01: Phase 1 done on `refactor-classes-api` (`0a6b8d6` test move, `2098a25` Game API). Verified: zero non-test type errors, golden hash unchanged, Biome clean. Deviations accepted: `Game` lives in new `src/core/game.ts` while `state.ts` keeps the state types (keeps type imports acyclic); `WORKING_JOBS`/`WorkingJob` added to `realm.ts` because `JOBS` now includes idle; `GameView.realm.labor` now includes `idle` and `realm.idle` is gone; `policiesFor(petition, tuning)` is a pure export in `decree.ts` because TUI menus have a view and tuning but no game; `promotion.ts` deleted, its test to be folded into step tests. Save functions still take `GameState` (callers pass `game.state`).
 - 2026-11-01: Phase 2 dispatched to four parallel branches.
+- 2026-11-01: Phase 2 done: engine `3535e2b`, decrees `fc58b03`, edges `59748c1`, TUI `ddb7fc8`. Merged into `refactor-classes` (`be924fa`). `bun run check`: 832 pass, 0 fail; golden.json unchanged.
+- 2026-11-01: `dd7ed49` reworded five player-facing errors. Kept four (grudge, not enough coin, already own, not purchasable); restoring "no peasant N" in the refactor pass because "no assignee with id N" is internal wording.
