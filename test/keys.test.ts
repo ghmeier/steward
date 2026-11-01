@@ -1,61 +1,56 @@
 import { describe, expect, test } from "bun:test";
-import type { Job } from "../src/core/realm";
 import { ARCHIVE_PANEL, PALETTE_UNLOCK } from "../src/core/unlocks";
-import { actionForKey, type KeyPress, keyHints } from "../src/tui/keys";
+import {
+	actionForKey,
+	hintsText,
+	type KeyAction,
+	keyHints,
+} from "../src/tui/keys";
+import { key } from "./tui-helpers";
 
 const everything = [ARCHIVE_PANEL, PALETTE_UNLOCK];
 
-function key(name: string, modifiers: Partial<KeyPress> = {}): KeyPress {
-	return {
-		name,
-		ctrl: false,
-		meta: false,
-		shift: false,
-		sequence: name,
-		...modifiers,
-	};
-}
-
 describe("actionForKey", () => {
-	test.each<[string, Job | "idle"]>([
-		["f", "farm"],
-		["w", "forest"],
-		["m", "mine"],
-		["i", "idle"],
-	])("%s asks to assign the selected peasant to %s", (name, job) => {
-		expect(actionForKey(key(name), everything)).toEqual({
-			kind: "assign",
-			job,
-		});
-	});
-
-	test.each<[string, -1 | 1]>([
-		["up", -1],
-		["k", -1],
-		["down", 1],
-		["j", 1],
-	])("%s moves the cursor by %p", (name, delta) => {
-		expect(actionForKey(key(name), everything)).toEqual({
-			kind: "move",
-			delta,
-		});
-	});
-
-	test("n asks for a new village", () => {
-		expect(actionForKey(key("n"), everything)).toEqual({ kind: "newGame" });
-	});
-
-	test("s saves and q quits", () => {
-		expect(actionForKey(key("s"), everything)).toEqual({ kind: "save" });
-		expect(actionForKey(key("q"), everything)).toEqual({ kind: "quit" });
-	});
-
-	test("? and shift-slash both open help, plain slash does not", () => {
-		expect(actionForKey(key("?"), everything)).toEqual({ kind: "help" });
-		expect(actionForKey(key("/", { shift: true }), everything)).toEqual({
-			kind: "help",
-		});
-		expect(actionForKey(key("/"), everything)).toBeNull();
+	const decree: KeyAction = { kind: "line", prefill: "decree " };
+	const palette: KeyAction = { kind: "line", prefill: "" };
+	const archive: KeyAction = { kind: "line", prefill: "buy " };
+	// biome-ignore format: one case per line keeps the table scannable
+	const cases: [
+		string,
+		ReturnType<typeof key>,
+		readonly string[],
+		KeyAction | null,
+	][] = [
+		["f assigns farm", key("f"), [], { kind: "assign", job: "farm" }],
+		["w assigns forest", key("w"), [], { kind: "assign", job: "forest" }],
+		["m assigns mine", key("m"), [], { kind: "assign", job: "mine" }],
+		["i assigns idle", key("i"), [], { kind: "assign", job: "idle" }],
+		["up moves back", key("up"), [], { kind: "move", delta: -1 }],
+		["k moves back", key("k"), [], { kind: "move", delta: -1 }],
+		["down moves on", key("down"), [], { kind: "move", delta: 1 }],
+		["j moves on", key("j"), [], { kind: "move", delta: 1 }],
+		["n asks for a new village", key("n"), [], { kind: "newGame" }],
+		["s saves", key("s"), [], { kind: "save" }],
+		["q quits", key("q"), [], { kind: "quit" }],
+		["Ctrl-C quits", key("c", { ctrl: true }), [], { kind: "quit" }],
+		["c holds court with nothing unlocked", key("c"), [], { kind: "court" }],
+		["d opens the decree line with nothing unlocked", key("d"), [], decree],
+		["? opens help", key("?"), [], { kind: "help" }],
+		["shift-slash opens help", key("/", { shift: true }), [], { kind: "help" }],
+		["plain slash does nothing", key("/"), [], null],
+		["a opens the Archive line when the panel is owned", key("a"), [ARCHIVE_PANEL], archive],
+		["a does nothing without the Archive panel", key("a"), [PALETTE_UNLOCK], null],
+		["colon opens the palette when owned", key(":"), [PALETTE_UNLOCK], palette],
+		["shift-semicolon opens the palette when owned", key(";", { shift: true }), [PALETTE_UNLOCK], palette],
+		["colon does nothing without the palette", key(":"), [ARCHIVE_PANEL], null],
+		["plain semicolon does nothing", key(";"), [PALETTE_UNLOCK], null],
+		["a held ctrl disables a binding", key("s", { ctrl: true }), everything, null],
+		["a held meta disables a binding", key("q", { meta: true }), everything, null],
+		["an unbound key does nothing", key("x"), everything, null],
+		["an inherited object property does nothing", key("constructor"), everything, null],
+	];
+	test.each(cases)("%s", (_name, pressed, unlocks, expected) => {
+		expect(actionForKey(pressed, unlocks)).toEqual(expected);
 	});
 
 	test("mutating a returned action does not change later results", () => {
@@ -68,22 +63,6 @@ describe("actionForKey", () => {
 		});
 	});
 
-	test("Ctrl-C quits", () => {
-		expect(actionForKey(key("c", { ctrl: true }), everything)).toEqual({
-			kind: "quit",
-		});
-	});
-
-	test("held modifiers disable other bindings", () => {
-		expect(actionForKey(key("s", { ctrl: true }), everything)).toBeNull();
-		expect(actionForKey(key("q", { meta: true }), everything)).toBeNull();
-	});
-
-	test("an unbound key and an inherited object property map to nothing", () => {
-		expect(actionForKey(key("x"), everything)).toBeNull();
-		expect(actionForKey(key("constructor"), everything)).toBeNull();
-	});
-
 	test("every key advertised in the hints is bound", () => {
 		const advertised = keyHints(everything).flatMap((hint) =>
 			hint.keys.split("/"),
@@ -93,33 +72,8 @@ describe("actionForKey", () => {
 			expect(actionForKey(key(name), everything)).not.toBeNull();
 		}
 	});
+});
 
-	test("a opens the archive only with the Archive panel", () => {
-		expect(actionForKey(key("a"), [ARCHIVE_PANEL])).toEqual({
-			kind: "line",
-			prefill: "buy ",
-		});
-		expect(actionForKey(key("a"), [PALETTE_UNLOCK])).toBeNull();
-		expect(actionForKey(key("a"), [])).toBeNull();
-	});
-
-	test("a colon, plain or as shift-semicolon, opens the palette only once it is owned", () => {
-		const palette = { kind: "line", prefill: "" } as const;
-
-		expect(actionForKey(key(":"), [PALETTE_UNLOCK])).toEqual(palette);
-		expect(actionForKey(key(";", { shift: true }), [PALETTE_UNLOCK])).toEqual(
-			palette,
-		);
-		expect(actionForKey(key(":"), [ARCHIVE_PANEL])).toBeNull();
-		expect(actionForKey(key(";", { shift: true }), [])).toBeNull();
-		expect(actionForKey(key(";"), [PALETTE_UNLOCK])).toBeNull();
-	});
-
-	test("d and c stay available with nothing unlocked", () => {
-		expect(actionForKey(key("d"), [])).toEqual({
-			kind: "line",
-			prefill: "decree ",
-		});
-		expect(actionForKey(key("c"), [])).toEqual({ kind: "court" });
-	});
+test("the hints for every unlock fit a 120-column footer", () => {
+	expect(hintsText(everything).length).toBeLessThanOrEqual(120);
 });

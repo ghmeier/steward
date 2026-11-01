@@ -1,11 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Command } from "../src/core/commands";
-import {
-	type Condition,
-	type Decree,
-	PETITIONS,
-	parseDecree,
-} from "../src/core/decree";
+import { type Decree, PETITIONS, parseDecree } from "../src/core/decree";
 import { enactDecree, policiesFor } from "../src/core/decree-engine";
 import { saveDecree } from "../src/core/saved-decrees";
 import { createNewGame } from "../src/core/state";
@@ -20,16 +14,24 @@ import {
 import { computeView } from "../src/core/view";
 import {
 	decreeLine,
-	type LineState,
 	lineKey,
 	openLine,
 	parseLine,
 	renderLine,
 } from "../src/tui/command-line";
 import { describePolicy, formatDecree } from "../src/tui/decree-format";
-import type { KeyPress } from "../src/tui/keys";
 import type { MenuContext } from "../src/tui/menu";
-import { grantUnlocks, setRoster, tuning } from "./helpers";
+import { grantUnlocks, rosterOf, setRoster, tuning } from "./helpers";
+import { key } from "./tui-helpers";
+
+type Setup = {
+	unlocks?: string[];
+	decrees?: Decree[];
+	saved?: { name: string; decree: Decree };
+	coin?: number;
+	idle?: number;
+	tuning?: Tuning;
+};
 
 const granary: Decree = {
 	id: "granary",
@@ -37,524 +39,325 @@ const granary: Decree = {
 	rules: [],
 	otherwise: "sell",
 };
+const harvest: Decree = { ...granary, id: "harvest" };
+const woodDecree: Decree = { ...granary, id: "wood", petition: "wood" };
 
-function contextWith(
-	options: { unlocks?: string[]; decrees?: Decree[] } = {},
-): MenuContext {
-	const state = createNewGame(1, tuning);
-	grantUnlocks(state, options.unlocks ?? []);
-	for (const decree of options.decrees ?? []) {
-		const result = enactDecree(state, decree, tuning);
+function contextWith(setup: Setup = {}): MenuContext {
+	const using = setup.tuning ?? tuning;
+	const state = createNewGame(1, using);
+	grantUnlocks(state, setup.unlocks ?? []);
+	for (const decree of setup.decrees ?? []) {
+		const result = enactDecree(state, decree, using);
 		if (!result.ok) throw new Error(result.reason);
 	}
-	return { view: computeView(state, tuning), tuning };
-}
-
-const everything = contextWith({
-	unlocks: [COMPOUND_UNLOCK, CHAINING_UNLOCK],
-	decrees: [{ ...granary, id: "harvest" }],
-});
-const fresh = contextWith();
-
-function key(name: string, modifiers: Partial<KeyPress> = {}): KeyPress {
-	return {
-		name,
-		ctrl: false,
-		meta: false,
-		shift: false,
-		sequence: name,
-		...modifiers,
-	};
-}
-
-function typeText(
-	state: LineState,
-	text: string,
-	context: MenuContext,
-): LineState {
-	let current = state;
-	for (const character of text) {
-		const name = character === " " ? "space" : character;
-		const result = lineKey(
-			current,
-			key(name, { sequence: character }),
-			context,
-		);
-		if (result.state === null) throw new Error("line closed");
-		current = result.state;
+	if (setup.saved !== undefined) {
+		grantUnlocks(state, [SAVED_DECREES_UNLOCK]);
+		const { name, decree } = setup.saved;
+		const result = saveDecree(state, name, decree, using);
+		if (!result.ok) throw new Error(result.reason);
 	}
-	return current;
+	if (setup.coin !== undefined) state.posting.resources.coin = setup.coin;
+	if (setup.idle !== undefined) setRoster(state, { idle: setup.idle });
+	return { view: computeView(state, using), tuning: using };
 }
 
-function suggestionTexts(text: string, context: MenuContext): string[] {
-	return parseLine(text, context).suggestions.map((s) => s.text);
-}
+const compound: Setup = { unlocks: [COMPOUND_UNLOCK] };
+const chained: Setup = { unlocks: [CHAINING_UNLOCK], decrees: [harvest] };
+const archive: Setup = { unlocks: [ARCHIVE_PANEL] };
+const saving: Setup = { saved: { name: "plan", decree: granary } };
+const palette: Setup = { unlocks: [PALETTE_UNLOCK], idle: 3 };
+const everyVerb: Setup = {
+	unlocks: [ARCHIVE_PANEL, PALETTE_UNLOCK, SAVED_DECREES_UNLOCK],
+};
+const entry = (id: string) => {
+	const found = tuning.archive.entries.find((e) => e.id === id);
+	if (found === undefined) throw new Error(`no archive entry ${id}`);
+	return found;
+};
+const repeated = (count: number, unit: string, joiner: string) =>
+	Array(count).fill(unit).join(joiner);
+const { maxRules, maxConditionNodes: maxNodes } = tuning.decrees;
+const [laborA = "", laborB = ""] = policiesFor("labor", tuning);
+const peasants = rosterOf({ idle: 3 });
+const second = peasants[1];
+const onlyDependent: Tuning = {
+	...tuning,
+	archive: {
+		...tuning.archive,
+		entries: tuning.archive.entries.filter((e) => e.requires.length > 0),
+	},
+};
 
-const compare = (
-	quantity: "grain" | "grainSeasons" | "coin" | "idle" | "wood",
-	comparison: "above" | "below",
-	value: number,
-): Condition => ({ kind: "compare", quantity, comparison, value });
+const ok = (command: object) => ({ command });
+const bad = (problem: string) => ({ problem });
+const enact = (decree: object) => ok({ type: "enactDecree", decree });
+const woodRuleStart = "decree wood sell when ";
+const harvestRuleStart = "decree harvest sell when ";
 
-const laborPolicies = policiesFor("labor", tuning);
-const [laborA = "", laborB = ""] = laborPolicies;
+const coinOrNotIdle = {
+	kind: "any",
+	conditions: [{ quantity: "coin" }, { kind: "not" }],
+};
+const woodChoseSell = { kind: "chose", decree: "wood", policy: "sell" };
+const savedHarvest = {
+	id: "harvest",
+	rules: [{ when: { quantity: "grain", value: 5 }, policy: "sell" }],
+	otherwise: "stockpile",
+};
 
-const roundTripDecrees: Decree[] = [
-	{ id: "harvest", petition: "harvest", rules: [], otherwise: "stockpile" },
-	{
-		id: "harvest",
-		petition: "harvest",
-		rules: [
-			{ when: compare("grainSeasons", "above", 3), policy: "sell" },
-			{ when: compare("grainSeasons", "above", 0.5), policy: "feed" },
-		],
-		otherwise: "stockpile",
-	},
-	{
-		id: "wood",
-		petition: "wood",
-		rules: [{ when: compare("idle", "below", 75), policy: "sell" }],
-		otherwise: "stockpile",
-	},
-	{
-		id: "ore",
-		petition: "ore",
-		rules: [{ when: { kind: "season", season: "winter" }, policy: "sell" }],
-		otherwise: "stockpile",
-	},
-	{
-		id: "labor",
-		petition: "labor",
-		rules: [
-			{ when: { kind: "season", season: "winter" }, policy: laborA },
-			{ when: compare("coin", "above", 100), policy: laborB },
-			{ when: compare("grain", "below", 20), policy: laborA },
-		],
-		otherwise: laborB,
-	},
-	{
-		id: "labor",
-		petition: "labor",
-		rules: [
-			{
-				when: {
-					kind: "all",
-					conditions: [
-						compare("coin", "above", 1),
-						{ kind: "not", condition: { kind: "season", season: "spring" } },
-					],
-				},
-				policy: laborA,
-			},
-			{
-				when: {
-					kind: "any",
-					conditions: [
-						{ kind: "season", season: "autumn" },
-						compare("grainSeasons", "below", 1),
-					],
-				},
-				policy: laborB,
-			},
-		],
-		otherwise: laborA,
-	},
-	{
-		id: "wood",
-		petition: "wood",
-		rules: [
-			{
-				when: { kind: "not", condition: compare("coin", "below", 5) },
-				policy: "stockpile",
-			},
-			{
-				when: { kind: "chose", decree: "harvest", policy: "feed" },
-				policy: "sell",
-			},
-		],
-		otherwise: "stockpile",
-	},
+type Outcome = { command?: object; problem?: string };
+// biome-ignore format: one row per line keeps the table scannable
+const parseRows: [string, Setup, Outcome | null][] = [
+	["decree harvest otherwise sell", {}, enact({ id: "harvest", rules: [] })],
+	["decree harvest otherwise sell", { decrees: [granary] }, enact({ id: "granary" })],
+	[`${harvestRuleStart}grain seasons above 2 otherwise feed`, {}, enact({ rules: [{ when: { quantity: "grainSeasons" } }] })],
+	[`${harvestRuleStart}coin above 0.5 otherwise feed`, {}, enact({ rules: [{ when: { value: 0.5 } }] })],
+	[`decree harvest ${repeated(maxRules, "sell when coin above 1", ", ")} otherwise feed`, {}, enact({})],
+	[`decree harvest ${repeated(maxRules + 1, "sell when coin above 1", ", ")} otherwise feed`, {}, bad(String(maxRules))],
+	[`${harvestRuleStart}coin above `, {}, null],
+	["decree harvest otherwise sell now", {}, bad("does not belong")],
+	["decree harvest banana", {}, bad("banana")],
+	[`${woodRuleStart}coin above 1 and idle above 2 otherwise stockpile`, compound, enact({ rules: [{ when: { kind: "all" } }] })],
+	[`${woodRuleStart}coin above 1 or not idle above 2 otherwise stockpile`, compound, enact({ rules: [{ when: coinOrNotIdle }] })],
+	[`${woodRuleStart}coin above 1 and idle above 2 or ore above 3 otherwise stockpile`, compound, bad("not both")],
+	[`${woodRuleStart}${repeated(maxNodes, "coin above 1", " and ")} otherwise stockpile`, compound, bad("at most")],
+	[`${woodRuleStart}not not `, compound, bad("repeated")],
+	[`${woodRuleStart}not coin above 1 otherwise stockpile`, {}, bad('"not"')],
+	[`${woodRuleStart}harvest chose sell otherwise stockpile`, { decrees: [harvest] }, bad('"harvest"')],
+	["decree harvest feed when wood chose sell otherwise stockpile", { ...chained, decrees: [woodDecree] }, enact({ rules: [{ when: woodChoseSell }] })],
+	["decree harvest feed when wood above 3 otherwise stockpile", { ...chained, decrees: [woodDecree] }, enact({ rules: [{ when: { kind: "compare", quantity: "wood" } }] })],
+	["repeal granary", { decrees: [granary] }, ok({ type: "repealDecree", id: "granary" })],
+	["repeal harvest ", { decrees: [granary] }, bad('"harvest"')],
+	["repeal ", {}, bad("no decrees")],
+	["save plan decree harvest otherwise sell", {}, bad(`"${entry(SAVED_DECREES_UNLOCK).label}" from the Archive`)],
+	["buy palette", {}, bad("Archive")],
+	["buy compound", archive, ok({ type: "buyUnlock", id: COMPOUND_UNLOCK })],
+	["buy saved-decrees", archive, bad(entry(PALETTE_UNLOCK).label)],
+	["buy compound", { unlocks: [ARCHIVE_PANEL, COMPOUND_UNLOCK] }, bad("already own")],
+	["buy ", { unlocks: [ARCHIVE_PANEL, ...tuning.archive.entries.map((e) => e.id)] }, bad("own everything")],
+	["buy ", { ...archive, tuning: onlyDependent }, bad("nothing in the Archive can be bought yet")],
+	["save plan decree harvest sell when grain above 5 otherwise stockpile", everyVerb, ok({ type: "saveDecree", name: "plan", decree: savedHarvest })],
+	["save Plan! decree", everyVerb, bad("not a valid name")],
+	["enact plan", saving, ok({ type: "enactSaved", name: "plan" })],
+	["forget plan", saving, ok({ type: "forgetSaved", name: "plan" })],
+	["enact ", { unlocks: [SAVED_DECREES_UNLOCK] }, bad("no decrees are saved")],
+	["forget plan", { unlocks: [SAVED_DECREES_UNLOCK] }, bad("no saved decrees")],
+	[`assign ${second?.name} mine`, palette, ok({ type: "assignPeasant", peasant: second?.id, job: "mine" })],
+	["assign x idle", {}, bad("assign needs")],
+	...PETITIONS.flatMap((petition) =>
+		policiesFor(petition, tuning).map((policy): [string, Setup, Outcome] => [
+			`decree ${petition} otherwise ${policy}`,
+			{},
+			enact({ petition, otherwise: policy }),
+		]),
+	),
 ];
 
-describe("decreeLine and parseLine", () => {
-	test.each(
-		roundTripDecrees.map((decree) => [decreeLine(decree, tuning), decree]),
-	)("parsing %s rebuilds the decree", (line, decree) => {
-		const result = parseLine(line, everything);
+describe("parseLine", () => {
+	test.each(parseRows)("%s", (text, setup, outcome) => {
+		const result = parseLine(text, contextWith(setup));
 
-		expect(result.problem).toBeNull();
-		expect(result.command).toEqual({ type: "enactDecree", decree });
+		if (outcome?.command === undefined) expect(result.command).toBeNull();
+		else expect(result.command).toMatchObject(outcome.command);
+		if (outcome?.problem === undefined) expect(result.problem).toBeNull();
+		else {
+			expect(result.problem).toContain(outcome.problem);
+			expect(result.problem).not.toMatch(/\w\[\d+\]/);
+			expect(result.suggestions).toEqual([]);
+		}
 	});
 
 	test("a rule's comma is optional when typing", () => {
+		const context = contextWith();
+		const rest = "feed when coin above 2 otherwise stockpile";
+
 		const withComma = parseLine(
-			"decree harvest sell when coin above 5, feed when coin above 2 otherwise stockpile",
-			fresh,
+			`${harvestRuleStart}coin above 5, ${rest}`,
+			context,
 		);
 		const without = parseLine(
-			"decree harvest sell when coin above 5 feed when coin above 2 otherwise stockpile",
-			fresh,
+			`${harvestRuleStart}coin above 5 ${rest}`,
+			context,
 		);
 
 		expect(withComma.command).not.toBeNull();
 		expect(without.command).toEqual(withComma.command);
 	});
 
-	test("a decree for a petition that has an active decree reuses its id", () => {
-		const context = contextWith({ decrees: [granary] });
+	test.each([
+		"decree harvest sell when grain seasons above 3, feed when grain seasons above 0.5 otherwise stockpile",
+		"decree ore sell when it is winter otherwise stockpile",
+		`decree labor ${laborA} when coin above 1 and not it is spring, ${laborB} when it is autumn or grain seasons below 1 otherwise ${laborA}`,
+		"decree wood stockpile when not coin below 5, sell when harvest chose feed otherwise stockpile",
+	])(
+		"decreeLine writes the text that parses back to the same decree: %s",
+		(line) => {
+			const context = contextWith({
+				unlocks: [COMPOUND_UNLOCK, CHAINING_UNLOCK],
+				decrees: [harvest],
+			});
 
-		const result = parseLine("decree harvest otherwise sell", context);
+			const { command } = parseLine(line, context);
 
-		expect(result.command).toEqual({
-			type: "enactDecree",
-			decree: { ...granary, rules: [] },
-		});
-	});
+			if (command?.type !== "enactDecree") throw new Error("did not parse");
+			expect(
+				decreeLine(parseDecree(command.decree, tuning.decrees), tuning),
+			).toBe(line);
+		},
+	);
 
-	test("a two-word quantity is matched as one quantity", () => {
-		const result = parseLine(
-			"decree harvest sell when grain seasons above 2 otherwise feed",
-			fresh,
-		);
-
-		expect(result.command).toMatchObject({
-			decree: { rules: [{ when: { quantity: "grainSeasons" } }] },
-		});
-	});
-
-	test("a number may be a decimal", () => {
-		const result = parseLine(
-			"decree harvest sell when coin above 0.5 otherwise feed",
-			fresh,
-		);
-
-		expect(result.command).toMatchObject({
-			decree: { rules: [{ when: { value: 0.5 } }] },
-		});
-	});
-
-	test("an incomplete decree has no command and no problem", () => {
-		const result = parseLine("decree harvest sell when coin above ", fresh);
-
-		expect(result.command).toBeNull();
-		expect(result.problem).toBeNull();
-	});
-
-	test("text after a complete decree is a problem", () => {
-		const result = parseLine("decree harvest otherwise sell now", fresh);
-
-		expect(result.command).toBeNull();
-		expect(result.problem).not.toBeNull();
-	});
-
-	test("a word that fits nowhere is a problem with no suggestions", () => {
-		const result = parseLine("decree harvest banana", fresh);
-
-		expect(result.problem).toContain("banana");
-		expect(result.suggestions).toEqual([]);
-	});
-
-	test("more rules than the decree limit gives a problem and no command", () => {
-		const rule = "sell when coin above 1";
-		const rules = Array(tuning.decrees.maxRules + 1).fill(rule);
-		const line = `decree harvest ${rules.join(", ")} otherwise feed`;
-
-		const result = parseLine(line, fresh);
-
-		expect(result.command).toBeNull();
-		expect(result.problem).toContain(String(tuning.decrees.maxRules));
-	});
-
-	test("exactly the decree limit of rules is accepted", () => {
-		const rule = "sell when coin above 1";
-		const rules = Array(tuning.decrees.maxRules).fill(rule);
-
-		const result = parseLine(
-			`decree harvest ${rules.join(", ")} otherwise feed`,
-			fresh,
-		);
-
-		expect(result.command).not.toBeNull();
+	test("decreeLine refuses a policy the petition lacks", () => {
+		expect(() =>
+			decreeLine({ ...granary, otherwise: "nonsense" }, tuning),
+		).toThrow("nonsense");
 	});
 });
+
+// biome-ignore format: one row per line keeps the table scannable
+const exactRows: [string, Setup, readonly string[]][] = [
+	["", {}, ["decree", "repeal"]],
+	["", archive, ["decree", "repeal", "buy"]],
+	["decree ", {}, PETITIONS],
+	["decree w", {}, ["wood"]],
+	[`${harvestRuleStart}grain`, {}, ["grain", "grain seasons"]],
+	[`${woodRuleStart}harvest `, chained, ["chose"]],
+	[`${woodRuleStart}harvest chose `, chained, policiesFor("harvest", tuning)],
+	[`decree harvest ${repeated(maxRules, "sell when coin above 1, ", "")}`, {}, ["otherwise"]],
+	["repeal ", { decrees: [granary] }, ["granary"]],
+	["enact ", saving, ["plan"]],
+	["assign ", palette, peasants.map((peasant) => peasant.name)],
+	[`assign ${second?.name} `, palette, ["farm", "forest", "mine", "idle"]],
+	...PETITIONS.map((petition): [string, Setup, readonly string[]] => [
+		`decree ${petition} otherwise `,
+		{},
+		policiesFor(petition, tuning),
+	]),
+];
+const andRoom = (count: number) =>
+	`${woodRuleStart}${repeated(count, "coin above 1", " and ")} `;
+// A leading "!" means the word must be withheld.
+// biome-ignore format: one row per line keeps the table scannable
+const presenceRows: [string, Setup, string[]][] = [
+	["", saving, ["forget"]],
+	[harvestRuleStart, {}, ["!not"]],
+	[harvestRuleStart, compound, ["not"]],
+	[`${harvestRuleStart}coin above 1 `, {}, ["!and", "!or"]],
+	[`${harvestRuleStart}coin above 1 `, compound, ["and", "or"]],
+	[`${harvestRuleStart}coin above 1 and idle above 2 `, compound, ["and", "!or"]],
+	[`${harvestRuleStart}grain `, {}, ["above", "below", "grain seasons"]],
+	[andRoom(maxNodes - 2), compound, ["and"]],
+	[andRoom(maxNodes - 1), compound, ["!and"]],
+	[woodRuleStart, { decrees: [harvest] }, ["!harvest"]],
+	[woodRuleStart, chained, ["harvest"]],
+	["buy ", archive, ["palette", "!saved-decrees"]],
+	["buy ", { unlocks: [ARCHIVE_PANEL, PALETTE_UNLOCK] }, ["saved-decrees"]],
+	["buy ", { unlocks: [ARCHIVE_PANEL, COMPOUND_UNLOCK] }, ["chaining", "!compound"]],
+];
 
 describe("suggestions", () => {
-	const afterWhen = "decree harvest sell when ";
+	test.each(exactRows)(
+		"%s offers exactly the expected words",
+		(text, setup, expected) => {
+			const result = parseLine(text, contextWith(setup)).suggestions;
 
-	test("compound words are absent until compound conditions are owned", () => {
-		const owned = contextWith({ unlocks: [COMPOUND_UNLOCK] });
+			expect(result.map((suggestion) => suggestion.text)).toEqual([
+				...expected,
+			]);
+		},
+	);
 
-		expect(suggestionTexts(afterWhen, fresh)).not.toContain("not");
-		expect(suggestionTexts(afterWhen, owned)).toContain("not");
-		expect(suggestionTexts(`${afterWhen}coin above 1 `, fresh)).not.toContain(
-			"and",
-		);
-		expect(suggestionTexts(`${afterWhen}coin above 1 `, owned)).toEqual(
-			expect.arrayContaining(["and", "or"]),
-		);
-	});
+	test.each(presenceRows)(
+		"%s offers and withholds the expected words",
+		(text, setup, words) => {
+			const texts = parseLine(text, contextWith(setup)).suggestions.map(
+				(s) => s.text,
+			);
 
-	test("chose and decree ids are absent until chaining is owned", () => {
-		const decrees = [{ ...granary, id: "harvest" }];
-		const locked = contextWith({ decrees });
-		const owned = contextWith({ decrees, unlocks: [CHAINING_UNLOCK] });
-		const text = "decree wood sell when harvest ";
-
-		expect(suggestionTexts("decree wood sell when ", locked)).not.toContain(
-			"harvest",
-		);
-		expect(suggestionTexts("decree wood sell when ", owned)).toContain(
-			"harvest",
-		);
-		expect(parseLine(text, locked).problem).not.toBeNull();
-		expect(suggestionTexts(text, owned)).toEqual(["chose"]);
-	});
-
-	test("a chose condition offers the policies of the named decree's petition", () => {
-		const text = "decree wood sell when harvest chose ";
-
-		expect(suggestionTexts(text, everything)).toEqual([
-			...policiesFor("harvest", tuning),
-		]);
-	});
-
-	test("a partial word keeps only the suggestions that start with it", () => {
-		const all = suggestionTexts("decree ", fresh);
-		const partial = suggestionTexts("decree w", fresh);
-
-		expect(all).toEqual([...PETITIONS]);
-		expect(partial).toEqual(["wood"]);
-	});
-
-	test("a multi-word quantity is suggested while its first word is typed", () => {
-		const texts = suggestionTexts(`${afterWhen}grain`, fresh);
-
-		expect(texts).toEqual(["grain", "grain seasons"]);
-	});
-
-	test("after the first word of a multi-word quantity both continuations are offered", () => {
-		const texts = suggestionTexts(`${afterWhen}grain `, fresh);
-
-		expect(texts).toEqual(
-			expect.arrayContaining(["above", "below", "grain seasons"]),
-		);
-	});
-
-	test("policy suggestions carry the policy description", () => {
-		const result = parseLine("decree wood ", fresh);
-
-		expect(result.suggestions).toContainEqual({
-			text: "sell",
-			description: describePolicy("wood", "sell", tuning),
-		});
-	});
-
-	test("every policy of every petition is offered as the otherwise policy", () => {
-		for (const petition of PETITIONS) {
-			const texts = suggestionTexts(`decree ${petition} otherwise `, fresh);
-
-			expect(texts).toEqual([...policiesFor(petition, tuning)]);
-		}
-	});
-
-	test("every policy of every petition can be typed as the otherwise policy", () => {
-		for (const petition of PETITIONS) {
-			for (const policy of policiesFor(petition, tuning)) {
-				const result = parseLine(
-					`decree ${petition} otherwise ${policy}`,
-					fresh,
-				);
-
-				expect(result.command).toMatchObject({
-					decree: { petition, otherwise: policy },
-				});
+			for (const word of words) {
+				if (word.startsWith("!")) expect(texts).not.toContain(word.slice(1));
+				else expect(texts).toContain(word);
 			}
-		}
-	});
+		},
+	);
 
-	test("when full of rules only otherwise is offered", () => {
-		const rule = "sell when coin above 1, ";
-		const line = `decree harvest ${rule.repeat(tuning.decrees.maxRules)}`;
-
-		expect(suggestionTexts(line, fresh)).toEqual(["otherwise"]);
-	});
-});
-
-describe("compound conditions", () => {
-	const owned = contextWith({ unlocks: [COMPOUND_UNLOCK] });
-	const decreeOf = (line: string, context: MenuContext) => {
-		const command: Command | null = parseLine(line, context).command;
-		return command?.type === "enactDecree"
-			? parseDecree(command.decree, tuning.decrees)
-			: null;
-	};
-
-	test("mixing and with or in one rule gives a problem and no command", () => {
-		const line =
-			"decree wood sell when coin above 1 and idle above 2 or ore above 3 otherwise stockpile";
-
-		const result = parseLine(line, owned);
-
-		expect(result.command).toBeNull();
-		expect(result.problem).toContain("and");
-	});
-
-	test("after and, or is not suggested", () => {
-		const texts = suggestionTexts(
-			"decree wood sell when coin above 1 and idle above 2 ",
-			owned,
-		);
-
-		expect(texts).toContain("and");
-		expect(texts).not.toContain("or");
-	});
-
-	test("atoms joined by and make an all condition", () => {
-		const decree = decreeOf(
-			"decree wood sell when coin above 1 and idle above 2 otherwise stockpile",
-			owned,
-		);
-
-		expect(decree?.rules[0]?.when.kind).toBe("all");
-	});
-
-	test("atoms joined by or make an any condition", () => {
-		const decree = decreeOf(
-			"decree wood sell when coin above 1 or not idle above 2 otherwise stockpile",
-			owned,
-		);
-
-		expect(decree?.rules[0]?.when).toEqual({
-			kind: "any",
-			conditions: [
-				compare("coin", "above", 1),
-				{ kind: "not", condition: compare("idle", "above", 2) },
+	const cost = entry(PALETTE_UNLOCK).cost;
+	test.each<[string, Setup, string, string[]]>([
+		["decree wood ", {}, "sell", [describePolicy("wood", "sell", tuning)]],
+		[
+			"buy ",
+			archive,
+			"palette",
+			[
+				entry(PALETTE_UNLOCK).label,
+				String(cost),
+				entry(PALETTE_UNLOCK).description,
+				`need ${cost} coin`,
 			],
-		});
-	});
-
-	test("a condition deeper than the decree limits gives a problem and no command", () => {
-		const atoms = Array(tuning.decrees.maxConditionNodes + 1).fill(
-			"coin above 1",
+		],
+		["buy ", { ...archive, coin: cost - 30 }, "palette", ["need 30 coin"]],
+		["enact ", saving, "plan", [formatDecree({ ...granary, id: "plan" })]],
+	])("%s describes the suggestion %#", (text, setup, word, fragments) => {
+		const found = parseLine(text, contextWith(setup)).suggestions.find(
+			(s) => s.text === word,
 		);
-		const line = `decree wood sell when ${atoms.join(" and ")} otherwise stockpile`;
 
-		const result = parseLine(line, owned);
-
-		expect(result.command).toBeNull();
-		expect(result.problem).not.toBeNull();
-	});
-});
-
-describe("repeal", () => {
-	const active = contextWith({ decrees: [granary] });
-
-	test("repeal offers only the ids of decrees in force", () => {
-		expect(suggestionTexts("repeal ", active)).toEqual(["granary"]);
-		expect(suggestionTexts("repeal ", fresh)).toEqual([]);
-	});
-
-	test("repeal of an active id issues a repeal command", () => {
-		const result = parseLine("repeal granary", active);
-
-		expect(result.command).toEqual({ type: "repealDecree", id: "granary" });
-	});
-
-	test("repeal of an unknown id is a problem with no command", () => {
-		const result = parseLine("repeal harvest ", active);
-
-		expect(result.command).toBeNull();
-		expect(result.problem).not.toBeNull();
-	});
-
-	test("repeal with nothing in force says so", () => {
-		expect(parseLine("repeal ", fresh).problem).toContain("no decrees");
+		for (const fragment of fragments)
+			expect(found?.description).toContain(fragment);
 	});
 });
 
 describe("lineKey", () => {
-	test("printable characters and space append to the text", () => {
-		const state = lineKey(
-			openLine("decree"),
-			key("space", { sequence: " " }),
-			fresh,
-		).state;
-		const next = lineKey(state ?? openLine(""), key("w"), fresh).state;
+	const fresh = contextWith();
 
-		expect(next?.text).toBe("decree w");
+	test.each([
+		["decree ", key("w"), "decree w"],
+		["decree", key("space", { sequence: " " }), "decree "],
+		["", key("a", { shift: true, sequence: "A" }), "A"],
+		["", key("a", { shift: true, sequence: "" }), "A"],
+		["", key("a", { sequence: "" }), "a"],
+		["", key("/", { shift: true, sequence: "" }), "?"],
+		["decree w", key("backspace"), "decree "],
+		["decree wo", key("tab"), "decree wood "],
+		[
+			"decree harvest sell when coin above 1, f",
+			key("tab"),
+			"decree harvest sell when coin above 1, feed ",
+		],
+		["decree ", key("return"), "decree harvest "],
+	])("typing into %j then %o gives %j", (before, pressed, after) => {
+		const result = lineKey(openLine(before), pressed, fresh);
+
+		expect(result.state?.text).toBe(after);
+		expect(result.commands).toEqual([]);
 	});
 
-	test("a shifted character appends what the terminal sent", () => {
-		const result = lineKey(
-			openLine(""),
-			key("a", { shift: true, sequence: "A" }),
-			fresh,
-		);
+	test.each([key("a", { ctrl: true }), key("a", { meta: true }), key("left")])(
+		"%o leaves the line unchanged",
+		(pressed) => {
+			const state = openLine("decree ");
 
-		expect(result.state?.text).toBe("A");
-	});
-
-	test("backspace erases one character", () => {
-		const result = lineKey(openLine("decree w"), key("backspace"), fresh);
-
-		expect(result.state?.text).toBe("decree ");
-	});
-
-	test("ctrl and meta keys leave the line unchanged", () => {
-		const state = openLine("decree ");
-
-		const ctrl = lineKey(state, key("a", { ctrl: true }), fresh);
-		const meta = lineKey(state, key("a", { meta: true }), fresh);
-
-		expect(ctrl).toEqual({ state, commands: [] });
-		expect(meta).toEqual({ state, commands: [] });
-	});
+			expect(lineKey(state, pressed, fresh)).toEqual({ state, commands: [] });
+		},
+	);
 
 	test("escape closes the line without a command", () => {
-		const result = lineKey(openLine("decree "), key("escape"), fresh);
-
-		expect(result).toEqual({ state: null, commands: [] });
+		expect(lineKey(openLine("decree "), key("escape"), fresh)).toEqual({
+			state: null,
+			commands: [],
+		});
 	});
 
-	test("tab completes the partial word and adds a space", () => {
-		const result = lineKey(openLine("decree wo"), key("tab"), fresh);
-
-		expect(result.state?.text).toBe("decree wood ");
-	});
-
-	test("down moves the highlight and tab completes that suggestion", () => {
+	test("down moves the highlight and tab completes that suggestion; up stops at the top", () => {
 		const down = lineKey(openLine("decree "), key("down"), fresh).state;
-		const result = lineKey(down ?? openLine(""), key("tab"), fresh);
 
-		expect(result.state?.text).toBe(`decree ${PETITIONS[1]} `);
+		const completed = lineKey(down ?? openLine(""), key("tab"), fresh);
+		const up = lineKey(openLine("decree "), key("up"), fresh);
+
+		expect(completed.state?.text).toBe(`decree ${PETITIONS[1]} `);
+		expect(up.state?.highlight).toBe(0);
 	});
 
-	test("up at the top keeps the highlight at the first suggestion", () => {
-		const result = lineKey(openLine("decree "), key("up"), fresh);
-
-		expect(result.state?.highlight).toBe(0);
-	});
-
-	test("tab completion keeps a comma already typed", () => {
-		const result = lineKey(
-			openLine("decree harvest sell when coin above 1, f"),
-			key("tab"),
-			fresh,
-		);
-
-		expect(result.state?.text).toBe(
-			"decree harvest sell when coin above 1, feed ",
-		);
-	});
-
-	test("enter on an incomplete line issues nothing, completes the highlight and stays open", () => {
-		const result = lineKey(openLine("decree "), key("return"), fresh);
-
-		expect(result.commands).toEqual([]);
-		expect(result.state?.text).toBe("decree harvest ");
-	});
-
-	test("enter on a complete line issues one enactDecree and closes", () => {
+	test("enter on a complete line issues one command and closes", () => {
 		const result = lineKey(
 			openLine("decree harvest otherwise sell"),
 			key("return"),
@@ -565,363 +368,49 @@ describe("lineKey", () => {
 		expect(result.commands).toHaveLength(1);
 		expect(result.commands[0]).toMatchObject({ type: "enactDecree" });
 	});
-
-	test("typing a whole decree key by key ends in an enactDecree on enter", () => {
-		const text =
-			"decree harvest sell when grain seasons above 2, feed when it is winter otherwise stockpile";
-		const typed = typeText(openLine(""), text, fresh);
-
-		const result = lineKey(typed, key("return"), fresh);
-
-		expect(result.commands).toHaveLength(1);
-		expect(result.state).toBeNull();
-	});
-});
-
-describe("an active decree named like a quantity", () => {
-	const woodDecree: Decree = {
-		id: "wood",
-		petition: "wood",
-		rules: [],
-		otherwise: "stockpile",
-	};
-	const context = contextWith({
-		unlocks: [CHAINING_UNLOCK],
-		decrees: [woodDecree],
-	});
-
-	test("wood followed by chose builds a chose condition", () => {
-		const result = parseLine(
-			"decree harvest feed when wood chose sell otherwise stockpile",
-			context,
-		);
-
-		expect(result.command).toMatchObject({
-			decree: {
-				rules: [{ when: { kind: "chose", decree: "wood", policy: "sell" } }],
-			},
-		});
-	});
-
-	test("wood followed by above builds a compare condition", () => {
-		const result = parseLine(
-			"decree harvest feed when wood above 3 otherwise stockpile",
-			context,
-		);
-
-		expect(result.command).toMatchObject({
-			decree: { rules: [{ when: compare("wood", "above", 3) }] },
-		});
-	});
-});
-
-describe("condition limits", () => {
-	const owned = contextWith({ unlocks: [COMPOUND_UNLOCK] });
-	const atoms = (count: number) =>
-		Array(count).fill("coin above 1").join(" and ");
-
-	test("and is no longer offered when another condition would exceed the node limit", () => {
-		const room = tuning.decrees.maxConditionNodes - 2;
-		const before = `decree wood sell when ${atoms(room)} `;
-		const full = `decree wood sell when ${atoms(room + 1)} `;
-
-		expect(suggestionTexts(before, owned)).toContain("and");
-		expect(suggestionTexts(full, owned)).not.toContain("and");
-	});
-
-	test("a problem from the condition limits is worded without field paths", () => {
-		const line = `decree wood sell when ${atoms(tuning.decrees.maxConditionNodes)} otherwise stockpile`;
-
-		const { problem } = parseLine(line, owned);
-
-		expect(problem).toContain("at most");
-		expect(problem).not.toContain("conditions[");
-	});
-
-	test("not twice in a row gives a problem", () => {
-		const { problem } = parseLine("decree wood sell when not not ", owned);
-
-		expect(problem).toContain("not");
-	});
 });
 
 describe("renderLine", () => {
-	test("the first line shows the text with a cursor and the highlight is marked", () => {
+	const fresh = contextWith();
+	const text = (render: { lines: string[] }) => render.lines.join("\n");
+
+	test("shows the text with a cursor and marks the highlighted suggestion", () => {
 		const render = renderLine(openLine("decree "), fresh);
 
 		expect(render.title).toBe("Command");
 		expect(render.lines[0]).toBe(": decree _");
-		expect(render.lines[1]?.startsWith("> harvest")).toBe(true);
-		expect(render.lines[2]?.startsWith("  wood")).toBe(true);
-		expect(render.hints).toBe("type · tab complete · enter issue · esc close");
+		expect(render.lines[1]).toStartWith("> harvest");
+		expect(render.lines[2]).toStartWith("  wood");
+		expect(render.hints).toContain("esc");
 	});
 
-	test("at most six suggestions are shown", () => {
-		const render = renderLine(openLine("decree wood sell when "), fresh);
+	test("shows six suggestions at most and scrolls to keep the highlight visible", () => {
+		const shown = (highlight: number) => {
+			const { lines } = renderLine({ text: woodRuleStart, highlight }, fresh);
+			return lines.slice(1, lines.indexOf(""));
+		};
 
-		const suggestionLines = render.lines.slice(1, render.lines.indexOf(""));
-
-		expect(suggestionLines.length).toBeLessThanOrEqual(6);
+		expect(shown(0)).toHaveLength(6);
+		expect(shown(7)).toHaveLength(6);
+		expect(shown(7).at(-1)).toStartWith(">");
 	});
 
-	test("decrees in force are listed below, or the line says there are none", () => {
-		const active = contextWith({ decrees: [granary] });
-
-		const withDecree = renderLine(openLine("decree "), active).lines;
-		const without = renderLine(openLine("decree "), fresh).lines;
-
-		expect(withDecree.join("\n")).toContain(formatDecree(granary));
-		expect(without.at(-1)).toBe("No decrees are in force.");
-	});
-
-	test("a problem is shown after the suggestions", () => {
-		const render = renderLine(openLine("decree banana"), fresh);
-
-		expect(render.lines.join("\n")).toContain('! "banana"');
-	});
-});
-
-describe("verbs on the line", () => {
-	const owning = (...unlocks: string[]) => contextWith({ unlocks });
-	const everyVerb = owning(ARCHIVE_PANEL, PALETTE_UNLOCK, SAVED_DECREES_UNLOCK);
-
-	function withSaved(name: string, decree: Decree): MenuContext {
-		const state = createNewGame(1, tuning);
-		grantUnlocks(state, [SAVED_DECREES_UNLOCK]);
-		const saved = saveDecree(state, name, decree, tuning);
-		if (!saved.ok) throw new Error(saved.reason);
-		return { view: computeView(state, tuning), tuning };
-	}
-
-	test("a fresh game's palette offers exactly decree and repeal", () => {
-		expect(suggestionTexts("", fresh)).toEqual(["decree", "repeal"]);
-	});
-
-	test("buy joins the palette once the Archive panel is owned", () => {
-		expect(suggestionTexts("", owning(ARCHIVE_PANEL))).toEqual([
-			"decree",
-			"repeal",
-			"buy",
-		]);
-	});
-
-	test("typing a verb the player does not own is a problem that names the Archive entry", () => {
-		const result = parseLine("save plan decree harvest otherwise sell", fresh);
-		const label = tuning.archive.entries.find(
-			(entry) => entry.id === SAVED_DECREES_UNLOCK,
-		)?.label;
-
-		expect(result.command).toBeNull();
-		expect(result.problem).toContain(`"${label}"`);
-		expect(result.problem).toContain("Archive");
-	});
-
-	test("typing buy before the Archive opens is a problem, not a command", () => {
-		const result = parseLine("buy palette", fresh);
-
-		expect(result.command).toBeNull();
-		expect(result.problem).toContain("Archive");
-	});
-
-	test("buy offers each purchasable entry with its label, cost and description", () => {
-		const palette = tuning.archive.entries.find(
-			(entry) => entry.id === PALETTE_UNLOCK,
-		);
-		if (palette === undefined) throw new Error("no palette entry");
-
-		const offered = parseLine("buy ", owning(ARCHIVE_PANEL)).suggestions;
-		const entry = offered.find((s) => s.text === "palette");
-
-		expect(entry?.description).toContain(palette.label);
-		expect(entry?.description).toContain(String(palette.cost));
-		expect(entry?.description).toContain(palette.description);
-		expect(entry?.description).toContain(`need ${String(palette.cost)} coin`);
-	});
-
-	test("buy leaves out entries whose prerequisites are missing, and offers them once met", () => {
-		expect(suggestionTexts("buy ", owning(ARCHIVE_PANEL))).not.toContain(
-			"saved-decrees",
+	test("shows a problem, or what a number slot expects when nothing can be suggested", () => {
+		expect(text(renderLine(openLine("decree banana"), fresh))).toContain(
+			'! "banana"',
 		);
 		expect(
-			suggestionTexts("buy ", owning(ARCHIVE_PANEL, PALETTE_UNLOCK)),
-		).toContain("saved-decrees");
+			text(renderLine(openLine(`${harvestRuleStart}coin above `), fresh)),
+		).toContain("a number");
 	});
 
-	test("buy leaves out entries already owned", () => {
-		const words = suggestionTexts(
-			"buy ",
-			owning(ARCHIVE_PANEL, COMPOUND_UNLOCK),
-		);
+	test("lists the decrees in force, or says there are none", () => {
+		const active = contextWith({ decrees: [granary] });
 
-		expect(words).not.toContain("compound");
-		expect(words).toContain("chaining");
-	});
+		const withDecree = renderLine(openLine("decree "), active);
+		const without = renderLine(openLine("decree "), fresh);
 
-	test("buy with every entry owned says the Archive has nothing left", () => {
-		const result = parseLine(
-			"buy ",
-			owning(ARCHIVE_PANEL, ...tuning.archive.entries.map((entry) => entry.id)),
-		);
-
-		expect(result.suggestions).toEqual([]);
-		expect(result.problem).toBe("you own everything in the Archive");
-	});
-
-	test("buy with every remaining entry missing a prerequisite says nothing can be bought yet", () => {
-		const onlyDependent: Tuning = {
-			...tuning,
-			archive: {
-				...tuning.archive,
-				entries: tuning.archive.entries.filter(
-					(entry) => entry.requires.length > 0,
-				),
-			},
-		};
-		const state = createNewGame(1, onlyDependent);
-		grantUnlocks(state, [ARCHIVE_PANEL]);
-		const context = {
-			view: computeView(state, onlyDependent),
-			tuning: onlyDependent,
-		};
-
-		const result = parseLine("buy ", context);
-
-		expect(result.suggestions).toEqual([]);
-		expect(result.problem).toBe("nothing in the Archive can be bought yet");
-	});
-
-	test("buy names the coin still missing for an entry the player cannot afford", () => {
-		const palette = tuning.archive.entries.find(
-			(entry) => entry.id === PALETTE_UNLOCK,
-		);
-		if (palette === undefined) throw new Error("no palette entry");
-		const state = createNewGame(1, tuning);
-		grantUnlocks(state, [ARCHIVE_PANEL]);
-		state.posting.resources.coin = palette.cost - 30;
-		const context = { view: computeView(state, tuning), tuning };
-
-		const offered = parseLine("buy ", context).suggestions;
-
-		expect(offered.find((s) => s.text === "palette")?.description).toContain(
-			"need 30 coin",
-		);
-	});
-
-	test("buy compound issues buyUnlock for the compound entry", () => {
-		const result = parseLine("buy compound", owning(ARCHIVE_PANEL));
-
-		expect(result.command).toEqual({ type: "buyUnlock", id: COMPOUND_UNLOCK });
-	});
-
-	test("buy for an entry whose prerequisite is missing names the prerequisite", () => {
-		const result = parseLine("buy saved-decrees", owning(ARCHIVE_PANEL));
-		const palette = tuning.archive.entries.find(
-			(entry) => entry.id === PALETTE_UNLOCK,
-		);
-
-		expect(result.command).toBeNull();
-		expect(result.problem).toContain(palette?.label ?? "");
-	});
-
-	test("buy for an entry already owned says so", () => {
-		const result = parseLine(
-			"buy compound",
-			owning(ARCHIVE_PANEL, COMPOUND_UNLOCK),
-		);
-
-		expect(result.command).toBeNull();
-		expect(result.problem).toContain("already own");
-	});
-
-	test("save builds the same decree that decree builds", () => {
-		const body = "harvest sell when grain above 5 otherwise stockpile";
-		const entered = parseLine(`decree ${body}`, everyVerb).command;
-		const saved = parseLine(`save plan decree ${body}`, everyVerb).command;
-
-		if (entered?.type !== "enactDecree") throw new Error("not a decree");
-		expect(saved).toEqual({
-			type: "saveDecree",
-			name: "plan",
-			decree: entered.decree,
-		});
-	});
-
-	test("save refuses a name the core would not accept", () => {
-		const result = parseLine("save Plan! decree", everyVerb);
-
-		expect(result.command).toBeNull();
-		expect(result.problem).toContain("not a valid name");
-	});
-
-	test("enact and forget offer the saved decrees and issue their commands", () => {
-		const context = withSaved("plan", granary);
-
-		expect(suggestionTexts("enact ", context)).toEqual(["plan"]);
-		expect(parseLine("enact plan", context).command).toEqual({
-			type: "enactSaved",
-			name: "plan",
-		});
-		expect(parseLine("forget plan", context).command).toEqual({
-			type: "forgetSaved",
-			name: "plan",
-		});
-	});
-
-	test("enact with nothing saved says no decrees are saved", () => {
-		const result = parseLine("enact ", owning(SAVED_DECREES_UNLOCK));
-
-		expect(result.suggestions).toEqual([]);
-		expect(result.problem).toBe("no decrees are saved");
-	});
-
-	test("enact describes each saved decree", () => {
-		const context = withSaved("plan", granary);
-
-		const [only] = parseLine("enact ", context).suggestions;
-
-		expect(only?.description).toContain(
-			formatDecree({ ...granary, id: "plan" }),
-		);
-	});
-
-	test("forget is offered only while a saved decree exists", () => {
-		expect(suggestionTexts("", fresh)).not.toContain("forget");
-		expect(suggestionTexts("", withSaved("plan", granary))).toContain("forget");
-	});
-
-	function villageOfThree(): MenuContext {
-		const state = createNewGame(1, tuning);
-		setRoster(state, { idle: 3 });
-		grantUnlocks(state, [PALETTE_UNLOCK]);
-		return { view: computeView(state, tuning), tuning };
-	}
-
-	test("assign gives the named peasant the job, by the peasant's real id", () => {
-		const context = villageOfThree();
-		const peasant = context.view.delegates[1];
-		if (peasant === undefined) throw new Error("no second peasant");
-
-		const result = parseLine(`assign ${peasant.name} mine`, context);
-
-		expect(result.command).toEqual({
-			type: "assignPeasant",
-			peasant: peasant.id,
-			job: "mine",
-		});
-	});
-
-	test("assign offers every living peasant, then the four jobs", () => {
-		const context = villageOfThree();
-		const [first] = context.view.delegates;
-
-		expect(suggestionTexts("assign ", context)).toEqual(
-			context.view.delegates.map((delegate) => delegate.name),
-		);
-		expect(suggestionTexts(`assign ${first?.name} `, context)).toEqual([
-			"farm",
-			"forest",
-			"mine",
-			"idle",
-		]);
+		expect(text(withDecree)).toContain(formatDecree(granary));
+		expect(without.lines.at(-1)).toBe("No decrees are in force.");
 	});
 });

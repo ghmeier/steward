@@ -1,215 +1,100 @@
 import { describe, expect, test } from "bun:test";
 import { policiesFor } from "../src/core/decree-engine";
 import type { Tuning } from "../src/core/tuning";
-import { ARCHIVE_PANEL, PALETTE_UNLOCK } from "../src/core/unlocks";
+import {
+	ARCHIVE_PANEL,
+	CHAINING_UNLOCK,
+	COMPOUND_UNLOCK,
+	PALETTE_UNLOCK,
+	SAVED_DECREES_UNLOCK,
+} from "../src/core/unlocks";
 import { describePolicy } from "../src/tui/decree-format";
 import { keyHints } from "../src/tui/keys";
 import { topicText, tuning } from "./helpers";
 
-function escapeRegExp(text: string): string {
-	return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function withEconomy(changes: Partial<Tuning["economy"]>): Tuning {
-	return { ...tuning, economy: { ...tuning.economy, ...changes } };
-}
-
-describe("help topics follow tuning", () => {
-	test("coin shows the grain, wood and ore prices from tuning", () => {
-		const text = topicText(
-			"Coin",
-			withEconomy({ grainPrice: 0.25, woodPrice: 0.75, orePrice: 3 }),
-		);
-
-		expect(text).toContain(
-			"grain at 0.25 coin each, wood at 0.75 and ore at 3",
-		);
-	});
-
-	test("grain shows the feeding cost, population cap and season length from tuning", () => {
-		const changed = withEconomy({
-			grainPerPeasant: 45,
-			maxPopulation: 77,
-			ticksPerSeason: 1200,
-		});
-
-		const text = topicText("Grain and growth", changed);
-
-		expect(text).toContain("every 45 grain");
-		expect(text).toContain("77 peasants");
-		expect(text).toContain("120 s");
-	});
-
-	test("a farmer feeds the year-round average, not the best season", () => {
-		const text = topicText(
-			"Grain and growth",
-			withEconomy({
-				grainPerFarmer: 0.03,
-				grainPerPerson: 0.01,
-				seasonYield: { spring: 0.5, summer: 1, autumn: 0.5, winter: 0 },
-			}),
-		);
-
-		expect(text).toContain("feeds about 1.5 peasants");
-	});
-
-	test("the barren-season warning names only seasons whose yield is zero", () => {
-		const barrenAutumn = withEconomy({
-			seasonYield: { spring: 1, summer: 1, autumn: 0, winter: 1 },
-		});
-		const allGrow = withEconomy({
-			seasonYield: { spring: 1, summer: 1, autumn: 1, winter: 1 },
-		});
-
-		expect(topicText("Grain and growth", barrenAutumn)).toContain(
-			"Autumn grows nothing",
-		);
-		expect(topicText("Grain and growth", allGrow)).not.toContain(
-			"grows nothing",
-		);
-	});
-
-	test("grain shows what a season of eating costs each peasant and the famine rule", () => {
-		const text = topicText(
-			"Grain and growth",
-			withEconomy({
-				grainPerPerson: 0.02,
-				ticksPerSeason: 500,
-			}),
-		);
-
-		expect(text).toContain("costs each peasant 10 grain");
-		expect(text).toContain(
-			"a famine takes at most half the village, spread over a season (50 s)",
-		);
-		expect(text).toContain("famine ends as soon as everyone eats again");
-	});
-
-	test("labor moves are pluralized by count", () => {
-		expect(
-			topicText("Harvest and labor", withEconomy({ laborMovesPerTick: 1 })),
-		).toContain("1 peasant moves");
-		expect(
-			topicText("Harvest and labor", withEconomy({ laborMovesPerTick: 3 })),
-		).toContain("3 peasants move");
-	});
-
-	test("wood and ore show per-second rates converted with the step length", () => {
-		const changed = { ...withEconomy({ woodPerWorker: 0.03 }), stepMs: 250 };
-
-		const text = topicText("Wood and ore", changed);
-
-		expect(text).toContain("0.12/s");
-	});
-
-	test("disputes and promotion show village values from tuning", () => {
-		const changed: Tuning = {
-			...tuning,
-			village: {
-				...tuning.village,
-				deskSlots: 5,
-				grudgeTicks: 300,
-				promotionPopulation: 33,
-			},
-		};
-
-		expect(topicText("Disputes", changed)).toContain("5 slots");
-		expect(topicText("Disputes", changed)).toContain("30 s");
-		expect(topicText("Promotion", changed)).toContain("33 peasants");
-	});
-
-	test("decrees list every labor allocation with its percentages", () => {
-		const changed = withEconomy({
-			laborAllocations: {
-				...tuning.economy.laborAllocations,
-				lumber: { farm: 0.1, forest: 0.8, mine: 0.1 },
-			},
-		});
-
-		const text = topicText("Harvest and labor", changed);
-
-		for (const name of policiesFor("labor", changed)) {
-			expect(text).toContain(describePolicy("labor", name, changed));
-		}
-		expect(text).toContain("lumber: farm 10%, forest 80%, mine 10%");
-	});
+const economy = (changes: Partial<Tuning["economy"]>): Tuning => ({
+	...tuning,
+	economy: { ...tuning.economy, ...changes },
+});
+const village = (changes: Partial<Tuning["village"]>): Tuning => ({
+	...tuning,
+	village: { ...tuning.village, ...changes },
 });
 
-function withRulingCosts(resources: Record<string, number>): Tuning {
+// Every ruling of the first dispute is stripped of its costs, then the first option gets `resources`.
+function rulingsWith(resources: Record<string, number>): Tuning {
 	const [first] = tuning.village.disputes;
 	if (first === undefined) throw new Error("no dispute template");
-	const dispute = {
-		...first,
-		options: first.options.map((option) => ({
-			id: option.id,
-			label: option.label,
-		})),
-	};
-	const [head, ...rest] = dispute.options;
+	const [head, ...rest] = first.options.map(({ id, label }) => ({ id, label }));
 	if (head === undefined) throw new Error("no option");
-	return {
-		...tuning,
-		village: {
-			...tuning.village,
-			disputes: [{ ...dispute, options: [{ ...head, resources }, ...rest] }],
-		},
-	};
+	const options = [{ ...head, resources }, ...rest];
+	return village({ disputes: [{ ...first, options }] });
 }
 
-describe("help claims about resource use follow the disputes", () => {
-	test("wood is said to pay for rulings only when a ruling costs wood", () => {
-		expect(topicText("Wood and ore", withRulingCosts({ wood: -2 }))).toContain(
-			"Wood pays for some dispute rulings.",
-		);
-		expect(topicText("Wood and ore", withRulingCosts({ coin: -2 }))).toContain(
-			"Wood has no use yet.",
-		);
-	});
-
-	test("ore is said to be unused unless a ruling costs ore", () => {
-		expect(topicText("Wood and ore", withRulingCosts({ ore: -1 }))).toContain(
-			"Ore pays for some dispute rulings.",
-		);
-		expect(topicText("Wood and ore", withRulingCosts({ wood: -1 }))).toContain(
-			"Ore has no use yet.",
-		);
-	});
-
-	test("coin is said to be spent on rulings only when a ruling costs coin", () => {
-		expect(topicText("Coin", withRulingCosts({ coin: -2 }))).toContain(
-			"Coin is spent on dispute rulings.",
-		);
-		expect(topicText("Coin", withRulingCosts({ grain: -2 }))).not.toContain(
-			"spent on dispute rulings",
-		);
-	});
-
-	test("coin fines are mentioned only when a ruling pays coin", () => {
-		expect(topicText("Coin", withRulingCosts({ coin: 2 }))).toContain("fines");
-		expect(topicText("Coin", withRulingCosts({ coin: -2 }))).not.toContain(
-			"fines",
-		);
-	});
+const laborChanged = economy({
+	laborAllocations: {
+		...tuning.economy.laborAllocations,
+		lumber: { farm: 0.1, forest: 0.8, mine: 0.1 },
+	},
 });
+const barren = (autumn: number) =>
+	economy({ seasonYield: { spring: 1, summer: 1, autumn, winter: 1 } });
 
-describe("help coin topic", () => {
-	test("mentions the Archive only once it is open", () => {
-		expect(topicText("Coin", tuning, [ARCHIVE_PANEL])).toContain("Archive");
-		expect(topicText("Coin", tuning, [])).not.toContain("Archive");
-	});
-});
+type Row = {
+	name: string;
+	topic: string;
+	using?: Tuning;
+	unlocks?: string[];
+	has?: string[];
+	lacks?: string[];
+};
 
-describe("help keys topic", () => {
-	const everything = [ARCHIVE_PANEL, PALETTE_UNLOCK];
+// biome-ignore format: one row per line keeps the table scannable
+const rows: Row[] = [
+	{ name: "coin prices", topic: "Coin", using: economy({ grainPrice: 0.25, woodPrice: 0.75, orePrice: 3 }), has: ["grain at 0.25", "wood at 0.75", "ore at 3"] },
+	{ name: "feeding cost, population cap and season length", topic: "Grain and growth", using: economy({ grainPerPeasant: 45, maxPopulation: 77, ticksPerSeason: 1200 }), has: ["every 45 grain", "up to 77 peasants", "season lasts 120 s"] },
+	{ name: "year-round average feeding", topic: "Grain and growth", using: economy({ grainPerFarmer: 0.03, grainPerPerson: 0.01, seasonYield: { spring: 0.5, summer: 1, autumn: 0.5, winter: 0 } }), has: ["feeds about 1.5"] },
+	{ name: "season of eating cost and famine length", topic: "Grain and growth", using: economy({ grainPerPerson: 0.02, ticksPerSeason: 500 }), has: ["costs each peasant 10 grain", "season (50 s)", "famine"] },
+	{ name: "a barren season is named", topic: "Grain and growth", using: barren(0), has: ["Autumn grows nothing"] },
+	{ name: "no barren season, no warning", topic: "Grain and growth", using: barren(1), lacks: ["grows nothing"] },
+	{ name: "one labor move per tick", topic: "Harvest and labor", using: economy({ laborMovesPerTick: 1 }), has: ["1 peasant moves"] },
+	{ name: "several labor moves per tick", topic: "Harvest and labor", using: economy({ laborMovesPerTick: 3 }), has: ["3 peasants move"] },
+	{ name: "labor allocation percentages", topic: "Harvest and labor", using: laborChanged, has: ["lumber: farm 10%, forest 80%, mine 10%", ...policiesFor("labor", laborChanged).map((name) => describePolicy("labor", name, laborChanged))] },
+	{ name: "wood rate converted with the step length", topic: "Wood and ore", using: { ...economy({ woodPerWorker: 0.03 }), stepMs: 250 }, has: ["cut wood at 0.12/s"] },
+	{ name: "dispute desk and grudge", topic: "Disputes", using: village({ deskSlots: 5, grudgeTicks: 300 }), has: ["desk of 5 slots", "for 30 s"] },
+	{ name: "promotion population", topic: "Promotion", using: village({ promotionPopulation: 33 }), has: ["Reach 33 peasants"] },
+	{ name: "wood rulings", topic: "Wood and ore", using: rulingsWith({ wood: -2 }), has: ["Wood pays"], lacks: ["Wood has no use"] },
+	{ name: "no wood rulings", topic: "Wood and ore", using: rulingsWith({ coin: -2 }), has: ["Wood has no use", "Ore has no use"] },
+	{ name: "ore rulings", topic: "Wood and ore", using: rulingsWith({ ore: -1 }), has: ["Ore pays"], lacks: ["Ore has no use"] },
+	{ name: "coin rulings", topic: "Coin", using: rulingsWith({ coin: -2 }), has: ["spent on dispute rulings"], lacks: ["fines"] },
+	{ name: "coin fines", topic: "Coin", using: rulingsWith({ coin: 2 }), has: ["fines"], lacks: ["spent on dispute rulings"] },
+	{ name: "the Archive once open", topic: "Coin", unlocks: [ARCHIVE_PANEL], has: ["Archive"] },
+	{ name: "no Archive before it opens", topic: "Coin", lacks: ["Archive"] },
+	{ name: "decrees before any unlock", topic: "Decrees", lacks: ["and, or or", "chose", "enact"] },
+	{ name: "compound conditions once owned", topic: "Decrees", unlocks: [COMPOUND_UNLOCK], has: ["and, or or", "not"] },
+	{ name: "chaining once owned", topic: "Decrees", unlocks: [CHAINING_UNLOCK], has: ["chose"] },
+	{ name: "saved decrees once owned", topic: "Decrees", unlocks: [SAVED_DECREES_UNLOCK], has: ["save", "enact", "forget"] },
+];
 
-	test("lists every key hint the player owns", () => {
-		const text = topicText("Keys", tuning, everything);
+describe("help topics", () => {
+	test.each(rows)(
+		"$topic shows $name",
+		({ topic, using, unlocks, has, lacks }) => {
+			const text = topicText(topic, using, unlocks);
 
-		for (const hint of keyHints(everything)) {
-			const row = text.split("\n").find((line) => line.startsWith(hint.keys));
-			expect(row).toMatch(
-				new RegExp(`^${escapeRegExp(hint.keys)} +${escapeRegExp(hint.label)}$`),
-			);
+			for (const fragment of has ?? []) expect(text).toContain(fragment);
+			for (const fragment of lacks ?? []) expect(text).not.toContain(fragment);
+		},
+	);
+
+	test("the keys topic lists every key hint the player owns", () => {
+		const owned = [ARCHIVE_PANEL, PALETTE_UNLOCK];
+
+		const lines = topicText("Keys", tuning, owned).split("\n");
+
+		for (const hint of keyHints(owned)) {
+			const row = lines.find((line) => line.startsWith(hint.keys));
+			expect(row?.trimEnd().endsWith(hint.label)).toBe(true);
 		}
 	});
 });

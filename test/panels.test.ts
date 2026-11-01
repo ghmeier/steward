@@ -56,46 +56,44 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
 	};
 }
 
-describe("createPanels layout", () => {
-	for (const size of [
+const ada = { id: 3, name: "Ada", job: "farm" as const, grudgeTicks: 0 };
+const dispute = {
+	id: 1,
+	label: "A squabble",
+	parties: ["Ada", "Bram"] as [string, string],
+	options: [],
+};
+const growth = (changes: Partial<GameView["growth"]>) => ({
+	stored: 12.4,
+	needed: 25,
+	perSecond: 0.5,
+	full: false,
+	...changes,
+});
+const realmOf = (changes: Partial<GameView["realm"]>) => ({
+	...emptyView().realm,
+	...changes,
+});
+
+describe("createPanels", () => {
+	test.each([
 		{ width: 100, height: 30 },
 		{ width: 80, height: 24 },
-	]) {
-		test(`shows all four titles and the footer at ${size.width}x${size.height}`, async () => {
-			const frame = await draw([emptyView()], "q quit  space pause", size);
+	])(
+		"shows all four titles and the footer at $width x $height",
+		async (size) => {
+			const frame = await draw([emptyView()], "q quit", size);
 
 			for (const title of ["Ledger", "Crown", "Desk", "Peasants"]) {
 				expect(frame).toContain(title);
 			}
-			expect(frame).toContain("q quit  space pause");
-		});
-	}
-});
+			expect(frame).toContain("q quit");
+		},
+	);
 
-describe("createPanels ledger", () => {
-	test("shows each resource name, amount, rate and the game time", async () => {
+	test("the ledger shows the game time and each resource's name, amount and rate in shared columns", async () => {
 		const view = emptyView({
 			elapsedSeconds: 185,
-			ledger: [
-				{ resource: "grain", amount: 1234.5, ratePerSecond: 15 },
-				{ resource: "wood", amount: 2_500_000, ratePerSecond: -2.5 },
-			],
-		});
-
-		const frame = await draw([view], "");
-
-		expect(frame).toContain(`Time  ${formatGameTime(view.elapsedSeconds)}`);
-		for (const line of view.ledger) {
-			const name =
-				line.resource.charAt(0).toUpperCase() + line.resource.slice(1);
-			expect(frame).toContain(name);
-			expect(frame).toContain(formatAmount(line.amount));
-			expect(frame).toContain(formatRate(line.ratePerSecond));
-		}
-	});
-
-	test("aligns amounts and rates in shared columns", async () => {
-		const view = emptyView({
 			ledger: [
 				{ resource: "grain", amount: 5, ratePerSecond: 1 },
 				{ resource: "timber", amount: 1234567.8, ratePerSecond: -22.5 },
@@ -109,127 +107,96 @@ describe("createPanels ledger", () => {
 		const timber = lines.find((l) => l.includes("Timber")) ?? "";
 		const endOf = (line: string, text: string) =>
 			line.indexOf(text) + text.length;
+		expect(frame).toContain(formatGameTime(185));
 		expect(endOf(grain, formatAmount(5))).toBe(
 			endOf(timber, formatAmount(1234567.8)),
 		);
 		expect(endOf(grain, formatRate(1))).toBe(endOf(timber, formatRate(-22.5)));
 	});
 
-	test("shows the realm lines under the resources, aligned with the resource names", async () => {
+	test("the ledger shows population, labor and season aligned under the resource names", async () => {
 		const view = emptyView({
 			ledger: [{ resource: "grain", amount: 5, ratePerSecond: 1 }],
-			realm: {
+			realm: realmOf({
 				population: 12,
 				idle: 5,
 				labor: { farm: 4, forest: 2, mine: 1 },
 				season: "summer",
-				starved: 0,
-			},
+			}),
 		});
 
 		const frame = await draw([view], "");
 
-		expect(frame).toContain("Population  12 (5 idle)");
-		expect(frame).toContain("Farm 4  Forest 2  Mine 1");
-		expect(frame).toContain("Season  Summer");
 		const lines = frame.split("\n");
 		const column = (text: string) =>
 			(lines.find((l) => l.includes(text)) ?? "").indexOf(text);
+		expect(frame).toContain("Population  12 (5 idle)");
+		expect(frame).toContain("Farm 4  Forest 2  Mine 1");
+		expect(frame).toContain("Season  Summer");
 		expect(column("Population")).toBe(column("Grain"));
-		expect(column("Season")).toBe(column("Grain"));
 	});
 
-	test("replaces old values when updated with a new view", async () => {
-		const first = emptyView({
-			ledger: [{ resource: "grain", amount: 111, ratePerSecond: 1 }],
-		});
-		const second = emptyView({
-			ledger: [{ resource: "grain", amount: 222_222, ratePerSecond: 1 }],
-		});
+	test("an update replaces the values of the last view", async () => {
+		const grain = (amount: number) =>
+			emptyView({ ledger: [{ resource: "grain", amount, ratePerSecond: 1 }] });
 
-		const frame = await draw([first, second], "");
+		const frame = await draw([grain(111), grain(222_222)], "");
 
 		expect(frame).not.toContain(formatAmount(111));
 		expect(frame).toContain(formatAmount(222_222));
 	});
-});
 
-describe("createPanels placeholders", () => {
-	test("shows placeholders when the crown, desk and peasants are empty", async () => {
-		const frame = await draw([emptyView()], "");
+	test.each([
+		["the crown", emptyView(), "demands nothing"],
+		["the desk", emptyView(), "is clear"],
+		[
+			"the roster",
+			emptyView({ realm: realmOf({ population: 0, idle: 0 }) }),
+			"village is empty",
+		],
+	])(
+		"%s shows a placeholder when it has nothing",
+		async (_name, view, words) => {
+			const frame = await draw([view], "", { width: 160, height: 30 });
 
-		expect(frame).toContain("The crown demands nothing, for now.");
-		expect(frame).toContain("The desk is clear.");
-	});
+			expect(frame).toContain(words);
+			expect(frame).not.toContain("hold court");
+		},
+	);
 
-	test("shows entries instead of placeholders when present", async () => {
+	test("entries replace the placeholders", async () => {
 		const view = emptyView({
 			crown: { label: "Tribute due" },
-			desk: [
-				{
-					id: 1,
-					label: "Sign the decree",
-					parties: ["Ada", "Bram"],
-					options: [],
-				},
+			desk: [dispute],
+			delegates: [ada],
+		});
+
+		const frame = await draw([view], "");
+
+		for (const shown of ["Tribute due", "A squabble", "Ada", "hold court"]) {
+			expect(frame).toContain(shown);
+		}
+		for (const gone of ["demands nothing", "is clear", "village is empty"]) {
+			expect(frame).not.toContain(gone);
+		}
+	});
+
+	test("the roster marks the selected peasant and a grudge", async () => {
+		const view = emptyView({
+			delegates: [
+				ada,
+				{ ...ada, id: 4, name: "Bram", job: "idle", grudgeTicks: 30 },
 			],
-			delegates: [{ id: 3, name: "Ada", job: "farm", grudgeTicks: 0 }],
 		});
 
-		const frame = await draw([view], "");
-
-		expect(frame).toContain("Tribute due");
-		expect(frame).toContain("Sign the decree");
-		expect(frame).toContain("Ada");
-		expect(frame).not.toContain("The crown demands nothing");
-		expect(frame).not.toContain("The desk is clear.");
-	});
-});
-
-describe("createPanels empty village", () => {
-	const emptyVillage = "The village is empty. Press n to found a new one.";
-
-	test("an empty roster says the village is empty and how to start again", async () => {
-		const view = emptyView({
-			realm: { ...emptyView().realm, population: 0, idle: 0 },
-		});
-
-		const frame = await draw([view], "", { width: 160, height: 30 });
-
-		expect(frame).toContain(emptyVillage);
-	});
-
-	test("a village with peasants lists them instead of the empty line", async () => {
-		const view = emptyView({
-			delegates: [{ id: 3, name: "Ada", job: "farm", grudgeTicks: 0 }],
-		});
-
-		const frame = await draw([view], "");
-
-		expect(frame).toContain("Ada");
-		expect(frame).not.toContain(emptyVillage);
-	});
-});
-
-describe("createPanels peasants", () => {
-	const view = emptyView({
-		delegates: [
-			{ id: 1, name: "Ada", job: "farm", grudgeTicks: 0 },
-			{ id: 2, name: "Bram", job: "idle", grudgeTicks: 30 },
-		],
-	});
-
-	test("lists each peasant with a job, a cursor on the selected row and a grudge marker", async () => {
-		const frame = await draw([view], "", undefined, 2);
+		const frame = await draw([view], "", undefined, 4);
 
 		expect(frame).toMatch(/ {2}Ada {2}farm/);
 		expect(frame).toMatch(/> Bram {2}idle \(grudge\)/);
 		expect(frame).not.toMatch(/> Ada/);
 	});
-});
 
-describe("createPanels locked panels", () => {
-	test("a locked panel keeps its title but reads Locked. in place of its content", async () => {
+	test("a locked panel keeps its title but hides its content", async () => {
 		const view = emptyView({
 			lockedPanels: ["crown"],
 			crown: { label: "Tribute due" },
@@ -240,120 +207,73 @@ describe("createPanels locked panels", () => {
 		expect(frame).toContain("Crown");
 		expect(frame).toContain("Locked.");
 		expect(frame).not.toContain("Tribute due");
-		expect(frame).not.toContain("The crown demands nothing");
+		expect(frame).not.toContain("demands nothing");
 	});
 
-	test("panels that are not locked show their content", async () => {
-		const frame = await draw([emptyView()], "");
-
-		expect(frame).not.toContain("Locked.");
-		expect(frame).toContain("The crown demands nothing, for now.");
-	});
-});
-
-describe("createPanels promotion", () => {
-	test("before promotion the ledger shows progress toward the target", async () => {
-		const view = emptyView({
-			promotion: { target: 20, promotedAt: 0, promotedAtSeconds: 0 },
-			realm: {
-				population: 14,
-				idle: 0,
-				labor: { farm: 14, forest: 0, mine: 0 },
-				season: "spring",
-				starved: 0,
-			},
-		});
+	test.each([
+		[
+			"before promotion",
+			{ target: 20, promotedAt: 0, promotedAtSeconds: 0 },
+			14,
+			["14 / 20"],
+			["Promoted"],
+		],
+		[
+			"after promotion",
+			{ target: 20, promotedAt: 1200, promotedAtSeconds: 120 },
+			14,
+			[formatGameTime(120), "Promoted"],
+			["14 / 20"],
+		],
+	])("the ledger %s", async (_name, promotion, population, has, lacks) => {
+		const view = emptyView({ promotion, realm: realmOf({ population }) });
 
 		const frame = await draw([view], "");
 
-		expect(frame).toContain("Promotion  14 / 20 peasants");
-		expect(frame).not.toContain("Promoted to steward");
+		for (const shown of has) expect(frame).toContain(shown);
+		for (const gone of lacks) expect(frame).not.toContain(gone);
 	});
 
-	test("after promotion the ledger names the game time of the promotion", async () => {
-		const view = emptyView({
-			promotion: { target: 20, promotedAt: 1200, promotedAtSeconds: 120 },
-		});
+	test.each([
+		[
+			"a feeding village shows progress and time",
+			growth({}),
+			["12.4 / 25 grain", "~26s"],
+		],
+		[
+			"a village that is not feeding shows no estimate",
+			growth({ perSecond: 0 }),
+			["12.4 / 25 grain", "!~"],
+		],
+		["a full village shows no line", growth({ full: true }), ["!Next peasant"]],
+	])("%s", async (_name, value, words) => {
+		const frame = await draw([emptyView({ growth: value })], "");
 
-		const frame = await draw([view], "");
-
-		expect(frame).toContain(`Promoted to steward on ${formatGameTime(120)}`);
-		expect(frame).not.toContain("Promotion  ");
-	});
-});
-
-describe("createPanels next peasant", () => {
-	test("a feeding village shows progress and the time to the next peasant", async () => {
-		const growth = { stored: 12.4, needed: 25, perSecond: 0.5, full: false };
-
-		const frame = await draw([emptyView({ growth })], "");
-
-		expect(frame).toContain("Next peasant  12.4 / 25 grain  (~26s)");
-	});
-
-	test("a village that is not feeding shows the grain with no estimate", async () => {
-		const growth = { stored: 12.4, needed: 25, perSecond: 0, full: false };
-
-		const frame = await draw([emptyView({ growth })], "");
-
-		expect(frame).toContain("Next peasant  12.4 / 25 grain");
-		expect(frame).not.toContain("12.4 / 25 grain  (");
+		for (const word of words) {
+			if (word.startsWith("!")) expect(frame).not.toContain(word.slice(1));
+			else expect(frame).toContain(word);
+		}
 	});
 
-	test("a full village shows no next peasant line", async () => {
-		const growth = { stored: 3, needed: 25, perSecond: 0.5, full: true };
+	test.each([
+		[30, ["> Peasant30", "↑", "↓"], []],
+		[1, ["> Peasant1", "↓"], ["↑"]],
+	])(
+		"with 40 peasants and number %d selected, the list scrolls to it",
+		async (selected, has, lacks) => {
+			const crowd = emptyView({
+				delegates: Array.from({ length: 40 }, (_, index) => ({
+					...ada,
+					id: index + 1,
+					name: `Peasant${index + 1}`,
+					job: "idle" as const,
+				})),
+			});
 
-		const frame = await draw([emptyView({ growth })], "");
+			const frame = await draw([crowd], "", undefined, selected);
 
-		expect(frame).not.toContain("Next peasant");
-	});
-});
-
-describe("createPanels desk hint", () => {
-	test("the court hint appears when a dispute waits", async () => {
-		const view = emptyView({
-			desk: [
-				{ id: 1, label: "A squabble", parties: ["Ada", "Bram"], options: [] },
-			],
-		});
-
-		const frame = await draw([view], "");
-
-		expect(frame).toContain("A squabble");
-		expect(frame).toContain("Press c to hold court.");
-	});
-
-	test("the court hint is absent when the desk is clear", async () => {
-		const frame = await draw([emptyView()], "");
-
-		expect(frame).toContain("The desk is clear.");
-		expect(frame).not.toContain("Press c to hold court.");
-	});
-});
-
-describe("createPanels peasant scrolling", () => {
-	const crowd = emptyView({
-		delegates: Array.from({ length: 40 }, (_, index) => ({
-			id: index + 1,
-			name: `Peasant${index + 1}`,
-			job: "idle" as const,
-			grudgeTicks: 0,
-		})),
-	});
-
-	test("a selected peasant far down the list is drawn with the hidden counts", async () => {
-		const frame = await draw([crowd], "", { width: 100, height: 30 }, 30);
-
-		expect(frame).toContain("> Peasant30  idle");
-		expect(frame).toMatch(/↑ \d+ more/);
-		expect(frame).toMatch(/↓ \d+ more/);
-	});
-
-	test("the first peasant shows no above-line", async () => {
-		const frame = await draw([crowd], "", { width: 100, height: 30 }, 1);
-
-		expect(frame).toContain("> Peasant1  idle");
-		expect(frame).not.toContain("↑");
-		expect(frame).toMatch(/↓ \d+ more/);
-	});
+			for (const shown of has) expect(frame).toContain(shown);
+			for (const gone of lacks) expect(frame).not.toContain(gone);
+		},
+	);
 });

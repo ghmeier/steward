@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createNewGame } from "../src/core/state";
 import { computeView } from "../src/core/view";
-import type { KeyPress } from "../src/tui/keys";
 import {
 	type MenuContext,
 	type MenuState,
@@ -11,22 +10,12 @@ import {
 	type ScreenBuilder,
 } from "../src/tui/menu";
 import { tuning } from "./helpers";
+import { key } from "./tui-helpers";
 
 const context: MenuContext = {
 	view: computeView(createNewGame(1, tuning), tuning),
 	tuning,
 };
-
-function key(name: string, modifiers: Partial<KeyPress> = {}): KeyPress {
-	return {
-		name,
-		ctrl: false,
-		meta: false,
-		shift: false,
-		sequence: name,
-		...modifiers,
-	};
-}
 
 function press(state: MenuState, ...names: string[]): MenuState {
 	let current = state;
@@ -74,18 +63,14 @@ const marked = (state: MenuState) =>
 	renderMenu(state, context).lines.findIndex((line) => line.startsWith(">"));
 
 describe("menu cursor", () => {
-	test("j and down move the cursor and k and up move it back", () => {
-		const state = press(openMenu(root), "j", "down", "k");
+	test.each([
+		["j, down and k", ["j", "down", "k"], 1],
+		["up and k at the top", ["up", "k"], 0],
+		["more downs than items", ["j", "j", "j", "j", "down"], 2],
+	])("moving with %s marks item %d", (_name, names, expected) => {
+		const state = press(openMenu(root), ...names);
 
-		expect(marked(state)).toBe(1);
-	});
-
-	test("the cursor stops at the first and last items", () => {
-		const top = press(openMenu(root), "up", "k");
-		const bottom = press(openMenu(root), "j", "j", "j", "j", "down");
-
-		expect(marked(top)).toBe(0);
-		expect(marked(bottom)).toBe(2);
+		expect(marked(state)).toBe(expected);
 	});
 });
 
@@ -163,14 +148,11 @@ describe("menu numeric field", () => {
 	const field = (state: MenuState) =>
 		renderMenu(state, context).lines.join("|");
 
-	test("digits and one point are accepted and letters are ignored", () => {
-		const state = typed("1", "a", ".", "5", ".", "x", "2");
-
-		expect(field(state)).toBe("> 1.52_");
-	});
-
-	test("backspace removes the last character", () => {
-		expect(field(typed("1", "2", "backspace"))).toBe("> 1_");
+	test.each([
+		[["1", "a", ".", "5", ".", "x", "2"], "> 1.52_"],
+		[["1", "2", "backspace"], "> 1_"],
+	])("typing %p shows %s", (names, shown) => {
+		expect(field(typed(...names))).toBe(shown);
 	});
 
 	test("enter accepts a finite number and passes it to the screen", () => {
@@ -197,17 +179,13 @@ describe("menu app requests", () => {
 		items: [{ label: "go", action: { kind: "app", request: "newGame" } }],
 	});
 
-	test("an app item returns the request, emits no command and closes", () => {
-		const step = menuKey(openMenu(asking), key("return"), context);
+	test("an app item returns the request, emits no command and closes; a command item returns no request", () => {
+		const app = menuKey(openMenu(asking), key("return"), context);
+		const command = menuKey(press(openMenu(root), "j"), key("return"), context);
 
-		expect(step.requests).toEqual(["newGame"]);
-		expect(step.commands).toEqual([]);
-		expect(step.state).toBeNull();
-	});
-
-	test("a command item returns no app request", () => {
-		const step = menuKey(press(openMenu(root), "j"), key("return"), context);
-
-		expect(step.requests).toEqual([]);
+		expect(app.requests).toEqual(["newGame"]);
+		expect(app.commands).toEqual([]);
+		expect(app.state).toBeNull();
+		expect(command.requests).toEqual([]);
 	});
 });
