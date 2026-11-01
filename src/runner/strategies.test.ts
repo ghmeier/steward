@@ -3,8 +3,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { tuning } from "../../test/helpers";
-import { createNewGame } from "../core/state";
-import { runSteps } from "../core/step";
+import { Game } from "../core/game";
 import { runSim } from "./sim";
 import {
   createStrategyPlayer,
@@ -114,34 +113,34 @@ describe("promotion under the reference strategy", () => {
       tuning.decrees,
     );
     const player = createStrategyPlayer(strategy);
-    const state = createNewGame(1, tuning);
+    const game = Game.create(1, tuning);
     let firstAtTarget = 0;
     let firstBirth = 0;
     let unpromotedAfter = false;
 
-    runSteps(
-      state,
+    game.steps.runSteps(
       24000,
-      tuning,
       [],
       { absorbed: null, validate: false },
       () => {
         if (
           firstBirth === 0 &&
-          state.posting.nextDelegateId > tuning.economy.initialPopulation + 1
+          game.state.posting.nextDelegateId >
+            tuning.economy.initialPopulation + 1
         ) {
-          firstBirth = state.tick;
+          firstBirth = game.state.tick;
         }
         if (
           firstAtTarget === 0 &&
-          state.posting.delegates.length >= tuning.village.promotionPopulation
+          game.state.posting.delegates.length >=
+            tuning.village.promotionPopulation
         ) {
-          firstAtTarget = state.tick;
+          firstAtTarget = game.state.tick;
         }
-        if (firstAtTarget > 0 && state.career.promotedAt === 0) {
+        if (firstAtTarget > 0 && game.state.career.promotedAt === 0) {
           unpromotedAfter = true;
         }
-        player.observe(state, tuning);
+        player.observe(game);
       },
       player.next,
     );
@@ -149,8 +148,8 @@ describe("promotion under the reference strategy", () => {
     const threeMinutesInTicks = (3 * 60 * 1000) / tuning.stepMs;
     expect(firstBirth).toBeGreaterThan(0);
     expect(firstBirth).toBeLessThanOrEqual(threeMinutesInTicks);
-    expect(state.career.promotedAt).toBeGreaterThan(0);
-    expect(state.career.promotedAt).toBe(firstAtTarget);
+    expect(game.state.career.promotedAt).toBeGreaterThan(0);
+    expect(game.state.career.promotedAt).toBe(firstAtTarget);
     expect(unpromotedAfter).toBe(false);
   });
 });

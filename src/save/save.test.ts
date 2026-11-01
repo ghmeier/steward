@@ -8,7 +8,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createNewGame, type GameState, SCHEMA_VERSION } from "../core/state";
+import { Game } from "../core/game";
+import { type GameState, SCHEMA_VERSION } from "../core/state";
 import { loadTuning } from "./content";
 import {
   loadGame,
@@ -29,7 +30,7 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 function newState(seed = 42): GameState {
-  return createNewGame(seed, loadTuning());
+  return Game.create(seed, loadTuning()).state;
 }
 
 function awkwardState(): GameState {
