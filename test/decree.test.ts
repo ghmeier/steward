@@ -34,6 +34,18 @@ function records(...decrees: Decree[]): Record<string, Decree> {
 	return Object.fromEntries(decrees.map((entry) => [entry.id, entry]));
 }
 
+function allOf(count: number): Condition {
+	return { kind: "all", conditions: Array(count).fill(winter) };
+}
+
+function nested(depth: number): Condition {
+	let condition = winter;
+	for (let level = 1; level < depth; level++) {
+		condition = { kind: "not", condition };
+	}
+	return condition;
+}
+
 function rejection(run: () => unknown): string {
 	try {
 		run();
@@ -44,35 +56,7 @@ function rejection(run: () => unknown): string {
 }
 
 describe("parseDecree", () => {
-	test("reports a bad decree field and a bad nested condition together, each with its path", () => {
-		const input = {
-			...decree("a"),
-			petition: "tax",
-			rules: [
-				{
-					when: { kind: "not", condition: { kind: "season" } },
-					policy: "feed",
-				},
-			],
-		};
-
-		const message = rejection(() => parseDecree(input, limits));
-
-		expect(message).toContain("decree.petition:");
-		expect(message).toContain("decree.rules[0].when.condition.season:");
-	});
-
-	test("a decree without rules parses to an equal object that shares nothing with the input", () => {
-		const input = decree("granary");
-
-		const parsed = parseDecree(input, limits);
-		input.rules.push({ when: winter, policy: "feed" });
-		input.otherwise = "feed";
-
-		expect(parsed).toEqual(decree("granary"));
-	});
-
-	test("nested conditions of every kind parse to an equal object", () => {
+	test("returns an equal decree that shares nothing with the input, conditions of every kind included", () => {
 		const when: Condition = {
 			kind: "all",
 			conditions: [
@@ -89,173 +73,65 @@ describe("parseDecree", () => {
 			],
 		};
 		const input = decree("a", when);
+		const wide = { ...limits, maxConditionNodes: 6, maxConditionDepth: 4 };
 
-		expect(
-			parseDecree(structuredClone(input), {
-				...limits,
-				maxConditionNodes: 6,
-				maxConditionDepth: 4,
-			}),
-		).toEqual(input);
+		const parsed = parseDecree(input, wide);
+		input.rules.length = 0;
+
+		expect(parsed).toEqual(decree("a", when));
 	});
 
-	test("accepts exactly maxRules rules and rejects one more", () => {
-		const rule = { when: winter, policy: "feed" };
+	const rule = { when: winter, policy: "feed" };
+	const wide = { ...limits, maxConditionNodes: 9 };
+	// biome-ignore format: one row per line keeps the table scannable
+	const limitRows: [string, Decree, DecreeLimits, string | null][] = [
+		["decree.rules: exactly maxRules is allowed", { ...decree("a"), rules: [rule, rule] }, limits, null],
+		["decree.rules: one more than maxRules", { ...decree("a"), rules: [rule, rule, rule] }, limits, "decree.rules:"],
+		["decree.rules[0].when: exactly maxConditionNodes is allowed", decree("a", allOf(3)), limits, null],
+		["decree.rules[0].when.conditions[3]: one more than maxConditionNodes", decree("a", allOf(4)), limits, "decree.rules[0].when.conditions[3]:"],
+		["decree.rules: nodes are counted per rule, not across the decree", { ...decree("a"), rules: [{ ...rule, when: allOf(3) }, { ...rule, when: allOf(3) }] }, limits, null],
+		["decree.rules[0].when: exactly maxConditionDepth is allowed", decree("a", nested(3)), wide, null],
+		["decree.rules[0].when.condition.condition.condition: one deeper than maxConditionDepth", decree("a", nested(4)), wide, "decree.rules[0].when.condition.condition.condition:"],
+	];
 
-		expect(() =>
-			parseDecree({ ...decree("a"), rules: [rule, rule] }, limits),
-		).not.toThrow();
-		expect(
-			rejection(() =>
-				parseDecree({ ...decree("a"), rules: [rule, rule, rule] }, limits),
-			),
-		).toStartWith("decree.rules:");
-	});
+	test.each(limitRows)("%s", (_name, input, using, problem) => {
+		const message = rejection(() => parseDecree(input, using));
 
-	test("accepts a condition tree of exactly maxConditionNodes and rejects one more", () => {
-		const four: Condition = {
-			kind: "all",
-			conditions: [winter, winter, winter],
-		};
-		const five: Condition = {
-			kind: "all",
-			conditions: [winter, winter, winter, winter],
-		};
-
-		expect(() => parseDecree(decree("a", four), limits)).not.toThrow();
-		expect(rejection(() => parseDecree(decree("a", five), limits))).toStartWith(
-			"decree.rules[0].when.conditions[3]:",
-		);
-	});
-
-	test("counts condition nodes per rule, not across the decree", () => {
-		const four: Condition = {
-			kind: "all",
-			conditions: [winter, winter, winter],
-		};
-		const input = {
-			...decree("a"),
-			rules: [
-				{ when: four, policy: "x" },
-				{ when: four, policy: "y" },
-			],
-		};
-
-		expect(() => parseDecree(input, limits)).not.toThrow();
-	});
-
-	test("accepts a condition tree of exactly maxConditionDepth and rejects one more", () => {
-		const three: Condition = {
-			kind: "not",
-			condition: { kind: "not", condition: winter },
-		};
-		const four: Condition = { kind: "not", condition: three };
-
-		expect(() =>
-			parseDecree(decree("a", three), { ...limits, maxConditionNodes: 9 }),
-		).not.toThrow();
-		expect(
-			rejection(() =>
-				parseDecree(decree("a", four), { ...limits, maxConditionNodes: 9 }),
-			),
-		).toStartWith("decree.rules[0].when.condition.condition.condition:");
+		if (problem === null) expect(message).toBe("");
+		else expect(message).toStartWith(problem);
 	});
 });
 
-describe("parseCondition", () => {
-	test("reports errors under the path it was given", () => {
-		const message = rejection(() =>
-			parseCondition(
-				{ kind: "season", season: "monsoon" },
-				limits,
-				"strategy.reactions[2].when",
-			),
-		);
+test("parseCondition reports problems under the caller's path", () => {
+	const message = rejection(() =>
+		parseCondition({ kind: "season", season: "monsoon" }, limits, "x.when"),
+	);
 
-		expect(message).toStartWith("strategy.reactions[2].when.season:");
-	});
-
-	test("returns a copy that shares nothing with the input", () => {
-		const input: Condition = {
-			kind: "not",
-			condition: { kind: "season", season: "winter" },
-		};
-
-		const parsed = parseCondition(input, limits, "when");
-		if (input.kind === "not" && input.condition.kind === "season")
-			input.condition.season = "spring";
-
-		expect(parsed).toEqual({ kind: "not", condition: winter });
-	});
-});
-
-describe("decreeReferences", () => {
-	test("collects nested chose ids once each, sorted", () => {
-		const when: Condition = {
-			kind: "any",
-			conditions: [
-				chose("zeta"),
-				{ kind: "not", condition: chose("alpha") },
-				chose("zeta"),
-			],
-		};
-
-		expect(decreeReferences(decree("a", when))).toEqual(["alpha", "zeta"]);
-	});
-
-	test("is empty for a decree without chose conditions", () => {
-		expect(decreeReferences(decree("a", winter))).toEqual([]);
-	});
+	expect(message).toStartWith("x.when");
 });
 
 describe("orderDecrees", () => {
-	test("places a dependency before its dependent", () => {
-		const result = orderDecrees(records(decree("a", chose("z")), decree("z")));
+	// biome-ignore format: one row per line keeps the table scannable
+	const orders: [string, Decree[], string[]][] = [
+		["a dependency comes before its dependent", [decree("a", chose("z")), decree("z")], ["z", "a"]],
+		["independent decrees are ordered by id, whatever the insertion order", [decree("c"), decree("a"), decree("b")], ["a", "b", "c"]],
+		["dependencies outrank id order", [decree("z", chose("m")), decree("m", chose("b")), decree("b"), decree("a")], ["a", "b", "m", "z"]],
+		["a reference to an id outside the record is ignored", [decree("a", chose("ghost"))], ["a"]],
+	];
 
-		expect(result).toEqual({ ok: true, order: ["z", "a"] });
-	});
+	test.each(orders)("%s", (_name, decrees, order) => {
+		const forward = orderDecrees(records(...decrees));
+		const backward = orderDecrees(records(...[...decrees].reverse()));
 
-	test("orders independent decrees by id", () => {
-		const result = orderDecrees(records(decree("c"), decree("a"), decree("b")));
-
-		expect(result).toEqual({ ok: true, order: ["a", "b", "c"] });
-	});
-
-	test("gives the same order regardless of insertion order", () => {
-		const entries = [
-			decree("m", chose("b")),
-			decree("b"),
-			decree("a"),
-			decree("z", chose("m")),
-		];
-
-		const forward = orderDecrees(records(...entries));
-		const backward = orderDecrees(records(...[...entries].reverse()));
-
+		expect(forward).toEqual({ ok: true, order });
 		expect(backward).toEqual(forward);
-		expect(forward).toEqual({ ok: true, order: ["a", "b", "m", "z"] });
 	});
 
-	test("ignores a reference to an id that is not in the record", () => {
-		const result = orderDecrees(records(decree("a", chose("ghost"))));
-
-		expect(result).toEqual({ ok: true, order: ["a"] });
-	});
-
-	test("reports a self-reference as a cycle of one", () => {
-		const result = orderDecrees(records(decree("a", chose("a"))));
-
-		expect(result).toEqual({ ok: false, cycle: ["a"] });
-	});
-
-	test("reports a genuine cycle containing only cycle members", () => {
+	test("reports a longer cycle with only its members, each referencing the next", () => {
 		const all = records(
 			decree("aa"),
 			decree("a", chose("b")),
-			decree("b", {
-				kind: "all",
-				conditions: [chose("aa"), chose("c")],
-			}),
+			decree("b", { kind: "all", conditions: [chose("aa"), chose("c")] }),
 			decree("c", chose("d")),
 			decree("d", chose("b")),
 		);

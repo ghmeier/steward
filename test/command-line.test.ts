@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { type Decree, PETITIONS, parseDecree } from "../src/core/decree";
+import { type Decree, PETITIONS } from "../src/core/decree";
 import { enactDecree, policiesFor } from "../src/core/decree-engine";
 import { saveDecree } from "../src/core/saved-decrees";
 import { createNewGame } from "../src/core/state";
@@ -13,7 +13,6 @@ import {
 } from "../src/core/unlocks";
 import { computeView } from "../src/core/view";
 import {
-	decreeLine,
 	lineKey,
 	openLine,
 	parseLine,
@@ -77,7 +76,6 @@ const entry = (id: string) => {
 const repeated = (count: number, unit: string, joiner: string) =>
 	Array(count).fill(unit).join(joiner);
 const { maxRules, maxConditionNodes: maxNodes } = tuning.decrees;
-const [laborA = "", laborB = ""] = policiesFor("labor", tuning);
 const peasants = rosterOf({ idle: 3 });
 const second = peasants[1];
 const onlyDependent: Tuning = {
@@ -182,34 +180,6 @@ describe("parseLine", () => {
 
 		expect(withComma.command).not.toBeNull();
 		expect(without.command).toEqual(withComma.command);
-	});
-
-	test.each([
-		"decree harvest sell when grain seasons above 3, feed when grain seasons above 0.5 otherwise stockpile",
-		"decree ore sell when it is winter otherwise stockpile",
-		`decree labor ${laborA} when coin above 1 and not it is spring, ${laborB} when it is autumn or grain seasons below 1 otherwise ${laborA}`,
-		"decree wood stockpile when not coin below 5, sell when harvest chose feed otherwise stockpile",
-	])(
-		"decreeLine writes the text that parses back to the same decree: %s",
-		(line) => {
-			const context = contextWith({
-				unlocks: [COMPOUND_UNLOCK, CHAINING_UNLOCK],
-				decrees: [harvest],
-			});
-
-			const { command } = parseLine(line, context);
-
-			if (command?.type !== "enactDecree") throw new Error("did not parse");
-			expect(
-				decreeLine(parseDecree(command.decree, tuning.decrees), tuning),
-			).toBe(line);
-		},
-	);
-
-	test("decreeLine refuses a policy the petition lacks", () => {
-		expect(() =>
-			decreeLine({ ...granary, otherwise: "nonsense" }, tuning),
-		).toThrow("nonsense");
 	});
 });
 

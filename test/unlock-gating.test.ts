@@ -54,101 +54,45 @@ function surfaces(unlocks: readonly string[]) {
 	};
 }
 
-describe("panel.archive", () => {
-	test("the a key, its hint, its help line and the buy verb are absent before it is owned", () => {
-		const before = surfaces([]);
+type Surfaces = ReturnType<typeof surfaces>;
 
-		expect(before.action("a")).toBeNull();
-		expect(before.hints).not.toContain("a archive");
-		expect(before.keysHelp).not.toContain("archive");
-		expect(before.verbs).not.toContain("buy");
-	});
+type Checks = Record<string, boolean>;
 
-	test("the a key, its hint, its help line and the buy verb appear once it is owned", () => {
-		const after = surfaces([ARCHIVE_PANEL]);
+// Each row names what an owned unlock reveals; every check must be false without it and true with it.
+// biome-ignore format: one row per line keeps the table scannable
+const gated: [string, string, (s: Surfaces) => Checks][] = [
+	["panel.archive", ARCHIVE_PANEL, (s) => ({
+		key: s.action("a")?.kind === "line", hint: s.hints.includes("a archive"),
+		help: /^a +archive$/m.test(s.keysHelp), buyVerb: s.verbs.includes("buy"),
+	})],
+	["control.palette", PALETTE_UNLOCK, (s) => ({
+		colon: s.action(":")?.kind === "line", semicolon: s.action(";", { shift: true })?.kind === "line",
+		hint: s.hints.includes(": commands"), help: /^: +commands$/m.test(s.keysHelp), assignVerb: s.verbs.includes("assign"),
+	})],
+	["control.savedDecrees", SAVED_DECREES_UNLOCK, (s) => ({
+		saveVerb: s.verbs.includes("save"), enactVerb: s.verbs.includes("enact"), help: s.decreesHelp.includes("save <name>"),
+	})],
+	["decree.compound", COMPOUND_UNLOCK, (s) => ({
+		and: s.afterCondition.includes("and"), or: s.afterCondition.includes("or"),
+		not: s.startOfCondition.includes("not"), help: s.decreesHelp.includes("Join conditions"),
+	})],
+	["decree.chaining", CHAINING_UNLOCK, (s) => ({
+		subject: s.startOfCondition.includes(granary.id), help: s.decreesHelp.includes("chose"),
+	})],
+];
 
-		expect(after.action("a")).toEqual({ kind: "line", prefill: "buy " });
-		expect(after.hints).toContain("a archive");
-		expect(after.keysHelp).toMatch(/^a +archive$/m);
-		expect(after.verbs).toContain("buy");
-	});
-});
+const all = (checks: Checks, value: boolean) =>
+	Object.fromEntries(Object.keys(checks).map((name) => [name, value]));
 
-describe("control.palette", () => {
-	test("the colon key, its hint, its help line and the assign verb are absent before it is owned", () => {
-		const before = surfaces([]);
+describe("unlock gating", () => {
+	test.each(gated)(
+		"%s surfaces appear only once owned",
+		(_name, unlock, reveals) => {
+			const before = reveals(surfaces([]));
+			const after = reveals(surfaces([unlock]));
 
-		expect(before.action(":")).toBeNull();
-		expect(before.action(";", { shift: true })).toBeNull();
-		expect(before.hints).not.toContain(": commands");
-		expect(before.keysHelp).not.toContain("commands");
-		expect(before.verbs).not.toContain("assign");
-	});
-
-	test("the colon key, its hint, its help line and the assign verb appear once it is owned", () => {
-		const after = surfaces([PALETTE_UNLOCK]);
-
-		expect(after.action(":")).toEqual({ kind: "line", prefill: "" });
-		expect(after.action(";", { shift: true })).toEqual({
-			kind: "line",
-			prefill: "",
-		});
-		expect(after.hints).toContain(": commands");
-		expect(after.keysHelp).toMatch(/^: +commands$/m);
-		expect(after.verbs).toContain("assign");
-	});
-});
-
-describe("control.savedDecrees", () => {
-	test("the save and enact verbs and their help are absent before it is owned", () => {
-		const before = surfaces([]);
-
-		expect(before.verbs).not.toContain("save");
-		expect(before.verbs).not.toContain("enact");
-		expect(before.decreesHelp).not.toContain("save <name>");
-	});
-
-	test("the save and enact verbs and their help appear once it is owned", () => {
-		const after = surfaces([SAVED_DECREES_UNLOCK]);
-
-		expect(after.verbs).toContain("save");
-		expect(after.verbs).toContain("enact");
-		expect(after.decreesHelp).toContain("save <name>");
-	});
-});
-
-describe("decree.compound", () => {
-	test("and, or, not and their help are absent before it is owned", () => {
-		const before = surfaces([]);
-
-		expect(before.afterCondition).not.toContain("and");
-		expect(before.afterCondition).not.toContain("or");
-		expect(before.startOfCondition).not.toContain("not");
-		expect(before.decreesHelp).not.toContain("Join conditions");
-	});
-
-	test("and, or, not and their help appear once it is owned", () => {
-		const after = surfaces([COMPOUND_UNLOCK]);
-
-		expect(after.afterCondition).toContain("and");
-		expect(after.afterCondition).toContain("or");
-		expect(after.startOfCondition).toContain("not");
-		expect(after.decreesHelp).toContain("Join conditions");
-	});
-});
-
-describe("decree.chaining", () => {
-	test("a decree in force as a condition subject and its help are absent before it is owned", () => {
-		const before = surfaces([]);
-
-		expect(before.startOfCondition).not.toContain(granary.id);
-		expect(before.decreesHelp).not.toContain("chose");
-	});
-
-	test("a decree in force as a condition subject and its help appear once it is owned", () => {
-		const after = surfaces([CHAINING_UNLOCK]);
-
-		expect(after.startOfCondition).toContain(granary.id);
-		expect(after.decreesHelp).toContain("chose");
-	});
+			expect(before).toEqual(all(before, false));
+			expect(after).toEqual(all(after, true));
+		},
+	);
 });

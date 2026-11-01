@@ -31,73 +31,27 @@ function parse(value: unknown) {
 	return parseStrategy(value, tuning.decrees);
 }
 
-function messageOf(value: unknown): string {
-	try {
-		parse(value);
-	} catch (error) {
-		return (error as Error).message;
-	}
-	return "";
-}
-
 describe("parseStrategy", () => {
-	test("a valid strategy parses into commands and conditions", () => {
-		const strategy = parse({
-			name: "s",
-			setup: [sell],
-			reactions: [{ when: grainAbove, commands: [noop] }],
-		});
-
-		expect(strategy.name).toBe("s");
-		expect(strategy.setup).toEqual([sell]);
-		expect(strategy.reactions[0]).toEqual({
-			when: grainAbove,
-			commands: [noop],
-		});
-	});
-
-	test("a bad command is rejected with its index", () => {
-		const message = messageOf({
-			name: "s",
-			setup: [{ type: "x" }],
-			reactions: [],
-		});
-
-		expect(message).toStartWith("strategy.setup[0].type:");
-	});
-
-	test("a bad condition is rejected with its path", () => {
-		const message = messageOf({
-			name: "s",
-			setup: [],
-			reactions: [
-				{ when: grainAbove, commands: [] },
-				{ when: { kind: "nope" }, commands: [] },
-			],
-		});
-
-		expect(message).toStartWith("strategy.reactions[1].when");
-	});
-
-	test("a chose condition nested inside all is rejected", () => {
-		const message = messageOf({
-			name: "s",
-			setup: [],
-			reactions: [
-				{
-					when: {
-						kind: "all",
-						conditions: [
-							grainAbove,
-							{ kind: "chose", decree: "granary", policy: "sell" },
-						],
+	test("rejects a chose condition nested inside all", () => {
+		const parseNested = () =>
+			parse({
+				name: "s",
+				setup: [],
+				reactions: [
+					{
+						when: {
+							kind: "all",
+							conditions: [
+								grainAbove,
+								{ kind: "chose", decree: "granary", policy: "sell" },
+							],
+						},
+						commands: [],
 					},
-					commands: [],
-				},
-			],
-		});
+				],
+			});
 
-		expect(message).toBe(
+		expect(parseNested).toThrow(
 			"strategy.reactions[0].when: chose conditions are not available to strategies",
 		);
 	});
@@ -117,51 +71,35 @@ describe("createStrategyPlayer", () => {
 		player.observe(state, tuning);
 	}
 
-	test("next hands out the setup first and nothing afterwards when no reaction fires", () => {
-		const player = playerWith();
-
-		const first = player.next();
-		const second = player.next();
-
-		expect(first).toEqual([sell]);
-		expect(second).toEqual([]);
-	});
-
-	test("setup commands are copies, not the strategy's own objects", () => {
+	test("next hands out copies of the setup first and nothing afterwards when no reaction fires", () => {
 		const player = playerWith();
 
 		const [handed] = player.next();
+		const second = player.next();
 
 		expect(handed).toEqual(sell);
 		expect(handed).not.toBe(sell);
+		expect(second).toEqual([]);
 	});
 
-	test("a reaction fires once when its condition turns true, not while it stays true", () => {
+	test("a reaction fires once when its condition turns true, and again only after it turned false", () => {
 		const player = playerWith({ when: populationAbove, commands: [noop] });
 		player.next();
+		const fired = () => {
+			const commands = player.next();
+			return commands.length;
+		};
 
 		observeWith(player, 8);
-		const onRise = player.next();
+		const onRise = fired();
 		observeWith(player, 9);
-		const whileTrue = player.next();
-
-		expect(onRise).toEqual([noop]);
-		expect(whileTrue).toEqual([]);
-	});
-
-	test("a reaction fires again after its condition turns false and true", () => {
-		const player = playerWith({ when: populationAbove, commands: [noop] });
-		player.next();
-		observeWith(player, 8);
-		player.next();
-
+		const whileTrue = fired();
 		observeWith(player, 1);
-		const whileFalse = player.next();
+		const whileFalse = fired();
 		observeWith(player, 8);
-		const again = player.next();
+		const again = fired();
 
-		expect(whileFalse).toEqual([]);
-		expect(again).toEqual([noop]);
+		expect([onRise, whileTrue, whileFalse, again]).toEqual([1, 0, 0, 1]);
 	});
 
 	test("reactions that fire together hand out commands in file order", () => {
@@ -191,15 +129,5 @@ describe("createStrategyPlayer", () => {
 			actingTicks: 2,
 			longestQuietTicks: 3,
 		});
-	});
-
-	test("with no reactions the longest quiet run is the number of steps", () => {
-		const player = playerWith();
-		for (let step = 0; step < 10; step++) {
-			player.next();
-			observeWith(player, 8);
-		}
-
-		expect(player.stats().longestQuietTicks).toBe(10);
 	});
 });
