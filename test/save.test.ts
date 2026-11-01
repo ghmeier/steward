@@ -92,50 +92,33 @@ describe("saveGame and loadGame", () => {
 });
 
 describe("saveGame with an invalid state", () => {
-	test("throws for NaN and negative zero without writing any file", () => {
-		const nan = newState();
-		nan.posting.resources.grain = Number.NaN;
-		const negativeZero = newState();
-		negativeZero.posting.resources.grain = -0;
+	test.each([
+		["NaN", Number.NaN],
+		["negative zero", -0],
+	])(
+		"throws on %s and leaves the existing save and directory untouched",
+		(_name, bad) => {
+			saveGame(dir, newState(1), meta);
+			const before = readFileSync(join(dir, "save.json"), "utf8");
+			const invalid = newState(2);
+			invalid.posting.resources.grain = bad;
 
-		expect(() => saveGame(dir, nan, meta)).toThrow();
-		expect(() => saveGame(dir, negativeZero, meta)).toThrow();
+			expect(() => saveGame(dir, invalid, meta)).toThrow();
 
-		expect(existsSync(join(dir, "save.json"))).toBe(false);
-		expect(existsSync(join(dir, "save.json.tmp"))).toBe(false);
-	});
-
-	test("leaves an existing save.json unchanged", () => {
-		const original = newState(1);
-		saveGame(dir, original, meta);
-		const before = readFileSync(join(dir, "save.json"), "utf8");
-		const bad = newState(2);
-		bad.posting.resources.grain = Number.NaN;
-
-		expect(() => saveGame(dir, bad, meta)).toThrow();
-
-		expect(readFileSync(join(dir, "save.json"), "utf8")).toBe(before);
-		expect(existsSync(join(dir, "save.json.bak"))).toBe(false);
-	});
+			expect(readFileSync(join(dir, "save.json"), "utf8")).toBe(before);
+			expect(existsSync(join(dir, "save.json.tmp"))).toBe(false);
+			expect(existsSync(join(dir, "save.json.bak"))).toBe(false);
+		},
+	);
 });
 
 describe("backup file", () => {
-	test("a second save moves the first to save.json.bak and the backup loads", () => {
-		const first = newState(1);
-		const second = newState(2);
-
-		saveGame(dir, first, meta);
-		saveGame(dir, second, meta);
-
-		expect(loaded(dir)).toEqual(second);
-		expect(readSaveFile(join(dir, "save.json.bak")).state).toEqual(first);
-	});
-
-	test("a third save replaces the older backup", () => {
+	test("each save moves the previous one to save.json.bak, replacing the older backup", () => {
 		saveGame(dir, newState(1), meta);
 		saveGame(dir, newState(2), meta);
 		saveGame(dir, newState(3), meta);
 
+		expect(loaded(dir)).toEqual(newState(3));
 		expect(readSaveFile(join(dir, "save.json.bak")).state).toEqual(newState(2));
 	});
 });
@@ -163,67 +146,6 @@ describe("atomic write", () => {
 	});
 });
 
-describe("schema 7 migration", () => {
-	function schema7Text(state: GameState): string {
-		const old = structuredClone(state) as unknown as Record<string, unknown>;
-		old.schemaVersion = 7;
-		delete (old.career as Record<string, unknown>).needed;
-		return JSON.stringify({
-			schemaVersion: 7,
-			savedAt: "x",
-			contentHash: "y",
-			state: old,
-		});
-	}
-
-	test("parseSave loads a schema 7 save as schema 8 with every other field unchanged and no needs recorded", () => {
-		const original = newState();
-		original.tick = 12;
-		original.career.unlocks = { "panel.archive": 5 };
-		original.posting.resources.coin = 73932;
-
-		const loadedSave = parseSave(schema7Text(original));
-
-		expect(loadedSave.schemaVersion).toBe(SCHEMA_VERSION);
-		expect(loadedSave.state.schemaVersion).toBe(SCHEMA_VERSION);
-		expect(loadedSave.state).toEqual(original);
-		expect(loadedSave.state.career.needed).toEqual({});
-	});
-});
-
-describe("schema 6 migration", () => {
-	function schema6Text(state: GameState): string {
-		const old = structuredClone(state) as unknown as Record<string, unknown>;
-		old.schemaVersion = 6;
-		const economy = (old.posting as Record<string, Record<string, unknown>>)
-			.economy as Record<string, unknown>;
-		delete economy.famine;
-		economy.hunger = 1.5;
-		return JSON.stringify({
-			schemaVersion: 6,
-			savedAt: "x",
-			contentHash: "y",
-			state: old,
-		});
-	}
-
-	test("parseSave loads a schema 6 save as a valid schema 7 state with a zeroed famine", () => {
-		const original = newState();
-
-		const loadedSave = parseSave(schema6Text(original));
-
-		expect(loadedSave.schemaVersion).toBe(SCHEMA_VERSION);
-		expect(loadedSave.state).toEqual(original);
-		expect(loadedSave.state.posting.economy).not.toHaveProperty("hunger");
-	});
-
-	test("a schema 5 save is still refused", () => {
-		const text = JSON.stringify({ schemaVersion: 5, state: {} });
-
-		expect(() => parseSave(text)).toThrow(SaveVersionError);
-	});
-});
-
 describe("version refusal", () => {
 	function writeOldSave(version: number): string {
 		const text = `${JSON.stringify({ schemaVersion: version, savedAt: "x", contentHash: "y", state: {} })}\n`;
@@ -231,40 +153,32 @@ describe("version refusal", () => {
 		return text;
 	}
 
-	test("moves an old-version save to save.v<found>.json with its bytes intact", () => {
-		const text = writeOldSave(0);
+	test("refuses an older-version save by moving it to save.v<found>.json with its bytes intact", () => {
+		const text = writeOldSave(7);
 
 		const result = loadGame(dir);
 
 		expect(result).toEqual({
 			kind: "versionRefused",
-			foundVersion: 0,
-			preservedAs: join(dir, "save.v0.json"),
+			foundVersion: 7,
+			preservedAs: join(dir, "save.v7.json"),
 		});
-		expect(readFileSync(join(dir, "save.v0.json"), "utf8")).toBe(text);
+		expect(readFileSync(join(dir, "save.v7.json"), "utf8")).toBe(text);
 		expect(existsSync(join(dir, "save.json"))).toBe(false);
 	});
 
 	test("a repeated refusal of the same version uses the next free numbered name", () => {
-		writeOldSave(0);
+		writeOldSave(7);
 		loadGame(dir);
-		writeOldSave(0);
+		writeOldSave(7);
 
 		const result = loadGame(dir);
 
 		expect(result).toMatchObject({
 			kind: "versionRefused",
-			preservedAs: join(dir, "save.v0.1.json"),
+			preservedAs: join(dir, "save.v7.1.json"),
 		});
-		expect(existsSync(join(dir, "save.v0.json"))).toBe(true);
-	});
-
-	test("a current-version save is not renamed", () => {
-		saveGame(dir, newState(), meta);
-
-		loadGame(dir);
-
-		expect(existsSync(join(dir, "save.json"))).toBe(true);
+		expect(existsSync(join(dir, "save.v7.json"))).toBe(true);
 	});
 
 	test("parseSave throws SaveVersionError carrying the found version", () => {

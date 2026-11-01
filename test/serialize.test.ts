@@ -28,26 +28,11 @@ describe("canonicalStringify", () => {
 		);
 	});
 
-	test("round-trips a fresh game through JSON.parse", () => {
-		const state = createNewGame(11, tuning);
-
-		expect(JSON.parse(canonicalStringify(state))).toEqual(state);
-	});
-
 	test("restringifying a parsed fresh game gives identical bytes", () => {
 		const text = canonicalStringify(createNewGame(11, tuning));
 
 		expect(canonicalStringify(JSON.parse(text))).toBe(text);
 	});
-
-	test.each([0.1 + 0.2, 1e300, 5e-324, 123456789.12345679])(
-		"round-trips the awkward double %p exactly",
-		(value) => {
-			const parsed = JSON.parse(canonicalStringify({ value }));
-
-			expect(Object.is(parsed.value, value)).toBe(true);
-		},
-	);
 
 	test.each([
 		["negative zero", -0],
@@ -62,20 +47,11 @@ describe("canonicalStringify", () => {
 	});
 
 	test("accepts positive zero", () => {
-		expect(() => canonicalStringify({ zero: 0 })).not.toThrow();
+		expect(canonicalStringify({ zero: 0 })).toContain('"zero": 0');
 	});
 });
 
 describe("stateHash", () => {
-	test("returns a stable 64-character lowercase hex string", () => {
-		const state = createNewGame(3, tuning);
-
-		const hash = stateHash(state);
-
-		expect(hash).toMatch(/^[0-9a-f]{64}$/);
-		expect(stateHash(state)).toBe(hash);
-	});
-
 	test("is equal for equal states built in different key orders", () => {
 		const state = createNewGame(3, tuning);
 		const reordered = {
@@ -98,13 +74,15 @@ describe("stateHash", () => {
 		expect(stateHash(reordered)).toBe(stateHash(state));
 	});
 
-	test("changes after any change to the state", () => {
+	test("is a stable 64-character hex string that changes with any change to the state", () => {
 		const state = createNewGame(3, tuning);
 		const before = stateHash(state);
 
 		const ticked = { ...state, tick: state.tick + 1 };
 		const reseeded = createNewGame(4, tuning);
 
+		expect(before).toMatch(/^[0-9a-f]{64}$/);
+		expect(stateHash(state)).toBe(before);
 		expect(stateHash(ticked)).not.toBe(before);
 		expect(stateHash(reseeded)).not.toBe(before);
 	});

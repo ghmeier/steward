@@ -8,9 +8,9 @@ describe("defaultSaveDir", () => {
 	test("uses STEWARD_SAVE_DIR on every platform", () => {
 		const env = { STEWARD_SAVE_DIR: "/custom/saves", XDG_DATA_HOME: "/xdg" };
 
-		expect(defaultSaveDir(env, "linux", home)).toBe("/custom/saves");
-		expect(defaultSaveDir(env, "darwin", home)).toBe("/custom/saves");
-		expect(defaultSaveDir(env, "win32", home)).toBe("/custom/saves");
+		for (const platform of ["linux", "darwin", "win32"] as const) {
+			expect(defaultSaveDir(env, platform, home)).toBe("/custom/saves");
+		}
 	});
 
 	test("uses Application Support on macOS", () => {

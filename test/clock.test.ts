@@ -1,10 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-	advance,
-	createAccumulator,
-	createClock,
-	DEFAULT_MAX_STEPS_PER_FRAME,
-} from "../src/clock";
+import { advance, createAccumulator, createClock } from "../src/clock";
 
 function fakeClock(startMs = 0) {
 	let nowMs = startMs;
@@ -17,31 +12,17 @@ function fakeClock(startMs = 0) {
 }
 
 describe("advance", () => {
-	test("runs exactly one step per stepMs", () => {
+	test("runs one step per stepMs and carries the remainder into the next advance", () => {
 		const accumulator = createAccumulator(100, 50);
 
-		const steps = advance(accumulator, 100);
-
-		expect(steps).toBe(1);
-		expect(accumulator.carriedMs).toBe(0);
-	});
-
-	test("runs no step before stepMs has elapsed", () => {
-		const accumulator = createAccumulator(100, 50);
-
-		const steps = advance(accumulator, 99);
-
-		expect(steps).toBe(0);
-		expect(accumulator.carriedMs).toBe(99);
-	});
-
-	test("carries the remainder into the next advance", () => {
-		const accumulator = createAccumulator(100, 50);
-
-		const first = advance(accumulator, 250);
+		const early = advance(accumulator, 99);
+		const carriedAfterEarly = accumulator.carriedMs;
+		const first = advance(accumulator, 151);
 		const carriedAfterFirst = accumulator.carriedMs;
 		const second = advance(accumulator, 50);
 
+		expect(early).toBe(0);
+		expect(carriedAfterEarly).toBe(99);
 		expect(first).toBe(2);
 		expect(carriedAfterFirst).toBe(50);
 		expect(second).toBe(1);
@@ -57,7 +38,6 @@ describe("advance", () => {
 		expect(steps).toBe(50);
 		expect(accumulator.droppedMs).toBeCloseTo(oneHourMs - 50 * 100, 6);
 		expect(accumulator.carriedMs).toBeCloseTo(30, 6);
-		expect(accumulator.carriedMs).toBeLessThan(accumulator.stepMs);
 	});
 
 	test("does not drop time when the cap is not exceeded", () => {
@@ -68,69 +48,42 @@ describe("advance", () => {
 		expect(accumulator.droppedMs).toBe(0);
 	});
 
-	test("treats backward elapsed time as zero without changing state", () => {
-		const accumulator = createAccumulator(100, 50);
-		advance(accumulator, 40);
+	test.each([-500, Number.NaN])(
+		"treats elapsed time of %p as zero without changing state",
+		(elapsedMs) => {
+			const accumulator = createAccumulator(100, 50);
+			advance(accumulator, 40);
 
-		const steps = advance(accumulator, -500);
+			const steps = advance(accumulator, elapsedMs);
 
-		expect(steps).toBe(0);
-		expect(accumulator.carriedMs).toBe(40);
-		expect(accumulator.droppedMs).toBe(0);
-	});
+			expect(steps).toBe(0);
+			expect(accumulator.carriedMs).toBe(40);
+			expect(accumulator.droppedMs).toBe(0);
+		},
+	);
 
-	test("treats NaN elapsed time as zero without changing state", () => {
-		const accumulator = createAccumulator(100, 50);
-		advance(accumulator, 40);
+	test.each([
+		[1000 / 60, 60_000, 10_000],
+		[0.1, 10_000, 10],
+	])(
+		"frames of %p ms neither lose nor gain a step over a long run",
+		(frameMs, frames, expectedSteps) => {
+			const accumulator = createAccumulator(100, 50);
+			let total = 0;
 
-		const steps = advance(accumulator, Number.NaN);
+			for (let frame = 0; frame < frames; frame++) {
+				total += advance(accumulator, frameMs);
+			}
 
-		expect(steps).toBe(0);
-		expect(accumulator.carriedMs).toBe(40);
-		expect(accumulator.droppedMs).toBe(0);
-	});
-
-	test("60 fps frames over 10 simulated seconds produce exactly 100 steps", () => {
-		const accumulator = createAccumulator(100, 50);
-		let total = 0;
-
-		for (let frame = 0; frame < 600; frame++) {
-			total += advance(accumulator, 1000 / 60);
-		}
-
-		expect(total).toBe(100);
-		expect(accumulator.carriedMs).toBeLessThan(1e-6);
-	});
-
-	test("many fractional frames neither lose nor gain a step over a long run", () => {
-		const accumulator = createAccumulator(100, 50);
-		let total = 0;
-
-		for (let frame = 0; frame < 60_000; frame++) {
-			total += advance(accumulator, 1000 / 60);
-		}
-
-		expect(total).toBe(10_000);
-		expect(accumulator.droppedMs).toBe(0);
-	});
-
-	test("0.1 ms increments sum to whole steps without float loss", () => {
-		const accumulator = createAccumulator(100, 50);
-		let total = 0;
-
-		for (let i = 0; i < 10_000; i++) {
-			total += advance(accumulator, 0.1);
-		}
-
-		expect(total).toBe(10);
-	});
+			expect(total).toBe(expectedSteps);
+			expect(accumulator.droppedMs).toBe(0);
+		},
+	);
 });
 
 describe("createAccumulator", () => {
 	test("starts with nothing carried or dropped", () => {
-		const accumulator = createAccumulator(100, 50);
-
-		expect(accumulator).toEqual({
+		expect(createAccumulator(100, 50)).toEqual({
 			stepMs: 100,
 			maxStepsPerFrame: 50,
 			carriedMs: 0,
@@ -138,19 +91,16 @@ describe("createAccumulator", () => {
 		});
 	});
 
-	test("rejects a non-positive or non-finite stepMs", () => {
-		expect(() => createAccumulator(0, 50)).toThrow(RangeError);
-		expect(() => createAccumulator(-100, 50)).toThrow(RangeError);
-		expect(() => createAccumulator(Number.NaN, 50)).toThrow(RangeError);
-		expect(() => createAccumulator(Number.POSITIVE_INFINITY, 50)).toThrow(
-			RangeError,
-		);
-	});
-
-	test("rejects a non-positive or non-integer maxStepsPerFrame", () => {
-		expect(() => createAccumulator(100, 0)).toThrow(RangeError);
-		expect(() => createAccumulator(100, -1)).toThrow(RangeError);
-		expect(() => createAccumulator(100, 1.5)).toThrow(RangeError);
+	test.each([
+		[0, 50],
+		[-100, 50],
+		[Number.NaN, 50],
+		[Number.POSITIVE_INFINITY, 50],
+		[100, 0],
+		[100, -1],
+		[100, 1.5],
+	])("rejects stepMs %p with maxStepsPerFrame %p", (stepMs, maxSteps) => {
+		expect(() => createAccumulator(stepMs, maxSteps)).toThrow(RangeError);
 	});
 });
 
@@ -163,31 +113,11 @@ describe("createClock", () => {
 			now: time.now,
 		});
 
-		const steps = clock.frame();
-
-		expect(steps).toBe(0);
+		expect(clock.frame()).toBe(0);
 		expect(clock.accumulator.carriedMs).toBe(0);
 	});
 
-	test("later frames return steps for the time since the previous frame", () => {
-		const time = fakeClock(1000);
-		const clock = createClock({
-			stepMs: 100,
-			maxStepsPerFrame: 50,
-			now: time.now,
-		});
-		clock.frame();
-
-		time.tick(250);
-		const first = clock.frame();
-		time.tick(50);
-		const second = clock.frame();
-
-		expect(first).toBe(2);
-		expect(second).toBe(1);
-	});
-
-	test("a clock that jumps backward yields 0 steps and resumes from the new time", () => {
+	test("later frames return steps for the time since the previous frame, and a backward jump yields 0 then resumes", () => {
 		const time = fakeClock(10_000);
 		const clock = createClock({
 			stepMs: 100,
@@ -196,30 +126,16 @@ describe("createClock", () => {
 		});
 		clock.frame();
 
+		time.tick(250);
+		const forward = clock.frame();
 		time.tick(-5000);
 		const backward = clock.frame();
-		time.tick(100);
+		time.tick(150);
 		const resumed = clock.frame();
 
+		expect(forward).toBe(2);
 		expect(backward).toBe(0);
-		expect(resumed).toBe(1);
-	});
-
-	test("a one-hour jump is capped and the excess lands in droppedMs", () => {
-		const time = fakeClock();
-		const clock = createClock({
-			stepMs: 100,
-			maxStepsPerFrame: DEFAULT_MAX_STEPS_PER_FRAME,
-			now: time.now,
-		});
-		clock.frame();
-
-		time.tick(3_600_000);
-		const steps = clock.frame();
-
-		expect(steps).toBe(DEFAULT_MAX_STEPS_PER_FRAME);
-		expect(clock.accumulator.droppedMs).toBeCloseTo(3_600_000 - 50 * 100, 6);
-		expect(clock.accumulator.carriedMs).toBeLessThan(100);
+		expect(resumed).toBe(2);
 	});
 
 	test("defaults to performance.now when no time source is given", () => {

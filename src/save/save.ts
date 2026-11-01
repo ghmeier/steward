@@ -51,32 +51,9 @@ export function serializeSave(state: GameState, meta: SaveMeta): string {
 	return canonicalStringify(save);
 }
 
-// Version 6 tracked a fractional hunger counter; a famine in progress simply restarts.
-function migrateV6ToV7(record: Record<string, unknown>): void {
-	record.schemaVersion = 7;
-	const state = record.state;
-	if (!isRecord(state)) return;
-	state.schemaVersion = 7;
-	const posting = state.posting;
-	if (!isRecord(posting) || !isRecord(posting.economy)) return;
-	delete posting.economy.hunger;
-	posting.economy.famine = { startPopulation: 0, ticks: 0, deaths: 0 };
-}
-
-// Version 7 had no record of when each control was first needed; it starts empty.
-function migrateV7ToV8(record: Record<string, unknown>): void {
-	record.schemaVersion = 8;
-	const state = record.state;
-	if (!isRecord(state)) return;
-	state.schemaVersion = 8;
-	if (isRecord(state.career)) state.career.needed = {};
-}
-
 export function parseSave(text: string): SaveFile {
 	const record: unknown = JSON.parse(text);
 	if (!isRecord(record)) throw new Error("save must be a JSON object");
-	if (record.schemaVersion === 6) migrateV6ToV7(record);
-	if (record.schemaVersion === 7) migrateV7ToV8(record);
 	if (record.schemaVersion !== SCHEMA_VERSION) {
 		throw new SaveVersionError(record.schemaVersion);
 	}

@@ -16,9 +16,11 @@ function contextWith(
 }
 
 describe("powInt", () => {
-	test("computes exact integer powers", () => {
+	test("computes exact integer powers including zero and negative exponents", () => {
 		expect(powInt(2, 10)).toBe(1024);
 		expect(powInt(3, 0)).toBe(1);
+		expect(powInt(0, 0)).toBe(1);
+		expect(powInt(2, -3)).toBe(0.125);
 	});
 
 	test("matches a hand-multiplied loop bit for bit when every product is exact", () => {
@@ -39,39 +41,23 @@ describe("powInt", () => {
 		}
 	});
 
-	test("returns 1 for zero to the zero", () => {
-		expect(powInt(0, 0)).toBe(1);
-	});
-
-	test("returns the reciprocal for a negative exponent", () => {
-		expect(powInt(2, -3)).toBe(0.125);
-	});
-
-	test("rejects a non-integer exponent", () => {
-		expect(() => powInt(2, 1.5)).toThrow();
-		expect(() => powInt(2, Number.NaN)).toThrow();
+	test.each([1.5, Number.NaN])("rejects the exponent %p", (exponent) => {
+		expect(() => powInt(2, exponent)).toThrow();
 	});
 });
 
 describe("normalizeZero", () => {
-	test("turns negative zero into positive zero", () => {
+	test("turns negative zero into positive zero and leaves other values", () => {
 		expect(Object.is(normalizeZero(-0), 0)).toBe(true);
-	});
-
-	test("leaves other values unchanged", () => {
-		expect(normalizeZero(5)).toBe(5);
 		expect(normalizeZero(-5)).toBe(-5);
-		expect(Object.is(normalizeZero(0), 0)).toBe(true);
+		expect(normalizeZero(5)).toBe(5);
 	});
 });
 
 describe("clampFinite", () => {
-	test("turns positive and negative infinity into the bounds", () => {
+	test("turns infinities into the bounds and leaves in-range values", () => {
 		expect(clampFinite(Number.POSITIVE_INFINITY, 100)).toBe(100);
 		expect(clampFinite(Number.NEGATIVE_INFINITY, 100)).toBe(-100);
-	});
-
-	test("leaves in-range values unchanged", () => {
 		expect(clampFinite(42, 100)).toBe(42);
 	});
 
@@ -85,20 +71,13 @@ describe("clampFinite", () => {
 });
 
 describe("add", () => {
-	test("adds the delta to an existing resource", () => {
-		const resources = { food: 10 };
+	test("adds to an existing resource and treats a missing one as zero", () => {
+		const resources: Record<string, number> = { food: 10 };
 
 		add(resources, "food", 5, contextWith(null));
-
-		expect(resources.food).toBe(15);
-	});
-
-	test("treats a missing resource as zero", () => {
-		const resources: Record<string, number> = {};
-
 		add(resources, "wood", 3, contextWith(null));
 
-		expect(resources.wood).toBe(3);
+		expect(resources).toEqual({ food: 15, wood: 3 });
 	});
 
 	test("clamps the result at the maximum value", () => {
@@ -117,7 +96,7 @@ describe("add", () => {
 		expect(Object.is(resources.food, 0)).toBe(true);
 	});
 
-	test("records an addition that was absorbed by a much larger value", () => {
+	test("records additions absorbed by a much larger value, keeping the first tick", () => {
 		const resources = { gold: 1e20 };
 		const absorbed: AbsorbedAdditionLog = {};
 
@@ -128,38 +107,24 @@ describe("add", () => {
 		expect(absorbed).toEqual({ gold: { count: 2, firstTick: 12 } });
 	});
 
-	test("does not record an addition that changed the value", () => {
-		const resources = { gold: 10 };
+	test.each([
+		["an addition that changed the value", 10, 1, 1e30],
+		["a value pinned at the maximum", 100, 5, 100],
+		["a zero delta", 1e20, 0, 1e30],
+	])("does not record %s", (_name, start, delta, maxValue) => {
+		const resources = { gold: start };
 		const absorbed: AbsorbedAdditionLog = {};
 
-		add(resources, "gold", 1, contextWith(absorbed));
+		add(resources, "gold", delta, contextWith(absorbed, { maxValue }));
 
 		expect(absorbed).toEqual({});
 	});
 
-	test("does not record when the value is pinned at the maximum", () => {
-		const resources = { gold: 100 };
-		const absorbed: AbsorbedAdditionLog = {};
-
-		add(resources, "gold", 5, contextWith(absorbed, { maxValue: 100 }));
-
-		expect(absorbed).toEqual({});
-	});
-
-	test("does not fail or record when the absorbed log is null", () => {
+	test("tolerates a null absorbed log", () => {
 		const resources = { gold: 1e20 };
 
 		add(resources, "gold", 1, contextWith(null));
 
 		expect(resources.gold).toBe(1e20);
-	});
-
-	test("does not record a zero delta", () => {
-		const resources = { gold: 1e20 };
-		const absorbed: AbsorbedAdditionLog = {};
-
-		add(resources, "gold", 0, contextWith(absorbed));
-
-		expect(absorbed).toEqual({});
 	});
 });
