@@ -40,7 +40,7 @@
   },
   "overrides": [
     {
-      "includes": ["src/core/**"],
+      "includes": ["src/core/**", "!**/*.test.ts"],
       "linter": {
         "rules": {
           "style": {

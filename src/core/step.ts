@@ -1,17 +1,6 @@
-import {
-  apply,
-  type Command,
-  type CommandLogEntry,
-  type CommandResult,
-} from "./commands";
-import { runDecrees } from "./decree-engine";
-import { runDesk } from "./desk";
-import { runEconomy } from "./economy";
+import type { Command, CommandLogEntry, CommandResult } from "./commands";
+import type { Game } from "./game";
 import type { AbsorbedAdditionLog, AddContext } from "./math";
-import { checkPromotion } from "./promotion";
-import type { GameState } from "./state";
-import type { Tuning } from "./tuning";
-import { runUnlocks } from "./unlocks";
 import { validateState } from "./validate";
 
 export type StepOptions = {
@@ -26,74 +15,79 @@ export type StepObserver = (
   results: readonly CommandResult[],
 ) => void;
 
-/** The phases that move resources every tick; the ledger projects its rates by running exactly this. */
-export function runFlows(
-  state: GameState,
-  tuning: Tuning,
-  context: AddContext,
-): void {
-  const flows = runEconomy(state, tuning, context);
-  runDecrees(state, tuning, context, flows);
-}
+export class StepManager {
+  constructor(private game: Game) {}
 
-export function step(
-  state: GameState,
-  commands: readonly Command[],
-  tuning: Tuning,
-  options: StepOptions,
-): CommandResult[] {
-  state.tick += 1;
+  /** The phases that move resources every tick; the ledger projects its rates by running exactly this. */
+  runFlows(context: AddContext): void {
+    const flows = this.game.economy.run(context);
+    this.game.decrees.run(context, flows);
+  }
 
-  const context: AddContext = {
-    tick: state.tick,
-    maxValue: tuning.maxResourceValue,
-    absorbed: options.absorbed,
-  };
-  const results = commands.map((command) =>
-    apply(state, command, tuning, context),
-  );
-  runFlows(state, tuning, context);
-  runDesk(state, tuning, context);
-  checkPromotion(state, tuning);
-  runUnlocks(state, tuning);
-
-  if (options.validate) {
-    const problems = validateState(state);
-    if (problems.length > 0) {
-      throw new Error(
-        `state invalid at tick ${state.tick}: ${problems.join("; ")}`,
-      );
+  /** Promotion is never revoked, so a village that later shrinks stays promoted. */
+  private checkPromotion(): void {
+    const { state, tuning } = this.game;
+    if (state.career.promotedAt !== 0) return;
+    if (state.posting.delegates.length >= tuning.village.promotionPopulation) {
+      state.career.promotedAt = state.tick;
     }
   }
-  return results;
-}
 
-export function runSteps(
-  state: GameState,
-  count: number,
-  tuning: Tuning,
-  log: readonly CommandLogEntry[],
-  options: StepOptions,
-  onStep?: StepObserver,
-  commandSource?: () => readonly Command[],
-): void {
-  let cursor = 0;
-  // Entries for ticks already produced (resuming from a later state) must not be reapplied.
-  while (cursor < log.length && (log[cursor]?.tick ?? 0) <= state.tick) {
-    cursor += 1;
+  step(commands: readonly Command[], options: StepOptions): CommandResult[] {
+    this.game.state.tick += 1;
+
+    const context: AddContext = {
+      tick: this.game.state.tick,
+      maxValue: this.game.tuning.maxResourceValue,
+      absorbed: options.absorbed,
+    };
+    const results = commands.map((command) =>
+      this.game.commands.apply(command, context),
+    );
+    this.runFlows(context);
+    this.game.desk.run(context);
+    this.checkPromotion();
+    this.game.unlocks.run();
+
+    if (options.validate) {
+      const problems = validateState(this.game.state);
+      if (problems.length > 0) {
+        throw new Error(
+          `state invalid at tick ${this.game.state.tick}: ${problems.join("; ")}`,
+        );
+      }
+    }
+    return results;
   }
-  for (let i = 0; i < count; i++) {
-    const nextTick = state.tick + 1;
-    const commands: Command[] = commandSource ? [...commandSource()] : [];
-    for (
-      let entry = log[cursor];
-      entry !== undefined && entry.tick === nextTick;
-      entry = log[cursor]
+
+  runSteps(
+    count: number,
+    log: readonly CommandLogEntry[],
+    options: StepOptions,
+    onStep?: StepObserver,
+    commandSource?: () => readonly Command[],
+  ): void {
+    let cursor = 0;
+    // Entries for ticks already produced (resuming from a later state) must not be reapplied.
+    while (
+      cursor < log.length &&
+      (log[cursor]?.tick ?? 0) <= this.game.state.tick
     ) {
-      commands.push(entry.command);
       cursor += 1;
     }
-    const results = step(state, commands, tuning, options);
-    onStep?.(state.tick, commands, results);
+    for (let i = 0; i < count; i++) {
+      const nextTick = this.game.state.tick + 1;
+      const commands: Command[] = commandSource ? [...commandSource()] : [];
+      for (
+        let entry = log[cursor];
+        entry !== undefined && entry.tick === nextTick;
+        entry = log[cursor]
+      ) {
+        commands.push(entry.command);
+        cursor += 1;
+      }
+      const results = this.step(commands, options);
+      onStep?.(this.game.state.tick, commands, results);
+    }
   }
 }

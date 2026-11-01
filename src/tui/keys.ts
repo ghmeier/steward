@@ -1,4 +1,4 @@
-import type { Job } from "../core/realm";
+import { Job } from "../core/realm";
 import { ARCHIVE_PANEL, PALETTE_UNLOCK, type UnlockId } from "../core/unlocks";
 
 export type KeyPress = {
@@ -12,7 +12,7 @@ export type KeyPress = {
 /** What a key asks for; the app turns an assignment into a command for the selected peasant. */
 export type KeyAction =
   | { kind: "move"; delta: -1 | 1 }
-  | { kind: "assign"; job: Job | "idle" }
+  | { kind: "assign"; job: Job }
   | { kind: "save" }
   | { kind: "line"; prefill: string }
   | { kind: "court" }
@@ -27,10 +27,10 @@ const BINDINGS: Readonly<Record<string, Binding>> = {
   k: { action: { kind: "move", delta: -1 } },
   down: { action: { kind: "move", delta: 1 } },
   j: { action: { kind: "move", delta: 1 } },
-  f: { action: { kind: "assign", job: "farm" } },
-  w: { action: { kind: "assign", job: "forest" } },
-  m: { action: { kind: "assign", job: "mine" } },
-  i: { action: { kind: "assign", job: "idle" } },
+  f: { action: { kind: "assign", job: Job.FARM } },
+  w: { action: { kind: "assign", job: Job.FOREST } },
+  m: { action: { kind: "assign", job: Job.MINE } },
+  i: { action: { kind: "assign", job: Job.IDLE } },
   a: { action: { kind: "line", prefill: "buy " }, needs: ARCHIVE_PANEL },
   d: { action: { kind: "line", prefill: "decree " } },
   c: { action: { kind: "court" } },

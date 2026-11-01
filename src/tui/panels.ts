@@ -58,7 +58,7 @@ function ledgerContent(view: GameView): string {
   );
   const { realm } = view;
   const realmLines: (string | null)[] = [
-    `Population  ${realm.population} (${realm.idle} idle)`,
+    `Population  ${realm.population} (${realm.labor.idle} idle)`,
     `Farm ${realm.labor.farm}  Forest ${realm.labor.forest}  Mine ${realm.labor.mine}`,
     `Season  ${capitalize(realm.season)}`,
     promotionLine(view),

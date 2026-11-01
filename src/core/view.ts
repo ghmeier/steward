@@ -1,19 +1,10 @@
 import { compareKeys, sortedKeys } from "./data";
 import type { Decree } from "./decree";
-import { idleCount, laborCounts } from "./delegates";
-import { fillNames, shortfall, templateOf } from "./desk";
-import { seasonAt } from "./economy";
-import { projectFlows } from "./projection";
+import { fillNames } from "./desk";
+import type { Game } from "./game";
 import { type Job, RESOURCES, type Season } from "./realm";
-import type { GameState, ResourceId } from "./state";
-import type { Tuning } from "./tuning";
-import {
-  ARCHIVE_PANEL,
-  CROWN_PANEL,
-  hasUnlock,
-  ownedUnlocks,
-  type UnlockId,
-} from "./unlocks";
+import type { ResourceId } from "./state";
+import { ARCHIVE_PANEL, CROWN_PANEL, type UnlockId } from "./unlocks";
 
 export type LedgerLine = {
   resource: ResourceId;
@@ -52,7 +43,6 @@ export type GameView = {
   ledger: LedgerLine[];
   realm: {
     population: number;
-    idle: number;
     labor: Record<Job, number>;
     season: Season;
     /** Running total of peasants lost to hunger. */
@@ -81,98 +71,119 @@ export type ArchiveEntryView = {
   available: boolean;
 };
 
-// The view is plain truth only in phase 2. Illusion, governor exaggeration and
-// unlock filtering are applied here in later phases, so the UI must never read
-// GameState directly.
-export function computeView(state: GameState, tuning: Tuning): GameView {
-  const { rates, growthPerTick } = projectFlows(state, tuning);
-  const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
-    resource,
-    amount: state.posting.resources[resource] ?? 0,
-    ratePerSecond: (rates[resource] * 1000) / tuning.stepMs,
-  }));
-  const { delegates, decrees } = state.posting;
-  return {
-    tick: state.tick,
-    elapsedSeconds: (state.tick * tuning.stepMs) / 1000,
-    ledger,
-    realm: {
-      population: delegates.length,
-      idle: idleCount(delegates),
-      labor: laborCounts(delegates),
-      season: seasonAt(state.tick, tuning.economy.ticksPerSeason),
-      starved: state.posting.economy.starved,
-    },
-    delegates: delegates.map((delegate) => ({
-      id: delegate.id,
-      name: delegate.name,
-      job: delegate.job,
-      grudgeTicks: Math.max(0, delegate.grudgeUntil - state.tick),
-    })),
-    decrees: Object.entries(decrees)
-      .sort(([a], [b]) => compareKeys(a, b))
-      .map(([, decree]) => structuredClone(decree)),
-    savedDecrees: sortedKeys(state.career.savedDecrees).flatMap((name) => {
-      const saved = state.career.savedDecrees[name];
-      return saved === undefined ? [] : [structuredClone(saved)];
-    }),
-    desk: deskView(state, tuning),
-    governors: [],
-    crown: null,
-    promotion: {
-      target: tuning.village.promotionPopulation,
-      promotedAt: state.career.promotedAt,
-      promotedAtSeconds: (state.career.promotedAt * tuning.stepMs) / 1000,
-    },
-    growth: {
-      stored: state.posting.economy.growth,
-      needed: tuning.economy.grainPerPeasant,
-      perSecond: (growthPerTick * 1000) / tuning.stepMs,
-      full: delegates.length >= tuning.economy.maxPopulation,
-    },
-    lockedPanels: hasUnlock(state, CROWN_PANEL) ? [] : ["crown"],
-    unlocks: ownedUnlocks(state),
-    archive: {
-      open: hasUnlock(state, ARCHIVE_PANEL),
-      entries: tuning.archive.entries.map((entry) => ({
-        id: entry.id,
-        label: entry.label,
-        description: entry.description,
-        cost: entry.cost,
-        owned: hasUnlock(state, entry.id),
-        affordable: (state.posting.resources.coin ?? 0) >= entry.cost,
-        available: entry.requires.every((id) => hasUnlock(state, id)),
-      })),
-    },
-  };
-}
+export class ViewManager {
+  constructor(private game: Game) {}
 
-function deskView(state: GameState, tuning: Tuning): DeskEntryView[] {
-  const { delegates, desk } = state.posting;
-  const nameOf = (id: number) => {
-    const found = delegates.find((delegate) => delegate.id === id);
-    if (found === undefined)
-      throw new Error(`dispute party ${id} is not in the roster`);
-    return found.name;
-  };
-  return desk.disputes.map((dispute) => {
-    const template = templateOf(dispute, tuning);
-    const first = nameOf(dispute.parties[0]);
-    const second = nameOf(dispute.parties[1]);
+  private get posting() {
+    return this.game.state.posting;
+  }
+
+  private get career() {
+    return this.game.state.career;
+  }
+
+  private get tick() {
+    return this.game.state.tick;
+  }
+
+  private get tuning() {
+    return this.game.tuning;
+  }
+
+  // The UI reads only this view, never GameState, so what the player is shown can
+  // differ from the underlying truth without touching any renderer.
+  compute(): GameView {
+    const { rates, growthPerTick } = this.game.projection.flows();
+    const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
+      resource,
+      amount: this.posting.resources[resource] ?? 0,
+      ratePerSecond: (rates[resource] * 1000) / this.tuning.stepMs,
+    }));
+    const { delegates, decrees } = this.posting;
+    const labor = this.game.delegates.jobCounts();
     return {
-      id: dispute.id,
-      label: fillNames(template.text, first, second),
-      parties: [first, second],
-      options: template.options.map((option) => ({
-        id: option.id,
-        label: fillNames(option.label, first, second),
-        affordable: shortfall(state, option) === null,
-        expiry: option.id === template.expiry,
-        resources: sortedResources(option.resources ?? {}),
-        grudge: option.grudge ?? "none",
+      tick: this.tick,
+      elapsedSeconds: (this.tick * this.tuning.stepMs) / 1000,
+      ledger,
+      realm: {
+        population: delegates.length,
+        labor,
+        season: this.game.economy.seasonAt(this.tick),
+        starved: this.posting.economy.starved,
+      },
+      delegates: delegates.map((delegate) => ({
+        id: delegate.id,
+        name: delegate.name,
+        job: delegate.job,
+        grudgeTicks: Math.max(0, delegate.grudgeUntil - this.tick),
       })),
+      decrees: Object.entries(decrees)
+        .sort(([a], [b]) => compareKeys(a, b))
+        .map(([, decree]) => structuredClone(decree)),
+      savedDecrees: sortedKeys(this.career.savedDecrees).flatMap((name) => {
+        const saved = this.career.savedDecrees[name];
+        return saved === undefined ? [] : [structuredClone(saved)];
+      }),
+      desk: this.deskEntries(),
+      governors: [],
+      crown: null,
+      promotion: {
+        target: this.tuning.village.promotionPopulation,
+        promotedAt: this.career.promotedAt,
+        promotedAtSeconds: (this.career.promotedAt * this.tuning.stepMs) / 1000,
+      },
+      growth: {
+        stored: this.posting.economy.growth,
+        needed: this.tuning.economy.grainPerPeasant,
+        perSecond: (growthPerTick * 1000) / this.tuning.stepMs,
+        full: delegates.length >= this.tuning.economy.maxPopulation,
+      },
+      lockedPanels: this.game.unlocks.enabled(CROWN_PANEL) ? [] : ["crown"],
+      unlocks: this.game.unlocks.purchased,
+      archive: {
+        open: this.game.unlocks.enabled(ARCHIVE_PANEL),
+        entries: this.tuning.archive.entries.map((entry) => ({
+          id: entry.id,
+          label: entry.label,
+          description: entry.description,
+          cost: entry.cost,
+          owned: this.game.unlocks.enabled(entry.id),
+          affordable: (this.posting.resources.coin ?? 0) >= entry.cost,
+          available: entry.requires.every((id) =>
+            this.game.unlocks.enabled(id),
+          ),
+        })),
+      },
     };
-  });
+  }
+
+  private deskEntries(): DeskEntryView[] {
+    const { delegates, desk } = this.posting;
+    const nameOf = (id: number) => {
+      const found = delegates.find((delegate) => delegate.id === id);
+      if (found === undefined)
+        throw new Error(`dispute party ${id} is not in the roster`);
+      return found.name;
+    };
+    return desk.disputes.map((dispute) => {
+      const template = this.game.desk.templateOf(dispute);
+      const first = nameOf(dispute.parties[0]);
+      const second = nameOf(dispute.parties[1]);
+      return {
+        id: dispute.id,
+        label: fillNames(template.text, first, second),
+        parties: [first, second],
+        options: template.options.map((option) => ({
+          id: option.id,
+          label: fillNames(option.label, first, second),
+          affordable: this.game.desk.shortfall(option) === null,
+          expiry: option.id === template.expiry,
+          resources: sortedResources(option.resources ?? {}),
+          grudge: option.grudge ?? "none",
+        })),
+      };
+    });
+  }
 }
 
 function sortedResources(resources: Record<string, number>) {

@@ -8,11 +8,11 @@ import {
   type Petition,
   parseCondition,
   parseDecree,
+  policiesFor,
   QUANTITIES,
   type Quantity,
 } from "../core/decree";
-import { policiesFor } from "../core/decree-engine";
-import { type Job, SEASONS } from "../core/realm";
+import { Job, SEASONS } from "../core/realm";
 import {
   ARCHIVE_PANEL,
   CHAINING_UNLOCK,
@@ -609,11 +609,11 @@ function parseSavedVerb(type: "enactSaved" | "forgetSaved") {
   };
 }
 
-const JOBS: readonly Choice<Job | "idle">[] = [
-  { text: "farm", description: "grow grain", value: "farm" },
-  { text: "forest", description: "cut wood", value: "forest" },
-  { text: "mine", description: "dig ore", value: "mine" },
-  { text: "idle", description: "no work", value: "idle" },
+const JOBS: readonly Choice<Job>[] = [
+  { text: "farm", description: "grow grain", value: Job.FARM },
+  { text: "forest", description: "cut wood", value: Job.FOREST },
+  { text: "mine", description: "dig ore", value: Job.MINE },
+  { text: "idle", description: "no work", value: Job.IDLE },
 ];
 
 function parseAssignVerb(cursor: Cursor, context: MenuContext): Command {

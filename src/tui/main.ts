@@ -25,7 +25,7 @@ async function main(): Promise<number> {
   try {
     const app = startApp({
       renderer,
-      state: startup.state,
+      game: startup.game,
       tuning,
       saveDir,
       now: () => performance.now(),

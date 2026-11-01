@@ -1,4 +1,4 @@
-import { policiesFor } from "../core/decree-engine";
+import { policiesFor } from "../core/decree";
 import { type Resource, SEASONS } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 import {

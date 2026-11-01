@@ -1,9 +1,7 @@
 import { isRecord } from "./data";
-import { enactDecree, repealDecree } from "./decree-engine";
-import { settleDispute } from "./desk";
+import type { Game } from "./game";
 import type { AddContext } from "./math";
-import { JOBS, type Job } from "./realm";
-import { enactSaved, forgetSaved, saveDecree } from "./saved-decrees";
+import { JOBS } from "./realm";
 import {
   array,
   custom,
@@ -17,9 +15,6 @@ import {
   string,
   variant,
 } from "./schema";
-import type { GameState } from "./state";
-import type { Tuning } from "./tuning";
-import { buyUnlock } from "./unlocks";
 
 const text = string();
 
@@ -34,7 +29,7 @@ export const commandSchema = variant("type", {
   assignPeasant: object({
     type: literal("assignPeasant"),
     peasant: integer(),
-    job: literal(...JOBS, "idle"),
+    job: literal(...JOBS),
   }),
   enactDecree: object({ type: literal("enactDecree"), decree: opaqueDecree }),
   repealDecree: object({ type: literal("repealDecree"), id: text }),
@@ -79,78 +74,59 @@ const commandLogSchema: Schema<CommandLogEntry[]> = refine(
   },
 );
 
-function assignPeasant(
-  state: GameState,
-  peasantId: number,
-  job: Job | "idle",
-): CommandResult {
-  const peasant = state.posting.delegates.find(
-    (delegate) => delegate.id === peasantId,
-  );
-  if (peasant === undefined) {
-    return { ok: false, reason: `no peasant ${peasantId}` };
-  }
-  if (peasant.job === job) {
-    return {
-      ok: false,
-      reason:
-        job === "idle"
-          ? `${peasant.name} is already idle`
-          : `${peasant.name} already works the ${job}`,
-    };
-  }
-  if (job !== "idle" && state.tick < peasant.grudgeUntil) {
-    return { ok: false, reason: `${peasant.name} refuses to work (grudge)` };
-  }
-  peasant.job = job;
-  return { ok: true };
-}
+export class CommandManager {
+  constructor(private game: Game) {}
 
-export function apply(
-  state: GameState,
-  command: Command,
-  tuning: Tuning,
-  context: AddContext,
-): CommandResult {
-  switch (command.type) {
-    case "noop":
-      return { ok: true };
-    case "assignPeasant":
-      return assignPeasant(state, command.peasant, command.job);
-    case "enactDecree":
-      return enactDecree(state, command.decree, tuning);
-    case "repealDecree":
-      return repealDecree(state, command.id);
-    case "settleDispute":
-      return settleDispute(
-        state,
-        command.dispute,
-        command.option,
-        tuning,
-        context,
-      );
-    case "buyUnlock":
-      return buyUnlock(state, command.id, tuning, context);
-    case "saveDecree":
-      return saveDecree(state, command.name, command.decree, tuning);
-    case "enactSaved":
-      return enactSaved(state, command.name, tuning);
-    case "forgetSaved":
-      return forgetSaved(state, command.name);
-    default: {
-      const unreachable: never = command;
-      return {
-        ok: false,
-        reason: `unknown command ${JSON.stringify(unreachable)}`,
-      };
+  apply(command: Command, context: AddContext): CommandResult {
+    try {
+      switch (command.type) {
+        case "noop":
+          return { ok: true };
+        case "assignPeasant":
+          this.game.delegates.assignJob(command.peasant, command.job);
+          return { ok: true };
+        case "enactDecree":
+          this.game.decrees.enact(command.decree);
+          return { ok: true };
+        case "repealDecree":
+          this.game.decrees.repeal(command.id);
+          return { ok: true };
+        case "settleDispute":
+          return this.game.desk.settle(
+            command.dispute,
+            command.option,
+            context,
+          );
+        case "buyUnlock":
+          this.game.unlocks.buy(command.id, context);
+          return { ok: true };
+        case "saveDecree":
+          this.game.savedDecrees.save(command.name, command.decree);
+          return { ok: true };
+        case "enactSaved":
+          this.game.savedDecrees.enact(command.name);
+          return { ok: true };
+        case "forgetSaved":
+          this.game.savedDecrees.forget(command.name);
+          return { ok: true };
+        default: {
+          const unreachable: never = command;
+          return {
+            ok: false,
+            reason: `unknown command ${JSON.stringify(unreachable)}`,
+          };
+        }
+      }
+    } catch (err) {
+      if (!(err instanceof Error)) throw err;
+      return { ok: false, reason: err.message };
     }
   }
-}
 
-export function parseCommand(value: unknown): Command {
-  return parse(commandSchema, value, "command");
-}
-
-export function parseCommandLog(value: unknown): CommandLogEntry[] {
-  return parse(commandLogSchema, value, "command log");
+  parseCommand(value: unknown): Command {
+    return parse(commandSchema, value, "command");
+  }
+  parseCommandLog(value: unknown): CommandLogEntry[] {
+    return parse(commandLogSchema, value, "command log");
+  }
 }

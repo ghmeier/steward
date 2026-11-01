@@ -1,4 +1,3 @@
-import type { CommandResult } from "./commands";
 import { isRecord, sortedKeys } from "./data";
 import {
   DECREE_ID_PATTERN,
@@ -6,95 +5,81 @@ import {
   decreePolicyProblem,
   parseDecree,
 } from "./decree";
-import { enactDecree, policiesFor } from "./decree-engine";
 import { errorMessage } from "./errors";
-import type { GameState } from "./state";
-import type { Tuning } from "./tuning";
-import {
-  hasUnlock,
-  missingDecreeUnlock,
-  missingDecreeUnlockReason,
-  SAVED_DECREES_UNLOCK,
-} from "./unlocks";
+import type { Game } from "./game";
+import { missingDecreeUnlockReason, SAVED_DECREES_UNLOCK } from "./unlocks";
 
-function lockedReason(state: GameState, tuning: Tuning): string | null {
-  if (hasUnlock(state, SAVED_DECREES_UNLOCK)) return null;
-  const label =
-    tuning.archive.entries.find((entry) => entry.id === SAVED_DECREES_UNLOCK)
-      ?.label ?? SAVED_DECREES_UNLOCK;
-  return `saved decrees need "${label}" from the Archive`;
-}
+export class SavedDecreeManager {
+  constructor(private game: Game) {}
 
-export function saveDecree(
-  state: GameState,
-  name: string,
-  decree: unknown,
-  tuning: Tuning,
-): CommandResult {
-  const locked = lockedReason(state, tuning);
-  if (locked !== null) return { ok: false, reason: locked };
-  if (!DECREE_ID_PATTERN.test(name)) {
-    return { ok: false, reason: `"${name}" is not a valid decree name` };
+  private lockedReason(): string | null {
+    if (this.game.unlocks.enabled(SAVED_DECREES_UNLOCK)) return null;
+    const label =
+      this.game.tuning.archive.entries.find(
+        (entry) => entry.id === SAVED_DECREES_UNLOCK,
+      )?.label ?? SAVED_DECREES_UNLOCK;
+    return `saved decrees need "${label}" from the Archive`;
   }
 
-  let parsed: Decree;
-  try {
-    // The name is the decree's id, so a pasted decree need not carry a matching one.
-    const named = isRecord(decree) ? { ...decree, id: name } : decree;
-    parsed = parseDecree(named, tuning.decrees);
-  } catch (error) {
-    return { ok: false, reason: errorMessage(error) };
+  save(name: string, decree: unknown): void {
+    const locked = this.lockedReason();
+    if (locked !== null) throw new Error(locked);
+    if (!DECREE_ID_PATTERN.test(name)) {
+      throw new Error(`"${name}" is not a valid decree name`);
+    }
+
+    let parsed: Decree;
+    try {
+      // The name is the decree's id, so a pasted decree need not carry a matching one.
+      const named = isRecord(decree) ? { ...decree, id: name } : decree;
+      parsed = parseDecree(named, this.game.tuning.decrees);
+    } catch (error) {
+      throw new Error(errorMessage(error));
+    }
+
+    const missing = this.game.unlocks.missingDecreeUnlock(parsed);
+    if (missing !== null) {
+      throw new Error(missingDecreeUnlockReason(missing));
+    }
+    const policyProblem = decreePolicyProblem(
+      parsed,
+      this.game.decrees.policiesFor(parsed.petition),
+    );
+    if (policyProblem !== null) throw new Error(policyProblem);
+
+    const saved = this.game.state.career.savedDecrees;
+    if (
+      !Object.hasOwn(saved, name) &&
+      sortedKeys(saved).length >= this.game.tuning.archive.maxSaved
+    ) {
+      throw new Error(
+        `only ${this.game.tuning.archive.maxSaved} decrees can be saved`,
+      );
+    }
+    saved[name] = parsed;
   }
 
-  const missing = missingDecreeUnlock(state, parsed, tuning);
-  if (missing !== null) {
-    return { ok: false, reason: missingDecreeUnlockReason(missing) };
-  }
-  const policyProblem = decreePolicyProblem(
-    parsed,
-    policiesFor(parsed.petition, tuning),
-  );
-  if (policyProblem !== null) return { ok: false, reason: policyProblem };
+  enact(name: string): void {
+    const locked = this.lockedReason();
+    if (locked !== null) throw new Error(locked);
+    const saved = this.game.state.career.savedDecrees;
+    const found = Object.hasOwn(saved, name) ? saved[name] : undefined;
+    if (found === undefined) {
+      throw new Error(`no saved decree "${name}"`);
+    }
 
-  const saved = state.career.savedDecrees;
-  if (
-    !Object.hasOwn(saved, name) &&
-    sortedKeys(saved).length >= tuning.archive.maxSaved
-  ) {
-    return {
-      ok: false,
-      reason: `only ${tuning.archive.maxSaved} decrees can be saved`,
-    };
-  }
-  saved[name] = parsed;
-  return { ok: true };
-}
-
-export function enactSaved(
-  state: GameState,
-  name: string,
-  tuning: Tuning,
-): CommandResult {
-  const locked = lockedReason(state, tuning);
-  if (locked !== null) return { ok: false, reason: locked };
-  const saved = state.career.savedDecrees;
-  const found = Object.hasOwn(saved, name) ? saved[name] : undefined;
-  if (found === undefined) {
-    return { ok: false, reason: `no saved decree "${name}"` };
+    const active = sortedKeys(this.game.state.posting.decrees)
+      .map((id) => this.game.state.posting.decrees[id])
+      .find((decree) => decree?.petition === found.petition);
+    const id = active?.id ?? found.petition;
+    this.game.decrees.enact({ ...structuredClone(found), id });
   }
 
-  const active = sortedKeys(state.posting.decrees)
-    .map((id) => state.posting.decrees[id])
-    .find((decree) => decree?.petition === found.petition);
-  const id = active?.id ?? found.petition;
-  return enactDecree(state, { ...structuredClone(found), id }, tuning);
-}
-
-export function forgetSaved(state: GameState, name: string): CommandResult {
-  const saved = state.career.savedDecrees;
-  if (!Object.hasOwn(saved, name)) {
-    return { ok: false, reason: `no saved decree "${name}"` };
+  forget(name: string): void {
+    const saved = this.game.state.career.savedDecrees;
+    if (!Object.hasOwn(saved, name)) {
+      throw new Error(`no saved decree "${name}"`);
+    }
+    delete saved[name];
   }
-  delete saved[name];
-  return { ok: true };
 }

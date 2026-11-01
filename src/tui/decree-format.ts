@@ -6,7 +6,7 @@ import type {
   Petition,
   STORE_POLICIES,
 } from "../core/decree";
-import { JOBS, type Job } from "../core/realm";
+import { WORKING_JOBS, type WorkingJob } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 
 export function words(identifier: string): string {
@@ -63,7 +63,7 @@ const STORE_DESCRIPTIONS: Readonly<
   stockpile: (resource) => `the ${resource} is stored`,
 };
 
-const EVERYONE: Readonly<Record<Job, string>> = {
+const EVERYONE: Readonly<Record<WorkingJob, string>> = {
   farm: "everyone farms",
   forest: "everyone works the forest",
   mine: "everyone mines",
@@ -90,8 +90,8 @@ export function describePolicy(
   }
   const shares = tuning.economy.laborAllocations[policy];
   if (shares === undefined) return policy;
-  const sole = JOBS.find((job) => shares[job] === 1);
+  const sole = WORKING_JOBS.find((job) => shares[job] === 1);
   if (sole !== undefined) return `${policy}: ${EVERYONE[sole]}`;
-  const split = JOBS.map((job) => `${job} ${percent(shares[job])}`);
+  const split = WORKING_JOBS.map((job) => `${job} ${percent(shares[job])}`);
   return `${policy}: ${split.join(", ")}`;
 }
