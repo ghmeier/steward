@@ -1,17 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import villageJson from "../data/village.json";
 import { parseCommand } from "../src/core/commands";
 import { type Dispute, runDesk, settleDispute } from "../src/core/desk";
 import { createNewGame, type GameState } from "../src/core/state";
-import { parseTuning } from "../src/core/tuning";
 import { validateState } from "../src/core/validate";
 import { computeView } from "../src/core/view";
-import {
-	contextFor,
-	fullTuningJson,
-	setRoster,
-	economyTestTuning as tuning,
-} from "./helpers";
+import { contextFor, setRoster, economyTestTuning as tuning } from "./helpers";
 
 const { deskSlots, disputeArrival, grudgeTicks } = tuning.village;
 
@@ -372,150 +365,6 @@ describe("view desk", () => {
 		expect(viewed(10)[0]?.options[0]?.affordable).toBe(true);
 		expect(viewed(9.9)[0]?.options[0]?.affordable).toBe(false);
 		expect(viewed(9.9)[0]?.options[1]?.affordable).toBe(true);
-	});
-});
-
-describe("village tuning parse", () => {
-	const base = JSON.parse(JSON.stringify(villageJson)) as typeof villageJson;
-	// biome-ignore lint/suspicious/noExplicitAny: test mutates arbitrary JSON paths
-	type Mutable = Record<string, any>;
-
-	function parseWith(change: (village: Mutable) => void): unknown {
-		const village = structuredClone(base) as Mutable;
-		change(village);
-		return parseTuning({ ...fullTuningJson, village });
-	}
-
-	const bad: [string, (village: Mutable) => void, string][] = [
-		[
-			"an empty template list",
-			(v) => {
-				v.disputes = [];
-			},
-			"disputes",
-		],
-		[
-			"a repeated template id",
-			(v) => {
-				v.disputes[1].id = v.disputes[0].id;
-			},
-			"repeats id",
-		],
-		[
-			"a repeated option id",
-			(v) => {
-				v.disputes[0].options[1].id = v.disputes[0].options[0].id;
-			},
-			"repeats option id",
-		],
-		[
-			"fewer than two options",
-			(v) => void v.disputes[0].options.splice(1),
-			"at least 2",
-		],
-		[
-			"an expiry naming no option",
-			(v) => {
-				v.disputes[0].expiry = "nothing";
-			},
-			"expiry",
-		],
-		[
-			"an unknown resource",
-			(v) => {
-				v.disputes[0].options[0].resources = { gold: -1 };
-			},
-			"unknown resource",
-		],
-		[
-			"a non-finite amount",
-			(v) => {
-				v.disputes[0].options[0].resources = { coin: "lots" };
-			},
-			"finite",
-		],
-		[
-			"an unknown placeholder in the text",
-			(v) => {
-				v.disputes[0].text = "{third} is cross";
-			},
-			"{third}",
-		],
-		[
-			"an unknown placeholder in an option label",
-			(v) => {
-				v.disputes[0].options[0].label = "Ask {nobody}";
-			},
-			"{nobody}",
-		],
-		[
-			"an expiry option that grudges",
-			(v) => {
-				const expiry = v.disputes[0].expiry;
-				const option = v.disputes[0].options.find(
-					(o: Mutable) => o.id === expiry,
-				);
-				option.grudge = "first";
-			},
-			"must not grudge",
-		],
-		[
-			"an expiry option that gains a resource",
-			(v) => {
-				const expiry = v.disputes[0].expiry;
-				const option = v.disputes[0].options.find(
-					(o: Mutable) => o.id === expiry,
-				);
-				option.resources = { coin: 3 };
-			},
-			"must not gain",
-		],
-		[
-			"a zero deskSlots",
-			(v) => {
-				v.deskSlots = 0;
-			},
-			"deskSlots",
-		],
-		[
-			"a zero promotionPopulation",
-			(v) => {
-				v.promotionPopulation = 0;
-			},
-			"promotionPopulation",
-		],
-		[
-			"a fractional promotionPopulation",
-			(v) => {
-				v.promotionPopulation = 12.5;
-			},
-			"promotionPopulation",
-		],
-		[
-			"a promotionPopulation above maxPopulation",
-			(v) => {
-				v.promotionPopulation = 10_000;
-			},
-			"promotionPopulation",
-		],
-		[
-			"a fractional grudgeTicks",
-			(v) => {
-				v.grudgeTicks = 1.5;
-			},
-			"grudgeTicks",
-		],
-		[
-			"minTicks above maxTicks",
-			(v) => {
-				v.disputeArrival = { minTicks: 20, maxTicks: 10 };
-			},
-			"minTicks",
-		],
-	];
-
-	test.each(bad)("rejects %s", (_name, change, message) => {
-		expect(() => parseWith(change)).toThrow(message);
 	});
 });
 

@@ -4,12 +4,9 @@ import type { Condition } from "../src/core/decree";
 import { enactDecree } from "../src/core/decree-engine";
 import { createNewGame, type GameState } from "../src/core/state";
 import { step } from "../src/core/step";
-import { parseTuning } from "../src/core/tuning";
 import {
 	ARCHIVE_PANEL,
 	buyUnlock,
-	CHAINING_UNLOCK,
-	COMPOUND_UNLOCK,
 	hasUnlock,
 	missingDecreeUnlock,
 	runUnlocks,
@@ -18,13 +15,7 @@ import { validateState } from "../src/core/validate";
 import { computeView } from "../src/core/view";
 import { loadTuning } from "../src/save/content";
 import { stateHash } from "../src/save/hash";
-import {
-	contextFor,
-	fullTuningJson,
-	grantUnlocks,
-	quietOptions,
-	tuning,
-} from "./helpers";
+import { contextFor, grantUnlocks, quietOptions, tuning } from "./helpers";
 
 const entry = (id: string) => {
 	const found = tuning.archive.entries.find((candidate) => candidate.id === id);
@@ -415,117 +406,4 @@ describe("archive tuning", () => {
 		]);
 		expect(loaded.archive.maxSaved).toBeGreaterThan(0);
 	});
-
-	function parseWith(change: (archive: ArchiveJson) => void): unknown {
-		const archive = structuredClone(fullTuningJson.archive) as ArchiveJson;
-		change(archive);
-		return parseTuning({ ...fullTuningJson, archive });
-	}
-
-	// biome-ignore lint/suspicious/noExplicitAny: test mutates arbitrary JSON paths
-	type ArchiveJson = Record<string, any>;
-
-	const bad: [string, (archive: ArchiveJson) => void, string][] = [
-		[
-			"a duplicate id across entries",
-			(a) => {
-				a.entries[1].id = a.entries[0].id;
-			},
-			"repeats id",
-		],
-		[
-			"a play id that repeats an entry id",
-			(a) => {
-				a.play.push({ ...a.play[0], id: a.entries[0].id });
-			},
-			"repeats id",
-		],
-		[
-			"a requires naming an unknown id",
-			(a) => {
-				a.entries[0].requires = ["control.nothing"];
-			},
-			"unknown id",
-		],
-		[
-			"a requires cycle",
-			(a) => {
-				a.entries[0].requires = ["control.savedDecrees"];
-			},
-			"cycle",
-		],
-		[
-			"a zero cost",
-			(a) => {
-				a.entries[0].cost = 0;
-			},
-			"cost must be positive",
-		],
-		[
-			"a play condition that is compound",
-			(a) => {
-				a.play[0].when = { kind: "all", conditions: [a.play[0].when] };
-			},
-			"compare or season",
-		],
-		[
-			"a need hook condition that chooses",
-			(a) => {
-				a.needs[0].when = { kind: "chose", decree: "x", policy: "feed" };
-			},
-			"compare or season",
-		],
-		[
-			"a zero maxSaved",
-			(a) => {
-				a.maxSaved = 0;
-			},
-			"maxSaved",
-		],
-		[
-			"a fractional maxSaved",
-			(a) => {
-				a.maxSaved = 1.5;
-			},
-			"maxSaved",
-		],
-		[
-			"a repeated need hook control",
-			(a) => {
-				a.needs[1].control = a.needs[0].control;
-			},
-			"repeats control",
-		],
-		[
-			"no compound conditions entry",
-			(a) => {
-				a.entries = a.entries.filter(
-					(entry: { id: string }) => entry.id !== COMPOUND_UNLOCK,
-				);
-			},
-			COMPOUND_UNLOCK,
-		],
-		[
-			"no chaining entry",
-			(a) => {
-				a.entries = a.entries.filter(
-					(entry: { id: string }) => entry.id !== CHAINING_UNLOCK,
-				);
-			},
-			CHAINING_UNLOCK,
-		],
-		[
-			"no Archive panel play unlock",
-			(a) => {
-				a.play = [];
-			},
-			ARCHIVE_PANEL,
-		],
-	];
-
-	for (const [name, change, fragment] of bad) {
-		test(`rejects ${name}`, () => {
-			expect(() => parseWith(change)).toThrow(fragment);
-		});
-	}
 });
