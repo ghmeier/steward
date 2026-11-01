@@ -11,12 +11,18 @@ import { join } from "node:path";
 import { createTestRenderer } from "@opentui/core/testing";
 import { bearPeasant } from "../src/core/delegates";
 import { createNewGame, type GameState } from "../src/core/state";
+import { ARCHIVE_PANEL, PALETTE_UNLOCK } from "../src/core/unlocks";
 import { stateHash } from "../src/save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../src/save/save";
 import { type App, prepareStartup, startApp } from "../src/tui/app";
-import { HINTS_TEXT } from "../src/tui/keys";
-import { setFamineDue, setRoster, tuning } from "./helpers";
+import { hintsText } from "../src/tui/keys";
+import { ARCHIVE_OPENS } from "../src/tui/unlock-notices";
+import { grantUnlocks, setFamineDue, setRoster, tuning } from "./helpers";
 
+const allUnlocks = [
+	ARCHIVE_PANEL,
+	...tuning.archive.entries.map((entry) => entry.id),
+];
 const NEVER_MS = 1e9;
 const NEW_SEED = 321;
 const dirs: string[] = [];
@@ -562,7 +568,7 @@ describe("help menu in the app", () => {
 	});
 
 	test("the hints line fits the footer width", () => {
-		expect(HINTS_TEXT.length).toBeLessThanOrEqual(120);
+		expect(hintsText(allUnlocks).length).toBeLessThanOrEqual(120);
 	});
 });
 
@@ -607,6 +613,19 @@ describe("new village in the app", () => {
 		const screen = await harness.screen();
 		expect(screen).toContain("Found a new village?");
 		expect(screen).not.toContain("Ledger");
+	});
+
+	test("the confirmation warns about Archive purchases only once the player owns any", async () => {
+		const owner = createNewGame(5, tuning);
+		grantUnlocks(owner, [ARCHIVE_PANEL]);
+		const withUnlocks = await launch({ state: owner });
+		const fresh = await launch();
+
+		openNewVillageMenu(withUnlocks);
+		openNewVillageMenu(fresh);
+
+		expect(await withUnlocks.screen()).toContain("bought in the Archive");
+		expect(await fresh.screen()).not.toContain("Archive");
 	});
 
 	test("choosing yes founds a new game, and saves it at once", async () => {
@@ -676,5 +695,106 @@ describe("new village in the app", () => {
 		expect(stateHash(harness.state)).toBe(before);
 		expect(existsSync(join(harness.saveDir, SAVE_FILE_NAME))).toBe(false);
 		expect(await harness.screen()).toContain("Ledger");
+	});
+});
+
+describe("palette and Archive doors in the app", () => {
+	test("a and : do nothing on a fresh game", async () => {
+		const harness = await launch();
+
+		harness.mockInput.pressKey("a");
+		harness.mockInput.pressKey(":");
+
+		const screen = await harness.screen();
+		expect(screen).not.toContain("Command");
+		expect(screen).toContain("Ledger");
+	});
+
+	test("a opens the line with buy typed once the Archive panel is owned", async () => {
+		const state = createNewGame(5, tuning);
+		grantUnlocks(state, [ARCHIVE_PANEL]);
+		const harness = await launch({ state });
+
+		harness.mockInput.pressKey("a");
+
+		expect(await harness.screen()).toContain(": buy _");
+	});
+
+	test("the colon key opens the empty line once the palette is owned", async () => {
+		const state = createNewGame(5, tuning);
+		grantUnlocks(state, [PALETTE_UNLOCK]);
+		const harness = await launch({ state });
+
+		harness.mockInput.pressKey(":");
+
+		expect(await harness.screen()).toContain(": _");
+	});
+
+	test("the Archive notice appears once when coin first appears in a running app", async () => {
+		const harness = await launch();
+		harness.state.posting.resources.coin = 5;
+
+		await harness.advanceStep();
+		const announced = await harness.screen();
+		harness.mockInput.pressKey("s");
+		await harness.advanceStep();
+		const later = await harness.screen();
+
+		expect(announced).toContain(ARCHIVE_OPENS);
+		expect(later).not.toContain(ARCHIVE_OPENS);
+	});
+
+	test("restarting from a save that already owns the Archive does not announce it", async () => {
+		const first = await launch();
+		first.state.posting.resources.coin = 5;
+		await first.advanceStep();
+		await first.app.shutdown();
+		const startup = prepareStartup(first.saveDir, tuning, () => NEW_SEED);
+		if (startup.kind !== "ready") throw new Error("save not loaded");
+
+		const second = await launch({
+			saveDir: first.saveDir,
+			state: startup.state,
+		});
+		await second.advanceStep();
+
+		expect(await second.screen()).not.toContain(ARCHIVE_OPENS);
+	});
+
+	test("the palette opens from a colon and from shift-semicolon under the kitty protocol", async () => {
+		const state = createNewGame(5, tuning);
+		grantUnlocks(state, [PALETTE_UNLOCK]);
+		const harness = await launch({ state, kittyKeyboard: true });
+
+		harness.mockInput.pressKey(":");
+		const plain = await harness.screen();
+		harness.mockInput.pressEscape();
+		harness.mockInput.pressKey(";", { shift: true });
+		const shifted = await harness.screen();
+
+		expect(plain).toContain(": _");
+		expect(shifted).toContain(": _");
+	});
+
+	test("a purchase is announced once", async () => {
+		const state = createNewGame(5, tuning);
+		grantUnlocks(state, [ARCHIVE_PANEL]);
+		const harness = await launch({ state });
+		const palette = tuning.archive.entries.find(
+			(entry) => entry.id === PALETTE_UNLOCK,
+		);
+		harness.state.posting.resources.coin = (palette?.cost ?? 0) + 1;
+
+		harness.mockInput.pressKey("a");
+		await harness.mockInput.typeText("palette");
+		harness.mockInput.pressEnter();
+		await harness.advanceStep();
+		const announced = await harness.screen();
+		harness.mockInput.pressKey("s");
+		await harness.advanceStep();
+		const later = await harness.screen();
+
+		expect(announced).toContain(`Bought ${palette?.label}.`);
+		expect(later).not.toContain("Bought");
 	});
 });

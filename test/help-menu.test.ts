@@ -1,37 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { policiesFor } from "../src/core/decree-engine";
-import { createNewGame } from "../src/core/state";
 import type { Tuning } from "../src/core/tuning";
-import { computeView } from "../src/core/view";
+import { ARCHIVE_PANEL, PALETTE_UNLOCK } from "../src/core/unlocks";
 import { describePolicy } from "../src/tui/decree-format";
-import { helpMenu } from "../src/tui/help-menu";
-import { KEY_HINTS } from "../src/tui/keys";
-import { menuKey, openMenu, renderMenu } from "../src/tui/menu";
-import { tuning } from "./helpers";
-
-function topicText(topic: string, using: Tuning = tuning): string {
-	const context = {
-		view: computeView(createNewGame(1, using), using),
-		tuning: using,
-	};
-	const root = openMenu(helpMenu);
-	const index = renderMenu(root, context).lines.findIndex((line) =>
-		line.includes(topic),
-	);
-	let state = root;
-	const press = (name: string) => {
-		const step = menuKey(
-			state,
-			{ name, ctrl: false, meta: false, shift: false, sequence: name },
-			context,
-		);
-		if (step.state === null) throw new Error("menu closed");
-		state = step.state;
-	};
-	for (let i = 0; i < index; i++) press("down");
-	press("return");
-	return renderMenu(state, context).lines.join("\n");
-}
+import { keyHints } from "../src/tui/keys";
+import { topicText, tuning } from "./helpers";
 
 function escapeRegExp(text: string): string {
 	return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -219,11 +192,20 @@ describe("help claims about resource use follow the disputes", () => {
 	});
 });
 
-describe("help keys topic", () => {
-	test("lists every key hint", () => {
-		const text = topicText("Keys");
+describe("help coin topic", () => {
+	test("mentions the Archive only once it is open", () => {
+		expect(topicText("Coin", tuning, [ARCHIVE_PANEL])).toContain("Archive");
+		expect(topicText("Coin", tuning, [])).not.toContain("Archive");
+	});
+});
 
-		for (const hint of KEY_HINTS) {
+describe("help keys topic", () => {
+	const everything = [ARCHIVE_PANEL, PALETTE_UNLOCK];
+
+	test("lists every key hint the player owns", () => {
+		const text = topicText("Keys", tuning, everything);
+
+		for (const hint of keyHints(everything)) {
 			const row = text.split("\n").find((line) => line.startsWith(hint.keys));
 			expect(row).toMatch(
 				new RegExp(`^${escapeRegExp(hint.keys)} +${escapeRegExp(hint.label)}$`),

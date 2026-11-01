@@ -7,8 +7,16 @@ import {
 	parseDecree,
 } from "../src/core/decree";
 import { enactDecree, policiesFor } from "../src/core/decree-engine";
+import { saveDecree } from "../src/core/saved-decrees";
 import { createNewGame } from "../src/core/state";
-import { CHAINING_UNLOCK, COMPOUND_UNLOCK } from "../src/core/unlocks";
+import type { Tuning } from "../src/core/tuning";
+import {
+	ARCHIVE_PANEL,
+	CHAINING_UNLOCK,
+	COMPOUND_UNLOCK,
+	PALETTE_UNLOCK,
+	SAVED_DECREES_UNLOCK,
+} from "../src/core/unlocks";
 import { computeView } from "../src/core/view";
 import {
 	decreeLine,
@@ -21,7 +29,7 @@ import {
 import { describePolicy, formatDecree } from "../src/tui/decree-format";
 import type { KeyPress } from "../src/tui/keys";
 import type { MenuContext } from "../src/tui/menu";
-import { grantUnlocks, tuning } from "./helpers";
+import { grantUnlocks, setRoster, tuning } from "./helpers";
 
 const granary: Decree = {
 	id: "granary",
@@ -670,5 +678,250 @@ describe("renderLine", () => {
 		const render = renderLine(openLine("decree banana"), fresh);
 
 		expect(render.lines.join("\n")).toContain('! "banana"');
+	});
+});
+
+describe("verbs on the line", () => {
+	const owning = (...unlocks: string[]) => contextWith({ unlocks });
+	const everyVerb = owning(ARCHIVE_PANEL, PALETTE_UNLOCK, SAVED_DECREES_UNLOCK);
+
+	function withSaved(name: string, decree: Decree): MenuContext {
+		const state = createNewGame(1, tuning);
+		grantUnlocks(state, [SAVED_DECREES_UNLOCK]);
+		const saved = saveDecree(state, name, decree, tuning);
+		if (!saved.ok) throw new Error(saved.reason);
+		return { view: computeView(state, tuning), tuning };
+	}
+
+	test("a fresh game's palette offers exactly decree and repeal", () => {
+		expect(suggestionTexts("", fresh)).toEqual(["decree", "repeal"]);
+	});
+
+	test("buy joins the palette once the Archive panel is owned", () => {
+		expect(suggestionTexts("", owning(ARCHIVE_PANEL))).toEqual([
+			"decree",
+			"repeal",
+			"buy",
+		]);
+	});
+
+	test("typing a verb the player does not own is a problem that names the Archive entry", () => {
+		const result = parseLine("save plan decree harvest otherwise sell", fresh);
+		const label = tuning.archive.entries.find(
+			(entry) => entry.id === SAVED_DECREES_UNLOCK,
+		)?.label;
+
+		expect(result.command).toBeNull();
+		expect(result.problem).toContain(`"${label}"`);
+		expect(result.problem).toContain("Archive");
+	});
+
+	test("typing buy before the Archive opens is a problem, not a command", () => {
+		const result = parseLine("buy palette", fresh);
+
+		expect(result.command).toBeNull();
+		expect(result.problem).toContain("Archive");
+	});
+
+	test("buy offers each purchasable entry with its label, cost and description", () => {
+		const palette = tuning.archive.entries.find(
+			(entry) => entry.id === PALETTE_UNLOCK,
+		);
+		if (palette === undefined) throw new Error("no palette entry");
+
+		const offered = parseLine("buy ", owning(ARCHIVE_PANEL)).suggestions;
+		const entry = offered.find((s) => s.text === "palette");
+
+		expect(entry?.description).toContain(palette.label);
+		expect(entry?.description).toContain(String(palette.cost));
+		expect(entry?.description).toContain(palette.description);
+		expect(entry?.description).toContain(`need ${String(palette.cost)} coin`);
+	});
+
+	test("buy leaves out entries whose prerequisites are missing, and offers them once met", () => {
+		expect(suggestionTexts("buy ", owning(ARCHIVE_PANEL))).not.toContain(
+			"saved-decrees",
+		);
+		expect(
+			suggestionTexts("buy ", owning(ARCHIVE_PANEL, PALETTE_UNLOCK)),
+		).toContain("saved-decrees");
+	});
+
+	test("buy leaves out entries already owned", () => {
+		const words = suggestionTexts(
+			"buy ",
+			owning(ARCHIVE_PANEL, COMPOUND_UNLOCK),
+		);
+
+		expect(words).not.toContain("compound");
+		expect(words).toContain("chaining");
+	});
+
+	test("buy with every entry owned says the Archive has nothing left", () => {
+		const result = parseLine(
+			"buy ",
+			owning(ARCHIVE_PANEL, ...tuning.archive.entries.map((entry) => entry.id)),
+		);
+
+		expect(result.suggestions).toEqual([]);
+		expect(result.problem).toBe("you own everything in the Archive");
+	});
+
+	test("buy with every remaining entry missing a prerequisite says nothing can be bought yet", () => {
+		const onlyDependent: Tuning = {
+			...tuning,
+			archive: {
+				...tuning.archive,
+				entries: tuning.archive.entries.filter(
+					(entry) => entry.requires.length > 0,
+				),
+			},
+		};
+		const state = createNewGame(1, onlyDependent);
+		grantUnlocks(state, [ARCHIVE_PANEL]);
+		const context = {
+			view: computeView(state, onlyDependent),
+			tuning: onlyDependent,
+		};
+
+		const result = parseLine("buy ", context);
+
+		expect(result.suggestions).toEqual([]);
+		expect(result.problem).toBe("nothing in the Archive can be bought yet");
+	});
+
+	test("buy names the coin still missing for an entry the player cannot afford", () => {
+		const palette = tuning.archive.entries.find(
+			(entry) => entry.id === PALETTE_UNLOCK,
+		);
+		if (palette === undefined) throw new Error("no palette entry");
+		const state = createNewGame(1, tuning);
+		grantUnlocks(state, [ARCHIVE_PANEL]);
+		state.posting.resources.coin = palette.cost - 30;
+		const context = { view: computeView(state, tuning), tuning };
+
+		const offered = parseLine("buy ", context).suggestions;
+
+		expect(offered.find((s) => s.text === "palette")?.description).toContain(
+			"need 30 coin",
+		);
+	});
+
+	test("buy compound issues buyUnlock for the compound entry", () => {
+		const result = parseLine("buy compound", owning(ARCHIVE_PANEL));
+
+		expect(result.command).toEqual({ type: "buyUnlock", id: COMPOUND_UNLOCK });
+	});
+
+	test("buy for an entry whose prerequisite is missing names the prerequisite", () => {
+		const result = parseLine("buy saved-decrees", owning(ARCHIVE_PANEL));
+		const palette = tuning.archive.entries.find(
+			(entry) => entry.id === PALETTE_UNLOCK,
+		);
+
+		expect(result.command).toBeNull();
+		expect(result.problem).toContain(palette?.label ?? "");
+	});
+
+	test("buy for an entry already owned says so", () => {
+		const result = parseLine(
+			"buy compound",
+			owning(ARCHIVE_PANEL, COMPOUND_UNLOCK),
+		);
+
+		expect(result.command).toBeNull();
+		expect(result.problem).toContain("already own");
+	});
+
+	test("save builds the same decree that decree builds", () => {
+		const body = "harvest sell when grain above 5 otherwise stockpile";
+		const entered = parseLine(`decree ${body}`, everyVerb).command;
+		const saved = parseLine(`save plan decree ${body}`, everyVerb).command;
+
+		if (entered?.type !== "enactDecree") throw new Error("not a decree");
+		expect(saved).toEqual({
+			type: "saveDecree",
+			name: "plan",
+			decree: entered.decree,
+		});
+	});
+
+	test("save refuses a name the core would not accept", () => {
+		const result = parseLine("save Plan! decree", everyVerb);
+
+		expect(result.command).toBeNull();
+		expect(result.problem).toContain("not a valid name");
+	});
+
+	test("enact and forget offer the saved decrees and issue their commands", () => {
+		const context = withSaved("plan", granary);
+
+		expect(suggestionTexts("enact ", context)).toEqual(["plan"]);
+		expect(parseLine("enact plan", context).command).toEqual({
+			type: "enactSaved",
+			name: "plan",
+		});
+		expect(parseLine("forget plan", context).command).toEqual({
+			type: "forgetSaved",
+			name: "plan",
+		});
+	});
+
+	test("enact with nothing saved says no decrees are saved", () => {
+		const result = parseLine("enact ", owning(SAVED_DECREES_UNLOCK));
+
+		expect(result.suggestions).toEqual([]);
+		expect(result.problem).toBe("no decrees are saved");
+	});
+
+	test("enact describes each saved decree", () => {
+		const context = withSaved("plan", granary);
+
+		const [only] = parseLine("enact ", context).suggestions;
+
+		expect(only?.description).toContain(
+			formatDecree({ ...granary, id: "plan" }),
+		);
+	});
+
+	test("forget is offered only while a saved decree exists", () => {
+		expect(suggestionTexts("", fresh)).not.toContain("forget");
+		expect(suggestionTexts("", withSaved("plan", granary))).toContain("forget");
+	});
+
+	function villageOfThree(): MenuContext {
+		const state = createNewGame(1, tuning);
+		setRoster(state, { idle: 3 });
+		grantUnlocks(state, [PALETTE_UNLOCK]);
+		return { view: computeView(state, tuning), tuning };
+	}
+
+	test("assign gives the named peasant the job, by the peasant's real id", () => {
+		const context = villageOfThree();
+		const peasant = context.view.delegates[1];
+		if (peasant === undefined) throw new Error("no second peasant");
+
+		const result = parseLine(`assign ${peasant.name} mine`, context);
+
+		expect(result.command).toEqual({
+			type: "assignPeasant",
+			peasant: peasant.id,
+			job: "mine",
+		});
+	});
+
+	test("assign offers every living peasant, then the four jobs", () => {
+		const context = villageOfThree();
+		const [first] = context.view.delegates;
+
+		expect(suggestionTexts("assign ", context)).toEqual(
+			context.view.delegates.map((delegate) => delegate.name),
+		);
+		expect(suggestionTexts(`assign ${first?.name} `, context)).toEqual([
+			"farm",
+			"forest",
+			"mine",
+			"idle",
+		]);
 	});
 });

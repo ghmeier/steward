@@ -18,7 +18,7 @@
 		{
 			"id": "decree.compound",
 			"label": "Compound conditions",
-			"description": "Join conditions in a decree with all, any and not.",
+			"description": "Join conditions in a decree with and, or and not.",
 			"cost": 400,
 			"requires": []
 		},

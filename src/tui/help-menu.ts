@@ -1,8 +1,13 @@
 import { policiesFor } from "../core/decree-engine";
 import { type Resource, SEASONS } from "../core/realm";
 import type { Tuning } from "../core/tuning";
+import {
+	CHAINING_UNLOCK,
+	COMPOUND_UNLOCK,
+	SAVED_DECREES_UNLOCK,
+} from "../core/unlocks";
 import { describePolicy, plain } from "./decree-format";
-import { KEY_HINTS } from "./keys";
+import { keyHints } from "./keys";
 import type { MenuContext, Screen, ScreenBuilder } from "./menu";
 
 const BACK_ITEM = {
@@ -31,13 +36,14 @@ function rulingsTouching(
 	);
 }
 
-function keysLines(): string[] {
-	const width = Math.max(...KEY_HINTS.map((hint) => hint.keys.length));
+function keysLines(context: MenuContext): string[] {
+	const hints = keyHints(context.view.unlocks);
+	const width = Math.max(...hints.map((hint) => hint.keys.length));
 	return [
-		...KEY_HINTS.map((hint) => `${hint.keys.padEnd(width)}  ${hint.label}`),
+		...hints.map((hint) => `${hint.keys.padEnd(width)}  ${hint.label}`),
 		"",
 		"In any menu: up/down to move, enter to choose, esc to go back.",
-		"The farm, forest and mine keys act on the selected peasant.",
+		"f, w, m and i put the selected peasant on the farm, in the forest, in the mine or idle.",
 	];
 }
 
@@ -77,7 +83,8 @@ function grainLines(tuning: Tuning): string[] {
 	];
 }
 
-function coinLines(tuning: Tuning): string[] {
+function coinLines(context: MenuContext): string[] {
+	const { tuning } = context;
 	const lines = [
 		`The only steady source of coin is selling: grain at ${plain(tuning.economy.grainPrice)} coin each, wood at ${plain(tuning.economy.woodPrice)} and ore at ${plain(tuning.economy.orePrice)}.`,
 		"Selling happens through a harvest, wood or ore decree (see Harvest and labor).",
@@ -87,6 +94,9 @@ function coinLines(tuning: Tuning): string[] {
 	}
 	if (rulingsTouching(tuning, "coin", "costs")) {
 		lines.push("", "Coin is spent on dispute rulings.");
+	}
+	if (context.view.archive.open) {
+		lines.push("", "Coin also buys entries from the Archive (press a).");
 	}
 	return lines;
 }
@@ -109,7 +119,24 @@ function woodAndOreLines(tuning: Tuning): string[] {
 	];
 }
 
-function decreeLines(): string[] {
+function decreeLines(context: MenuContext): string[] {
+	const owns = (id: string) => context.view.unlocks.includes(id);
+	const owned: string[] = [];
+	if (owns(COMPOUND_UNLOCK)) {
+		owned.push(
+			"Join conditions with and, or or (one kind per rule), and put not before one to flip it.",
+		);
+	}
+	if (owns(CHAINING_UNLOCK)) {
+		owned.push(
+			'A condition can read another decree, as in "harvest chose sell".',
+		);
+	}
+	if (owns(SAVED_DECREES_UNLOCK)) {
+		owned.push(
+			"Keep a decree with: save <name> decree ... Then enact <name> brings it back, and forget <name> deletes it.",
+		);
+	}
 	return [
 		"A decree answers one of four petitions, harvest (grain), wood, ore or labor, and each petition holds one decree.",
 		"Rules are checked in order and the first match wins. Otherwise applies when none match.",
@@ -123,6 +150,7 @@ function decreeLines(): string[] {
 		"  Swap them and feed catches everything above 2, so nothing is ever sold.",
 		"",
 		'To withdraw a decree, press d, clear the line and type "repeal" and its name.',
+		...(owned.length === 0 ? [] : ["", ...owned]),
 	];
 }
 
@@ -171,26 +199,26 @@ function promotionLines(tuning: Tuning): string[] {
 
 const TOPICS: readonly {
 	label: string;
-	lines: (tuning: Tuning) => string[];
+	lines: (context: MenuContext) => string[];
 }[] = [
 	{ label: "Keys", lines: keysLines },
-	{ label: "Grain and growth", lines: grainLines },
+	{ label: "Grain and growth", lines: (c) => grainLines(c.tuning) },
 	{ label: "Coin", lines: coinLines },
-	{ label: "Wood and ore", lines: woodAndOreLines },
+	{ label: "Wood and ore", lines: (c) => woodAndOreLines(c.tuning) },
 	{ label: "Decrees", lines: decreeLines },
-	{ label: "Harvest and labor", lines: harvestAndLaborLines },
-	{ label: "Disputes", lines: disputeLines },
-	{ label: "Promotion", lines: promotionLines },
+	{ label: "Harvest and labor", lines: (c) => harvestAndLaborLines(c.tuning) },
+	{ label: "Disputes", lines: (c) => disputeLines(c.tuning) },
+	{ label: "Promotion", lines: (c) => promotionLines(c.tuning) },
 ];
 
 function topicScreen(
 	label: string,
-	lines: (tuning: Tuning) => string[],
+	lines: (context: MenuContext) => string[],
 ): ScreenBuilder {
 	return (context: MenuContext): Screen => ({
 		kind: "list",
 		title: label,
-		notes: lines(context.tuning),
+		notes: lines(context),
 		items: [BACK_ITEM],
 	});
 }

@@ -7,6 +7,9 @@ import type { AddContext } from "../src/core/math";
 import { createNewGame, type GameState } from "../src/core/state";
 import { parseTuning, type Tuning } from "../src/core/tuning";
 import { ARCHIVE_PANEL } from "../src/core/unlocks";
+import { computeView } from "../src/core/view";
+import { helpMenu } from "../src/tui/help-menu";
+import { menuKey, openMenu, renderMenu } from "../src/tui/menu";
 
 export const fullTuningJson = {
 	...tuningJson,
@@ -178,4 +181,32 @@ export function setFamineDue(
 		ticks: ticksPerSeason - 1,
 		deaths: state.posting.economy.famine.deaths,
 	};
+}
+
+/** The text of one help topic, opened through the menu the way a player would. */
+export function topicText(
+	topic: string,
+	using: Tuning = tuning,
+	unlocks: readonly string[] = [],
+): string {
+	const game = createNewGame(1, using);
+	grantUnlocks(game, unlocks);
+	const context = { view: computeView(game, using), tuning: using };
+	const root = openMenu(helpMenu);
+	const index = renderMenu(root, context).lines.findIndex((line) =>
+		line.includes(topic),
+	);
+	let state = root;
+	const press = (name: string) => {
+		const step = menuKey(
+			state,
+			{ name, ctrl: false, meta: false, shift: false, sequence: name },
+			context,
+		);
+		if (step.state === null) throw new Error("menu closed");
+		state = step.state;
+	};
+	for (let i = 0; i < index; i++) press("down");
+	press("return");
+	return renderMenu(state, context).lines.join("\n");
 }

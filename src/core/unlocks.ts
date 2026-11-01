@@ -27,6 +27,7 @@ export const ARCHIVE_PANEL: UnlockId = "panel.archive";
 export const CROWN_PANEL: UnlockId = "panel.crown";
 export const COMPOUND_UNLOCK: UnlockId = "decree.compound";
 export const CHAINING_UNLOCK: UnlockId = "decree.chaining";
+export const PALETTE_UNLOCK: UnlockId = "control.palette";
 export const SAVED_DECREES_UNLOCK: UnlockId = "control.savedDecrees";
 
 export function hasUnlock(state: GameState, id: UnlockId): boolean {

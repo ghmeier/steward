@@ -1,6 +1,7 @@
 import type { Command } from "../core/commands";
 import {
 	type Condition,
+	DECREE_ID_PATTERN,
 	type Decree,
 	type DecreeRule,
 	PETITIONS,
@@ -11,8 +12,15 @@ import {
 	type Quantity,
 } from "../core/decree";
 import { policiesFor } from "../core/decree-engine";
-import { SEASONS } from "../core/realm";
-import { CHAINING_UNLOCK, COMPOUND_UNLOCK } from "../core/unlocks";
+import { type Job, SEASONS } from "../core/realm";
+import {
+	ARCHIVE_PANEL,
+	CHAINING_UNLOCK,
+	COMPOUND_UNLOCK,
+	PALETTE_UNLOCK,
+	SAVED_DECREES_UNLOCK,
+	type UnlockId,
+} from "../core/unlocks";
 import { describePolicy, formatDecree, words } from "./decree-format";
 import type { KeyPress } from "./keys";
 import type { MenuContext, MenuRender } from "./menu";
@@ -131,6 +139,24 @@ class Cursor {
 		return value === 0 ? 0 : value;
 	}
 
+	/** A free-text name; the text typed so far is accepted while it could still become a valid name. */
+	name(help: string): string {
+		const rest = this.skipSpaces();
+		if (rest === "") throw new Halt([], null, help);
+		const word = rest.split(" ")[0] ?? rest;
+		const typing = word.length === rest.length;
+		if (typing && DECREE_ID_PATTERN.test(word)) throw new Halt([], null, help);
+		if (!DECREE_ID_PATTERN.test(word)) {
+			throw new Halt(
+				[],
+				`"${word}" is not a valid name: use lowercase letters, digits and dashes, starting with a letter`,
+				null,
+			);
+		}
+		this.position += word.length;
+		return word;
+	}
+
 	fail(problem: string): never {
 		throw new Halt([], problem, null);
 	}
@@ -146,6 +172,10 @@ class Cursor {
 type Verb = {
 	word: string;
 	description: string;
+	/** Whether the player may use the verb now; the palette and the first word offer only these. */
+	available: (context: MenuContext) => boolean;
+	/** What to tell a player who types an unavailable verb, naming where it comes from. */
+	unavailableProblem: (context: MenuContext) => string;
 	parse: (cursor: Cursor, context: MenuContext) => Command;
 };
 
@@ -317,7 +347,11 @@ function startChoices(
 	];
 }
 
-function parseDecreeVerb(cursor: Cursor, context: MenuContext): Command {
+function parseDecreeVerb(
+	cursor: Cursor,
+	context: MenuContext,
+	build: (decree: Decree) => Command,
+): Command {
 	const { view, tuning } = context;
 	const petition = cursor.expect(
 		"a petition",
@@ -420,7 +454,7 @@ function parseDecreeVerb(cursor: Cursor, context: MenuContext): Command {
 	} catch (error) {
 		cursor.fail(plainReason(error));
 	}
-	return { type: "enactDecree", decree };
+	return build(decree);
 }
 
 function conditionLimitProblem(tuning: MenuContext["tuning"]): string {
@@ -469,17 +503,180 @@ function parseRepealVerb(cursor: Cursor, context: MenuContext): Command {
 	return { type: "repealDecree", id };
 }
 
+function ownsUnlock(context: MenuContext, id: UnlockId): boolean {
+	return context.view.unlocks.includes(id);
+}
+
+function entryLabel(context: MenuContext, id: UnlockId): string {
+	return (
+		context.tuning.archive.entries.find((entry) => entry.id === id)?.label ?? id
+	);
+}
+
+function needsUnlock(id: UnlockId, verb: string) {
+	return {
+		available: (context: MenuContext) => ownsUnlock(context, id),
+		unavailableProblem: (context: MenuContext) =>
+			id === ARCHIVE_PANEL
+				? `${verb} needs the Archive, which opens when the treasury first holds coin`
+				: `${verb} needs "${entryLabel(context, id)}" from the Archive`,
+	};
+}
+
+const always = {
+	available: () => true,
+	unavailableProblem: () => "",
+};
+
+function slugOf(id: UnlockId): string {
+	return id
+		.slice(id.indexOf(".") + 1)
+		.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+}
+
+function coinHeld(context: MenuContext): number {
+	return (
+		context.view.ledger.find((line) => line.resource === "coin")?.amount ?? 0
+	);
+}
+
+function parseBuyVerb(cursor: Cursor, context: MenuContext): Command {
+	const { entries } = context.view.archive;
+	const coin = coinHeld(context);
+	const offered = entries.filter((entry) => !entry.owned && entry.available);
+	if (entries.every((entry) => entry.owned)) {
+		cursor.fail("you own everything in the Archive");
+	}
+	if (offered.length === 0)
+		cursor.fail("nothing in the Archive can be bought yet");
+	const id = cursor.expect(
+		"an Archive entry you can buy",
+		offered.map((entry) => ({
+			text: slugOf(entry.id),
+			description: `${entry.label}, ${String(entry.cost)} coin: ${entry.description}${
+				entry.affordable
+					? ""
+					: ` (need ${String(Math.ceil(entry.cost - coin))} coin)`
+			}`,
+			value: entry.id,
+		})),
+		{
+			final: true,
+			unmatched: (word) => {
+				const known = entries.find((entry) => slugOf(entry.id) === word);
+				if (known === undefined) return null;
+				if (known.owned) return `you already own ${known.label}`;
+				const missing = context.tuning.archive.entries
+					.find((entry) => entry.id === known.id)
+					?.requires.filter((id) => !ownsUnlock(context, id))
+					.map((id) => entryLabel(context, id));
+				return `${known.label} needs ${(missing ?? []).join(" and ")} first`;
+			},
+		},
+	).value;
+	return { type: "buyUnlock", id };
+}
+
+function parseSaveVerb(cursor: Cursor, context: MenuContext): Command {
+	const name = cursor.name("a name for the decree, such as harvest-plan");
+	cursor.expect("decree", [
+		{ text: "decree", description: "the decree to keep", value: null },
+	]);
+	return parseDecreeVerb(cursor, context, (decree) => ({
+		type: "saveDecree",
+		name,
+		decree,
+	}));
+}
+
+function savedChoices(context: MenuContext): Choice<string>[] {
+	return context.view.savedDecrees.map((decree) => ({
+		text: decree.id,
+		description: formatDecree(decree),
+		value: decree.id,
+	}));
+}
+
+function parseSavedVerb(type: "enactSaved" | "forgetSaved") {
+	return (cursor: Cursor, context: MenuContext): Command => {
+		if (context.view.savedDecrees.length === 0) {
+			cursor.fail("no decrees are saved");
+		}
+		const name = cursor.expect("a saved decree", savedChoices(context), {
+			final: true,
+		}).value;
+		return { type, name };
+	};
+}
+
+const JOBS: readonly Choice<Job | "idle">[] = [
+	{ text: "farm", description: "grow grain", value: "farm" },
+	{ text: "forest", description: "cut wood", value: "forest" },
+	{ text: "mine", description: "dig ore", value: "mine" },
+	{ text: "idle", description: "no work", value: "idle" },
+];
+
+function parseAssignVerb(cursor: Cursor, context: MenuContext): Command {
+	const peasant = cursor.expect(
+		"a peasant",
+		context.view.delegates.map((delegate) => ({
+			text: delegate.name,
+			description: delegate.job,
+			value: delegate.id,
+		})),
+	).value;
+	const job = cursor.expect("a job", JOBS, { final: true }).value;
+	return { type: "assignPeasant", peasant, job };
+}
+
 /** New verbs are appended here; each parses the rest of the line with the same cursor. */
 const VERBS: readonly Verb[] = [
 	{
 		word: "decree",
 		description: "set how a petition is answered",
-		parse: parseDecreeVerb,
+		...always,
+		parse: (cursor, context) =>
+			parseDecreeVerb(cursor, context, (decree) => ({
+				type: "enactDecree",
+				decree,
+			})),
 	},
 	{
 		word: "repeal",
 		description: "withdraw a decree in force",
+		...always,
 		parse: parseRepealVerb,
+	},
+	{
+		word: "buy",
+		description: "buy an entry from the Archive",
+		...needsUnlock(ARCHIVE_PANEL, "buy"),
+		parse: parseBuyVerb,
+	},
+	{
+		word: "save",
+		description: "keep a decree under a name",
+		...needsUnlock(SAVED_DECREES_UNLOCK, "save"),
+		parse: parseSaveVerb,
+	},
+	{
+		word: "enact",
+		description: "enact a saved decree",
+		...needsUnlock(SAVED_DECREES_UNLOCK, "enact"),
+		parse: parseSavedVerb("enactSaved"),
+	},
+	{
+		word: "forget",
+		description: "delete a saved decree",
+		available: (context) => context.view.savedDecrees.length > 0,
+		unavailableProblem: () => "there are no saved decrees to forget",
+		parse: parseSavedVerb("forgetSaved"),
+	},
+	{
+		word: "assign",
+		description: "give a peasant a job",
+		...needsUnlock(PALETTE_UNLOCK, "assign"),
+		parse: parseAssignVerb,
 	},
 ];
 
@@ -490,11 +687,19 @@ function analyze(text: string, context: MenuContext): Analysis {
 	try {
 		const verb = cursor.expect(
 			"a command",
-			VERBS.map((value) => ({
+			VERBS.filter((value) => value.available(context)).map((value) => ({
 				text: value.word,
 				description: value.description,
 				value,
 			})),
+			{
+				unmatched: (word) => {
+					const locked = VERBS.find((value) => value.word === word);
+					return locked === undefined
+						? null
+						: locked.unavailableProblem(context);
+				},
+			},
 		).value;
 		const command = verb.parse(cursor, context);
 		cursor.finish();

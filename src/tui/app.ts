@@ -7,12 +7,13 @@ import { type LineState, lineKey, openLine, renderLine } from "./command-line";
 import { courtMenu } from "./court-menu";
 import { type Cursor, moveCursor, reconcileCursor } from "./cursor";
 import { helpMenu } from "./help-menu";
-import { actionForKey, HINTS_TEXT, isInterrupt } from "./keys";
+import { actionForKey, hintsText, isInterrupt } from "./keys";
 import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
 import { newGameMenu } from "./new-game-menu";
 import { createPanels } from "./panels";
 import { createSession, type Session } from "./session";
 import { starvationNotice } from "./starvation-notice";
+import { announceNewUnlocks } from "./unlock-notices";
 
 const FRAME_INTERVAL_MS = 50;
 const AUTOSAVE_INTERVAL_MS = 30_000;
@@ -80,6 +81,7 @@ export function startApp(options: {
 	let line: LineState | null = null;
 	let promotionAnnounced = session.view().promotion.promotedAt > 0;
 	let lastView = session.view();
+	let knownUnlocks = new Set(lastView.unlocks);
 
 	const menuContext = () => ({ view: session.view(), tuning });
 	const currentOverlay = () => {
@@ -88,7 +90,8 @@ export function startApp(options: {
 	};
 	const composeFooter = () => {
 		const open = currentOverlay();
-		const hints = open === null ? HINTS_TEXT : open.hints;
+		const hints =
+			open === null ? hintsText(session.view().unlocks) : open.hints;
 		return `${message ?? ""}\n${hints}`;
 	};
 	const redraw = () => {
@@ -121,6 +124,7 @@ export function startApp(options: {
 		session = makeSession(createNewGame(options.newSeed(), tuning));
 		lastView = session.view();
 		promotionAnnounced = lastView.promotion.promotedAt > 0;
+		knownUnlocks = new Set(lastView.unlocks);
 		cursor = reconcileCursor(lastView.delegates, null);
 		const error = save();
 		message =
@@ -151,10 +155,10 @@ export function startApp(options: {
 			redraw();
 			return;
 		}
-		const action = actionForKey(key);
+		const action = actionForKey(key, session.view().unlocks);
 		if (action === null) return;
-		if (action.kind === "decrees") {
-			line = openLine("decree ");
+		if (action.kind === "line") {
+			line = openLine(action.prefill);
 			redraw();
 			return;
 		}
@@ -199,6 +203,12 @@ export function startApp(options: {
 		const starved = starvationNotice(lastView, session.view());
 		if (starved !== null) message = starved;
 		lastView = session.view();
+		const unlocked = announceNewUnlocks(
+			knownUnlocks,
+			session.view().unlocks,
+			tuning,
+		);
+		if (unlocked !== null) message = unlocked;
 		if (!promotionAnnounced && session.view().promotion.promotedAt > 0) {
 			promotionAnnounced = true;
 			message = "The crown has noticed you. You are promoted to steward.";
