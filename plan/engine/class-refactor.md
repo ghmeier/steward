@@ -1,11 +1,11 @@
 ---
 title: Finish the class-based refactor around a composed Game root
-status: active
+status: completed
 tags: [engine, refactor]
 created: 2026-11-01
 updated: 2026-11-01
 last_pr: 1
-next_step: Review and merge PR #1; then flip to completed and write the handoff
+next_step: Done; merged as 62057db. Zod migration is next (REFINEMENTS item 1)
 ---
 # Finish the class-based refactor around a composed Game root
 
@@ -126,3 +126,4 @@ Acceptance per branch: its files typecheck and pass with `bun test <files>`.
 - 2026-11-01: Phase 2 done: engine `3535e2b`, decrees `fc58b03`, edges `59748c1`, TUI `ddb7fc8`. Merged into `refactor-classes` (`be924fa`). `bun run check`: 832 pass, 0 fail; golden.json unchanged.
 - 2026-11-01: `dd7ed49` reworded five player-facing errors. Kept four (grudge, not enough coin, already own, not purchasable); restoring "no peasant N" in the refactor pass because "no assignee with id N" is internal wording.
 - 2026-11-01: Refactor pass `c25f33d` (restored "no peasant N", manager getters, removed task-referencing comments). It skipped the simplify review and test consolidation; I checked the review patterns myself and they hold. TUI smoke test passed (new game, assignment, save on quit at tick 165, resume). Opened PR #1 from `refactor-classes` to `main`.
+- 2026-11-01: PR #1 merged as `62057db`. `bun run check` on main: 832 pass. Plan completed.
