@@ -4,6 +4,7 @@ import { settleDispute } from "./desk";
 import { errorMessage } from "./errors";
 import type { AddContext } from "./math";
 import { JOBS, type Job } from "./realm";
+import { enactSaved, forgetSaved, saveDecree } from "./saved-decrees";
 import type { GameState } from "./state";
 import type { Tuning } from "./tuning";
 import { buyUnlock } from "./unlocks";
@@ -14,7 +15,10 @@ export type Command =
 	| { type: "enactDecree"; decree: unknown }
 	| { type: "repealDecree"; id: string }
 	| { type: "settleDispute"; dispute: number; option: string }
-	| { type: "buyUnlock"; id: string };
+	| { type: "buyUnlock"; id: string }
+	| { type: "saveDecree"; name: string; decree: unknown }
+	| { type: "enactSaved"; name: string }
+	| { type: "forgetSaved"; name: string };
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
 
@@ -77,6 +81,12 @@ export function apply(
 			);
 		case "buyUnlock":
 			return buyUnlock(state, command.id, tuning, context);
+		case "saveDecree":
+			return saveDecree(state, command.name, command.decree, tuning);
+		case "enactSaved":
+			return enactSaved(state, command.name, tuning);
+		case "forgetSaved":
+			return forgetSaved(state, command.name);
 		default: {
 			const unreachable: never = command;
 			return {
@@ -136,6 +146,27 @@ export function parseCommand(value: unknown): Command {
 				throw new Error("buyUnlock id must be a string");
 			}
 			return { type: "buyUnlock", id: value.id };
+		}
+		case "saveDecree": {
+			if (typeof value.name !== "string") {
+				throw new Error("saveDecree name must be a string");
+			}
+			if (!isRecord(value.decree)) {
+				throw new Error("saveDecree decree must be an object");
+			}
+			return { type: "saveDecree", name: value.name, decree: value.decree };
+		}
+		case "enactSaved": {
+			if (typeof value.name !== "string") {
+				throw new Error("enactSaved name must be a string");
+			}
+			return { type: "enactSaved", name: value.name };
+		}
+		case "forgetSaved": {
+			if (typeof value.name !== "string") {
+				throw new Error("forgetSaved name must be a string");
+			}
+			return { type: "forgetSaved", name: value.name };
 		}
 		default:
 			throw new Error(`unknown command type ${JSON.stringify(type)}`);

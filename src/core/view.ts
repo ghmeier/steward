@@ -60,6 +60,7 @@ export type GameView = {
 	};
 	delegates: DelegateView[];
 	decrees: Decree[];
+	savedDecrees: Decree[];
 	desk: DeskEntryView[];
 	governors: GovernorView[];
 	crown: CrownDemandView | null;
@@ -111,6 +112,10 @@ export function computeView(state: GameState, tuning: Tuning): GameView {
 		decrees: Object.entries(decrees)
 			.sort(([a], [b]) => compareKeys(a, b))
 			.map(([, decree]) => structuredClone(decree)),
+		savedDecrees: sortedKeys(state.career.savedDecrees).flatMap((name) => {
+			const saved = state.career.savedDecrees[name];
+			return saved === undefined ? [] : [structuredClone(saved)];
+		}),
 		desk: deskView(state, tuning),
 		governors: [],
 		crown: null,

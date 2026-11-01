@@ -334,6 +334,20 @@ export function formatCycle(cycle: readonly string[]): string {
 	return [...cycle, cycle[0]].join(" -> ");
 }
 
+/** The first rule or otherwise policy the decree's petition does not offer, or null. */
+export function decreePolicyProblem(
+	decree: Decree,
+	allowed: readonly string[],
+): string | null {
+	const used = [...decree.rules.map((rule) => rule.policy), decree.otherwise];
+	for (const policy of used) {
+		if (!allowed.includes(policy)) {
+			return `policy "${policy}" is not a ${decree.petition} policy`;
+		}
+	}
+	return null;
+}
+
 /**
  * The checks on a whole decree set that need no tuning, shared by enacting and by
  * state validation. Labor policies are only checked when the caller can supply them.
@@ -356,12 +370,8 @@ export function decreeSetProblem(
 		if (!decree) continue;
 		const allowed = policiesOf(decree.petition);
 		if (!allowed) continue;
-		const used = [...decree.rules.map((rule) => rule.policy), decree.otherwise];
-		for (const policy of used) {
-			if (!allowed.includes(policy)) {
-				return `decree "${id}": policy "${policy}" is not a ${decree.petition} policy`;
-			}
-		}
+		const problem = decreePolicyProblem(decree, allowed);
+		if (problem !== null) return `decree "${id}": ${problem}`;
 	}
 
 	const handlers = new Map<Petition, string[]>();

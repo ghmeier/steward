@@ -27,6 +27,7 @@ export const ARCHIVE_PANEL: UnlockId = "panel.archive";
 export const CROWN_PANEL: UnlockId = "panel.crown";
 export const COMPOUND_UNLOCK: UnlockId = "decree.compound";
 export const CHAINING_UNLOCK: UnlockId = "decree.chaining";
+export const SAVED_DECREES_UNLOCK: UnlockId = "control.savedDecrees";
 
 export function hasUnlock(state: GameState, id: UnlockId): boolean {
 	return Object.hasOwn(state.career.unlocks, id);
@@ -125,6 +126,10 @@ export function missingDecreeUnlock(
 	const found = tuning.archive.entries.find((entry) => entry.id === id);
 	if (found === undefined) throw new Error(`archive entry "${id}" is missing`);
 	return found;
+}
+
+export function missingDecreeUnlockReason(entry: ArchiveEntry): string {
+	return `this decree needs "${entry.label}" from the Archive`;
 }
 
 export function ownedUnlocks(state: GameState): UnlockId[] {

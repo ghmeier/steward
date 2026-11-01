@@ -26,7 +26,7 @@ import { errorMessage } from "./errors";
 import type { AddContext } from "./math";
 import type { GameState } from "./state";
 import type { Tuning } from "./tuning";
-import { missingDecreeUnlock } from "./unlocks";
+import { missingDecreeUnlock, missingDecreeUnlockReason } from "./unlocks";
 
 export { HARVEST_POLICIES } from "./decree";
 
@@ -53,10 +53,7 @@ export function enactDecree(
 
 	const missing = missingDecreeUnlock(state, decree, tuning);
 	if (missing !== null) {
-		return {
-			ok: false,
-			reason: `this decree needs "${missing.label}" from the Archive`,
-		};
+		return { ok: false, reason: missingDecreeUnlockReason(missing) };
 	}
 
 	const candidate: Record<string, Decree> = {

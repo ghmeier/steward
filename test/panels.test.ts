@@ -43,6 +43,7 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
 		},
 		delegates: [],
 		decrees: [],
+		savedDecrees: [],
 		desk: [],
 		governors: [],
 		crown: null,
