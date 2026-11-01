@@ -7,6 +7,13 @@ import { projectFlows } from "./projection";
 import { type Job, RESOURCES, type Season } from "./realm";
 import type { GameState, ResourceId } from "./state";
 import type { Tuning } from "./tuning";
+import {
+	ARCHIVE_PANEL,
+	CROWN_PANEL,
+	hasUnlock,
+	ownedUnlocks,
+	type UnlockId,
+} from "./unlocks";
 
 export type LedgerLine = {
 	resource: ResourceId;
@@ -59,11 +66,19 @@ export type GameView = {
 	promotion: { target: number; promotedAt: number; promotedAtSeconds: number };
 	growth: { stored: number; needed: number; perSecond: number; full: boolean };
 	lockedPanels: PanelId[];
+	unlocks: UnlockId[];
+	archive: { open: boolean; entries: ArchiveEntryView[] };
 };
-
-// The village answers to no crown until promotion is acted on in phase 8; phase 5 moves this list
-// into the unlock registry.
-const LOCKED_PANELS: readonly PanelId[] = ["crown"];
+export type ArchiveEntryView = {
+	id: UnlockId;
+	label: string;
+	description: string;
+	cost: number;
+	owned: boolean;
+	affordable: boolean;
+	/** Every prerequisite is owned. */
+	available: boolean;
+};
 
 // The view is plain truth only in phase 2. Illusion, governor exaggeration and
 // unlock filtering are applied here in later phases, so the UI must never read
@@ -110,7 +125,20 @@ export function computeView(state: GameState, tuning: Tuning): GameView {
 			perSecond: (growthPerTick * 1000) / tuning.stepMs,
 			full: delegates.length >= tuning.economy.maxPopulation,
 		},
-		lockedPanels: [...LOCKED_PANELS],
+		lockedPanels: hasUnlock(state, CROWN_PANEL) ? [] : ["crown"],
+		unlocks: ownedUnlocks(state),
+		archive: {
+			open: hasUnlock(state, ARCHIVE_PANEL),
+			entries: tuning.archive.entries.map((entry) => ({
+				id: entry.id,
+				label: entry.label,
+				description: entry.description,
+				cost: entry.cost,
+				owned: hasUnlock(state, entry.id),
+				affordable: (state.posting.resources.coin ?? 0) >= entry.cost,
+				available: entry.requires.every((id) => hasUnlock(state, id)),
+			})),
+		},
 	};
 }
 

@@ -239,15 +239,19 @@ function checkDesk(
 	}
 }
 
-function checkDecrees(decrees: unknown, problems: string[]): void {
+function checkDecreeRecord(
+	decrees: unknown,
+	location: string,
+	problems: string[],
+): Record<string, Decree> | null {
 	if (!isPlainRecord(decrees)) {
-		problems.push("$.posting.decrees: must be an object");
-		return;
+		problems.push(`${location}: must be an object`);
+		return null;
 	}
 	const parsed: Record<string, Decree> = {};
 	let wellFormed = true;
 	for (const key of sortedKeys(decrees)) {
-		const path = `$.posting.decrees.${key}`;
+		const path = `${location}.${key}`;
 		try {
 			const decree = parseDecree(decrees[key], UNLIMITED_DECREE);
 			if (decree.id === key) parsed[key] = decree;
@@ -260,7 +264,12 @@ function checkDecrees(decrees: unknown, problems: string[]): void {
 			problems.push(`${path}: ${errorMessage(error)}`);
 		}
 	}
-	if (!wellFormed) return;
+	return wellFormed ? parsed : null;
+}
+
+function checkDecrees(decrees: unknown, problems: string[]): void {
+	const parsed = checkDecreeRecord(decrees, "$.posting.decrees", problems);
+	if (parsed === null) return;
 	// A set that cannot run must fail at load, not mid-run; labor policies need tuning and are checked only when enacting.
 	const problem = decreeSetProblem(parsed, null);
 	if (problem !== null) problems.push(`$.posting.decrees: ${problem}`);
@@ -283,11 +292,22 @@ function checkStructure(state: unknown, problems: string[]): void {
 	if (!isPlainRecord(career)) {
 		problems.push("$.career: must be an object");
 	} else {
-		for (const key of ["unlocks", "savedDecrees"]) {
-			if (!isPlainRecord(career[key])) {
-				problems.push(`$.career.${key}: must be an object`);
+		if (!isPlainRecord(career.unlocks)) {
+			problems.push("$.career.unlocks: must be an object");
+		}
+		const needed = career.needed;
+		if (!isPlainRecord(needed)) {
+			problems.push("$.career.needed: must be an object");
+		} else {
+			for (const key of sortedKeys(needed)) {
+				if (!isCount(needed[key])) {
+					problems.push(
+						`$.career.needed.${key}: must be a non-negative safe integer`,
+					);
+				}
 			}
 		}
+		checkDecreeRecord(career.savedDecrees, "$.career.savedDecrees", problems);
 		for (const key of ["followers", "formerStaff"]) {
 			if (!Array.isArray(career[key])) {
 				problems.push(`$.career.${key}: must be an array`);

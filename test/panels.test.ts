@@ -49,6 +49,8 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
 		promotion: { target: 20, promotedAt: 0, promotedAtSeconds: 0 },
 		growth: { stored: 0, needed: 25, perSecond: 0, full: false },
 		lockedPanels: [],
+		unlocks: [],
+		archive: { open: false, entries: [] },
 		...overrides,
 	};
 }

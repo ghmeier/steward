@@ -5,9 +5,7 @@ import { seedStream } from "../src/core/rng";
 import { createNewGame, RNG_STREAMS, SCHEMA_VERSION } from "../src/core/state";
 import { parseTuning } from "../src/core/tuning";
 import { validateState } from "../src/core/validate";
-import { tuning } from "./helpers";
-
-const fullTuningJson = { ...tuningJson, village: villageJson };
+import { fullTuningJson, tuning } from "./helpers";
 
 describe("createNewGame", () => {
 	test("returns deeply equal states for the same seed", () => {
@@ -183,6 +181,8 @@ describe("parseTuning village names", () => {
 	});
 
 	test("rejects a missing village section", () => {
-		expect(() => parseTuning(tuningJson)).toThrow("village");
+		const { village: _omitted, ...rest } = fullTuningJson;
+
+		expect(() => parseTuning(rest)).toThrow("village");
 	});
 });

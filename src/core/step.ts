@@ -11,6 +11,7 @@ import type { AbsorbedAdditionLog, AddContext } from "./math";
 import { checkPromotion } from "./promotion";
 import type { GameState } from "./state";
 import type { Tuning } from "./tuning";
+import { runUnlocks } from "./unlocks";
 import { validateState } from "./validate";
 
 export type StepOptions = {
@@ -54,6 +55,7 @@ export function step(
 	runFlows(state, tuning, context);
 	runDesk(state, tuning, context);
 	checkPromotion(state, tuning);
+	runUnlocks(state, tuning);
 
 	if (options.validate) {
 		const problems = validateState(state);

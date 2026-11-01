@@ -1,22 +1,27 @@
 import { describe, expect, test } from "bun:test";
+import { evaluateCondition, quantityValue } from "../src/core/conditions";
 import type { Condition, Petition } from "../src/core/decree";
 import {
 	enactDecree,
-	evaluateCondition,
 	policiesFor,
-	quantityValue,
 	repealDecree,
 	runDecrees,
 } from "../src/core/decree-engine";
 import { laborCounts } from "../src/core/delegates";
 import type { AddContext } from "../src/core/math";
 import { createNewGame } from "../src/core/state";
-import { setRoster, economyTestTuning as tuning } from "./helpers";
+import {
+	grantUnlocks,
+	setRoster,
+	economyTestTuning as tuning,
+} from "./helpers";
 
 const context: AddContext = { tick: 1, maxValue: 1e300, absorbed: null };
 
 function freshState() {
-	return createNewGame(1, tuning);
+	const state = createNewGame(1, tuning);
+	grantUnlocks(state, ["decree.compound", "decree.chaining"]);
+	return state;
 }
 
 function above(value: number): Condition {

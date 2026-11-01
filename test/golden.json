@@ -2,5 +2,11 @@
 	"seed": 42,
 	"steps": 10000,
 	"commands": "test/fixtures/command-log.json",
-	"hash": "331dca9c73ab935bc9b9db2f943524b2e7961bdc1d0ce330331a67acd37ae332"
+	"grant": [
+		"control.palette",
+		"control.savedDecrees",
+		"decree.compound",
+		"decree.chaining"
+	],
+	"hash": "09866ef4debb169e9d812d2cb7790e98283089561eefe847ee188166cc9db31f"
 }

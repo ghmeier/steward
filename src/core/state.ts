@@ -6,13 +6,15 @@ import { RESOURCES } from "./realm";
 import { type RngState, seedStream } from "./rng";
 import type { Tuning } from "./tuning";
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export type ResourceId = string;
 
 export type CareerState = {
 	unlocks: Record<string, number>;
-	savedDecrees: Record<string, unknown>;
+	savedDecrees: Record<string, Decree>;
+	/** The first tick each control was needed, keyed by control; the tutorial reads it. */
+	needed: Record<string, number>;
 	followers: string[];
 	formerStaff: string[];
 	/** 0 until promotion; a promotion can only happen at tick 1 or later. */
@@ -80,6 +82,7 @@ export function createNewGame(seed: number, tuning: Tuning): GameState {
 		career: {
 			unlocks: {},
 			savedDecrees: {},
+			needed: {},
 			followers: [],
 			formerStaff: [],
 			promotedAt: 0,

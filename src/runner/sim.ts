@@ -32,7 +32,9 @@ const USAGE = `usage: bun run sim (--seed <uint32> | --load <path>) --steps <n> 
   --out <path>       write the final save to this file
   --trace <n>        print a trace line every n steps
   --strategy <path>  JSON strategy file to play (excludes --commands)
-  --record <path>    with --strategy, write the issued commands as a command log`;
+  --record <path>    with --strategy, write the issued commands as a command log
+  --grant <ids>      testing aid, only with --seed: comma-separated unlock ids
+                     written into the career at tick 0`;
 
 class UsageError extends Error {}
 
@@ -59,6 +61,7 @@ type Options = {
 	trace: number | null;
 	strategy: string | null;
 	record: string | null;
+	grant: string[];
 };
 
 function parseFlags(argv: string[]) {
@@ -76,6 +79,7 @@ function parseFlags(argv: string[]) {
 				trace: { type: "string" },
 				strategy: { type: "string" },
 				record: { type: "string" },
+				grant: { type: "string" },
 			},
 		}).values;
 	} catch (error) {
@@ -94,6 +98,9 @@ function parseOptions(argv: string[]): Options {
 	if ((flags.seed === undefined) === (flags.load === undefined)) {
 		throw new UsageError("exactly one of --seed and --load is required");
 	}
+	if (flags.grant !== undefined && flags.seed === undefined) {
+		throw new UsageError("--grant requires --seed");
+	}
 	if (flags.steps === undefined) throw new UsageError("--steps is required");
 	const seed =
 		flags.seed === undefined ? null : parseCount(flags.seed, "--seed", 0);
@@ -110,6 +117,7 @@ function parseOptions(argv: string[]): Options {
 			flags.trace === undefined ? null : parseCount(flags.trace, "--trace", 1),
 		strategy: flags.strategy ?? null,
 		record: flags.record ?? null,
+		grant: flags.grant === undefined ? [] : flags.grant.split(","),
 	};
 }
 
@@ -146,6 +154,14 @@ export function runSim(
 			options.load !== null
 				? readSaveFile(options.load).state
 				: createNewGame(options.seed as number, tuning);
+		const known = new Set([
+			...tuning.archive.entries.map((entry) => entry.id),
+			...tuning.archive.play.map((unlock) => unlock.id),
+		]);
+		for (const id of options.grant) {
+			if (!known.has(id)) throw new Error(`--grant: unknown unlock id "${id}"`);
+			state.career.unlocks[id] = 0;
+		}
 		if (options.commands !== null) {
 			log = parseCommandLog(JSON.parse(readFileSync(options.commands, "utf8")));
 		}

@@ -165,7 +165,13 @@ describe("golden", () => {
 	test("seed 42 for 10,000 steps with the fixture log matches the committed hash", () => {
 		const golden = JSON.parse(
 			readFileSync(join(import.meta.dir, "golden.json"), "utf8"),
-		) as { seed: number; steps: number; commands: string; hash: string };
+		) as {
+			seed: number;
+			steps: number;
+			commands: string;
+			grant: string[];
+			hash: string;
+		};
 
 		const summary = runSimProcess([
 			"--seed",
@@ -174,6 +180,8 @@ describe("golden", () => {
 			String(golden.steps),
 			"--commands",
 			golden.commands,
+			"--grant",
+			golden.grant.join(","),
 		]);
 
 		expect(summary.hash).toBe(golden.hash);

@@ -163,6 +163,34 @@ describe("atomic write", () => {
 	});
 });
 
+describe("schema 7 migration", () => {
+	function schema7Text(state: GameState): string {
+		const old = structuredClone(state) as unknown as Record<string, unknown>;
+		old.schemaVersion = 7;
+		delete (old.career as Record<string, unknown>).needed;
+		return JSON.stringify({
+			schemaVersion: 7,
+			savedAt: "x",
+			contentHash: "y",
+			state: old,
+		});
+	}
+
+	test("parseSave loads a schema 7 save as schema 8 with every other field unchanged and no needs recorded", () => {
+		const original = newState();
+		original.tick = 12;
+		original.career.unlocks = { "panel.archive": 5 };
+		original.posting.resources.coin = 73932;
+
+		const loadedSave = parseSave(schema7Text(original));
+
+		expect(loadedSave.schemaVersion).toBe(SCHEMA_VERSION);
+		expect(loadedSave.state.schemaVersion).toBe(SCHEMA_VERSION);
+		expect(loadedSave.state).toEqual(original);
+		expect(loadedSave.state.career.needed).toEqual({});
+	});
+});
+
 describe("schema 6 migration", () => {
 	function schema6Text(state: GameState): string {
 		const old = structuredClone(state) as unknown as Record<string, unknown>;

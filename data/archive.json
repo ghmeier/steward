@@ -1,0 +1,65 @@
+{
+	"maxSaved": 12,
+	"entries": [
+		{
+			"id": "control.palette",
+			"label": "Command palette",
+			"description": "Opens the command line empty, with every command you own listed as you type.",
+			"cost": 100,
+			"requires": []
+		},
+		{
+			"id": "control.savedDecrees",
+			"label": "Saved decrees",
+			"description": "Keep a decree under a name and enact it again later with one command.",
+			"cost": 250,
+			"requires": ["control.palette"]
+		},
+		{
+			"id": "decree.compound",
+			"label": "Compound conditions",
+			"description": "Join conditions in a decree with all, any and not.",
+			"cost": 400,
+			"requires": []
+		},
+		{
+			"id": "decree.chaining",
+			"label": "Chaining",
+			"description": "Let one decree react to the policy another decree chose.",
+			"cost": 800,
+			"requires": []
+		}
+	],
+	"play": [
+		{
+			"id": "panel.archive",
+			"label": "The Archive",
+			"when": {
+				"kind": "compare",
+				"quantity": "coin",
+				"comparison": "above",
+				"value": 0
+			}
+		}
+	],
+	"needs": [
+		{
+			"control": "court",
+			"when": {
+				"kind": "compare",
+				"quantity": "population",
+				"comparison": "above",
+				"value": 1
+			}
+		},
+		{
+			"control": "archive",
+			"when": {
+				"kind": "compare",
+				"quantity": "coin",
+				"comparison": "above",
+				"value": 0
+			}
+		}
+	]
+}

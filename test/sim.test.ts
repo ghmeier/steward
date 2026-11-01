@@ -46,12 +46,44 @@ describe("runSim argument errors", () => {
 			"--record without --strategy",
 			["--seed", "1", "--steps", "1", "--record", "r.json"],
 		],
+		[
+			"--grant with --load",
+			["--load", "s.json", "--steps", "1", "--grant", "decree.compound"],
+		],
 	])("%s exits with code 2 and a usage message", (_name, argv) => {
 		const { code, stdout, stderr } = run(argv);
 
 		expect(code).toBe(2);
 		expect(stdout).toEqual([]);
 		expect(stderr.join("\n")).toContain("usage:");
+	});
+});
+
+describe("runSim --grant", () => {
+	test("changes the final state by writing the unlock at tick 0", () => {
+		const base = ["--seed", "1", "--steps", "1"];
+
+		const plain = run(base);
+		const granted = run([...base, "--grant", "decree.compound"]);
+
+		expect(granted.code).toBe(0);
+		expect(JSON.parse(granted.stdout.at(-1) as string).hash).not.toBe(
+			JSON.parse(plain.stdout.at(-1) as string).hash,
+		);
+	});
+
+	test("an unknown unlock id fails with an error naming it", () => {
+		const { code, stderr } = run([
+			"--seed",
+			"1",
+			"--steps",
+			"1",
+			"--grant",
+			"decree.nothing",
+		]);
+
+		expect(code).toBe(1);
+		expect(stderr.join("\n")).toContain("decree.nothing");
 	});
 });
 

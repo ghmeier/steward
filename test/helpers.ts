@@ -1,3 +1,4 @@
+import archiveJson from "../data/archive.json";
 import tuningJson from "../data/tuning.json";
 import villageJson from "../data/village.json";
 import type { CommandLogEntry } from "../src/core/commands";
@@ -5,8 +6,15 @@ import type { Delegate } from "../src/core/delegates";
 import type { AddContext } from "../src/core/math";
 import { createNewGame, type GameState } from "../src/core/state";
 import { parseTuning, type Tuning } from "../src/core/tuning";
+import { ARCHIVE_PANEL } from "../src/core/unlocks";
 
-export const tuning = parseTuning({ ...tuningJson, village: villageJson });
+export const fullTuningJson = {
+	...tuningJson,
+	village: villageJson,
+	archive: archiveJson,
+};
+
+export const tuning = parseTuning(fullTuningJson);
 
 // Balancing edits data/tuning.json, so tests that assert hand-computed economy numbers use these literals.
 export const economyTestTuning: Tuning = {
@@ -70,6 +78,7 @@ export const economyTestTuning: Tuning = {
 			},
 		],
 	},
+	archive: tuning.archive,
 };
 
 export const sampleCommandLog: CommandLogEntry[] = [
@@ -143,10 +152,18 @@ export function contextFor(state: GameState): AddContext {
 	return { tick: state.tick, maxValue: 1e300, absorbed: null };
 }
 
+export function grantUnlocks(state: GameState, ids: readonly string[]): void {
+	for (const id of ids) state.career.unlocks[id] = 0;
+}
+
 /** The ten-peasant village the sample command log was written for, so the desk and multi-peasant labor stay covered. */
 export function sampleVillage(seed: number): GameState {
 	const state = createNewGame(seed, tuning);
 	setRoster(state, { idle: 10 });
+	grantUnlocks(state, [
+		ARCHIVE_PANEL,
+		...tuning.archive.entries.map((entry) => entry.id),
+	]);
 	return state;
 }
 

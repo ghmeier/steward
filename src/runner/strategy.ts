@@ -1,11 +1,11 @@
 import { type Command, parseCommand } from "../core/commands";
+import { evaluateCondition } from "../core/conditions";
 import { isRecord, sortedKeys } from "../core/data";
 import {
 	type Condition,
 	type DecreeLimits,
 	parseCondition,
 } from "../core/decree";
-import { evaluateCondition } from "../core/decree-engine";
 import { errorMessage } from "../core/errors";
 import type { GameState } from "../core/state";
 import type { Tuning } from "../core/tuning";

@@ -6,13 +6,15 @@ import type { AddContext } from "./math";
 import { JOBS, type Job } from "./realm";
 import type { GameState } from "./state";
 import type { Tuning } from "./tuning";
+import { buyUnlock } from "./unlocks";
 
 export type Command =
 	| { type: "noop" }
 	| { type: "assignPeasant"; peasant: number; job: Job | "idle" }
 	| { type: "enactDecree"; decree: unknown }
 	| { type: "repealDecree"; id: string }
-	| { type: "settleDispute"; dispute: number; option: string };
+	| { type: "settleDispute"; dispute: number; option: string }
+	| { type: "buyUnlock"; id: string };
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
 
@@ -73,6 +75,8 @@ export function apply(
 				tuning,
 				context,
 			);
+		case "buyUnlock":
+			return buyUnlock(state, command.id, tuning, context);
 		default: {
 			const unreachable: never = command;
 			return {
@@ -126,6 +130,12 @@ export function parseCommand(value: unknown): Command {
 				throw new Error("settleDispute option must be a string");
 			}
 			return { type: "settleDispute", dispute, option: value.option };
+		}
+		case "buyUnlock": {
+			if (typeof value.id !== "string") {
+				throw new Error("buyUnlock id must be a string");
+			}
+			return { type: "buyUnlock", id: value.id };
 		}
 		default:
 			throw new Error(`unknown command type ${JSON.stringify(type)}`);

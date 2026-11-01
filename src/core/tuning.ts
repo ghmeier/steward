@@ -1,5 +1,5 @@
 import { isRecord, sortedKeys } from "./data";
-import type { DecreeLimits } from "./decree";
+import { type Condition, type DecreeLimits, parseCondition } from "./decree";
 import {
 	JOBS,
 	type Job,
@@ -8,6 +8,15 @@ import {
 	SEASONS,
 	type Season,
 } from "./realm";
+import {
+	ARCHIVE_PANEL,
+	type ArchiveEntry,
+	type ArchiveTuning,
+	CHAINING_UNLOCK,
+	COMPOUND_UNLOCK,
+	type NeedHook,
+	type PlayUnlock,
+} from "./unlocks";
 
 export type Tuning = {
 	stepMs: number;
@@ -31,6 +40,7 @@ export type Tuning = {
 		laborAllocations: Record<string, Record<Job, number>>;
 	};
 	village: VillageTuning;
+	archive: ArchiveTuning;
 };
 
 export type DisputeOption = {
@@ -394,7 +404,143 @@ function parseVillage(
 	};
 }
 
-/** Takes the merged contents of tuning.json and village.json. */
+function nonEmptyString(value: unknown, name: string): string {
+	if (typeof value !== "string" || value === "") {
+		throw new Error(`${name} must be a non-empty string`);
+	}
+	return value;
+}
+
+function parseSimpleCondition(value: unknown, name: string): Condition {
+	const condition = parseCondition(
+		value,
+		{ maxRules: 1, maxConditionNodes: 8, maxConditionDepth: 3 },
+		name,
+	);
+	if (condition.kind !== "compare" && condition.kind !== "season") {
+		throw new Error(`${name} must be a compare or season condition`);
+	}
+	return condition;
+}
+
+function arrayOf(value: unknown, name: string): unknown[] {
+	if (!Array.isArray(value)) throw new Error(`${name} must be an array`);
+	return value;
+}
+
+function parseEntries(value: unknown): ArchiveEntry[] {
+	const entries: ArchiveEntry[] = [];
+	for (const [index, item] of arrayOf(value, "archive.entries").entries()) {
+		const name = `archive.entries[${index}]`;
+		const raw = record(item, name);
+		const requires = arrayOf(raw.requires, `${name}.requires`).map(
+			(required, at) => nonEmptyString(required, `${name}.requires[${at}]`),
+		);
+		entries.push({
+			id: nonEmptyString(raw.id, `${name}.id`),
+			label: nonEmptyString(raw.label, `${name}.label`),
+			description: nonEmptyString(raw.description, `${name}.description`),
+			cost: positiveNumber(raw.cost, `${name}.cost`),
+			requires,
+		});
+	}
+	return entries;
+}
+
+function parsePlay(value: unknown): PlayUnlock[] {
+	return arrayOf(value, "archive.play").map((item, index) => {
+		const name = `archive.play[${index}]`;
+		const raw = record(item, name);
+		return {
+			id: nonEmptyString(raw.id, `${name}.id`),
+			label: nonEmptyString(raw.label, `${name}.label`),
+			when: parseSimpleCondition(raw.when, `${name}.when`),
+		};
+	});
+}
+
+function parseNeeds(value: unknown): NeedHook[] {
+	return arrayOf(value, "archive.needs").map((item, index) => {
+		const name = `archive.needs[${index}]`;
+		const raw = record(item, name);
+		return {
+			control: nonEmptyString(raw.control, `${name}.control`),
+			when: parseSimpleCondition(raw.when, `${name}.when`),
+		};
+	});
+}
+
+function checkRequiredIds(entries: ArchiveEntry[], play: PlayUnlock[]): void {
+	for (const id of [COMPOUND_UNLOCK, CHAINING_UNLOCK]) {
+		if (!entries.some((entry) => entry.id === id)) {
+			throw new Error(`archive.entries must include "${id}"`);
+		}
+	}
+	if (!play.some((unlock) => unlock.id === ARCHIVE_PANEL)) {
+		throw new Error(`archive.play must include "${ARCHIVE_PANEL}"`);
+	}
+}
+
+function checkEntryGraph(entries: ArchiveEntry[], play: PlayUnlock[]): void {
+	const ids = new Set<string>();
+	for (const id of [
+		...entries.map((entry) => entry.id),
+		...play.map((unlock) => unlock.id),
+	]) {
+		if (ids.has(id)) throw new Error(`archive repeats id "${id}"`);
+		ids.add(id);
+	}
+	const byId = new Map(entries.map((entry) => [entry.id, entry]));
+	for (const entry of entries) {
+		for (const required of entry.requires) {
+			if (!byId.has(required)) {
+				throw new Error(
+					`archive entry "${entry.id}" requires unknown id "${required}"`,
+				);
+			}
+		}
+	}
+	const done = new Set<string>();
+	const visit = (id: string, path: string[]): void => {
+		if (path.includes(id)) {
+			throw new Error(`archive requires cycle: ${[...path, id].join(" -> ")}`);
+		}
+		if (done.has(id)) return;
+		for (const required of byId.get(id)?.requires ?? []) {
+			visit(required, [...path, id]);
+		}
+		done.add(id);
+	};
+	for (const entry of entries) visit(entry.id, []);
+}
+
+function parseArchive(value: unknown): ArchiveTuning {
+	const archive = record(value, "tuning.archive");
+	const entries = parseEntries(field(archive, "archive.", "entries"));
+	const play = parsePlay(field(archive, "archive.", "play"));
+	const needs = parseNeeds(field(archive, "archive.", "needs"));
+	checkRequiredIds(entries, play);
+	checkEntryGraph(entries, play);
+	const controls = new Set<string>();
+	for (const hook of needs) {
+		if (controls.has(hook.control)) {
+			throw new Error(`archive.needs repeats control "${hook.control}"`);
+		}
+		controls.add(hook.control);
+	}
+	return {
+		maxSaved: integerAtLeast(
+			field(archive, "archive.", "maxSaved"),
+			"tuning.archive.maxSaved",
+			1,
+		),
+		entries,
+		play,
+		needs,
+	};
+}
+
+/** Takes the merged contents of tuning.json, village.json and archive.json. */
 export function parseTuning(value: unknown): Tuning {
 	if (!isRecord(value)) throw new Error("tuning must be an object");
 
@@ -409,5 +555,6 @@ export function parseTuning(value: unknown): Tuning {
 		field(value, "", "village"),
 		economy.maxPopulation,
 	);
-	return { stepMs, maxResourceValue, decrees, economy, village };
+	const archive = parseArchive(field(value, "", "archive"));
+	return { stepMs, maxResourceValue, decrees, economy, village, archive };
 }

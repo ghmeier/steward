@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import tuningJson from "../data/tuning.json";
 import villageJson from "../data/village.json";
 import { parseCommand } from "../src/core/commands";
 import { type Dispute, runDesk, settleDispute } from "../src/core/desk";
@@ -7,7 +6,12 @@ import { createNewGame, type GameState } from "../src/core/state";
 import { parseTuning } from "../src/core/tuning";
 import { validateState } from "../src/core/validate";
 import { computeView } from "../src/core/view";
-import { contextFor, setRoster, economyTestTuning as tuning } from "./helpers";
+import {
+	contextFor,
+	fullTuningJson,
+	setRoster,
+	economyTestTuning as tuning,
+} from "./helpers";
 
 const { deskSlots, disputeArrival, grudgeTicks } = tuning.village;
 
@@ -379,7 +383,7 @@ describe("village tuning parse", () => {
 	function parseWith(change: (village: Mutable) => void): unknown {
 		const village = structuredClone(base) as Mutable;
 		change(village);
-		return parseTuning({ ...tuningJson, village });
+		return parseTuning({ ...fullTuningJson, village });
 	}
 
 	const bad: [string, (village: Mutable) => void, string][] = [

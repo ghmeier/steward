@@ -11,6 +11,7 @@ export function loadTuning(dataDir: string = DEFAULT_DATA_DIR): Tuning {
 	return parseTuning({
 		...(read("tuning.json") as object),
 		village: read("village.json"),
+		archive: read("archive.json"),
 	});
 }
 
