@@ -5,6 +5,8 @@ export type KeyPress = {
 	ctrl: boolean;
 	meta: boolean;
 	shift: boolean;
+	/** The text the terminal sent for this key, which is what a text field appends. */
+	sequence: string;
 };
 /** What a key asks for; the app turns an assignment into a command for the selected peasant. */
 export type KeyAction =
@@ -52,7 +54,7 @@ export function actionForKey(key: KeyPress): KeyAction | null {
 export const KEY_HINTS: readonly { keys: string; label: string }[] = [
 	{ keys: "j/k", label: "select" },
 	{ keys: "f/w/m/i", label: "assign farm/forest/mine/idle" },
-	{ keys: "d", label: "decrees" },
+	{ keys: "d", label: "decree" },
 	{ keys: "c", label: "court" },
 	{ keys: "s", label: "save" },
 	{ keys: "n", label: "new village" },

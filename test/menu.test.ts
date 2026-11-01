@@ -18,7 +18,14 @@ const context: MenuContext = {
 };
 
 function key(name: string, modifiers: Partial<KeyPress> = {}): KeyPress {
-	return { name, ctrl: false, meta: false, shift: false, ...modifiers };
+	return {
+		name,
+		ctrl: false,
+		meta: false,
+		shift: false,
+		sequence: name,
+		...modifiers,
+	};
 }
 
 function press(state: MenuState, ...names: string[]): MenuState {

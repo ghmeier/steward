@@ -349,19 +349,52 @@ describe("startApp", () => {
 	});
 });
 
-describe("decree menu in the app", () => {
-	test("d opens the decree menu in place of the panel grid", async () => {
+describe("command line in the app", () => {
+	test("d opens the command line with decree typed, in place of the panel grid", async () => {
 		const harness = await launch();
 
 		harness.mockInput.pressKey("d");
 
 		const screen = await harness.screen();
-		expect(screen).toContain("Decrees");
-		expect(screen).toContain("Enact harvest (grain) decree");
+		expect(screen).toContain("Command");
+		expect(screen).toContain(": decree _");
 		expect(screen).not.toContain("Ledger");
 	});
 
-	test("game keys do nothing while the menu is open", async () => {
+	test("typed characters reach the line", async () => {
+		const harness = await launch();
+		harness.mockInput.pressKey("d");
+
+		await harness.mockInput.typeText("wood");
+
+		expect(await harness.screen()).toContain(": decree wood_");
+	});
+
+	test("the line lists the decrees in force", async () => {
+		const state = createNewGame(5, tuning);
+		state.posting.decrees.wood = {
+			id: "wood",
+			petition: "wood",
+			rules: [],
+			otherwise: "sell",
+		};
+		const harness = await launch({ state });
+
+		harness.mockInput.pressKey("d");
+
+		expect(await harness.screen()).toContain("wood (wood): otherwise sell");
+	});
+
+	test("a space typed under the kitty keyboard protocol reaches the line", async () => {
+		const harness = await launch({ kittyKeyboard: true });
+		harness.mockInput.pressKey("d");
+
+		await harness.mockInput.typeText("wood ");
+
+		expect(await harness.screen()).toContain(": decree wood _");
+	});
+
+	test("game keys do not assign while the line is open", async () => {
 		const harness = await launch();
 		harness.mockInput.pressKey("d");
 
@@ -373,7 +406,7 @@ describe("decree menu in the app", () => {
 		);
 	});
 
-	test("escape closes the menu and brings the panels back", async () => {
+	test("escape closes the line and brings the panels back", async () => {
 		const harness = await launch({ kittyKeyboard: true });
 		harness.mockInput.pressKey("d");
 
@@ -382,22 +415,21 @@ describe("decree menu in the app", () => {
 		expect(await harness.screen()).toContain("Ledger");
 	});
 
-	test("a decree enacted from the menu reaches the game state through the session", async () => {
+	test("a decree typed on the line reaches the game state through the session", async () => {
 		const harness = await launch();
 		harness.mockInput.pressKey("d");
 
-		harness.mockInput.pressEnter();
-		harness.mockInput.pressKey("j");
-		harness.mockInput.pressKey("j");
-		harness.mockInput.pressKey("j");
+		await harness.mockInput.typeText(
+			"wood sell when coin above 5 otherwise stockpile",
+		);
 		harness.mockInput.pressEnter();
 		await harness.advanceStep();
 
-		expect(Object.keys(harness.state.posting.decrees)).toEqual(["harvest"]);
+		expect(Object.keys(harness.state.posting.decrees)).toEqual(["wood"]);
 		expect(await harness.screen()).toContain("Ledger");
 	});
 
-	test("ctrl-c still quits with the menu open", async () => {
+	test("ctrl-c still quits with the line open", async () => {
 		const harness = await launch();
 		harness.mockInput.pressKey("d");
 

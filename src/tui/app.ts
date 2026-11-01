@@ -3,9 +3,9 @@ import { errorMessage } from "../core/errors";
 import { createNewGame, type GameState } from "../core/state";
 import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
+import { type LineState, lineKey, openLine, renderLine } from "./command-line";
 import { courtMenu } from "./court-menu";
 import { type Cursor, moveCursor, reconcileCursor } from "./cursor";
-import { decreeMenu } from "./decree-menu";
 import { helpMenu } from "./help-menu";
 import { actionForKey, HINTS_TEXT, isInterrupt } from "./keys";
 import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
@@ -77,13 +77,18 @@ export function startApp(options: {
 	let cursor: Cursor | null = reconcileCursor(session.view().delegates, null);
 
 	let menu: MenuState | null = null;
+	let line: LineState | null = null;
 	let promotionAnnounced = session.view().promotion.promotedAt > 0;
 	let lastView = session.view();
 
 	const menuContext = () => ({ view: session.view(), tuning });
+	const currentOverlay = () => {
+		if (line !== null) return renderLine(line, menuContext());
+		return menu === null ? null : renderMenu(menu, menuContext());
+	};
 	const composeFooter = () => {
-		const hints =
-			menu === null ? HINTS_TEXT : renderMenu(menu, menuContext()).hints;
+		const open = currentOverlay();
+		const hints = open === null ? HINTS_TEXT : open.hints;
 		return `${message ?? ""}\n${hints}`;
 	};
 	const redraw = () => {
@@ -91,7 +96,7 @@ export function startApp(options: {
 		const view = session.view();
 		cursor = reconcileCursor(view.delegates, cursor);
 		panels.update(view, footer, cursor?.id ?? null);
-		panels.showMenu(menu === null ? null : renderMenu(menu, menuContext()));
+		panels.showMenu(currentOverlay());
 		renderer.requestRender();
 	};
 
@@ -131,6 +136,13 @@ export function startApp(options: {
 		resolveDone = resolve;
 	});
 	const onKeyPress = (key: KeyEvent) => {
+		if (line !== null && !isInterrupt(key)) {
+			const result = lineKey(line, key, menuContext());
+			line = result.state;
+			for (const command of result.commands) session.enqueue(command);
+			redraw();
+			return;
+		}
 		if (menu !== null && !isInterrupt(key)) {
 			const result = menuKey(menu, key, menuContext());
 			menu = result.state;
@@ -142,7 +154,7 @@ export function startApp(options: {
 		const action = actionForKey(key);
 		if (action === null) return;
 		if (action.kind === "decrees") {
-			menu = openMenu(decreeMenu);
+			line = openLine("decree ");
 			redraw();
 			return;
 		}

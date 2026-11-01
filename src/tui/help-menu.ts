@@ -115,12 +115,14 @@ function decreeLines(): string[] {
 		"Rules are checked in order and the first match wins. Otherwise applies when none match.",
 		'"Grain seasons" is how many seasons the stores would feed everyone.',
 		"",
-		"Example, a harvest decree: sell when grain seasons above 3; feed when above 2;",
-		"otherwise stockpile.",
+		"Press d and type the decree: tab completes a word, enter issues it. A new decree replaces the one for its petition.",
+		"Example, a harvest decree: decree harvest sell when grain seasons above 3, feed when grain seasons above 2 otherwise stockpile",
 		"  While the stores are above 3 seasons, each tick's new surplus is sold.",
 		"  Between 2 and 3 it is fed, to grow the village. Below 2 it is kept.",
 		"  At 3.5 seasons both rules match, and sell wins by coming first.",
 		"  Swap them and feed catches everything above 2, so nothing is ever sold.",
+		"",
+		'To withdraw a decree, press d, clear the line and type "repeal" and its name.',
 	];
 }
 
@@ -141,7 +143,7 @@ function harvestAndLaborLines(tuning: Tuning): string[] {
 		...allocations.map((line) => `  ${line}`),
 		"  A labor decree overrides the jobs you assign by hand.",
 		"",
-		"Example, a labor decree: mine when it is winter; otherwise farm.",
+		"Example, a labor decree: decree labor mine when it is winter otherwise farm",
 	];
 }
 

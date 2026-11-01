@@ -22,7 +22,7 @@ function topicText(topic: string, using: Tuning = tuning): string {
 	const press = (name: string) => {
 		const step = menuKey(
 			state,
-			{ name, ctrl: false, meta: false, shift: false },
+			{ name, ctrl: false, meta: false, shift: false, sequence: name },
 			context,
 		);
 		if (step.state === null) throw new Error("menu closed");

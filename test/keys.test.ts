@@ -3,7 +3,14 @@ import type { Job } from "../src/core/realm";
 import { actionForKey, KEY_HINTS, type KeyPress } from "../src/tui/keys";
 
 function key(name: string, modifiers: Partial<KeyPress> = {}): KeyPress {
-	return { name, ctrl: false, meta: false, shift: false, ...modifiers };
+	return {
+		name,
+		ctrl: false,
+		meta: false,
+		shift: false,
+		sequence: name,
+		...modifiers,
+	};
 }
 
 describe("actionForKey", () => {

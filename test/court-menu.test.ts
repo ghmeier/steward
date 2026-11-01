@@ -37,7 +37,7 @@ class Walker {
 		if (this.state === null) throw new Error("menu closed");
 		const step = menuKey(
 			this.state,
-			{ name, ctrl: false, meta: false, shift: false },
+			{ name, ctrl: false, meta: false, shift: false, sequence: name },
 			this.context,
 		);
 		this.state = step.state;
