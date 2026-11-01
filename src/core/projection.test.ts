@@ -4,11 +4,8 @@ import {
   setRoster,
   economyTestTuning as tuning,
 } from "../../test/helpers";
-import { enactDecree } from "./decree-engine";
-import { projectedRates, projectFlows } from "./projection";
+import { Game } from "./game";
 import { RESOURCES } from "./realm";
-import { createNewGame } from "./state";
-import { step } from "./step";
 
 const economy = tuning.economy;
 const midSpring = 100;
@@ -17,24 +14,21 @@ const perFarmer = economy.grainPerFarmer;
 const perPerson = economy.grainPerPerson;
 
 function villageAt(tick: number, farmers: number, idlers: number, grain = 60) {
-  const state = createNewGame(1, tuning);
-  state.tick = tick;
-  state.posting.desk.nextArrivalTick = 1e9;
-  setRoster(state, { farm: farmers, idle: idlers });
-  state.posting.resources.grain = grain;
-  return state;
+  const game = Game.create(1, tuning);
+  game.state.tick = tick;
+  game.state.posting.desk.nextArrivalTick = 1e9;
+  setRoster(game, { farm: farmers, idle: idlers });
+  game.state.posting.resources.grain = grain;
+  return game;
 }
 
-function enactHarvest(
-  state: ReturnType<typeof villageAt>,
-  policy: "sell" | "feed",
-) {
-  const result = enactDecree(
-    state,
-    { id: "harvest", petition: "harvest", rules: [], otherwise: policy },
-    tuning,
-  );
-  expect(result).toEqual({ ok: true });
+function enactHarvest(game: Game, policy: "sell" | "feed") {
+  game.decrees.enact({
+    id: "harvest",
+    petition: "harvest",
+    rules: [],
+    otherwise: policy,
+  });
 }
 
 describe("projectedRates", () => {
@@ -63,74 +57,71 @@ describe("projectedRates", () => {
 	];
 
   test.each(rows)("$name", (row) => {
-    const state = villageAt(
+    const game = villageAt(
       row.tick ?? midSpring,
       row.farmers ?? 8,
       row.idlers ?? 2,
       row.grain,
     );
-    if (row.decree) enactHarvest(state, row.decree);
-    const farmer = state.posting.delegates[0];
+    if (row.decree) enactHarvest(game, row.decree);
+    const farmer = game.delegates.all[0];
     if (farmer && row.grudgeEndsAfter) {
-      farmer.grudgeUntil = state.tick + row.grudgeEndsAfter;
+      farmer.grudgeUntil = game.state.tick + row.grudgeEndsAfter;
     }
 
-    const rates = projectedRates(state, tuning);
+    const rates = game.projection.projectedRates();
 
     expect(rates.grain).toBeCloseTo(row.rates.grain, 12);
     expect(rates.coin).toBeCloseTo(row.rates.coin ?? 0, 12);
   });
 
   test("does not change the state it projects from, RNG streams included", () => {
-    const state = villageAt(midSpring, 8, 2);
-    enactHarvest(state, "feed");
-    state.posting.economy.growth = economy.grainPerPeasant - 0.001;
-    const before = structuredClone(state);
+    const game = villageAt(midSpring, 8, 2);
+    enactHarvest(game, "feed");
+    game.state.posting.economy.growth = economy.grainPerPeasant - 0.001;
+    const before = structuredClone(game.state);
 
-    projectedRates(state, tuning);
+    game.projection.projectedRates();
 
-    expect(state).toEqual(before);
+    expect(game.state).toEqual(before);
   });
 
   test("equals the real per-resource change of a step on every tick the desk is unchanged", () => {
-    const state = createNewGame(7, tuning);
-    enactDecree(
-      state,
-      {
-        id: "harvest",
-        petition: "harvest",
-        rules: [
-          {
-            when: {
-              kind: "compare",
-              quantity: "grain",
-              comparison: "above",
-              value: 80,
-            },
-            policy: "sell",
+    const game = Game.create(7, tuning);
+    game.decrees.enact({
+      id: "harvest",
+      petition: "harvest",
+      rules: [
+        {
+          when: {
+            kind: "compare",
+            quantity: "grain",
+            comparison: "above",
+            value: 80,
           },
-          { when: { kind: "season", season: "winter" }, policy: "feed" },
-        ],
-        otherwise: "stockpile",
-      },
-      tuning,
-    );
-    enactDecree(
-      state,
-      { id: "work", petition: "labor", rules: [], otherwise: "farming" },
-      tuning,
-    );
+          policy: "sell",
+        },
+        { when: { kind: "season", season: "winter" }, policy: "feed" },
+      ],
+      otherwise: "stockpile",
+    });
+    game.decrees.enact({
+      id: "work",
+      petition: "labor",
+      rules: [],
+      otherwise: "farming",
+    });
 
     let compared = 0;
     for (let i = 0; i < 1500; i++) {
-      const { desk } = state.posting;
+      const { desk } = game.state.posting;
       const deskBefore = [desk.disputes.length, desk.nextDisputeId];
-      const before = { ...state.posting.resources };
-      const projected = projectedRates(state, tuning);
+      const before = { ...game.state.posting.resources };
+      const projected = game.projection.projectedRates();
 
-      step(state, [], tuning, quietOptions);
+      game.steps.step([], quietOptions);
 
-      const after = state.posting.desk;
+      const after = game.state.posting.desk;
       if (
         after.disputes.length !== deskBefore[0] ||
         after.nextDisputeId !== deskBefore[1]
@@ -140,7 +131,8 @@ describe("projectedRates", () => {
       compared += 1;
       for (const resource of RESOURCES) {
         expect(projected[resource]).toBe(
-          (state.posting.resources[resource] ?? 0) - (before[resource] ?? 0),
+          (game.state.posting.resources[resource] ?? 0) -
+            (before[resource] ?? 0),
         );
       }
     }
@@ -148,38 +140,34 @@ describe("projectedRates", () => {
   });
 });
 
-describe("projectFlows growthPerTick", () => {
+describe("flows growthPerTick", () => {
   test("is the grain fed on the next tick, and zero with no feed decree", () => {
     const fed = villageAt(midSpring, 8, 2);
     enactHarvest(fed, "feed");
-    const after = structuredClone(fed);
-    step(after, [], tuning, quietOptions);
+    const after = fed.clone();
+    after.steps.step([], quietOptions);
 
-    const { growthPerTick } = projectFlows(fed, tuning);
+    const { growthPerTick } = fed.projection.flows();
 
     expect(growthPerTick).toBeGreaterThan(0);
     expect(growthPerTick).toBeCloseTo(
-      after.posting.economy.growth - fed.posting.economy.growth,
+      after.state.posting.economy.growth - fed.state.posting.economy.growth,
       12,
     );
-    expect(projectFlows(villageAt(midSpring, 8, 2), tuning).growthPerTick).toBe(
-      0,
-    );
+    expect(villageAt(midSpring, 8, 2).projection.flows().growthPerTick).toBe(0);
   });
 
   test("stays the grain fed on a tick that completes a birth", () => {
-    const state = villageAt(midSpring, 8, 2);
-    enactHarvest(state, "feed");
-    const fed = projectFlows(state, tuning).growthPerTick;
-    state.posting.economy.growth = economy.grainPerPeasant - fed / 2;
-    const after = structuredClone(state);
-    step(after, [], tuning, quietOptions);
+    const game = villageAt(midSpring, 8, 2);
+    enactHarvest(game, "feed");
+    const fed = game.projection.flows().growthPerTick;
+    game.state.posting.economy.growth = economy.grainPerPeasant - fed / 2;
+    const after = game.clone();
+    after.steps.step([], quietOptions);
 
-    const { growthPerTick } = projectFlows(state, tuning);
+    const { growthPerTick } = game.projection.flows();
 
-    expect(after.posting.delegates.length).toBe(
-      state.posting.delegates.length + 1,
-    );
+    expect(after.delegates.all.length).toBe(game.delegates.all.length + 1);
     expect(growthPerTick).toBeCloseTo(fed, 12);
   });
 });

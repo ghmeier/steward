@@ -5,37 +5,34 @@ import {
   setRoster,
   economyTestTuning as tuning,
 } from "../../test/helpers";
-import { feedGrain, moveLaborToward, runEconomy } from "./economy";
+import { Game } from "./game";
 import type { AddContext } from "./math";
-import type { Job } from "./realm";
-import { createNewGame, type GameState } from "./state";
+import { Job } from "./realm";
 
 const context: AddContext = { tick: 1, maxValue: 1e300, absorbed: null };
 
-const namesOf = (state: GameState) =>
-  state.posting.delegates.map((delegate) => delegate.name);
-const idsOf = (state: GameState) =>
-  state.posting.delegates.map((delegate) => delegate.id);
+const namesOf = (game: Game) => game.delegates.all.map((d) => d.name);
+const idsOf = (game: Game) => game.delegates.all.map((d) => d.id);
 
-function starve(state: GameState, deaths: number): void {
-  state.posting.resources.grain = 0;
-  state.tick = 3 * tuning.economy.ticksPerSeason + 1;
-  setFamineDue(state, deaths, tuning.economy.ticksPerSeason);
-  runEconomy(state, tuning, context);
+function starve(game: Game, deaths: number): void {
+  game.state.posting.resources.grain = 0;
+  game.state.tick = 3 * tuning.economy.ticksPerSeason + 1;
+  setFamineDue(game, deaths, tuning.economy.ticksPerSeason);
+  game.economy.run(context);
 }
 
 describe("a new game's roster", () => {
   test("holds the initial population as idle peasants with ids 1 to N, and names vary with the seed", () => {
-    const state = createNewGame(5, tuning);
+    const game = Game.create(5, tuning);
     const rosters = [1, 2, 3, 4, 5].map((seed) =>
-      namesOf(createNewGame(seed, tuning)).join(","),
+      namesOf(Game.create(seed, tuning)).join(","),
     );
 
-    expect(idsOf(state)).toEqual(
+    expect(idsOf(game)).toEqual(
       Array.from({ length: tuning.economy.initialPopulation }, (_, i) => i + 1),
     );
-    expect(new Set(namesOf(state)).size).toBe(tuning.economy.initialPopulation);
-    expect(state.posting.delegates.every((d) => d.job === "idle")).toBe(true);
+    expect(new Set(namesOf(game)).size).toBe(tuning.economy.initialPopulation);
+    expect(game.delegates.all.every((d) => d.job === Job.IDLE)).toBe(true);
     expect(new Set(rosters).size).toBe(5);
   });
 });
@@ -49,25 +46,26 @@ describe("births", () => {
         names: tuning.village.names.slice(0, tuning.economy.maxPopulation),
       },
     };
-    const state = createNewGame(9, exact);
-    state.posting.resources.grain = 1e6;
+    const game = Game.create(9, exact);
+    game.state.posting.resources.grain = 1e6;
 
-    feedGrain(state, 1e6, exact, context);
+    game.economy.feedGrain(1e6, context);
 
-    expect(state.posting.delegates).toHaveLength(tuning.economy.maxPopulation);
-    expect(new Set(namesOf(state)).size).toBe(tuning.economy.maxPopulation);
+    expect(game.delegates.all).toHaveLength(tuning.economy.maxPopulation);
+    expect(new Set(namesOf(game)).size).toBe(tuning.economy.maxPopulation);
   });
 
   test("ids keep increasing after a death and are never reused", () => {
-    const state = createNewGame(3, tuning);
-    starve(state, 1);
-    const lastBefore = state.posting.delegates.at(-1)?.id ?? 0;
+    const game = Game.create(3, tuning);
+    const diedId = game.delegates.all[0]?.id ?? 0;
+    starve(game, 1);
+    const lastBefore = game.delegates.all.at(-1)?.id ?? 0;
 
-    feedGrain(state, tuning.economy.grainPerPeasant, tuning, context);
+    game.economy.feedGrain(tuning.economy.grainPerPeasant, context);
 
-    expect(idsOf(state)).not.toContain(1);
-    expect(state.posting.delegates.at(-1)?.id).toBe(lastBefore + 1);
-    expect(state.posting.nextDelegateId).toBe(lastBefore + 2);
+    expect(idsOf(game)).not.toContain(diedId);
+    expect(game.delegates.all.at(-1)?.id).toBe(lastBefore + 1);
+    expect(game.state.posting.nextDelegateId).toBe(lastBefore + 2);
   });
 });
 
@@ -81,12 +79,12 @@ describe("starvation", () => {
 	];
 
   test.each(rows)("kills %s", (_name, roster, deaths, survivors) => {
-    const state = createNewGame(3, tuning);
-    setRoster(state, roster);
+    const game = Game.create(3, tuning);
+    setRoster(game, roster);
 
-    starve(state, deaths);
+    starve(game, deaths);
 
-    expect(idsOf(state)).toEqual(survivors);
+    expect(idsOf(game)).toEqual(survivors);
   });
 });
 
@@ -118,24 +116,45 @@ describe("labor moves", () => {
   test.each(rows)(
     "$name",
     ({ roster, target, expected, grudgedIndex = {}, moves = 1, tick = 0 }) => {
-      const state = createNewGame(3, tuning);
-      setRoster(state, roster);
+      const game = Game.create(3, {
+        ...tuning,
+        economy: { ...tuning.economy, laborMovesPerTick: moves },
+      });
+      setRoster(game, roster);
+      game.state.tick = tick;
       for (const [index, until] of Object.entries(grudgedIndex)) {
-        const delegate = state.posting.delegates[Number(index)];
+        const delegate = game.delegates.all[Number(index)];
         if (delegate) delegate.grudgeUntil = until;
       }
       const [farm, forest, mine] = target;
 
-      moveLaborToward(
-        state.posting.delegates,
-        { farm, forest, mine },
-        moves,
-        tick,
-      );
+      game.economy.moveLaborToward({ farm, forest, mine, idle: 0 });
 
-      expect(state.posting.delegates.map((d) => d.job)).toEqual(
+      expect(game.delegates.all.map((d) => d.job)).toEqual(
         expected.split(" ") as Job[],
       );
     },
   );
+});
+
+describe("assignJob", () => {
+  test("moves a free peasant to a new job and rejects an unchanged job or a grudge", () => {
+    const game = Game.create(3, tuning);
+    const [peasant, other] = game.delegates.all;
+    if (!peasant || !other) throw new Error("expected two peasants");
+    other.grudgeUntil = game.state.tick + 10;
+
+    game.delegates.assignJob(peasant.id, Job.FARM);
+
+    expect(peasant.job).toBe(Job.FARM);
+    expect(() => game.delegates.assignJob(peasant.id, Job.FARM)).toThrow(
+      "already works",
+    );
+    expect(() => game.delegates.assignJob(other.id, Job.MINE)).toThrow(
+      "grudge",
+    );
+    expect(() => game.delegates.assignJob(9999, Job.MINE)).toThrow(
+      "no assignee",
+    );
+  });
 });

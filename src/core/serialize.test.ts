@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { tuning } from "../../test/helpers";
 import { stateHash } from "../save/hash";
+import { Game } from "./game";
 import { canonicalStringify } from "./serialize";
-import { createNewGame } from "./state";
 
 describe("canonicalStringify", () => {
   test("produces identical bytes regardless of key insertion order", () => {
@@ -29,7 +29,7 @@ describe("canonicalStringify", () => {
   });
 
   test("restringifying a parsed fresh game gives identical bytes", () => {
-    const text = canonicalStringify(createNewGame(11, tuning));
+    const text = canonicalStringify(Game.create(11, tuning).state);
 
     expect(canonicalStringify(JSON.parse(text))).toBe(text);
   });
@@ -53,7 +53,7 @@ describe("canonicalStringify", () => {
 
 describe("stateHash", () => {
   test("is equal for equal states built in different key orders", () => {
-    const state = createNewGame(3, tuning);
+    const { state } = Game.create(3, tuning);
     const reordered = {
       posting: {
         economy: state.posting.economy,
@@ -75,11 +75,11 @@ describe("stateHash", () => {
   });
 
   test("is a stable 64-character hex string that changes with any change to the state", () => {
-    const state = createNewGame(3, tuning);
+    const { state } = Game.create(3, tuning);
     const before = stateHash(state);
 
     const ticked = { ...state, tick: state.tick + 1 };
-    const reseeded = createNewGame(4, tuning);
+    const reseeded = Game.create(4, tuning).state;
 
     expect(before).toMatch(/^[0-9a-f]{64}$/);
     expect(stateHash(state)).toBe(before);

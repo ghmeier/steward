@@ -3,8 +3,7 @@ import { grantUnlocks, topicText, tuning } from "../../test/helpers";
 import { parseLine } from "../tui/command-line";
 import { actionForKey, hintsText, type KeyPress } from "../tui/keys";
 import type { Decree } from "./decree";
-import { enactDecree } from "./decree-engine";
-import { createNewGame } from "./state";
+import { Game } from "./game";
 import {
   ARCHIVE_PANEL,
   CHAINING_UNLOCK,
@@ -12,7 +11,6 @@ import {
   PALETTE_UNLOCK,
   SAVED_DECREES_UNLOCK,
 } from "./unlocks";
-import { computeView } from "./view";
 
 function key(name: string, modifiers: Partial<KeyPress> = {}): KeyPress {
   return {
@@ -34,11 +32,10 @@ const granary: Decree = {
 
 /** Everything the player can see of a control, built from a real state holding exactly these unlocks. */
 function surfaces(unlocks: readonly string[]) {
-  const state = createNewGame(1, tuning);
-  grantUnlocks(state, unlocks);
-  const enacted = enactDecree(state, granary, tuning);
-  if (!enacted.ok) throw new Error(enacted.reason);
-  const context = { view: computeView(state, tuning), tuning };
+  const game = Game.create(1, tuning);
+  grantUnlocks(game, unlocks);
+  game.decrees.enact(granary);
+  const context = { view: game.view.compute(), tuning };
   const owned = context.view.unlocks;
   const words = (text: string) =>
     parseLine(text, context).suggestions.map((s) => s.text);

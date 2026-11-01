@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { setRoster, tuning } from "../../test/helpers";
-import { createNewGame } from "./state";
+import { Game } from "./game";
 import { assertValidState, validateState } from "./validate";
 
 // biome-ignore lint/suspicious/noExplicitAny: the tests patch arbitrary state paths
@@ -9,8 +9,9 @@ type Patches = Record<string, unknown>;
 
 // A patch value of undefined deletes the key and a function receives the current value.
 function patched(patches: Patches = {}): Tree {
-  const state = createNewGame(5, tuning);
-  setRoster(state, { idle: 4 });
+  const game = Game.create(5, tuning);
+  setRoster(game, { idle: 4 });
+  const { state } = game;
   state.tick = 50;
   state.posting.desk.nextDisputeId = 5;
   state.posting.desk.disputes = [
