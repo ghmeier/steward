@@ -4,18 +4,9 @@ import {
   setRoster,
   economyTestTuning as tuning,
 } from "../../test/helpers";
-import { evaluateCondition, quantityValue } from "./conditions";
 import { type Condition, decreeSetProblem, type Petition } from "./decree";
-import {
-  enactDecree,
-  policiesFor,
-  repealDecree,
-  repealStaleDecrees,
-  runDecrees,
-} from "./decree-engine";
-import { DelegateManager } from "./delegates";
+import { Game } from "./game";
 import type { AddContext } from "./math";
-import { GameStateManager } from "./state";
 
 const context: AddContext = { tick: 1, maxValue: 1e300, absorbed: null };
 const none = { harvest: 0, wood: 0, ore: 0 };
@@ -43,22 +34,22 @@ function decreeOf(
   return { id, petition, rules, otherwise };
 }
 
-function freshState() {
-  const m = new GameStateManager(1, tuning);
-  grantUnlocks(m.state, ["decree.compound", "decree.chaining"]);
-  return m.state;
+function freshGame() {
+  const game = Game.create(1, tuning);
+  grantUnlocks(game, ["decree.compound", "decree.chaining"]);
+  return game;
 }
 
-function enactOk(state: ReturnType<typeof freshState>, value: unknown) {
-  expect(enactDecree(state, value, tuning)).toEqual({ ok: true });
+function enactOk(game: Game, value: unknown) {
+  expect(() => game.decrees.enact(value)).not.toThrow();
 }
 
 /** A harvest decree, a labor decree that chains on it, and a wood decree. */
-function governedState() {
-  const state = freshState();
-  enactOk(state, decreeOf("granary", "harvest"));
+function governedGame() {
+  const game = freshGame();
+  enactOk(game, decreeOf("granary", "harvest"));
   enactOk(
-    state,
+    game,
     decreeOf(
       "workers",
       "labor",
@@ -66,34 +57,36 @@ function governedState() {
       "balanced",
     ),
   );
-  enactOk(state, decreeOf("timber", "wood", [], "sell"));
-  return state;
+  enactOk(game, decreeOf("timber", "wood", [], "sell"));
+  return game;
 }
 
 test("policiesFor offers each petition its own policies, labor sorted from tuning", () => {
-  expect(policiesFor("wood", tuning)).toEqual(["sell", "stockpile"]);
-  expect(policiesFor("ore", tuning)).toEqual(["sell", "stockpile"]);
-  expect(policiesFor("harvest", tuning)).toEqual(["feed", "sell", "stockpile"]);
-  expect(policiesFor("labor", tuning)).toEqual(["balanced", "farming"]);
+  const { decrees } = freshGame();
+
+  expect(decrees.policiesFor("wood")).toEqual(["sell", "stockpile"]);
+  expect(decrees.policiesFor("ore")).toEqual(["sell", "stockpile"]);
+  expect(decrees.policiesFor("harvest")).toEqual(["feed", "sell", "stockpile"]);
+  expect(decrees.policiesFor("labor")).toEqual(["balanced", "farming"]);
 });
 
-describe("enactDecree", () => {
+describe("enact", () => {
   test("stores an accepted decree under its id, replacing the same id, without keeping the caller's object", () => {
-    const state = freshState();
+    const { decrees } = freshGame();
     const decree = decreeOf("granary", "harvest", [
       { when: above("grainSeasons", 3), policy: "sell" },
     ]);
-    enactOk(state, decree);
+    decrees.enact(decree);
     decree.otherwise = "sell";
     decree.rules.length = 0;
 
-    expect(state.posting.decrees.granary?.otherwise).toBe("stockpile");
-    expect(state.posting.decrees.granary?.rules).toHaveLength(1);
+    expect(decrees.enacted.granary?.otherwise).toBe("stockpile");
+    expect(decrees.enacted.granary?.rules).toHaveLength(1);
 
-    enactOk(state, decreeOf("granary", "harvest", [], "feed"));
+    decrees.enact(decreeOf("granary", "harvest", [], "feed"));
 
-    expect(Object.keys(state.posting.decrees)).toEqual(["granary"]);
-    expect(state.posting.decrees.granary?.otherwise).toBe("feed");
+    expect(Object.keys(decrees.enacted)).toEqual(["granary"]);
+    expect(decrees.enacted.granary?.otherwise).toBe("feed");
   });
 
   const { maxRules } = tuning.decrees;
@@ -178,28 +171,22 @@ describe("enactDecree", () => {
   test.each(rejections)(
     "rejects %s and leaves the active decrees alone",
     (_name, value, reason) => {
-      const state = governedState();
-      const before = structuredClone(state.posting.decrees);
+      const { decrees } = governedGame();
+      const before = structuredClone(decrees.enacted);
 
-      const result = enactDecree(state, value, tuning);
-
-      expect(result.ok).toBe(false);
-      expect(result.ok ? "" : result.reason).toMatch(reason);
-      expect(state.posting.decrees).toEqual(before);
+      expect(() => decrees.enact(value)).toThrow(reason);
+      expect(decrees.enacted).toEqual(before);
     },
   );
 });
 
-describe("repealDecree", () => {
+describe("repeal", () => {
   test("removes an unreferenced decree", () => {
-    const state = governedState();
+    const { decrees } = governedGame();
 
-    expect(repealDecree(state, "workers")).toEqual({ ok: true });
+    decrees.repeal("workers");
 
-    expect(Object.keys(state.posting.decrees).sort()).toEqual([
-      "granary",
-      "timber",
-    ]);
+    expect(Object.keys(decrees.enacted).sort()).toEqual(["granary", "timber"]);
   });
 
   test.each([
@@ -207,26 +194,25 @@ describe("repealDecree", () => {
     ["constructor", 'no active decree "constructor"'],
     ["granary", 'decree "workers" references "granary"'],
   ])("rejects repealing %s and keeps every decree", (id, reason) => {
-    const state = governedState();
+    const { decrees } = governedGame();
 
-    const result = repealDecree(state, id);
-
-    expect(result).toEqual({ ok: false, reason });
-    expect(Object.keys(state.posting.decrees)).toHaveLength(3);
+    expect(() => decrees.repeal(id)).toThrow(reason);
+    expect(Object.keys(decrees.enacted)).toHaveLength(3);
   });
 });
 
 describe("conditions", () => {
-  test("quantityValue reads each quantity from the state", () => {
-    const state = freshState();
-    setRoster(state, { farm: 3, idle: 7 });
+  test("quantityOf reads each quantity from the game", () => {
+    const game = freshGame();
+    setRoster(game, { farm: 3, idle: 7 });
+    const { conditions } = game;
 
-    expect(quantityValue("grain", state, tuning)).toBe(60);
-    expect(quantityValue("coin", state, tuning)).toBe(0);
-    expect(quantityValue("population", state, tuning)).toBe(10);
-    expect(quantityValue("idle", state, tuning)).toBe(7);
+    expect(conditions.quantityOf("grain")).toBe(60);
+    expect(conditions.quantityOf("coin")).toBe(0);
+    expect(conditions.quantityOf("population")).toBe(10);
+    expect(conditions.quantityOf("idle")).toBe(7);
     // 60 grain over 10 people eating 0.01 for 600 ticks.
-    expect(quantityValue("grainSeasons", state, tuning)).toBe(1);
+    expect(conditions.quantityOf("grainSeasons")).toBe(1);
   });
 
   const grainIs = (
@@ -286,15 +272,15 @@ describe("conditions", () => {
     ["not inverts", { kind: "not", condition: no }, {}, true],
   ];
 
-  test.each(rows)("evaluateCondition: %s", (_name, condition, chosen, want) => {
-    const state = freshState();
-    state.tick = 601;
+  test.each(rows)("evaluate: %s", (_name, condition, chosen, want) => {
+    const game = freshGame();
+    game.state.tick = 601;
 
-    expect(evaluateCondition(condition, state, tuning, chosen)).toBe(want);
+    expect(game.conditions.evaluate(condition, chosen)).toBe(want);
   });
 });
 
-describe("runDecrees on resources", () => {
+describe("run on resources", () => {
   // biome-ignore format: one row per line keeps the table scannable
   const sales: [
     string,
@@ -368,31 +354,33 @@ describe("runDecrees on resources", () => {
   ];
 
   test.each(sales)("%s", (_name, petition, setup, wantStock, wantSold) => {
-    const state = freshState();
-    state.posting.resources[petition] = setup.stock;
+    const game = freshGame();
+    game.state.posting.resources[petition] = setup.stock;
     enactOk(
-      state,
+      game,
       decreeOf("d", petition, setup.rule ? [setup.rule] : [], setup.otherwise),
     );
 
-    runDecrees(state, tuning, context, { ...none, [petition]: setup.made });
+    game.decrees.run(context, { ...none, [petition]: setup.made });
 
     const price = petition === "wood" ? "woodPrice" : "orePrice";
-    expect(state.posting.resources[petition]).toBe(wantStock);
-    expect(state.posting.resources.coin).toBe(wantSold * tuning.economy[price]);
+    expect(game.state.posting.resources[petition]).toBe(wantStock);
+    expect(game.state.posting.resources.coin).toBe(
+      wantSold * tuning.economy[price],
+    );
   });
 });
 
-describe("runDecrees on the harvest", () => {
+describe("run on the harvest", () => {
   test("sell turns the surplus into coin, feed into growth, stockpile keeps it as grain", () => {
     const outcome = (policy: string) => {
-      const state = freshState();
-      enactOk(state, decreeOf("granary", "harvest", [], policy));
-      runDecrees(state, tuning, context, surplus);
+      const game = freshGame();
+      enactOk(game, decreeOf("granary", "harvest", [], policy));
+      game.decrees.run(context, surplus);
       return {
-        grain: state.posting.resources.grain,
-        coin: state.posting.resources.coin,
-        growth: state.posting.economy.growth,
+        grain: game.state.posting.resources.grain,
+        coin: game.state.posting.resources.coin,
+        growth: game.state.posting.economy.growth,
       };
     };
 
@@ -402,10 +390,11 @@ describe("runDecrees on the harvest", () => {
   });
 
   test("feed above a grain threshold feeds the excess into growth", () => {
-    const state = freshState();
-    state.posting.resources.grain = 75 + 1.5 * tuning.economy.grainPerPeasant;
+    const game = freshGame();
+    game.state.posting.resources.grain =
+      75 + 1.5 * tuning.economy.grainPerPeasant;
     enactOk(
-      state,
+      game,
       decreeOf(
         "granary",
         "harvest",
@@ -413,12 +402,12 @@ describe("runDecrees on the harvest", () => {
         "stockpile",
       ),
     );
-    const population = state.posting.delegates.length;
+    const population = game.state.posting.delegates.length;
 
-    runDecrees(state, tuning, context, none);
+    game.decrees.run(context, none);
 
-    expect(state.posting.resources.grain).toBe(75);
-    expect(state.posting.delegates.length).toBeGreaterThan(population);
+    expect(game.state.posting.resources.grain).toBe(75);
+    expect(game.state.posting.delegates.length).toBeGreaterThan(population);
   });
 
   const early = { when: above("grainSeasons", 0.5), policy: "sell" };
@@ -430,24 +419,24 @@ describe("runDecrees on the harvest", () => {
     ["a later rule applies when the earlier one misses", [never, late], "feed"],
     ["otherwise applies only when no rule matches", [never], "stockpile"],
   ])("%s", (_name, rules, want) => {
-    const state = freshState();
-    enactOk(state, decreeOf("granary", "harvest", rules, "stockpile"));
+    const game = freshGame();
+    enactOk(game, decreeOf("granary", "harvest", rules, "stockpile"));
 
-    const chosen = runDecrees(state, tuning, context, surplus);
+    const chosen = game.decrees.run(context, surplus);
 
     expect(chosen).toEqual({ granary: want });
   });
 });
 
-describe("runDecrees on labor and chaining", () => {
+describe("run on labor and chaining", () => {
   test("a labor decree moves one peasant per tick toward its allocation", () => {
-    const state = freshState();
-    enactOk(state, decreeOf("workers", "labor", [], "farming"));
+    const game = freshGame();
+    enactOk(game, decreeOf("workers", "labor", [], "farming"));
 
-    runDecrees(state, tuning, context, surplus);
-    runDecrees(state, tuning, context, surplus);
-    const df = new DelegateManager(state);
-    expect(df.jobCounts().farm).toBe(2);
+    game.decrees.run(context, surplus);
+    game.decrees.run(context, surplus);
+
+    expect(game.delegates.jobCounts().farm).toBe(2);
   });
 
   // With five farmers, farming (7/2/1) adds a farmer and balanced (5/3/2) adds a forester.
@@ -457,11 +446,11 @@ describe("runDecrees on labor and chaining", () => {
   ])(
     "a later decree reacts to what an earlier one chose this tick: granary %s",
     (granaryPolicy, wantLabor, wantCounts) => {
-      const state = freshState();
-      setRoster(state, { farm: 5, idle: 5 });
-      enactOk(state, decreeOf("granary", "harvest", [], granaryPolicy));
+      const game = freshGame();
+      setRoster(game, { farm: 5, idle: 5 });
+      enactOk(game, decreeOf("granary", "harvest", [], granaryPolicy));
       enactOk(
-        state,
+        game,
         decreeOf(
           "a-workforce",
           "labor",
@@ -470,15 +459,15 @@ describe("runDecrees on labor and chaining", () => {
         ),
       );
 
-      const chosen = runDecrees(state, tuning, context, surplus);
-      const df = new DelegateManager(state);
+      const chosen = game.decrees.run(context, surplus);
+
       expect(chosen["a-workforce"]).toBe(wantLabor);
-      expect(df.jobCounts()).toMatchObject(wantCounts);
+      expect(game.delegates.jobCounts()).toMatchObject(wantCounts);
     },
   );
 });
 
-describe("repealStaleDecrees", () => {
+describe("repealStale", () => {
   const staleLabor = decreeOf("workers", "labor", [], "foraging");
   const chained = decreeOf(
     "tithe",
@@ -532,15 +521,15 @@ describe("repealStaleDecrees", () => {
   ];
 
   test.each(cases)("%s", (_name, decrees, removed, kept) => {
-    const state = freshState();
-    for (const decree of decrees) state.posting.decrees[decree.id] = decree;
+    const game = freshGame();
+    for (const decree of decrees) game.decrees.enacted[decree.id] = decree;
 
-    const result = repealStaleDecrees(state, tuning);
+    const result = game.decrees.repealStale();
 
     expect(result).toEqual(removed);
-    expect(Object.keys(state.posting.decrees).sort()).toEqual(kept);
+    expect(Object.keys(game.decrees.enacted).sort()).toEqual(kept);
     expect(
-      decreeSetProblem(state.posting.decrees, policiesFor("labor", tuning)),
+      decreeSetProblem(game.decrees.enacted, game.decrees.policiesFor("labor")),
     ).toBeNull();
   });
 });
