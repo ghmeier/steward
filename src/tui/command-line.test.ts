@@ -1,10 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { grantUnlocks, rosterOf, setRoster, tuning } from "../../test/helpers";
 import { key } from "../../test/tui-helpers";
-import { type Decree, PETITIONS } from "../core/decree";
-import { enactDecree, policiesFor } from "../core/decree-engine";
-import { saveDecree } from "../core/saved-decrees";
-import { createNewGame } from "../core/state";
+import { type Decree, PETITIONS, policiesFor } from "../core/decree";
+import { Game } from "../core/game";
+import { Job } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 import {
   ARCHIVE_PANEL,
@@ -13,7 +12,6 @@ import {
   PALETTE_UNLOCK,
   SAVED_DECREES_UNLOCK,
 } from "../core/unlocks";
-import { computeView } from "../core/view";
 import { lineKey, openLine, parseLine, renderLine } from "./command-line";
 import { describePolicy, formatDecree } from "./decree-format";
 import type { MenuContext } from "./menu";
@@ -38,21 +36,16 @@ const woodDecree: Decree = { ...granary, id: "wood", petition: "wood" };
 
 function contextWith(setup: Setup = {}): MenuContext {
   const using = setup.tuning ?? tuning;
-  const state = createNewGame(1, using);
-  grantUnlocks(state, setup.unlocks ?? []);
-  for (const decree of setup.decrees ?? []) {
-    const result = enactDecree(state, decree, using);
-    if (!result.ok) throw new Error(result.reason);
-  }
+  const game = Game.create(1, using);
+  grantUnlocks(game, setup.unlocks ?? []);
+  for (const decree of setup.decrees ?? []) game.decrees.enact(decree);
   if (setup.saved !== undefined) {
-    grantUnlocks(state, [SAVED_DECREES_UNLOCK]);
-    const { name, decree } = setup.saved;
-    const result = saveDecree(state, name, decree, using);
-    if (!result.ok) throw new Error(result.reason);
+    grantUnlocks(game, [SAVED_DECREES_UNLOCK]);
+    game.savedDecrees.save(setup.saved.name, setup.saved.decree);
   }
-  if (setup.coin !== undefined) state.posting.resources.coin = setup.coin;
-  if (setup.idle !== undefined) setRoster(state, { idle: setup.idle });
-  return { view: computeView(state, using), tuning: using };
+  if (setup.coin !== undefined) game.state.posting.resources.coin = setup.coin;
+  if (setup.idle !== undefined) setRoster(game, { idle: setup.idle });
+  return { view: game.view.compute(), tuning: using };
 }
 
 const compound: Setup = { unlocks: [COMPOUND_UNLOCK] };
@@ -135,7 +128,7 @@ const parseRows: [string, Setup, Outcome | null][] = [
 	["forget plan", saving, ok({ type: "forgetSaved", name: "plan" })],
 	["enact ", { unlocks: [SAVED_DECREES_UNLOCK] }, bad("no decrees are saved")],
 	["forget plan", { unlocks: [SAVED_DECREES_UNLOCK] }, bad("no saved decrees")],
-	[`assign ${second?.name} mine`, palette, ok({ type: "assignPeasant", peasant: second?.id, job: "mine" })],
+	[`assign ${second?.name} mine`, palette, ok({ type: "assignPeasant", peasant: second?.id, job: Job.MINE })],
 	["assign x idle", {}, bad("assign needs")],
 	...PETITIONS.flatMap((petition) =>
 		policiesFor(petition, tuning).map((policy): [string, Setup, Outcome] => [

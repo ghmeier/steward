@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { setRoster, economyTestTuning as tuning } from "../../test/helpers";
 import type { Command } from "../core/commands";
-import { createNewGame, type GameState } from "../core/state";
-import { computeView } from "../core/view";
+import { Game } from "../core/game";
 import { courtMenu } from "./court-menu";
 import {
   type MenuContext,
@@ -12,25 +11,26 @@ import {
   renderMenu,
 } from "./menu";
 
-function villageWith(templates: string[], coin = 100): GameState {
-  const state = createNewGame(1, tuning);
-  setRoster(state, { idle: 10 });
-  state.posting.resources.coin = coin;
-  state.posting.desk.disputes = templates.map((template, index) => ({
+function villageWith(templates: string[], coin = 100): Game {
+  const game = Game.create(1, tuning);
+  setRoster(game, { idle: 10 });
+  const { posting } = game.state;
+  posting.resources.coin = coin;
+  posting.desk.disputes = templates.map((template, index) => ({
     id: index + 1,
     template,
     parties: [1, 2],
     arrivedAt: 0,
   }));
-  return state;
+  return game;
 }
 
 class Walker {
   state: MenuState | null;
   commands: Command[] = [];
   private context: MenuContext;
-  constructor(state: GameState) {
-    this.context = { view: computeView(state, tuning), tuning };
+  constructor(game: Game) {
+    this.context = { view: game.view.compute(), tuning };
     this.state = openMenu(courtMenu);
   }
   key(name: string) {
@@ -55,10 +55,10 @@ class Walker {
 
 describe("court menu", () => {
   test("the root lists the waiting disputes in desk order, and with none opens nothing", () => {
-    const state = villageWith(["hen", "boundary"]);
-    const view = computeView(state, tuning);
+    const game = villageWith(["hen", "boundary"]);
+    const view = game.view.compute();
 
-    const items = new Walker(state).lines().map((line) => line.slice(2));
+    const items = new Walker(game).lines().map((line) => line.slice(2));
     const empty = new Walker(villageWith([]));
     empty.key("return");
 
@@ -82,9 +82,9 @@ describe("court menu", () => {
   });
 
   test("options show their cost or gain, the default marker and the name of the party who will sulk", () => {
-    const state = villageWith(["boundary"]);
-    const walk = new Walker(state);
-    const second = state.posting.delegates[1]?.name as string;
+    const game = villageWith(["boundary"]);
+    const walk = new Walker(game);
+    const second = game.state.posting.delegates[1]?.name as string;
 
     walk.key("return");
 

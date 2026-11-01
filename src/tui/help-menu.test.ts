@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { topicText, tuning } from "../../test/helpers";
-import { policiesFor } from "../core/decree-engine";
+import { policiesFor } from "../core/decree";
 import type { Tuning } from "../core/tuning";
 import {
   ARCHIVE_PANEL,
