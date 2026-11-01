@@ -16,8 +16,8 @@ import {
   setRoster,
   tuning,
 } from "../../test/helpers";
-import { type GameState, GameStateManager } from "../core/state";
-import { step } from "../core/step";
+import { Game } from "../core/game";
+import { Job } from "../core/realm";
 import { ARCHIVE_PANEL, PALETTE_UNLOCK } from "../core/unlocks";
 import { stateHash } from "../save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../save/save";
@@ -50,7 +50,7 @@ async function launch(
     saveDir?: string;
     notice?: string | null;
     kittyKeyboard?: boolean;
-    state?: GameState;
+    game?: Game;
   } = {},
 ) {
   const saveDir = options.saveDir ?? tempDir();
@@ -60,12 +60,11 @@ async function launch(
     exitOnCtrlC: false,
     kittyKeyboard: options.kittyKeyboard ?? false,
   });
-  const state: GameState =
-    options.state ?? new GameStateManager(5, tuning).state;
+  const game = options.game ?? Game.create(5, tuning);
   let nowMs = 0;
   const app = startApp({
     renderer: setup.renderer,
-    state,
+    game,
     tuning,
     saveDir,
     now: () => nowMs,
@@ -95,7 +94,7 @@ async function launch(
     app,
     destroyCalls: () => destroys,
     savedWhenDestroyed: () => savedWhenDestroyed,
-    state,
+    game,
     saveDir,
     renders: () => renders,
     mockInput: setup.mockInput,
@@ -120,20 +119,20 @@ describe("prepareStartup", () => {
   test("a missing save starts a new game from the injected seed with a notice", () => {
     const startup = ready(prepareStartup(tempDir(), tuning, () => 42));
 
-    expect(stateHash(startup.state)).toBe(
-      stateHash(new GameStateManager(5, tuning).state),
+    expect(stateHash(startup.game.state)).toBe(
+      stateHash(Game.create(42, tuning).state),
     );
     expect(startup.notice).not.toBeNull();
   });
 
   test("a saved game loads with the same state hash and no notice", () => {
     const dir = tempDir();
-    const saved = { ...new GameStateManager(5, tuning).state, tick: 12 };
+    const saved = { ...Game.create(5, tuning).state, tick: 12 };
     saveGame(dir, saved);
 
     const startup = ready(prepareStartup(dir, tuning, () => 1));
 
-    expect(stateHash(startup.state)).toBe(stateHash(saved));
+    expect(stateHash(startup.game.state)).toBe(stateHash(saved));
     expect(startup.notice).toBeNull();
   });
 
@@ -147,14 +146,14 @@ describe("prepareStartup", () => {
     const preserved = join(dir, "save.v0.json");
     expect(existsSync(preserved)).toBe(true);
     expect(startup.notice).toContain(preserved);
-    expect(stateHash(startup.state)).toBe(
-      stateHash(new GameStateManager(5, tuning).state),
+    expect(stateHash(startup.game.state)).toBe(
+      stateHash(Game.create(42, tuning).state),
     );
   });
 
   test("a save with a decree on a removed labor policy loads without it, says so, and keeps stepping", () => {
     const dir = tempDir();
-    const saved = new GameStateManager(5, tuning).state;
+    const saved = Game.create(5, tuning).state;
     saved.posting.decrees.workers = {
       id: "workers",
       petition: "labor",
@@ -165,9 +164,9 @@ describe("prepareStartup", () => {
 
     const startup = ready(prepareStartup(dir, tuning, () => 1));
 
-    expect(startup.state.posting.decrees.workers).toBeUndefined();
+    expect(startup.game.state.posting.decrees.workers).toBeUndefined();
     expect(startup.notice).toContain("workers");
-    expect(() => step(startup.state, [], tuning, quietOptions)).not.toThrow();
+    expect(() => startup.game.steps.step([], quietOptions)).not.toThrow();
   });
 
   test("an invalid save is refused and left byte for byte unchanged", () => {
@@ -181,19 +180,19 @@ describe("prepareStartup", () => {
   });
 });
 
-const withRoster = (peasants: number): GameState => {
-  const state = new GameStateManager(5, tuning).state;
-  setRoster(state, { idle: peasants });
-  return state;
+const withRoster = (peasants: number): Game => {
+  const game = Game.create(5, tuning);
+  setRoster(game, { idle: peasants });
+  return game;
 };
-const owning = (...ids: string[]): GameState => {
-  const state = new GameStateManager(5, tuning).state;
-  grantUnlocks(state, ids);
-  return state;
+const owning = (...ids: string[]): Game => {
+  const game = Game.create(5, tuning);
+  grantUnlocks(game, ids);
+  return game;
 };
 type Harness = Awaited<ReturnType<typeof launch>>;
 const everyoneIdle = (harness: Harness) =>
-  harness.state.posting.delegates.every((p) => p.job === "idle");
+  harness.game.state.posting.delegates.every((p) => p.job === Job.IDLE);
 const savedState = (harness: Harness, file = SAVE_FILE_NAME) =>
   readSaveFile(join(harness.saveDir, file)).state;
 
@@ -210,19 +209,19 @@ describe("lifecycle", () => {
   });
 
   test("assignment keys act on the peasant under the cursor, a repeat shows the rejection and s saves", async () => {
-    const harness = await launch({ state: withRoster(3) });
+    const harness = await launch({ game: withRoster(3) });
 
     await harness.mockInput.typeText("jmm");
     await harness.advanceStep();
     const screen = await harness.screen();
     await harness.mockInput.typeText("s");
 
-    const [first, second] = harness.state.posting.delegates;
-    expect(first?.job).toBe("idle");
-    expect(second?.job).toBe("mine");
+    const [first, second] = harness.game.state.posting.delegates;
+    expect(first?.job).toBe(Job.IDLE);
+    expect(second?.job).toBe(Job.MINE);
     expect(screen).toContain(`${second?.name} already works`);
     expect(screen).toMatch(new RegExp(`> ${second?.name} {2}mine`));
-    expect(stateHash(savedState(harness))).toBe(stateHash(harness.state));
+    expect(stateHash(savedState(harness))).toBe(stateHash(harness.game.state));
   });
 
   test.each([
@@ -239,8 +238,8 @@ describe("lifecycle", () => {
       const exit = await harness.app.done;
 
       expect(exit.saveError).toBeNull();
-      expect(savedHash(harness.saveDir)).toBe(stateHash(harness.state));
-      expect(harness.savedWhenDestroyed()).toBe(stateHash(harness.state));
+      expect(savedHash(harness.saveDir)).toBe(stateHash(harness.game.state));
+      expect(harness.savedWhenDestroyed()).toBe(stateHash(harness.game.state));
     },
   );
 
@@ -250,13 +249,13 @@ describe("lifecycle", () => {
     await harness.advanceStep();
 
     const exit = harness.app.hangUp();
-    const tickBefore = harness.state.tick;
+    const tickBefore = harness.game.state.tick;
     await harness.advanceStep();
 
     expect(exit.saveError).toBeNull();
-    expect(savedHash(harness.saveDir)).toBe(stateHash(harness.state));
+    expect(savedHash(harness.saveDir)).toBe(stateHash(harness.game.state));
     expect(harness.destroyCalls()).toBe(0);
-    expect(harness.state.tick).toBe(tickBefore);
+    expect(harness.game.state.tick).toBe(tickBefore);
   });
 
   test.each([
@@ -277,12 +276,12 @@ describe("lifecycle", () => {
     ],
   ])("%s saves once", async (_name, act) => {
     const harness = await launch();
-    saveGame(harness.saveDir, new GameStateManager(5, tuning).state);
+    saveGame(harness.saveDir, Game.create(5, tuning).state);
 
     await act(harness.app);
 
     expect(stateHash(savedState(harness, `${SAVE_FILE_NAME}.bak`))).toBe(
-      stateHash(new GameStateManager(5, tuning).state),
+      stateHash(Game.create(5, tuning).state),
     );
   });
 
@@ -327,7 +326,7 @@ describe("doors", () => {
 
     expect(open).toContain(": decree _");
     expect(open).not.toContain("Ledger");
-    expect(Object.keys(harness.state.posting.decrees)).toEqual(["wood"]);
+    expect(Object.keys(harness.game.state.posting.decrees)).toEqual(["wood"]);
     expect(await harness.screen()).toContain("Ledger");
   });
 
@@ -344,11 +343,11 @@ describe("doors", () => {
   });
 
   test("c opens the court menu and settling the dispute removes it from the state", async () => {
-    const harness = await launch({ state: withRoster(2) });
-    harness.state.posting.desk.disputes = [
+    const harness = await launch({ game: withRoster(2) });
+    harness.game.state.posting.desk.disputes = [
       { id: 1, template: "stolen-hen", parties: [1, 2], arrivedAt: 0 },
     ];
-    harness.state.posting.desk.nextDisputeId = 2;
+    harness.game.state.posting.desk.nextDisputeId = 2;
     await harness.advanceStep();
 
     await harness.mockInput.typeText("c");
@@ -360,7 +359,7 @@ describe("doors", () => {
 
     expect(open).toContain("Hold court");
     expect(open).not.toContain("Ledger");
-    expect(harness.state.posting.desk.disputes).toEqual([]);
+    expect(harness.game.state.posting.desk.disputes).toEqual([]);
   });
 
   test("? opens help, game keys are routed to it, and escape backs out step by step", async () => {
@@ -387,7 +386,7 @@ describe("doors", () => {
     "%s opens the line once its unlock is owned and does nothing before",
     async (pressed, unlock, line) => {
       const locked = await launch();
-      const owned = await launch({ state: owning(unlock) });
+      const owned = await launch({ game: owning(unlock) });
 
       await locked.mockInput.typeText(pressed);
       await owned.mockInput.typeText(pressed);
@@ -400,7 +399,7 @@ describe("doors", () => {
 
 describe("new village", () => {
   test("n asks for confirmation, warning about Archive purchases only once the player owns any", async () => {
-    const withUnlocks = await launch({ state: owning(ARCHIVE_PANEL) });
+    const withUnlocks = await launch({ game: owning(ARCHIVE_PANEL) });
     const plain = await launch();
 
     await withUnlocks.mockInput.typeText("n");
@@ -417,9 +416,9 @@ describe("new village", () => {
     const harness = await launch();
     await harness.mockInput.typeText("f");
     await harness.advanceStep();
-    saveGame(harness.saveDir, harness.state);
-    const old = stateHash(harness.state);
-    const oldTick = harness.state.tick;
+    saveGame(harness.saveDir, harness.game.state);
+    const old = stateHash(harness.game.state);
+    const oldTick = harness.game.state.tick;
 
     await harness.mockInput.typeText("nj");
     harness.mockInput.pressEnter();
@@ -430,10 +429,10 @@ describe("new village", () => {
     await harness.advanceStep();
     await harness.mockInput.typeText("s");
 
-    expect(founded).toBe(stateHash(new GameStateManager(5, tuning).state));
+    expect(founded).toBe(stateHash(Game.create(NEW_SEED, tuning).state));
     expect(backup).toBe(old);
-    expect(savedState(harness).posting.delegates[0]?.job).toBe("farm");
-    expect(harness.state.tick).toBe(oldTick);
+    expect(savedState(harness).posting.delegates[0]?.job).toBe(Job.FARM);
+    expect(harness.game.state.tick).toBe(oldTick);
     expect(await harness.screen()).toContain("Saved.");
   });
 
@@ -442,12 +441,12 @@ describe("new village", () => {
     ["escape", (h: Harness) => h.mockInput.pressEscape()],
   ])("%s leaves the game and the save untouched", async (_name, press) => {
     const harness = await launch({ kittyKeyboard: true });
-    const before = stateHash(harness.state);
+    const before = stateHash(harness.game.state);
 
     await harness.mockInput.typeText("n");
     press(harness);
 
-    expect(stateHash(harness.state)).toBe(before);
+    expect(stateHash(harness.game.state)).toBe(before);
     expect(existsSync(join(harness.saveDir, SAVE_FILE_NAME))).toBe(false);
     expect(await harness.screen()).toContain("Ledger");
   });
@@ -456,14 +455,12 @@ describe("new village", () => {
 describe("notices", () => {
   const promotion = "The crown has noticed you. You are promoted to steward.";
 
-  function nearlyPromoted(): GameState {
-    const m = new GameStateManager(5, tuning);
-    while (
-      m.state.posting.delegates.length < tuning.village.promotionPopulation
-    ) {
-      m.dm.create(tuning.village.names);
+  function nearlyPromoted(): Game {
+    const game = Game.create(5, tuning);
+    while (game.delegates.all.length < tuning.village.promotionPopulation) {
+      game.delegates.create();
     }
-    return m.state;
+    return game;
   }
 
   async function announcedThenLater(harness: Harness) {
@@ -475,11 +472,11 @@ describe("notices", () => {
   }
 
   test("promotion during the session is announced once, but not for a save already promoted", async () => {
-    const harness = await launch({ state: nearlyPromoted() });
+    const harness = await launch({ game: nearlyPromoted() });
     const promoted = nearlyPromoted();
-    promoted.tick = 5;
-    promoted.career.promotedAt = 3;
-    const loaded = await launch({ state: promoted });
+    promoted.state.tick = 5;
+    promoted.state.career.promotedAt = 3;
+    const loaded = await launch({ game: promoted });
 
     const { announced, later } = await announcedThenLater(harness);
     await loaded.advanceStep();
@@ -490,11 +487,11 @@ describe("notices", () => {
   });
 
   test("a starving peasant is named in the footer, and a fed village shows no notice", async () => {
-    const state = new GameStateManager(5, tuning).state;
-    state.posting.resources.grain = 0;
-    setFamineDue(state, 1, tuning.economy.ticksPerSeason);
-    const first = state.posting.delegates[0]?.name as string;
-    const starving = await launch({ state });
+    const game = Game.create(5, tuning);
+    game.state.posting.resources.grain = 0;
+    setFamineDue(game, 1, tuning.economy.ticksPerSeason);
+    const first = game.state.posting.delegates[0]?.name as string;
+    const starving = await launch({ game });
     const fed = await launch();
 
     await starving.advanceStep();
@@ -506,7 +503,7 @@ describe("notices", () => {
 
   test("the Archive notice appears once when coin first appears, and not after a restart", async () => {
     const harness = await launch();
-    harness.state.posting.resources.coin = 5;
+    harness.game.state.posting.resources.coin = 5;
 
     const { announced, later } = await announcedThenLater(harness);
     await harness.app.shutdown();
@@ -514,7 +511,7 @@ describe("notices", () => {
     if (startup.kind !== "ready") throw new Error("save not loaded");
     const restarted = await launch({
       saveDir: harness.saveDir,
-      state: startup.state,
+      game: startup.game,
     });
     await restarted.advanceStep();
 
@@ -524,9 +521,9 @@ describe("notices", () => {
   });
 
   test("a purchase is announced once", async () => {
-    const harness = await launch({ state: owning(ARCHIVE_PANEL) });
+    const harness = await launch({ game: owning(ARCHIVE_PANEL) });
     const palette = tuning.archive.entries.find((e) => e.id === PALETTE_UNLOCK);
-    harness.state.posting.resources.coin = (palette?.cost ?? 0) + 1;
+    harness.game.state.posting.resources.coin = (palette?.cost ?? 0) + 1;
 
     await harness.mockInput.typeText("apalette");
     harness.mockInput.pressEnter();

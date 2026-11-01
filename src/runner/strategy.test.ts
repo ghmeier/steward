@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { setRoster, tuning } from "../../test/helpers";
 import type { Command } from "../core/commands";
 import type { Condition } from "../core/decree";
-import { createNewGame } from "../core/state";
+import { Game } from "../core/game";
 import { createStrategyPlayer, parseStrategy, type Reaction } from "./strategy";
 
 const noop: Command = { type: "noop" };
@@ -62,9 +62,9 @@ describe("createStrategyPlayer", () => {
     player: ReturnType<typeof playerWith>,
     population: number,
   ) {
-    const state = createNewGame(1, tuning);
-    setRoster(state, { idle: population });
-    player.observe(state, tuning);
+    const game = Game.create(1, tuning);
+    setRoster(game, { idle: population });
+    player.observe(game);
   }
 
   test("next hands out copies of the setup first and nothing afterwards when no reaction fires", () => {
