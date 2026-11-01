@@ -32,28 +32,40 @@ const PRICE_KEY = {
 export class EconomyManager {
   constructor(private game: Game) {}
 
+  private get posting() {
+    return this.game.state.posting;
+  }
+
+  private get tick() {
+    return this.game.state.tick;
+  }
+
+  private get tuning() {
+    return this.game.tuning;
+  }
+
   private get population() {
     return this.game.delegates.all.length;
   }
 
   private get ticksPerSeason() {
-    return this.game.tuning.economy.ticksPerSeason;
+    return this.tuning.economy.ticksPerSeason;
   }
 
   private get laborMovesPerTick() {
-    return this.game.tuning.economy.laborMovesPerTick;
+    return this.tuning.economy.laborMovesPerTick;
   }
 
   private get grainPerPerson() {
-    return this.game.tuning.economy.grainPerPerson;
+    return this.tuning.economy.grainPerPerson;
   }
 
   private get grainPerFarmer() {
-    return this.game.tuning.economy.grainPerFarmer;
+    return this.tuning.economy.grainPerFarmer;
   }
 
   private get seasonYield() {
-    return this.game.tuning.economy.seasonYield;
+    return this.tuning.economy.seasonYield;
   }
 
   seasonAt(tick: number): Season {
@@ -63,18 +75,18 @@ export class EconomyManager {
   }
 
   grainSeasons(): number {
-    const grain = this.game.state.posting.resources.grain ?? 0;
+    const grain = this.posting.resources.grain ?? 0;
     const upkeepPerSeason =
       this.population * this.grainPerPerson * this.ticksPerSeason;
     if (upkeepPerSeason === 0)
-      return grain === 0 ? 0 : this.game.tuning.maxResourceValue;
+      return grain === 0 ? 0 : this.tuning.maxResourceValue;
     return grain / upkeepPerSeason;
   }
 
   private grainProduced(): number {
-    const season = this.seasonAt(this.game.state.tick);
+    const season = this.seasonAt(this.tick);
     return (
-      this.game.delegates.workingCountsAt(this.game.state.tick).farm *
+      this.game.delegates.workingCountsAt(this.tick).farm *
       this.grainPerFarmer *
       this.seasonYield[season]
     );
@@ -97,28 +109,26 @@ export class EconomyManager {
   // Deaths are paced against the starting population so a famine takes at most half the
   // village, spread evenly over one season; integer arithmetic keeps the schedule exact.
   private advanceFamine(): void {
-    const famine = this.game.state.posting.economy.famine;
+    const famine = this.posting.economy.famine;
     if (famine.ticks === 0) famine.startPopulation = this.population;
     famine.ticks += 1;
     const cap = Math.floor(famine.startPopulation / 2);
     const due = Math.min(
       cap,
-      Math.floor(
-        (famine.ticks * cap) / this.game.tuning.economy.ticksPerSeason,
-      ),
+      Math.floor((famine.ticks * cap) / this.tuning.economy.ticksPerSeason),
     );
     while (famine.deaths < due && this.population > 0) {
       this.killOnePeasant();
       famine.deaths += 1;
-      this.game.state.posting.economy.starved += 1;
+      this.posting.economy.starved += 1;
     }
   }
 
   run(context: AddContext): EconomyFlows {
-    const settings = this.game.tuning.economy;
-    const resources = this.game.state.posting.resources;
-    const { economy } = this.game.state.posting;
-    const working = this.game.delegates.workingCountsAt(this.game.state.tick);
+    const settings = this.tuning.economy;
+    const resources = this.posting.resources;
+    const { economy } = this.posting;
+    const working = this.game.delegates.workingCountsAt(this.tick);
 
     const produced = this.grainProduced();
     add(resources, "grain", produced, context);
@@ -149,22 +159,22 @@ export class EconomyManager {
     amount: number,
     context: AddContext,
   ): void {
-    const resources = this.game.state.posting.resources;
+    const resources = this.posting.resources;
     add(resources, resource, -amount, context);
     add(
       resources,
       "coin",
-      amount * this.game.tuning.economy[PRICE_KEY[resource]],
+      amount * this.tuning.economy[PRICE_KEY[resource]],
       context,
     );
   }
 
   feedGrain(amount: number, context: AddContext): void {
-    const settings = this.game.tuning.economy;
-    const { economy, delegates } = this.game.state.posting;
+    const settings = this.tuning.economy;
+    const { economy, delegates } = this.posting;
     if (delegates.length >= settings.maxPopulation) return;
 
-    add(this.game.state.posting.resources, "grain", -amount, context);
+    add(this.posting.resources, "grain", -amount, context);
     economy.growth += amount;
     while (
       economy.growth >= settings.grainPerPeasant &&
@@ -212,7 +222,7 @@ export class EconomyManager {
   }
 
   moveLaborToward(target: Readonly<Record<Job, number>>): void {
-    const { tick } = this.game.state;
+    const { tick } = this;
     // Only working jobs are rebalanced: idle peasants are the pool that fills a shortfall, and
     // treating idle as a surplus to drain would stall the move whenever the idle ones hold grudges.
     for (let done = 0; done < this.laborMovesPerTick; done++) {

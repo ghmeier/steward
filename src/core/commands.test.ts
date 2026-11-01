@@ -46,7 +46,7 @@ describe("assignPeasant", () => {
 
     expect(assign(game, 7777, Job.MINE)).toEqual({
       ok: false,
-      reason: "no assignee with id 7777",
+      reason: "no peasant 7777",
     });
     expect(assign(game, worker?.id ?? -1, Job.FARM)).toEqual({
       ok: false,

@@ -70,7 +70,7 @@ export class DelegateManager {
   assignJob(id: number, job: Job) {
     const assignee = this.findById(id);
     if (!assignee) {
-      throw new Error(`no assignee with id ${id}`);
+      throw new Error(`no peasant ${id}`);
     }
     if (job === assignee.job) {
       if (job === Job.IDLE) throw new Error(`${assignee.name} is already idle`);
@@ -87,7 +87,6 @@ export class DelegateManager {
     if (index >= 0) this.all.splice(index, 1);
   }
 
-  // Picks an unused name.
   findName(): string {
     const held = new Set(this.all.map((delegate) => delegate.name));
     const free = this.availableNames.filter((name) => !held.has(name));

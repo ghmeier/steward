@@ -74,70 +74,81 @@ export type ArchiveEntryView = {
 export class ViewManager {
   constructor(private game: Game) {}
 
-  // The view is plain truth only in phase 2. Illusion, governor exaggeration and
-  // unlock filtering are applied here in later phases, so the UI must never read
-  // GameState directly.
+  private get posting() {
+    return this.game.state.posting;
+  }
+
+  private get career() {
+    return this.game.state.career;
+  }
+
+  private get tick() {
+    return this.game.state.tick;
+  }
+
+  private get tuning() {
+    return this.game.tuning;
+  }
+
+  // The UI reads only this view, never GameState, so what the player is shown can
+  // differ from the underlying truth without touching any renderer.
   compute(): GameView {
     const { rates, growthPerTick } = this.game.projection.flows();
     const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
       resource,
-      amount: this.game.state.posting.resources[resource] ?? 0,
-      ratePerSecond: (rates[resource] * 1000) / this.game.tuning.stepMs,
+      amount: this.posting.resources[resource] ?? 0,
+      ratePerSecond: (rates[resource] * 1000) / this.tuning.stepMs,
     }));
-    const { delegates, decrees } = this.game.state.posting;
+    const { delegates, decrees } = this.posting;
     const labor = this.game.delegates.jobCounts();
     return {
-      tick: this.game.state.tick,
-      elapsedSeconds: (this.game.state.tick * this.game.tuning.stepMs) / 1000,
+      tick: this.tick,
+      elapsedSeconds: (this.tick * this.tuning.stepMs) / 1000,
       ledger,
       realm: {
         population: delegates.length,
         labor,
-        season: this.game.economy.seasonAt(this.game.state.tick),
-        starved: this.game.state.posting.economy.starved,
+        season: this.game.economy.seasonAt(this.tick),
+        starved: this.posting.economy.starved,
       },
       delegates: delegates.map((delegate) => ({
         id: delegate.id,
         name: delegate.name,
         job: delegate.job,
-        grudgeTicks: Math.max(0, delegate.grudgeUntil - this.game.state.tick),
+        grudgeTicks: Math.max(0, delegate.grudgeUntil - this.tick),
       })),
       decrees: Object.entries(decrees)
         .sort(([a], [b]) => compareKeys(a, b))
         .map(([, decree]) => structuredClone(decree)),
-      savedDecrees: sortedKeys(this.game.state.career.savedDecrees).flatMap(
-        (name) => {
-          const saved = this.game.state.career.savedDecrees[name];
-          return saved === undefined ? [] : [structuredClone(saved)];
-        },
-      ),
+      savedDecrees: sortedKeys(this.career.savedDecrees).flatMap((name) => {
+        const saved = this.career.savedDecrees[name];
+        return saved === undefined ? [] : [structuredClone(saved)];
+      }),
       desk: this.deskEntries(),
       governors: [],
       crown: null,
       promotion: {
-        target: this.game.tuning.village.promotionPopulation,
-        promotedAt: this.game.state.career.promotedAt,
-        promotedAtSeconds:
-          (this.game.state.career.promotedAt * this.game.tuning.stepMs) / 1000,
+        target: this.tuning.village.promotionPopulation,
+        promotedAt: this.career.promotedAt,
+        promotedAtSeconds: (this.career.promotedAt * this.tuning.stepMs) / 1000,
       },
       growth: {
-        stored: this.game.state.posting.economy.growth,
-        needed: this.game.tuning.economy.grainPerPeasant,
-        perSecond: (growthPerTick * 1000) / this.game.tuning.stepMs,
-        full: delegates.length >= this.game.tuning.economy.maxPopulation,
+        stored: this.posting.economy.growth,
+        needed: this.tuning.economy.grainPerPeasant,
+        perSecond: (growthPerTick * 1000) / this.tuning.stepMs,
+        full: delegates.length >= this.tuning.economy.maxPopulation,
       },
       lockedPanels: this.game.unlocks.enabled(CROWN_PANEL) ? [] : ["crown"],
       unlocks: this.game.unlocks.purchased,
       archive: {
         open: this.game.unlocks.enabled(ARCHIVE_PANEL),
-        entries: this.game.tuning.archive.entries.map((entry) => ({
+        entries: this.tuning.archive.entries.map((entry) => ({
           id: entry.id,
           label: entry.label,
           description: entry.description,
           cost: entry.cost,
           owned: this.game.unlocks.enabled(entry.id),
-          affordable:
-            (this.game.state.posting.resources.coin ?? 0) >= entry.cost,
+          affordable: (this.posting.resources.coin ?? 0) >= entry.cost,
           available: entry.requires.every((id) =>
             this.game.unlocks.enabled(id),
           ),
@@ -147,7 +158,7 @@ export class ViewManager {
   }
 
   private deskEntries(): DeskEntryView[] {
-    const { delegates, desk } = this.game.state.posting;
+    const { delegates, desk } = this.posting;
     const nameOf = (id: number) => {
       const found = delegates.find((delegate) => delegate.id === id);
       if (found === undefined)

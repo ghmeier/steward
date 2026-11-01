@@ -93,7 +93,7 @@ describe("session commands", () => {
       tick: 1,
       command: missingMiner,
     });
-    expect(result.rejections[0]?.reason).toContain("no assignee with id 9999");
+    expect(result.rejections[0]?.reason).toContain("no peasant 9999");
     expect(session.commandLog).toEqual([{ tick: 1, command: missingMiner }]);
   });
 });

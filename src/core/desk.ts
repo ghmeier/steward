@@ -43,12 +43,16 @@ export class DeskManager {
     return this.game.state;
   }
 
+  private get posting() {
+    return this.state.posting;
+  }
+
   private get tuning() {
     return this.game.tuning;
   }
 
   private get stream(): RngState {
-    const stream = this.state.posting.rng.disputes;
+    const stream = this.posting.rng.disputes;
     if (stream === undefined) throw new Error("the disputes stream is missing");
     return stream;
   }
@@ -77,7 +81,7 @@ export class DeskManager {
     const resources = option.resources ?? {};
     for (const resource of sortedKeys(resources)) {
       const delta = resources[resource as Resource] ?? 0;
-      const held = this.state.posting.resources[resource] ?? 0;
+      const held = this.posting.resources[resource] ?? 0;
       if (held + delta < 0) {
         return `not enough ${resource} (need ${show(-delta)}, have ${show(held)})`;
       }
@@ -94,9 +98,9 @@ export class DeskManager {
     for (const resource of sortedKeys(resources)) {
       let delta = resources[resource as Resource] ?? 0;
       if (clampLosses) {
-        delta = Math.max(delta, -(this.state.posting.resources[resource] ?? 0));
+        delta = Math.max(delta, -(this.posting.resources[resource] ?? 0));
       }
-      add(this.state.posting.resources, resource, delta, context);
+      add(this.posting.resources, resource, delta, context);
     }
   }
 
@@ -105,7 +109,7 @@ export class DeskManager {
     optionId: string,
     context: AddContext,
   ): CommandResult {
-    const disputes = this.state.posting.desk.disputes;
+    const disputes = this.posting.desk.disputes;
     const index = disputes.findIndex((candidate) => candidate.id === disputeId);
     const dispute = disputes[index];
     if (dispute === undefined) {
@@ -138,7 +142,7 @@ export class DeskManager {
   }
 
   private drawDispute(): void {
-    const { desk, delegates } = this.state.posting;
+    const { desk, delegates } = this.posting;
     const stream = this.stream;
     const templates = this.tuning.village.disputes;
     const template = templates[intBelow(stream, templates.length)];
@@ -160,7 +164,7 @@ export class DeskManager {
   }
 
   run(context: AddContext): void {
-    const { desk, delegates } = this.state.posting;
+    const { desk, delegates } = this.posting;
     for (const dispute of desk.disputes) this.templateOf(dispute);
 
     const living = new Set(delegates.map((delegate) => delegate.id));

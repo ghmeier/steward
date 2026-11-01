@@ -154,7 +154,7 @@ describe("assignJob", () => {
       "grudge",
     );
     expect(() => game.delegates.assignJob(9999, Job.MINE)).toThrow(
-      "no assignee",
+      "no peasant",
     );
   });
 });

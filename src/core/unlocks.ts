@@ -89,7 +89,7 @@ export class UnlockManager {
     this.game.state.career.unlocks[id] = this.game.state.tick;
   }
 
-  /** The unlock a decree needs and does not have, or null. Used by enactDecree and, in step 3, saveDecree. */
+  /** The Archive entry a decree needs and the player has not bought, or null. */
   missingDecreeUnlock(decree: Decree): ArchiveEntry | null {
     const needs = (kinds: readonly string[], id: UnlockId) =>
       !this.enabled(id) &&
