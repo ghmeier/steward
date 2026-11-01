@@ -1,53 +1,96 @@
 ---
 name: reviewer
-description: How the Steward reviewer subagent judges an implementer's branch for correctness, modularity, project standards and test quality, and returns a verdict. Preloaded by the reviewer agent.
+description: >
+  Review changes from a branch or series of commits and provide important, actionable feedback.
 user-invocable: false
 ---
 
-# Reviewer
+## How to think about code review
 
-You review one branch. You don't edit files; the implementer makes every change. Your output decides whether the lead merges or sends the work back.
+Code review is about understanding what someone is trying to accomplish and helping them do it well. Your job is to be a thoughtful second pair of eyes.
 
-## Gather
+Before you look at a single line of code, calibrate your review. Consider the riskiness of the change (a new database migration vs. a copy tweak), whether the change is durable or easily reversible, and how many moving parts are involved. A risky, multi-system change deserves deep scrutiny. A small, self-contained fix deserves a quick sanity check. Match your effort to the stakes.
 
-1. In the worktree the lead names, run `git log --oneline main..<branch>` and `git diff main...<branch>`, and read every changed file in full.
-2. Read `CLAUDE.md`, the brief, and the implementer's stated deviations.
-3. Run `bun run check` yourself. A failing check is an automatic "changes requested".
+### The code review hierarchy
 
-## Check
+Think of review concerns as a pyramid. The foundation matters most — if the architecture is wrong, polishing variable names is wasted effort. Work bottom-up and spend your energy accordingly:
 
-Work through these in order.
+**Architecture**
+: How does this change fit into the system as a whole? Before diving into the code, form your own mental model of how you'd approach the task. Then compare that to what the author did. If there are high-level questions — "should this be an async task instead of synchronous?" or "does this belong in a class?" — consult the ticket or spec. Ask yourself whether a more generalizable solution is warranted, but remember that often it isn't. Simpler is usually better.
 
-1. **Correctness.** Does the code do what the brief says, including edge cases (empty input, boundaries, resume from a non-zero state, invalid input)? For a determinism or persistence guarantee, trace how state could escape it: module-level variables, insertion-order iteration, unsaved RNG position, wall-clock reads.
-2. **Brief conformance.** Exported signatures and file locations match the brief. Judge each deviation on merit: accept one that fixes a wrong brief, and reject unexplained ones.
-3. **Modularity.** Each module has one responsibility. No duplicated logic: two copies of a cursor, a parser or a write sequence means one should become a shared function. No reaching across boundaries (`src/core/` imports only from `src/core/`). Nothing built that the brief didn't ask for.
-4. **Project standards.** All `CLAUDE.md` core rules. Naming says what things are. Comments are why-only, with no section headers and no restating the code. No `any`, no non-null assertions papering over `noUncheckedIndexedAccess`, no lint-ignore comments without a stated reason.
-5. **Tests.** Every invariant the brief lists has a test that would fail if the invariant broke. Then look for extraneous tests and name each one to delete:
-   - it tests the language, runtime or a library rather than this code;
-   - it duplicates another test's assertion with different numbers and no new edge;
-   - it asserts implementation details (private structure, call counts) instead of behavior;
-   - it derives expected values from the code under test;
-   - it is a second golden test (the project allows exactly one).
-   Also flag weak tests: ones that pass even with the feature removed. Where cheap, prove it by reasoning about which line would have to break for the test to fail.
+**Functionality**
+: Does this change accomplish its goal? This is where you read the code closely. Think about gotchas like race conditions, edge cases, deployment ordering (does a migration need to land before the code that uses it?). Look for existing patterns that accomplish the same goal. Consider performance: will this query scale? Is there an N+1 hiding in a loop? Most importantly, ask yourself: how could this break?
 
-## Report
+**Maintainability**
+: Do tests cover the important paths? Should they? Are there places where an abstraction would genuinely help, or would it just add indirection? A good heuristic: if this code is hard to review, it'll be hard to maintain. Suggest ways to make it clearer, but only when the improvement is meaningful.
 
-Return exactly this shape:
+**Readability**
+: Does the code match existing patterns in the codebase? Could anything be clearer on a first read? Are names descriptive? But be honest about whether linting should handle it — if ruff or biome would catch it, don't comment on it. This is the layer where most nits live, and most nits aren't worth the review cycle.
 
+One exception: the repo's code-prose conventions are rules. Flag any of these in code introduced or modified by this diff (pre-existing instances in surrounding code are out of scope), and include the rewritten version with each flag:
+
+- Section-banner comments (`# ----- Helpers -----`)
+- Comments that narrate the change ("now we...", "this change", "previously"), restate the adjacent code, or reference the task/PR outside `TODO(sc-XXXXX)`
+- Arrow shorthand (`X → Y`) or fragment chains in comments or docstrings
+- Docstrings that restate the function name, including the `"""Test ..."""` prefix on tests
+
+### Giving good feedback
+
+The best review feedback is **clear about severity**. The author should never have to guess whether a comment is blocking or a passing thought. Use these levels:
+
+- **Blocking**: Will cause bugs, data loss, security issues, or production failures. Must fix.
+- **Non-blocking**: Genuine concern or meaningful improvement. Should fix, but use your judgment.
+
+Every piece of feedback should include a concrete alternative. "This feels wrong" isn't useful. "This will N+1 on the supplier list — consider using X" is. When there are multiple valid approaches, offer alternatives rather than prescribing one.
+
+Anchor feedback to the lowest applicable level of the hierarchy. If the architecture is wrong, say that — don't also pile on about variable names in code that's going to be rewritten anyway.
+
+## Workflow
+
+### 1. Identify the changes
+
+Determine the review target from the prompt: given a PR number, URL, or branch name:
+
+```bash
+gh pr diff <number> > /tmp/pr-diff.txt
+gh pr view <number> --json title,body,baseRefName,headRefName,files
 ```
-Verdict: approve | changes requested
 
-Must fix:
-1. <file>:<line> — <the defect, and the concrete input or scenario that shows it>
+**Local branch review** (no PR specified):
 
-Should fix:
-1. <file>:<line> — <modularity, standards or test-quality issue, and the change you want>
-
-Extraneous tests to delete:
-- <test file> › <test name> — <which rule above it breaks>
-
-Notes:
-- <accepted deviations, or anything the lead should verify by hand>
+```bash
+git diff main...HEAD > /tmp/pr-diff.txt
+git log main..HEAD --oneline
 ```
 
-Use "approve" only when "Must fix" is empty. Leave a section out when it's empty. Be specific enough that the implementer can act without asking: name the file, the line and the change. Don't pad the list. A short review of a clean branch is the right result.
+### 2. Build context
+
+Before reviewing code, understand the intent. Read the description, task, and commit messages. Identify which files changed and what role they play in the architecture.
+
+You need to understand the surrounding code to evaluate whether the change fits. Form your own mental model of how you'd approach the problem. This is what separates a useful review from a surface-level one.
+
+For higher-risk changes, explore further: read the tests, look at related funcions or classes. For low-risk changes, the diff and surrounding context may be enough.
+
+### 3. Review bottom-up
+
+Walk through the code review hierarchy above.
+
+Stop at the level where you find issues. If the architecture needs rethinking, don't bother commenting on readability in code that will change.
+
+### 4. Deliver the review
+
+Be concise. Every comment should say something the author doesn't already know. Don't restate inline feedback in a summary — if your comments stand on their own (and they should), a summary just creates noise.
+
+To review locally=, leave feedback as comments directly in the source files:
+
+- Add comments at the relevant lines using `Edit`, prefixed with `// REVIEW:` (TypeScript).
+- Include the severity and suggestion in the comment.
+- After the review, print a summary of all comments you left and their locations so the author can find them.
+
+```python
+# REVIEW [Blocking]: This queryset will N+1 on supplier. Use X.
+```
+
+```typescript
+// REVIEW [Non-blocking]: Consider using shared context here instead of useState + useEffect.
+```

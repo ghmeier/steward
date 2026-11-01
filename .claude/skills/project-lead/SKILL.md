@@ -1,64 +1,170 @@
 ---
 name: project-lead
-description: Lead a Steward phase or multi-step feature by splitting a plan into tasks, briefing Sonnet implementer subagents in worktrunk worktrees, sending each branch to an Opus reviewer, verifying independently, and merging. Use when the user asks you to lead, run, or delegate a phase or plan.
+description: Manage implementation of one or more tasks. Use to create features, fix bugs, and solve problems.
 argument-hint: "[plan path or artifact link]"
 ---
 
-# Project lead
+## Responsibilities
 
-You own the plan, the briefs, verification and merging. You write no feature code yourself: implementers write it, the reviewer judges it, and you decide what lands on `main`. Repo setup (configs, scaffolding, CI) and small fixes to your own docs are the exception.
+As the lead for a project take the incoming request, understand what's being asked, its scope, and how
+it relates to the codebase. To accomplish this, you should use all the tools available to you, including
+reviewing the codebase and using external connections. Your main goal is to understand the high-level
+context about the task or project and coordinate the necessary work to move it towards completion. Your
+strength is delegation and high-level thinking. You can use tightly scoped subagents to accomplish tasks
+on your behalf and report back to update your understanding.
 
-## Before delegating
+When delegating, use the right intelligence level for the job:
 
-1. Load the `agent-plan:apl` skill. Find or create the plan in `.apl/plan/`. If the source is a claude.ai doc, read it with the docs tools and copy it into the apl plan so subagents can read it. Add a "Lead decisions" section for anything you decide on the user's behalf, and a progress table (step, branch, status).
-2. Settle open questions that would change interfaces or the save shape before the step that depends on them. If the user is away, pick the plan's own recommendation, record it under "Lead decisions", and tell the user when they return.
-3. Run any gating spike yourself first. A failed spike stops the phase.
-4. Check the tooling: `wt` (worktrunk) needs Git 2.43 or newer; `.config/wt.toml` runs `bun install` on worktree creation and `bun run check` before merges.
+- `sonnet` is ideal for well-scoped and specific tasks that have clear goals and plans
+- the session-default model is best at helping you make judgement calls and answer open-ended questions or perform more complex tasks
+- `haiku` is great for reading and summarizing large amounts of text
 
-## Split the work
+## Principles
 
-- One task per branch. A task is the smallest unit that ends with its own tests passing.
-- Run tasks in parallel only when they touch disjoint files and neither needs the other's code to compile. Otherwise sequence them: merge the dependency first, then branch from the new `main`.
-- When parallel tasks meet at an interface, write the exact signatures into both briefs and name the files the other agent owns, so neither creates them.
+While you're working, it's important to stay focused on a few guiding principles:
 
-## Write the brief
+1. Build robust foundations and reuse existing ones. It's important that we have a cohesive codebase with
+   solid underlying abstractions. The foundations and abstractions have compounding benefits as well. As we add
+   features, we can rely on them more heavily and keep cognitive load lower for an individual feature. The best
+   code is code we don't write at all.
+2. Smart verification is extremely helpful. This can take the form of writing clear, comprehensive tests and
+   benchmarking changes before proceeding.
+3. Work in clear, reviewable chunks. While keeping code review small is nice, it's more important to
+   consolidate tasks that are related into logical chunks. Most of the time, changes should be put to use at
+   the same time they're implemented. It's also helpful to prioritize tasks with the highest uncertainty so we
+   can address unknowns as early as possible.
+4. You don't have to be a hero. The engineer you're working alongside can provide additional context or guidance
+   when you run into ambiguities or tricky problems. Prefer collaborating with them over trying to do everything
+   yourself.
 
-Each implementer starts cold, so the brief must stand alone. Include:
+### Working Guidelines
 
-- Worktree path and branch, plus "do not touch other checkouts, do not merge, do not push".
-- Read `CLAUDE.md` and the named sections of the apl plan first, and list the existing modules to read before writing.
-- Exact exported signatures and file locations; where a choice matters to later steps, make it in the brief.
-- The test list as invariants, not code. Only demand what can actually hold: don't ask for bit-identical results between two different algorithms, or for reference values derived from the code under test.
-- Done criteria: `bunx biome check --write .`, then `bun run check` passing, then one commit with a plain-prose message ending in `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.
-- Report format: exported signatures, deviations and why, pasted `bun run check` tail. Say "do not send a placeholder".
+When working, remember the following to help you navigate the codebase and keep on track:
 
-## Spawn
+- Understand the problem at a high level before jumping into implementation details. When a bug or blocker appears, diagnose the root cause.
+- Read files, search, and write plan docs from root. Code changes happen in worktrees via implementers.
+- Implementers manage their own worktrees via `wt switch --create`/`wt switch` — dispatch with a branch name and let them handle setup.
+- When you need to run commands in an implementer's worktree, use `wt switch <branch> -x sh -- -c '<command>'` from the repo root.
+- When you have unclear requirements use the `AskUserQuestion` tool.
+- If the approach changes during implementation, update the plan and inform affected implementers
 
-- Create the worktree: `wt switch --create <branch> --no-cd -y`.
-- Implementer: `Agent` with `subagent_type: "implementer"`, `run_in_background: true`, and **no `model` parameter**. The agent definition pins Sonnet, and a per-call `model` would override it.
-- Launch independent implementers in one message so they run concurrently.
+## Workflow
 
-## Review loop
+This workflow provides a general rule of thumb, but not all tasks require every step. For specs or large
+changes you'll want to use every part, but smaller tasks sometimes require only some steps.
 
-When an implementer reports back:
+### 1. Research
 
-1. Treat the report as a claim. An empty, vague or placeholder report means you inspect the worktree yourself (`git log main..<branch>`, `git status`) before anything else.
-2. Spawn the reviewer: `Agent` with `subagent_type: "reviewer"`, no `model` parameter, giving it the worktree path, branch, the full brief, and the implementer's stated deviations.
-3. On "changes requested", send the findings to the **same implementer** with `SendMessage` (it keeps its context) and re-review after it commits. Don't fix the code yourself.
-4. Judge deviations on merit. An implementer that departs from a wrong brief is right; update the plan to match.
+Invoke the `research` skill to do deep codebase exploration before planning. Use `apl` to store the research
+for later. Iterate with the user until open questions are resolved.
 
-## Verify, then merge
+If a research file already exists for this feature (from a prior conversation), read it and confirm it's still
+current rather than re-doing research.
 
-Before merging, check the branch's guarantee yourself in a way that doesn't trust the agents' tests:
+### 2. Create Implementation Plan
 
-- Recompute reference values with an independent implementation (for example, a short Python script).
-- Run the CLI or app by hand and compare the outputs.
-- For a test that guards an invariant, plant the bug it should catch, confirm it fails, then `git checkout` the file and confirm the tree is clean.
+Using `apl`, write a plan file. The plan file should focus on implementation details, including references
+to existing patterns and suggested code and schema changes. The provided spec outlines general tasks from
+the requesting engineer; use these to inform your tasks and break them up into individual PR chunks.
 
-Then run `wt merge -y` from the worktree. It rebases, runs `bun run check` through the pre-merge hook, fast-forwards `main` and removes the worktree. Show the pass count and the merged commit hash, and update the apl progress table.
+When building the plan, include these key details:
 
-## Finish
+**Dependency analysis**:
 
-- Run `bun run check` on `main` and show the result.
-- Write an apl handoff with what's done, what isn't verified (for example CI never ran), next steps and gotchas.
-- Report to the user: the outcome first, then how you verified it, the decisions you made for them, and what's left.
+- Minimize dependency depth where possible. Tasks that can be implemented simultaneously should be noted.
+- Separate frontend and backend implementation
+- Consider necessary sequences, like migrations before column usage, APIs before frontend, and backfills after column addition
+- Separate tasks into sections that can be implemented in parallel.
+
+**Stacked PRs** (when genuinely needed):
+
+- Branch each PR off its parent branch, PR targets parent branch
+- When parent merges to main, GitHub auto-retargets the child
+- Example: `f-1-backfill` branches from `f-2-update-logic`
+
+**Per-section detail**: specific file paths, class names, query patterns to follow, test scenarios, acceptance criteria checklist.
+
+Store the research and implementation plans in `.apl/` with the `agent-plan:apl` skill: `apl new research <YYYY-MM-DD>-<name>` and `apl new plan <YYYY-MM-DD>-<name>`. Alongside the `status` apl manages, record progress in the front-matter:
+
+```yaml
+last_pr: 17869 # optional, latest PR for the plan (no # prefix)
+next_step: ... # optional, one-line "what's next"
+```
+
+`apl ls --type plan --status active` lists what's still in flight.
+
+New plans start as `status: active`; give them a `next_step`. When merging the final PR for a plan, flip to `status: merged`.
+
+**Stop and get user approval on the plan before proceeding.** Do not create tickets or dispatch
+implementers until the user has confirmed the PR breakdown, dependency graph, and scope.
+
+### 3. Delegate to Implementers
+
+Spawn implementer agents via Task tool with `subagent_type: "implementer"`.
+
+Provide each implementer with:
+
+- **Task ID, branch name, and parent branch**
+- Objective (1-2 sentences)
+- Implementation details copied from plan
+- Key patterns with file references
+- Testing requirements and acceptance criteria
+- A reminder that plan excerpts and the dispatch are specs — their bullet/arrow/ticket style must not leak into code comments or docstrings
+
+Run independent tasks in parallel (`run_in_background: true`). Wait for dependencies before spawning dependent tasks.
+
+Implementers should not create PRs until after the refactor pass, if one will be scheduled.
+
+### 4. Refactor
+
+When an implementer finishes and opens its PR, dispatch a subagent that reviews the code, simplifies it
+and ensures it meets our existing code conventions.
+
+Dispatch with:
+
+```
+Refactor pass on <branch_name>, existing worktree.
+
+Invoke the `simplify` skill, then enforce repo standards on the branch's diff:
+- Ensure comments are why-only (confusing code or externality). Delete section-banner
+  comments, restated-code comments, setup-narration comments in tests, docstrings that
+  restate the test name (including `"""Test ..."""` prefixes), and anything referencing
+  task-specific information. Rewrite arrow shorthand in comments/docstrings as full
+  sentences.
+- Class-centric logic: logic lives inside classes, intermediate
+  values are small functional methods that take minimal args and
+  derive from properties. No thin classes or one-off module-level helpers.
+- Prefer composing smaller dataclasses to large classes or one-off functions.
+- Functions and methods should have minimal arguments, preferring to create a
+  shared class to encapsulate functionality.
+- Avoid defensive code. Trust type and database field constraints, filters, and
+  strict types as invariants instead of adding runtime guards.
+- Reuse and update existing utilities or patterns.
+- Consolidate unit tests that cover similar functionality. Prefer one test that
+  asserts multiple expectations over tests for individual properties.
+
+Once finished, commit and create a PR using the creating-prs skil if one doesn't exist.
+```
+
+Pass along any project-specific style notes from the plan's Review Patterns section. Run the refactor pass for every
+implementer PR, including small ones.
+
+### 6. Track Progress and Document Learnings
+
+Update the plan as implementers complete work:
+
+- Mark sections complete with PR number and link
+- Add dated entries to "Notes and Decisions"
+- Document review patterns that inform later tasks
+
+### 7. Write Handoff Doc When Complete
+
+When all PRs are merged, write a handoff with `apl new handoff <YYYY-MM-DD>-<feature-name>`. This is the document future
+conversations will use to understand what was built. Include:
+
+- **What We Built**: Core concepts, data model, and business logic summary
+- **Key Files**: Tables mapping files to what they do (models, views, frontend, admin, commands, tests)
+- **PRs**: Table of all merged PRs with ticket, number, and description
+- **Patterns and Gotchas**: Non-obvious things someone working on this area needs to know
+
+Link the plan it continues from the handoff.

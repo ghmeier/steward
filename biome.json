@@ -1,77 +1,77 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
-	"vcs": {
-		"enabled": true,
-		"clientKind": "git",
-		"useIgnoreFile": true
-	},
-	"files": {
-		"ignoreUnknown": false,
-		"includes": ["**", "!.claude"]
-	},
-	"formatter": {
-		"enabled": true,
-		"indentStyle": "tab"
-	},
-	"linter": {
-		"enabled": true,
-		"rules": {
-			"preset": "recommended"
-		}
-	},
-	"javascript": {
-		"formatter": {
-			"quoteStyle": "double"
-		}
-	},
-	"assist": {
-		"enabled": true,
-		"actions": {
-			"source": {
-				"organizeImports": "on"
-			}
-		}
-	},
-	"overrides": [
-		{
-			"includes": ["src/core/**"],
-			"linter": {
-				"rules": {
-					"style": {
-						"noRestrictedGlobals": {
-							"level": "error",
-							"options": {
-								"deniedGlobals": {
-									"Date": "The core is deterministic: time comes from the tick, never the wall clock.",
-									"performance": "The core is deterministic: time comes from the tick, never the wall clock.",
-									"setTimeout": "The core never schedules work; the clock driver outside the core does.",
-									"setInterval": "The core never schedules work; the clock driver outside the core does.",
-									"process": "The core receives everything it needs as arguments.",
-									"Bun": "The core is runtime-agnostic and does no I/O.",
-									"crypto": "Use the core's own RNG streams.",
-									"require": "The core imports only from src/core/."
-								}
-							}
-						},
-						"noRestrictedImports": {
-							"level": "error",
-							"options": {
-								"paths": {
-									"bun": "The core is runtime-agnostic and does no I/O.",
-									"fs": "The core does no I/O; src/save/ owns the file system.",
-									"path": "The core does no I/O; src/save/ owns the file system."
-								},
-								"patterns": [
-									{
-										"group": ["node:*", "bun:*", "@opentui/*", "../**"],
-										"message": "src/core/ imports nothing outside src/core/ (no node:, bun:, TUI, or parent-directory imports)."
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		}
-	]
+  "$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": ["**", "!.claude"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "tab"
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended"
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double"
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/core/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "Date": "Rely on the tick for timing",
+                  "performance": "Rely on the tick for timing",
+                  "setTimeout": "Use the clock driver to schedule work",
+                  "setInterval": "Use the clock driver to schedule work",
+                  "process": "ALl arguments should be provided during initialization",
+                  "Bun": "I/O is not allowed.",
+                  "crypto": "Use the core's own RNG streams.",
+                  "require": "The core imports only from src/core/."
+                }
+              }
+            },
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "bun": "I/O is not allowed.",
+                  "fs": "Use src/save/ to interact with the filesystem.",
+                  "path": "Use src/save/ to interact with the filesystem."
+                },
+                "patterns": [
+                  {
+                    "group": ["node:*", "bun:*", "@opentui/*", "../**"],
+                    "message": "src/core/ should have no external dependencies."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
