@@ -6,20 +6,14 @@ import {
   tuning,
 } from "../../test/helpers";
 import { stateHash } from "../save/hash";
-import { apply } from "./commands";
 import type { Condition } from "./decree";
-import { enactDecree } from "./decree-engine";
-import { type GameState, GameStateManager } from "./state";
-import { step } from "./step";
+import { Game } from "./game";
 import {
   ARCHIVE_PANEL,
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
   CROWN_PANEL,
-  hasUnlock,
-  runUnlocks,
 } from "./unlocks";
-import { computeView } from "./view";
 
 const entry = (id: string) => {
   const found = tuning.archive.entries.find((candidate) => candidate.id === id);
@@ -29,48 +23,48 @@ const entry = (id: string) => {
 const palette = entry("control.palette");
 const savedDecrees = entry("control.savedDecrees");
 
-function richVillage(coin = 10_000): GameState {
-  const m = new GameStateManager(1, tuning);
-  m.state.tick = 7;
-  m.state.posting.resources.coin = coin;
-  grantUnlocks(m.state, [ARCHIVE_PANEL]);
-  return m.state;
+function richVillage(coin = 10_000): Game {
+  const game = Game.create(1, tuning);
+  game.state.tick = 7;
+  game.state.posting.resources.coin = coin;
+  grantUnlocks(game, [ARCHIVE_PANEL]);
+  return game;
 }
 
-function buy(state: GameState, id: string) {
-  return apply(state, { type: "buyUnlock", id }, tuning, contextFor(state));
+function buy(game: Game, id: string) {
+  game.unlocks.buy(id, contextFor(game));
 }
 
-describe("buyUnlock", () => {
+describe("buy", () => {
   test("spends exactly the cost, down to zero coin, records the tick and unlocks dependents", () => {
-    const state = richVillage(palette.cost + savedDecrees.cost);
+    const game = richVillage(palette.cost + savedDecrees.cost);
 
-    const first = buy(state, palette.id);
-    const second = buy(state, savedDecrees.id);
+    buy(game, palette.id);
+    buy(game, savedDecrees.id);
 
-    expect([first, second]).toEqual([{ ok: true }, { ok: true }]);
-    expect(state.posting.resources.coin).toBe(0);
-    expect(state.career.unlocks[palette.id]).toBe(7);
-    expect(hasUnlock(state, savedDecrees.id)).toBe(true);
+    expect(game.state.posting.resources.coin).toBe(0);
+    expect(game.state.career.unlocks[palette.id]).toBe(7);
+    expect(game.unlocks.enabled(savedDecrees.id)).toBe(true);
+    expect(game.unlocks.purchased).toContain(palette.id);
   });
 
   const owned = () => {
-    const state = richVillage();
-    buy(state, palette.id);
-    return state;
+    const game = richVillage();
+    buy(game, palette.id);
+    return game;
   };
   const closed = () => {
-    const state = richVillage();
-    delete state.career.unlocks[ARCHIVE_PANEL];
-    return state;
+    const game = richVillage();
+    delete game.state.career.unlocks[ARCHIVE_PANEL];
+    return game;
   };
   // biome-ignore format: one row per line keeps the table scannable
-  const rejections: [string, () => GameState, string, string][] = [
+  const rejections: [string, () => Game, string, string][] = [
     [
       "coin one short of the cost",
       () => richVillage(palette.cost - 1),
       palette.id,
-      "costs",
+      "not have enough coin",
     ],
     [
       "an id the Archive does not sell",
@@ -78,8 +72,8 @@ describe("buyUnlock", () => {
       "control.nothing",
       "does not sell",
     ],
-    ["an entry already owned", owned, palette.id, "already owned"],
-    ["a play unlock", closed, ARCHIVE_PANEL, "only earned"],
+    ["an entry already owned", owned, palette.id, "already own"],
+    ["a play unlock", closed, ARCHIVE_PANEL, "not purchasable"],
     [
       "an entry whose prerequisite is missing",
       richVillage,
@@ -97,19 +91,16 @@ describe("buyUnlock", () => {
   test.each(rejections)(
     "rejects %s and leaves the state unchanged",
     (_name, setup, id, reason) => {
-      const state = setup();
-      const before = stateHash(state);
+      const game = setup();
+      const before = stateHash(game.state);
 
-      const result = buy(state, id);
-
-      expect(result.ok).toBe(false);
-      expect(result.ok ? "" : result.reason).toContain(reason);
-      expect(stateHash(state)).toBe(before);
+      expect(() => buy(game, id)).toThrow(reason);
+      expect(stateHash(game.state)).toBe(before);
     },
   );
 });
 
-describe("decree gating", () => {
+describe("missingDecreeUnlock gating", () => {
   const winter: Condition = { kind: "season", season: "winter" };
   const rich: Condition = {
     kind: "compare",
@@ -150,79 +141,75 @@ describe("decree gating", () => {
   test.each(rows)(
     "%s: rejected without the unlock, accepted once owned",
     (_name, when, first, second) => {
-      const m = new GameStateManager(1, tuning);
-      enactDecree(
-        m.state,
-        { id: "base", petition: "harvest", rules: [], otherwise: "sell" },
-        tuning,
-      );
+      const game = Game.create(1, tuning);
+      game.decrees.enact({
+        id: "base",
+        petition: "harvest",
+        rules: [],
+        otherwise: "sell",
+      });
       const decree = {
         id: "follower",
         petition: "labor",
         rules: [{ when, policy: "farming" }],
         otherwise: "balanced",
       };
-      const before = stateHash(m.state);
+      const before = stateHash(game.state);
 
-      const rejected = enactDecree(m.state, decree, tuning);
-      const unchanged = stateHash(m.state);
-      grantUnlocks(m.state, [first]);
-      const afterFirst = enactDecree(m.state, decree, tuning);
-      grantUnlocks(m.state, [second]);
-      const afterSecond = enactDecree(m.state, decree, tuning);
+      expect(() => game.decrees.enact(decree)).toThrow(entry(first).label);
+      expect(stateHash(game.state)).toBe(before);
 
-      expect(rejected.ok ? "" : rejected.reason).toContain(entry(first).label);
-      expect(unchanged).toBe(before);
+      grantUnlocks(game, [first]);
       if (first !== second) {
-        expect(afterFirst.ok ? "" : afterFirst.reason).toContain(
-          entry(second).label,
-        );
+        expect(() => game.decrees.enact(decree)).toThrow(entry(second).label);
       }
-      expect(afterSecond).toEqual({ ok: true });
+
+      grantUnlocks(game, [second]);
+      expect(() => game.decrees.enact(decree)).not.toThrow();
     },
   );
 });
 
 describe("play unlocks and need hooks", () => {
   test("each records the first tick its condition held and never changes it", () => {
-    const m = new GameStateManager(1, tuning);
+    const game = Game.create(1, tuning);
     const coinAt = (tick: number, coin: number) => {
-      m.state.tick = tick;
-      m.state.posting.resources.coin = coin;
-      runUnlocks(m.state, tuning);
+      game.state.tick = tick;
+      game.state.posting.resources.coin = coin;
+      game.unlocks.run();
     };
 
     coinAt(3, 0);
-    expect(hasUnlock(m.state, ARCHIVE_PANEL)).toBe(false);
-    expect(m.state.career.needed).toEqual({});
+    expect(game.unlocks.enabled(ARCHIVE_PANEL)).toBe(false);
+    expect(game.state.career.needed).toEqual({});
     coinAt(4, 5);
     coinAt(5, 0);
     coinAt(6, 9);
 
-    expect(m.state.career.unlocks[ARCHIVE_PANEL]).toBe(4);
-    expect(m.state.career.needed.archive).toBe(4);
+    expect(game.state.career.unlocks[ARCHIVE_PANEL]).toBe(4);
+    expect(game.state.career.needed.archive).toBe(4);
   });
 
   test("step runs unlocks, so the Archive opens on the step coin first exists", () => {
-    const m = new GameStateManager(1, tuning);
-    m.state.posting.resources.coin = 5;
+    const game = Game.create(1, tuning);
+    game.state.posting.resources.coin = 5;
 
-    step(m.state, [], tuning, quietOptions);
+    game.steps.step([], quietOptions);
 
-    expect(m.state.career.unlocks[ARCHIVE_PANEL]).toBe(m.state.tick);
+    expect(game.state.career.unlocks[ARCHIVE_PANEL]).toBe(game.state.tick);
   });
 });
 
 describe("view", () => {
   test("archive entries follow data order with ownership, affordability and availability", () => {
-    const state = richVillage(palette.cost);
-    const before = computeView(state, tuning).archive.entries;
-    buy(state, palette.id);
-    state.posting.resources.coin = savedDecrees.cost;
-    const locked = computeView(state, tuning).lockedPanels;
-    grantUnlocks(state, [CROWN_PANEL]);
+    const game = richVillage(palette.cost);
+    const before = game.view.compute().archive.entries;
+    buy(game, palette.id);
+    game.state.posting.resources.coin = savedDecrees.cost;
+    const locked = game.view.compute().lockedPanels;
+    grantUnlocks(game, [CROWN_PANEL]);
 
-    const view = computeView(state, tuning);
+    const view = game.view.compute();
     expect(locked).toEqual(["crown"]);
     expect(view.lockedPanels).toEqual([]);
 
