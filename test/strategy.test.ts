@@ -56,24 +56,6 @@ describe("parseStrategy", () => {
 		});
 	});
 
-	test("an unknown key is rejected with its path", () => {
-		expect(
-			messageOf({ name: "s", setup: [], reactions: [], extra: 1 }),
-		).toStartWith("strategy.extra:");
-	});
-
-	test("a missing key is rejected with its path", () => {
-		expect(messageOf({ name: "s", setup: [] })).toStartWith(
-			"strategy.reactions:",
-		);
-	});
-
-	test("an empty name is rejected", () => {
-		expect(messageOf({ name: "", setup: [], reactions: [] })).toStartWith(
-			"strategy.name:",
-		);
-	});
-
 	test("a bad command is rejected with its index", () => {
 		const message = messageOf({
 			name: "s",
@@ -81,7 +63,7 @@ describe("parseStrategy", () => {
 			reactions: [],
 		});
 
-		expect(message).toStartWith('strategy.setup[0]: unknown command type "x"');
+		expect(message).toStartWith("strategy.setup[0].type:");
 	});
 
 	test("a bad condition is rejected with its path", () => {

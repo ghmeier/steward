@@ -1,21 +1,23 @@
-import { isRecord, sortedKeys } from "./data";
-import { type Decree, decreeSetProblem, parseDecree } from "./decree";
-import { errorMessage } from "./errors";
+import { sortedKeys } from "./data";
+import { type Decree, decreeSchema, decreeSetProblem } from "./decree";
 import { JOBS, RESOURCES } from "./realm";
-import { type GameState, SCHEMA_VERSION } from "./state";
+import {
+	array,
+	integer,
+	literal,
+	number,
+	object,
+	record,
+	refine,
+	type Schema,
+	string,
+	tuple,
+} from "./schema";
+import { type GameState, type PostingState, SCHEMA_VERSION } from "./state";
 
 function isPlainObject(value: object): boolean {
 	const prototype = Object.getPrototypeOf(value);
 	return prototype === Object.prototype || prototype === null;
-}
-
-function isUint32(value: unknown): boolean {
-	return (
-		typeof value === "number" &&
-		Number.isInteger(value) &&
-		value >= 0 &&
-		value <= 0xffffffff
-	);
 }
 
 function describe(value: unknown): string {
@@ -66,317 +68,203 @@ function scanPlainData(value: unknown, path: string, problems: string[]): void {
 	}
 }
 
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-	return isRecord(value) && isPlainObject(value);
-}
+const count = integer({ min: 0 });
+const positiveCount = integer({ min: 1 });
+const uint32 = integer({ min: 0, max: 0xffffffff });
 
-function isCount(value: unknown): value is number {
-	return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
-}
-
-function checkEconomy(economy: unknown, problems: string[]): void {
-	if (!isPlainRecord(economy)) {
-		problems.push("$.posting.economy: must be an object");
-		return;
-	}
-	if (!isCount(economy.starved)) {
-		problems.push(
-			"$.posting.economy.starved: must be a non-negative safe integer",
-		);
-	}
-	if (
-		typeof economy.growth !== "number" ||
-		!Number.isFinite(economy.growth) ||
-		economy.growth < 0
-	) {
-		problems.push(
-			"$.posting.economy.growth: must be a non-negative finite number",
-		);
-	}
-	if (!isPlainRecord(economy.famine)) {
-		problems.push("$.posting.economy.famine: must be an object");
-		return;
-	}
-	for (const key of ["startPopulation", "ticks", "deaths"]) {
-		if (!isCount(economy.famine[key])) {
-			problems.push(
-				`$.posting.economy.famine.${key}: must be a non-negative safe integer`,
-			);
+const rngStream = refine(
+	tuple(uint32, uint32, uint32, uint32),
+	(words, path, problems) => {
+		if (words.every((word) => word === 0)) {
+			problems.push(`${path}: must not be all zero`);
 		}
-	}
-}
+	},
+);
 
-function checkDelegates(posting: Record<string, unknown>, problems: string[]) {
-	const next = posting.nextDelegateId;
-	if (!isCount(next) || next < 1) {
-		problems.push("$.posting.nextDelegateId: must be a positive safe integer");
-	}
-	const delegates = posting.delegates;
-	if (!Array.isArray(delegates)) {
-		problems.push("$.posting.delegates: must be an array");
-		return;
-	}
+const delegate = object({
+	id: positiveCount,
+	name: string({ nonEmpty: true }),
+	kind: literal("peasant"),
+	job: literal(...JOBS, "idle"),
+	grudgeUntil: count,
+});
+
+const dispute = object({
+	id: positiveCount,
+	template: string({ nonEmpty: true }),
+	parties: tuple(positiveCount, positiveCount),
+	arrivedAt: count,
+});
+
+function ascendingIdProblems(
+	items: readonly { id: number }[],
+	next: number,
+	nextName: string,
+	path: string,
+	problems: string[],
+): void {
 	let previousId = 0;
-	const names = new Set<string>();
-	for (const [index, raw] of delegates.entries()) {
-		const path = `$.posting.delegates[${index}]`;
-		if (!isPlainRecord(raw)) {
-			problems.push(`${path}: must be an object`);
-			continue;
+	for (const [index, { id }] of items.entries()) {
+		if (id <= previousId) {
+			problems.push(`${path}[${index}].id: ids must be strictly ascending`);
 		}
-		const id = raw.id;
-		if (!isCount(id) || id < 1) {
-			problems.push(`${path}.id: must be a positive safe integer`);
-		} else {
-			if (id <= previousId) {
-				problems.push(`${path}.id: ids must be strictly ascending`);
-			}
-			if (isCount(next) && id >= next) {
-				problems.push(`${path}.id: must be below nextDelegateId`);
-			}
-			previousId = id;
+		if (id >= next) {
+			problems.push(`${path}[${index}].id: must be below ${nextName}`);
 		}
-		const name = raw.name;
-		if (typeof name !== "string" || name === "") {
-			problems.push(`${path}.name: must be a non-empty string`);
-		} else if (names.has(name)) {
-			problems.push(`${path}.name: "${name}" is held by another peasant`);
-		} else {
-			names.add(name);
-		}
-		if (raw.kind !== "peasant") {
-			problems.push(`${path}.kind: must be "peasant"`);
-		}
-		const job = raw.job;
-		if (job !== "idle" && !(JOBS as readonly unknown[]).includes(job)) {
-			problems.push(`${path}.job: must be idle or one of ${JOBS.join(", ")}`);
-		}
-		if (!isCount(raw.grudgeUntil)) {
-			problems.push(`${path}.grudgeUntil: must be a non-negative safe integer`);
-		}
+		previousId = id;
 	}
 }
+
+const desk = refine(
+	object({
+		nextDisputeId: positiveCount,
+		nextArrivalTick: count,
+		disputes: array(dispute),
+	}),
+	(value, path, problems) =>
+		ascendingIdProblems(
+			value.disputes,
+			value.nextDisputeId,
+			"nextDisputeId",
+			`${path}.disputes`,
+			problems,
+		),
+);
 
 // Validation has no tuning, so the size caps are enforced when a decree is enacted, not here.
-const UNLIMITED_DECREE = {
+const UNBOUNDED_DECREE = {
 	maxRules: Number.MAX_SAFE_INTEGER,
 	maxConditionNodes: Number.MAX_SAFE_INTEGER,
 	maxConditionDepth: Number.MAX_SAFE_INTEGER,
 };
 
-function checkDesk(
-	posting: Record<string, unknown>,
-	tick: unknown,
-	problems: string[],
-) {
-	const desk = posting.desk;
-	if (!isPlainRecord(desk)) {
-		problems.push("$.posting.desk: must be an object");
-		return;
-	}
-	const next = desk.nextDisputeId;
-	if (!isCount(next) || next < 1) {
-		problems.push(
-			"$.posting.desk.nextDisputeId: must be a positive safe integer",
-		);
-	}
-	if (!isCount(desk.nextArrivalTick)) {
-		problems.push(
-			"$.posting.desk.nextArrivalTick: must be a non-negative safe integer",
-		);
-	}
-	const disputes = desk.disputes;
-	if (!Array.isArray(disputes)) {
-		problems.push("$.posting.desk.disputes: must be an array");
-		return;
-	}
-	const living = new Set<unknown>(
-		Array.isArray(posting.delegates)
-			? posting.delegates.map((delegate) =>
-					isPlainRecord(delegate) ? delegate.id : undefined,
-				)
-			: [],
-	);
-	let previousId = 0;
-	for (const [index, raw] of disputes.entries()) {
-		const path = `$.posting.desk.disputes[${index}]`;
-		if (!isPlainRecord(raw)) {
-			problems.push(`${path}: must be an object`);
-			continue;
-		}
-		const id = raw.id;
-		if (!isCount(id) || id < 1) {
-			problems.push(`${path}.id: must be a positive safe integer`);
-		} else {
-			if (id <= previousId) {
-				problems.push(`${path}.id: ids must be strictly ascending`);
-			}
-			if (isCount(next) && id >= next) {
-				problems.push(`${path}.id: must be below nextDisputeId`);
-			}
-			previousId = id;
-		}
-		if (typeof raw.template !== "string" || raw.template === "") {
-			problems.push(`${path}.template: must be a non-empty string`);
-		}
-		const parties = raw.parties;
-		if (
-			!Array.isArray(parties) ||
-			parties.length !== 2 ||
-			parties[0] === parties[1] ||
-			!parties.every((party) => living.has(party))
-		) {
-			problems.push(
-				`${path}.parties: must be two distinct peasants in the roster`,
-			);
-		}
-		const arrivedAt = raw.arrivedAt;
-		if (!isCount(arrivedAt) || (typeof tick === "number" && arrivedAt > tick)) {
-			problems.push(
-				`${path}.arrivedAt: must be an integer no later than the tick`,
-			);
-		}
-	}
-}
-
-function checkDecreeRecord(
-	decrees: unknown,
-	location: string,
-	problems: string[],
-): Record<string, Decree> | null {
-	if (!isPlainRecord(decrees)) {
-		problems.push(`${location}: must be an object`);
-		return null;
-	}
-	const parsed: Record<string, Decree> = {};
-	let wellFormed = true;
-	for (const key of sortedKeys(decrees)) {
-		const path = `${location}.${key}`;
-		try {
-			const decree = parseDecree(decrees[key], UNLIMITED_DECREE);
-			if (decree.id === key) parsed[key] = decree;
-			else {
-				wellFormed = false;
-				problems.push(`${path}: id must equal its key`);
-			}
-		} catch (error) {
-			wellFormed = false;
-			problems.push(`${path}: ${errorMessage(error)}`);
-		}
-	}
-	return wellFormed ? parsed : null;
-}
-
-function checkDecrees(decrees: unknown, problems: string[]): void {
-	const parsed = checkDecreeRecord(decrees, "$.posting.decrees", problems);
-	if (parsed === null) return;
-	// A set that cannot run must fail at load, not mid-run; labor policies need tuning and are checked only when enacting.
-	const problem = decreeSetProblem(parsed, null);
-	if (problem !== null) problems.push(`$.posting.decrees: ${problem}`);
-}
-
-function checkStructure(state: unknown, problems: string[]): void {
-	if (!isPlainRecord(state)) {
-		problems.push("$: must be an object");
-		return;
-	}
-	if (state.schemaVersion !== SCHEMA_VERSION) {
-		problems.push(`$.schemaVersion: must be ${SCHEMA_VERSION}`);
-	}
-	const tick = state.tick;
-	if (typeof tick !== "number" || !Number.isSafeInteger(tick) || tick < 0) {
-		problems.push("$.tick: must be a non-negative safe integer");
-	}
-
-	const career = state.career;
-	if (!isPlainRecord(career)) {
-		problems.push("$.career: must be an object");
-	} else {
-		if (!isPlainRecord(career.unlocks)) {
-			problems.push("$.career.unlocks: must be an object");
-		}
-		const needed = career.needed;
-		if (!isPlainRecord(needed)) {
-			problems.push("$.career.needed: must be an object");
-		} else {
-			for (const key of sortedKeys(needed)) {
-				if (!isCount(needed[key])) {
-					problems.push(
-						`$.career.needed.${key}: must be a non-negative safe integer`,
-					);
+/** A decree lives under its own id; `decrees` also rejects sets that could never run. */
+function decreeRecord(
+	requireRunnableSet: boolean,
+): Schema<Record<string, Decree>> {
+	return refine(
+		record(decreeSchema(UNBOUNDED_DECREE)),
+		(decrees, path, problems) => {
+			const before = problems.length;
+			for (const key of sortedKeys(decrees)) {
+				if (decrees[key]?.id !== key) {
+					problems.push(`${path}.${key}: id must equal its key`);
 				}
 			}
-		}
-		checkDecreeRecord(career.savedDecrees, "$.career.savedDecrees", problems);
-		for (const key of ["followers", "formerStaff"]) {
-			if (!Array.isArray(career[key])) {
-				problems.push(`$.career.${key}: must be an array`);
-			}
-		}
-		const promotedAt = career.promotedAt;
-		if (!isCount(promotedAt)) {
-			problems.push("$.career.promotedAt: must be a non-negative safe integer");
-		} else if (typeof tick === "number" && promotedAt > tick) {
-			problems.push("$.career.promotedAt: must not exceed tick");
-		}
-	}
-
-	const posting = state.posting;
-	if (!isPlainRecord(posting)) {
-		problems.push("$.posting: must be an object");
-		return;
-	}
-	if (typeof posting.postingId !== "string") {
-		problems.push("$.posting.postingId: must be a string");
-	}
-	if (!isUint32(posting.seed)) {
-		problems.push("$.posting.seed: must be a uint32");
-	}
-
-	const rng = posting.rng;
-	if (!isPlainRecord(rng)) {
-		problems.push("$.posting.rng: must be an object");
-	} else {
-		for (const name of sortedKeys(rng)) {
-			const words = rng[name];
-			const path = `$.posting.rng.${name}`;
-			if (!Array.isArray(words) || words.length !== 4) {
-				problems.push(`${path}: must be an array of 4 uint32 words`);
-			} else if (!words.every(isUint32)) {
-				problems.push(`${path}: every word must be a uint32`);
-			} else if (words.every((word) => word === 0)) {
-				problems.push(`${path}: must not be all zero`);
-			}
-		}
-	}
-
-	const resources = posting.resources;
-	if (!isPlainRecord(resources)) {
-		problems.push("$.posting.resources: must be an object");
-	} else {
-		for (const id of RESOURCES) {
-			if (!Object.hasOwn(resources, id)) {
-				problems.push(`$.posting.resources.${id}: is missing`);
-			}
-		}
-		for (const id of sortedKeys(resources)) {
-			const amount = resources[id];
-			if (typeof amount !== "number" || !Number.isFinite(amount)) {
-				problems.push(`$.posting.resources.${id}: must be a finite number`);
-			}
-		}
-	}
-
-	checkEconomy(posting.economy, problems);
-	checkDelegates(posting, problems);
-	checkDecrees(posting.decrees, problems);
-	checkDesk(posting, state.tick, problems);
+			if (!requireRunnableSet || problems.length > before) return;
+			// Labor policies need tuning, so only enacting checks them; loading cannot.
+			const problem = decreeSetProblem(decrees, null);
+			if (problem !== null) problems.push(`${path}: ${problem}`);
+		},
+	);
 }
+
+function rosterProblems(
+	posting: PostingState,
+	path: string,
+	problems: string[],
+): void {
+	ascendingIdProblems(
+		posting.delegates,
+		posting.nextDelegateId,
+		"nextDelegateId",
+		`${path}.delegates`,
+		problems,
+	);
+	const names = new Set<string>();
+	for (const [index, { name }] of posting.delegates.entries()) {
+		if (names.has(name)) {
+			problems.push(
+				`${path}.delegates[${index}].name: "${name}" is held by another peasant`,
+			);
+		}
+		names.add(name);
+	}
+
+	const living = new Set(posting.delegates.map(({ id }) => id));
+	for (const [index, { parties }] of posting.desk.disputes.entries()) {
+		const [first, second] = parties;
+		if (first === second || !living.has(first) || !living.has(second)) {
+			problems.push(
+				`${path}.desk.disputes[${index}].parties: must be two distinct peasants in the roster`,
+			);
+		}
+	}
+}
+
+function tickBoundProblems(
+	state: GameState,
+	path: string,
+	problems: string[],
+): void {
+	if (state.career.promotedAt > state.tick) {
+		problems.push(`${path}.career.promotedAt: must not exceed tick`);
+	}
+	for (const [index, { arrivedAt }] of state.posting.desk.disputes.entries()) {
+		if (arrivedAt > state.tick) {
+			problems.push(
+				`${path}.posting.desk.disputes[${index}].arrivedAt: must be no later than the tick`,
+			);
+		}
+	}
+}
+
+const resources = refine(record(number()), (amounts, path, problems) => {
+	for (const id of RESOURCES) {
+		if (!Object.hasOwn(amounts, id)) problems.push(`${path}.${id}: is missing`);
+	}
+});
+
+const posting: Schema<PostingState> = refine(
+	object({
+		postingId: string(),
+		seed: uint32,
+		rng: record(rngStream),
+		resources,
+		economy: object({
+			famine: object({
+				startPopulation: count,
+				ticks: count,
+				deaths: count,
+			}),
+			growth: number({ min: 0 }),
+			starved: count,
+		}),
+		delegates: array(delegate),
+		nextDelegateId: positiveCount,
+		decrees: decreeRecord(true),
+		desk,
+	}),
+	rosterProblems,
+);
+
+const career = object({
+	unlocks: record(count),
+	savedDecrees: decreeRecord(false),
+	needed: record(count),
+	followers: array(string()),
+	formerStaff: array(string()),
+	promotedAt: count,
+});
+
+const gameState: Schema<GameState> = refine(
+	object({
+		schemaVersion: refine(integer(), (version, path, problems) => {
+			if (version !== SCHEMA_VERSION) {
+				problems.push(`${path}: must be ${SCHEMA_VERSION}`);
+			}
+		}),
+		tick: count,
+		career,
+		posting,
+	}),
+	tickBoundProblems,
+);
 
 export function validateState(state: unknown): string[] {
 	const problems: string[] = [];
 	scanPlainData(state, "$", problems);
-	checkStructure(state, problems);
+	gameState.check(state, "$", problems);
 	return problems;
 }
 

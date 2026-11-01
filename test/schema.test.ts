@@ -4,6 +4,7 @@ import {
 	custom,
 	integer,
 	keyedBy,
+	lazy,
 	literal,
 	number,
 	object,
@@ -13,9 +14,21 @@ import {
 	refine,
 	type Schema,
 	string,
+	tuple,
+	variant,
 } from "../src/core/schema";
 
 const point = object({ x: number(), y: number() });
+const shape = variant("kind", {
+	dot: object({ kind: literal("dot"), at: point }),
+	line: object({ kind: literal("line"), length: number() }),
+});
+type Nest = { child?: Nest };
+const nest: Schema<Nest> = lazy(() =>
+	object({ child: nest }, { optional: ["child"] }),
+);
+const nested = (levels: number): Nest =>
+	levels === 0 ? {} : { child: nested(levels - 1) };
 
 const accepts: [string, Schema<unknown>, unknown][] = [
 	["an integer within bounds", integer({ min: 1, max: 3 }), 3],
@@ -34,6 +47,9 @@ const accepts: [string, Schema<unknown>, unknown][] = [
 		keyedBy(["a", "b"] as const, integer()),
 		{ a: 1, b: 2 },
 	],
+	["a tuple of the exact length", tuple(integer(), string()), [1, "a"]],
+	["a variant routed by its tag", shape, { kind: "line", length: 2 }],
+	["a recursive schema within the depth guard", nest, nested(10)],
 	["a custom parser that returns", custom((value) => value), "anything"],
 ];
 
@@ -63,6 +79,17 @@ const rejects: [string, Schema<unknown>, unknown, string][] = [
 		{ a: 1, c: 1 },
 		"t.c:",
 	],
+	["an integer beyond the safe range", integer(), 2 ** 53, "t:"],
+	["a tuple of the wrong length", tuple(integer(), integer()), [1], "t:"],
+	["a variant given a non-object", shape, 4, "t: must be an object"],
+	["a variant without its tag", shape, { length: 1 }, "t.kind: is missing"],
+	["a variant with an unknown tag", shape, { kind: "arc" }, "t.kind:"],
+	[
+		"a variant body that fails its tag's schema",
+		shape,
+		{ kind: "dot", at: { x: 1 } },
+		"t.at.y: is missing",
+	],
 	[
 		"a custom parser that throws",
 		custom(() => {
@@ -88,6 +115,17 @@ describe("schema", () => {
 		const result = parse(schema, { a: 1 }, "t");
 
 		expect(Object.hasOwn(result, "b")).toBe(false);
+	});
+
+	test("number turns negative zero into zero", () => {
+		expect(Object.is(parse(number(), -0, "t"), 0)).toBe(true);
+	});
+
+	test("a nesting-depth rejection stops the recursion with one problem", () => {
+		const problems = problemsOf(nest, nested(10_000), "t");
+
+		expect(problems).toHaveLength(1);
+		expect(problems[0]).toContain("nests deeper than");
 	});
 
 	test("refine does not run after a shape problem and does run after a clean parse", () => {

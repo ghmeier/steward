@@ -1,4 +1,4 @@
-import { isRecord, sortedKeys } from "./data";
+import { compareKeys, isRecord, sortedKeys } from "./data";
 
 export type Schema<T> = {
 	/**
@@ -52,7 +52,7 @@ export function integer(
 ): Schema<number> {
 	return leaf(
 		"must be an integer",
-		(value): value is number => Number.isInteger(value),
+		(value): value is number => Number.isSafeInteger(value),
 		(value) => {
 			if (bounds.min !== undefined && value < bounds.min) {
 				return `must be an integer of at least ${bounds.min}`;
@@ -68,7 +68,7 @@ export function integer(
 export function number(
 	bounds: { min?: number; exclusiveMin?: number; max?: number } = {},
 ): Schema<number> {
-	return leaf(
+	const bounded = leaf(
 		"must be a finite number",
 		(value): value is number =>
 			typeof value === "number" && Number.isFinite(value),
@@ -85,6 +85,13 @@ export function number(
 			return null;
 		},
 	);
+	return {
+		check(value, path, problems) {
+			const result = bounded.check(value, path, problems);
+			// Negative zero is equal to zero but serializes differently, and state must never hold it.
+			return Object.is(result, -0) ? 0 : result;
+		},
+	};
 }
 
 export function string(
@@ -143,6 +150,7 @@ export function object(
 	options: { optional?: readonly string[] } = {},
 ): Schema<Record<string, unknown>> {
 	const optional = options.optional ?? [];
+	const shapeKeys = sortedKeys(shape);
 	return {
 		check(value, path, problems) {
 			const result: Record<string, unknown> = {};
@@ -150,11 +158,14 @@ export function object(
 				problems.push(`${path}: must be an object`);
 				return result;
 			}
-			for (const key of sortedKeys(value)) {
-				if (!Object.hasOwn(shape, key))
-					problems.push(`${path}.${key}: unknown key`);
+			// Sorting is deferred to the rare unknown-key case so valid input is never sorted, yet problem order stays deterministic.
+			const unknown = Object.keys(value).filter(
+				(key) => !Object.hasOwn(shape, key),
+			);
+			for (const key of unknown.sort(compareKeys)) {
+				problems.push(`${path}.${key}: unknown key`);
 			}
-			for (const key of sortedKeys(shape)) {
+			for (const key of shapeKeys) {
 				if (Object.hasOwn(value, key)) {
 					result[key] = (shape[key] as Schema<unknown>).check(
 						value[key],
@@ -223,6 +234,79 @@ export function custom<T>(
 				);
 				problems.push(carriesPath ? message : `${path}: ${message}`);
 				return undefined as T;
+			}
+		},
+	};
+}
+
+export function tuple<S extends readonly Schema<unknown>[]>(
+	...items: S
+): Schema<{ [K in keyof S]: Infer<S[K]> }> {
+	return {
+		check(value, path, problems) {
+			if (!Array.isArray(value)) {
+				problems.push(`${path}: must be an array`);
+				return [] as never;
+			}
+			if (value.length !== items.length) {
+				problems.push(`${path}: must list exactly ${items.length} items`);
+			}
+			return items.map((item, index) =>
+				item.check(value[index], `${path}[${index}]`, problems),
+			) as never;
+		},
+	};
+}
+
+export function variant<S extends Record<string, Schema<unknown>>>(
+	tagKey: string,
+	schemas: S,
+): Schema<Infer<S[keyof S]>> {
+	return {
+		check(value, path, problems) {
+			if (!isRecord(value)) {
+				problems.push(`${path}: must be an object`);
+				return {} as never;
+			}
+			const tag = value[tagKey];
+			if (typeof tag !== "string" || !Object.hasOwn(schemas, tag)) {
+				const expected = sortedKeys(schemas)
+					.map((key) => `"${key}"`)
+					.join(", ");
+				problems.push(
+					Object.hasOwn(value, tagKey)
+						? `${path}.${tagKey}: must be one of ${expected}`
+						: `${path}.${tagKey}: is missing`,
+				);
+				return {} as never;
+			}
+			return (schemas[tag] as Schema<unknown>).check(
+				value,
+				path,
+				problems,
+			) as never;
+		},
+	};
+}
+
+const MAX_LAZY_DEPTH = 64;
+
+export function lazy<T>(resolve: () => Schema<T>): Schema<T> {
+	// Parsing is synchronous, so one counter per schema tracks how deep the current check recurses.
+	let depth = 0;
+	let resolved: Schema<T> | undefined;
+	return {
+		check(value, path, problems) {
+			if (depth >= MAX_LAZY_DEPTH) {
+				problems.push(`${path}: nests deeper than ${MAX_LAZY_DEPTH} levels`);
+				return undefined as T;
+			}
+			depth += 1;
+			try {
+				resolved ??= resolve();
+				return resolved.check(value, path, problems);
+			} finally {
+				depth -= 1;
 			}
 		},
 	};

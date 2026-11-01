@@ -1,24 +1,59 @@
 import { isRecord } from "./data";
 import { enactDecree, repealDecree } from "./decree-engine";
 import { settleDispute } from "./desk";
-import { errorMessage } from "./errors";
 import type { AddContext } from "./math";
 import { JOBS, type Job } from "./realm";
 import { enactSaved, forgetSaved, saveDecree } from "./saved-decrees";
+import {
+	array,
+	custom,
+	type Infer,
+	integer,
+	literal,
+	object,
+	parse,
+	refine,
+	type Schema,
+	string,
+	variant,
+} from "./schema";
 import type { GameState } from "./state";
 import type { Tuning } from "./tuning";
 import { buyUnlock } from "./unlocks";
 
-export type Command =
-	| { type: "noop" }
-	| { type: "assignPeasant"; peasant: number; job: Job | "idle" }
-	| { type: "enactDecree"; decree: unknown }
-	| { type: "repealDecree"; id: string }
-	| { type: "settleDispute"; dispute: number; option: string }
-	| { type: "buyUnlock"; id: string }
-	| { type: "saveDecree"; name: string; decree: unknown }
-	| { type: "enactSaved"; name: string }
-	| { type: "forgetSaved"; name: string };
+const text = string();
+
+// The decree is judged only when enacted or saved, against the tuning in force then.
+const opaqueDecree = custom<unknown>((value) => {
+	if (!isRecord(value)) throw new Error("the decree must be an object");
+	return structuredClone(value);
+});
+
+export const commandSchema = variant("type", {
+	noop: object({ type: literal("noop") }),
+	assignPeasant: object({
+		type: literal("assignPeasant"),
+		peasant: integer(),
+		job: literal(...JOBS, "idle"),
+	}),
+	enactDecree: object({ type: literal("enactDecree"), decree: opaqueDecree }),
+	repealDecree: object({ type: literal("repealDecree"), id: text }),
+	settleDispute: object({
+		type: literal("settleDispute"),
+		dispute: integer(),
+		option: text,
+	}),
+	buyUnlock: object({ type: literal("buyUnlock"), id: text }),
+	saveDecree: object({
+		type: literal("saveDecree"),
+		name: text,
+		decree: opaqueDecree,
+	}),
+	enactSaved: object({ type: literal("enactSaved"), name: text }),
+	forgetSaved: object({ type: literal("forgetSaved"), name: text }),
+});
+
+export type Command = Infer<typeof commandSchema>;
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
 
@@ -28,6 +63,21 @@ export type CommandResult = { ok: true } | { ok: false; reason: string };
  * the command will run in, and replay depends on nothing but that number.
  */
 export type CommandLogEntry = { tick: number; command: Command };
+
+const commandLogSchema: Schema<CommandLogEntry[]> = refine(
+	array(object({ tick: integer({ min: 1 }), command: commandSchema })),
+	(entries, path, problems) => {
+		let previousTick = 1;
+		for (const [index, entry] of entries.entries()) {
+			if (entry.tick < previousTick) {
+				problems.push(
+					`${path}[${index}].tick: ${entry.tick} is lower than the previous tick ${previousTick}`,
+				);
+			}
+			previousTick = entry.tick;
+		}
+	},
+);
 
 function assignPeasant(
 	state: GameState,
@@ -98,108 +148,9 @@ export function apply(
 }
 
 export function parseCommand(value: unknown): Command {
-	if (!isRecord(value)) throw new Error("command must be an object");
-	const type = value.type;
-	switch (type) {
-		case "noop":
-			return { type: "noop" };
-		case "assignPeasant": {
-			const peasant = value.peasant;
-			if (typeof peasant !== "number" || !Number.isSafeInteger(peasant)) {
-				throw new Error("assignPeasant peasant must be an integer");
-			}
-			const job = value.job;
-			if (
-				typeof job !== "string" ||
-				!(job === "idle" || (JOBS as readonly string[]).includes(job))
-			) {
-				throw new Error(
-					`assignPeasant job must be one of ${JOBS.join(", ")}, idle`,
-				);
-			}
-			return { type: "assignPeasant", peasant, job: job as Job | "idle" };
-		}
-		case "enactDecree": {
-			if (!isRecord(value.decree)) {
-				throw new Error("enactDecree decree must be an object");
-			}
-			return { type: "enactDecree", decree: value.decree };
-		}
-		case "repealDecree": {
-			if (typeof value.id !== "string") {
-				throw new Error("repealDecree id must be a string");
-			}
-			return { type: "repealDecree", id: value.id };
-		}
-		case "settleDispute": {
-			const dispute = value.dispute;
-			if (typeof dispute !== "number" || !Number.isSafeInteger(dispute)) {
-				throw new Error("settleDispute dispute must be an integer");
-			}
-			if (typeof value.option !== "string") {
-				throw new Error("settleDispute option must be a string");
-			}
-			return { type: "settleDispute", dispute, option: value.option };
-		}
-		case "buyUnlock": {
-			if (typeof value.id !== "string") {
-				throw new Error("buyUnlock id must be a string");
-			}
-			return { type: "buyUnlock", id: value.id };
-		}
-		case "saveDecree": {
-			if (typeof value.name !== "string") {
-				throw new Error("saveDecree name must be a string");
-			}
-			if (!isRecord(value.decree)) {
-				throw new Error("saveDecree decree must be an object");
-			}
-			return { type: "saveDecree", name: value.name, decree: value.decree };
-		}
-		case "enactSaved": {
-			if (typeof value.name !== "string") {
-				throw new Error("enactSaved name must be a string");
-			}
-			return { type: "enactSaved", name: value.name };
-		}
-		case "forgetSaved": {
-			if (typeof value.name !== "string") {
-				throw new Error("forgetSaved name must be a string");
-			}
-			return { type: "forgetSaved", name: value.name };
-		}
-		default:
-			throw new Error(`unknown command type ${JSON.stringify(type)}`);
-	}
+	return parse(commandSchema, value, "command");
 }
 
 export function parseCommandLog(value: unknown): CommandLogEntry[] {
-	if (!Array.isArray(value)) throw new Error("command log must be an array");
-	const entries: CommandLogEntry[] = [];
-	let previousTick = 1;
-	for (const [index, raw] of value.entries()) {
-		if (!isRecord(raw)) {
-			throw new Error(`command log entry ${index} must be an object`);
-		}
-		const tick = raw.tick;
-		if (typeof tick !== "number" || !Number.isInteger(tick) || tick < 1) {
-			throw new Error(
-				`command log entry ${index} tick must be a positive integer`,
-			);
-		}
-		if (tick < previousTick) {
-			throw new Error(
-				`command log entry ${index} tick ${tick} is lower than the previous tick ${previousTick}`,
-			);
-		}
-		previousTick = tick;
-		let command: Command;
-		try {
-			command = parseCommand(raw.command);
-		} catch (error) {
-			throw new Error(`command log entry ${index}: ${errorMessage(error)}`);
-		}
-		entries.push({ tick, command });
-	}
-	return entries;
+	return parse(commandLogSchema, value, "command log");
 }

@@ -1,12 +1,18 @@
-import { type Command, parseCommand } from "../core/commands";
+import { type Command, commandSchema } from "../core/commands";
 import { evaluateCondition } from "../core/conditions";
-import { isRecord, sortedKeys } from "../core/data";
 import {
 	type Condition,
+	conditionSchema,
 	type DecreeLimits,
-	parseCondition,
 } from "../core/decree";
-import { errorMessage } from "../core/errors";
+import {
+	array,
+	object,
+	parse,
+	refine,
+	type Schema,
+	string,
+} from "../core/schema";
 import type { GameState } from "../core/state";
 import type { Tuning } from "../core/tuning";
 
@@ -23,36 +29,6 @@ export type StrategyStats = {
 	longestQuietTicks: number;
 };
 
-const STRATEGY_KEYS = ["name", "reactions", "setup"];
-const REACTION_KEYS = ["commands", "when"];
-
-function expectKeys(
-	value: unknown,
-	path: string,
-	keys: readonly string[],
-): Record<string, unknown> {
-	if (!isRecord(value)) throw new Error(`${path}: must be an object`);
-	for (const key of keys) {
-		if (!Object.hasOwn(value, key))
-			throw new Error(`${path}.${key}: is missing`);
-	}
-	for (const key of sortedKeys(value)) {
-		if (!keys.includes(key)) throw new Error(`${path}.${key}: unknown key`);
-	}
-	return value;
-}
-
-function parseCommands(value: unknown, path: string): Command[] {
-	if (!Array.isArray(value)) throw new Error(`${path}: must be an array`);
-	return value.map((raw, index) => {
-		try {
-			return parseCommand(raw);
-		} catch (error) {
-			throw new Error(`${path}[${index}]: ${errorMessage(error)}`);
-		}
-	});
-}
-
 function containsChose(condition: Condition): boolean {
 	switch (condition.kind) {
 		case "chose":
@@ -67,30 +43,27 @@ function containsChose(condition: Condition): boolean {
 	}
 }
 
-export function parseStrategy(value: unknown, limits: DecreeLimits): Strategy {
-	const object = expectKeys(value, "strategy", STRATEGY_KEYS);
-	if (typeof object.name !== "string" || object.name === "") {
-		throw new Error("strategy.name: must be a non-empty string");
-	}
-	const setup = parseCommands(object.setup, "strategy.setup");
-	if (!Array.isArray(object.reactions)) {
-		throw new Error("strategy.reactions: must be an array");
-	}
-	const reactions = object.reactions.map((raw, index): Reaction => {
-		const path = `strategy.reactions[${index}]`;
-		const reaction = expectKeys(raw, path, REACTION_KEYS);
-		const when = parseCondition(reaction.when, limits, `${path}.when`);
-		if (containsChose(when)) {
-			throw new Error(
-				`${path}.when: chose conditions are not available to strategies`,
-			);
-		}
-		return {
-			when,
-			commands: parseCommands(reaction.commands, `${path}.commands`),
-		};
+function strategySchema(limits: DecreeLimits): Schema<Strategy> {
+	const commands = array(commandSchema);
+	const reaction = refine(
+		object({ when: conditionSchema(limits), commands }),
+		(entry, path, problems) => {
+			if (containsChose(entry.when)) {
+				problems.push(
+					`${path}.when: chose conditions are not available to strategies`,
+				);
+			}
+		},
+	);
+	return object({
+		name: string({ nonEmpty: true }),
+		setup: commands,
+		reactions: array(reaction),
 	});
-	return { name: object.name, setup, reactions };
+}
+
+export function parseStrategy(value: unknown, limits: DecreeLimits): Strategy {
+	return parse(strategySchema(limits), value, "strategy");
 }
 
 export type StrategyPlayer = {

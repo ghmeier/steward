@@ -43,11 +43,25 @@ function rejection(run: () => unknown): string {
 	return "";
 }
 
-function withRule(when: unknown): unknown {
-	return { ...decree("a"), rules: [{ when, policy: "feed" }] };
-}
-
 describe("parseDecree", () => {
+	test("reports a bad decree field and a bad nested condition together, each with its path", () => {
+		const input = {
+			...decree("a"),
+			petition: "tax",
+			rules: [
+				{
+					when: { kind: "not", condition: { kind: "season" } },
+					policy: "feed",
+				},
+			],
+		};
+
+		const message = rejection(() => parseDecree(input, limits));
+
+		expect(message).toContain("decree.petition:");
+		expect(message).toContain("decree.rules[0].when.condition.season:");
+	});
+
 	test("a decree without rules parses to an equal object that shares nothing with the input", () => {
 		const input = decree("granary");
 
@@ -83,61 +97,6 @@ describe("parseDecree", () => {
 				maxConditionDepth: 4,
 			}),
 		).toEqual(input);
-	});
-
-	test.each([
-		[
-			"unknown petition",
-			{ ...decree("a"), petition: "tax" },
-			"decree.petition: unknown petition",
-		],
-		["bad id", { ...decree("a"), id: "Bad Id" }, "decree.id:"],
-		[
-			"missing otherwise",
-			{ id: "a", petition: "harvest", rules: [] },
-			"decree.otherwise: is missing",
-		],
-		["unknown key", { ...decree("a"), extra: 1 }, "decree.extra: unknown key"],
-		[
-			"unknown quantity",
-			withRule({
-				kind: "compare",
-				quantity: "gold",
-				comparison: "above",
-				value: 1,
-			}),
-			'decree.rules[0].when.quantity: unknown quantity "gold"',
-		],
-		[
-			"unknown condition kind",
-			withRule({ kind: "maybe" }),
-			"decree.rules[0].when.kind: unknown condition kind",
-		],
-		[
-			"non-finite value",
-			withRule({
-				kind: "compare",
-				quantity: "coin",
-				comparison: "below",
-				value: Number.NaN,
-			}),
-			"decree.rules[0].when.value:",
-		],
-		[
-			"empty all",
-			withRule({ kind: "all", conditions: [] }),
-			"decree.rules[0].when.conditions:",
-		],
-		[
-			"bad nested path",
-			withRule({
-				kind: "not",
-				condition: { kind: "season", season: "monsoon" },
-			}),
-			"decree.rules[0].when.condition.season:",
-		],
-	])("rejects %s with the path of the bad value", (_name, input, prefix) => {
-		expect(rejection(() => parseDecree(input, limits))).toStartWith(prefix);
 	});
 
 	test("accepts exactly maxRules rules and rejects one more", () => {

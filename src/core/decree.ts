@@ -1,5 +1,17 @@
-import { compareKeys, isRecord, sortedKeys } from "./data";
+import { compareKeys, sortedKeys } from "./data";
 import { SEASONS, type Season } from "./realm";
+import {
+	array,
+	lazy,
+	literal,
+	number,
+	object,
+	parse,
+	refine,
+	type Schema,
+	string,
+	variant,
+} from "./schema";
 
 export const PETITIONS = ["harvest", "wood", "ore", "labor"] as const;
 export type Petition = (typeof PETITIONS)[number];
@@ -40,164 +52,86 @@ export type DecreeLimits = {
 
 export const DECREE_ID_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
 
-function expectObject(
-	value: unknown,
-	path: string,
-	keys: readonly string[],
-): Record<string, unknown> {
-	if (!isRecord(value)) throw new Error(`${path}: must be an object`);
-	const expected = [...keys].sort(compareKeys);
-	for (const key of expected) {
-		if (!Object.hasOwn(value, key))
-			throw new Error(`${path}.${key}: is missing`);
-	}
-	for (const key of sortedKeys(value)) {
-		if (!expected.includes(key)) throw new Error(`${path}.${key}: unknown key`);
-	}
-	return value;
+const decreeId = string({ pattern: DECREE_ID_PATTERN });
+const policyName = string({ nonEmpty: true });
+
+function conditionGroup<K extends "all" | "any">(kind: K) {
+	return object({
+		kind: literal(kind),
+		conditions: array(conditionTree, { minLength: 1 }),
+	});
 }
 
-function expectOneOf<T extends string>(
-	value: unknown,
-	path: string,
-	label: string,
-	allowed: readonly T[],
-): T {
-	const found = allowed.find((candidate) => candidate === value);
-	if (found === undefined)
-		throw new Error(`${path}: unknown ${label} ${JSON.stringify(value)}`);
-	return found;
-}
+const conditionTree: Schema<Condition> = lazy(() =>
+	variant("kind", {
+		compare: object({
+			kind: literal("compare"),
+			quantity: literal(...QUANTITIES),
+			comparison: literal("above", "below"),
+			value: number(),
+		}),
+		season: object({ kind: literal("season"), season: literal(...SEASONS) }),
+		chose: object({
+			kind: literal("chose"),
+			decree: decreeId,
+			policy: policyName,
+		}),
+		all: conditionGroup("all"),
+		any: conditionGroup("any"),
+		not: object({ kind: literal("not"), condition: conditionTree }),
+	}),
+);
 
-function expectId(value: unknown, path: string): string {
-	if (typeof value !== "string" || !DECREE_ID_PATTERN.test(value)) {
-		throw new Error(`${path}: must match ${DECREE_ID_PATTERN}`);
-	}
-	return value;
-}
-
-function expectPolicy(value: unknown, path: string): string {
-	if (typeof value !== "string" || value === "") {
-		throw new Error(`${path}: must be a non-empty string`);
-	}
-	return value;
-}
-
-function expectFinite(value: unknown, path: string): number {
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		throw new Error(`${path}: must be a finite number`);
-	}
-	// Normalizes -0, which state must never hold.
-	return value === 0 ? 0 : value;
-}
-
-type Budget = { nodes: number };
-
-function parseNode(
-	value: unknown,
-	limits: DecreeLimits,
-	path: string,
-	depth: number,
-	budget: Budget,
-): Condition {
-	if (!isRecord(value)) throw new Error(`${path}: must be an object`);
-	if (depth > limits.maxConditionDepth) {
-		throw new Error(
-			`${path}: nests deeper than ${limits.maxConditionDepth} levels`,
-		);
-	}
-	budget.nodes += 1;
-	if (budget.nodes > limits.maxConditionNodes) {
-		throw new Error(
-			`${path}: condition has more than ${limits.maxConditionNodes} nodes`,
-		);
-	}
-	if (!Object.hasOwn(value, "kind"))
-		throw new Error(`${path}.kind: is missing`);
-	const kind = expectOneOf(value.kind, `${path}.kind`, "condition kind", [
-		"compare",
-		"season",
-		"chose",
-		"all",
-		"any",
-		"not",
-	] as const);
-	switch (kind) {
-		case "compare": {
-			const object = expectObject(value, path, [
-				"kind",
-				"quantity",
-				"comparison",
-				"value",
-			]);
-			return {
-				kind,
-				quantity: expectOneOf(
-					object.quantity,
-					`${path}.quantity`,
-					"quantity",
-					QUANTITIES,
-				),
-				comparison: expectOneOf(
-					object.comparison,
-					`${path}.comparison`,
-					"comparison",
-					["above", "below"] as const,
-				),
-				value: expectFinite(object.value, `${path}.value`),
-			};
-		}
-		case "season": {
-			const object = expectObject(value, path, ["kind", "season"]);
-			return {
-				kind,
-				season: expectOneOf(object.season, `${path}.season`, "season", SEASONS),
-			};
-		}
-		case "chose": {
-			const object = expectObject(value, path, ["kind", "decree", "policy"]);
-			return {
-				kind,
-				decree: expectId(object.decree, `${path}.decree`),
-				policy: expectPolicy(object.policy, `${path}.policy`),
-			};
-		}
-		case "all":
-		case "any": {
-			const object = expectObject(value, path, ["kind", "conditions"]);
-			const list = object.conditions;
-			if (!Array.isArray(list))
-				throw new Error(`${path}.conditions: must be an array`);
-			if (list.length === 0)
-				throw new Error(`${path}.conditions: needs at least one condition`);
-			const conditions: Condition[] = [];
-			for (let index = 0; index < list.length; index++) {
-				conditions.push(
-					parseNode(
-						list[index],
-						limits,
-						`${path}.conditions[${index}]`,
-						depth + 1,
-						budget,
-					),
+/** Nodes are counted in reading order, so the first node past a limit is the one reported. */
+export function conditionSchema(limits: DecreeLimits): Schema<Condition> {
+	return refine(conditionTree, (condition, path, problems) => {
+		let nodes = 0;
+		const withinLimits = (
+			node: Condition,
+			at: string,
+			depth: number,
+		): boolean => {
+			if (depth > limits.maxConditionDepth) {
+				problems.push(
+					`${at}: nests deeper than ${limits.maxConditionDepth} levels`,
 				);
+				return false;
 			}
-			return { kind, conditions };
-		}
-		case "not": {
-			const object = expectObject(value, path, ["kind", "condition"]);
-			return {
-				kind,
-				condition: parseNode(
-					object.condition,
-					limits,
-					`${path}.condition`,
-					depth + 1,
-					budget,
-				),
-			};
-		}
-	}
+			nodes += 1;
+			if (nodes > limits.maxConditionNodes) {
+				problems.push(
+					`${at}: condition has more than ${limits.maxConditionNodes} nodes`,
+				);
+				return false;
+			}
+			switch (node.kind) {
+				case "all":
+				case "any":
+					return node.conditions.every((child, index) =>
+						withinLimits(child, `${at}.conditions[${index}]`, depth + 1),
+					);
+				case "not":
+					return withinLimits(node.condition, `${at}.condition`, depth + 1);
+				default:
+					return true;
+			}
+		};
+		withinLimits(condition, path, 1);
+	});
+}
+
+export function decreeSchema(limits: DecreeLimits): Schema<Decree> {
+	const rule = object({ when: conditionSchema(limits), policy: policyName });
+	return object({
+		id: decreeId,
+		petition: literal(...PETITIONS),
+		rules: refine(array(rule), (rules, path, problems) => {
+			if (rules.length > limits.maxRules) {
+				problems.push(`${path}: has more than ${limits.maxRules} rules`);
+			}
+		}),
+		otherwise: policyName,
+	});
 }
 
 export function parseCondition(
@@ -205,41 +139,11 @@ export function parseCondition(
 	limits: DecreeLimits,
 	path: string,
 ): Condition {
-	return parseNode(value, limits, path, 1, { nodes: 0 });
+	return parse(conditionSchema(limits), value, path);
 }
 
 export function parseDecree(value: unknown, limits: DecreeLimits): Decree {
-	const object = expectObject(value, "decree", [
-		"id",
-		"petition",
-		"rules",
-		"otherwise",
-	]);
-	const list = object.rules;
-	if (!Array.isArray(list)) throw new Error("decree.rules: must be an array");
-	if (list.length > limits.maxRules) {
-		throw new Error(`decree.rules: has more than ${limits.maxRules} rules`);
-	}
-	const rules: DecreeRule[] = [];
-	for (let index = 0; index < list.length; index++) {
-		const path = `decree.rules[${index}]`;
-		const rule = expectObject(list[index], path, ["when", "policy"]);
-		rules.push({
-			when: parseCondition(rule.when, limits, `${path}.when`),
-			policy: expectPolicy(rule.policy, `${path}.policy`),
-		});
-	}
-	return {
-		id: expectId(object.id, "decree.id"),
-		petition: expectOneOf(
-			object.petition,
-			"decree.petition",
-			"petition",
-			PETITIONS,
-		),
-		rules,
-		otherwise: expectPolicy(object.otherwise, "decree.otherwise"),
-	};
+	return parse(decreeSchema(limits), value, "decree");
 }
 
 function collectChoses(

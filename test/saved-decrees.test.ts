@@ -314,10 +314,10 @@ describe("parseCommand for saved decrees", () => {
 		for (const type of ["saveDecree", "enactSaved", "forgetSaved"]) {
 			const decree = harvest("a");
 			expect(() => parseCommand({ type, decree })).toThrow(
-				"name must be a string",
+				"command.name: is missing",
 			);
 			expect(() => parseCommand({ type, name: 3, decree })).toThrow(
-				"name must be a string",
+				"command.name: must be a string",
 			);
 		}
 	});
