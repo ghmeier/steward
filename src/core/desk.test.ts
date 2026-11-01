@@ -4,38 +4,44 @@ import {
   setRoster,
   economyTestTuning as tuning,
 } from "../../test/helpers";
-import { type Dispute, runDesk, settleDispute } from "./desk";
-import { createNewGame, type GameState } from "./state";
-import { computeView } from "./view";
+import type { Dispute } from "./desk";
+import { Game } from "./game";
 
 const { disputeArrival, grudgeTicks } = tuning.village;
 
-function village(seed = 1, idle = 10): GameState {
-  const state = createNewGame(seed, tuning);
-  setRoster(state, { idle });
-  return state;
+function village(seed = 1, idle = 10): Game {
+  const game = Game.create(seed, tuning);
+  setRoster(game, { idle });
+  return game;
 }
 
 function dispute(id: number, template: string, parties: [number, number]) {
   return { id, template, parties, arrivedAt: 0 } satisfies Dispute;
 }
 
-function holdDisputes(state: GameState, ...held: Dispute[]): void {
-  state.posting.desk.disputes = held;
-  state.posting.desk.nextDisputeId = (held.at(-1)?.id ?? 0) + 1;
+/** The nth disjoint pair of peasants, taken from the game's real roster. */
+function pair(game: Game, n: number): [number, number] {
+  const [first, second] = game.delegates.all.slice(2 * n, 2 * n + 2);
+  if (!first || !second) throw new Error(`no peasant pair ${n}`);
+  return [first.id, second.id];
 }
 
-function arriveNext(state: GameState): void {
-  state.tick = state.posting.desk.nextArrivalTick;
-  runDesk(state, tuning, contextFor(state));
+function holdDisputes(game: Game, ...held: Dispute[]): void {
+  game.state.posting.desk.disputes = held;
+  game.state.posting.desk.nextDisputeId = (held.at(-1)?.id ?? 0) + 1;
 }
 
-function settle(state: GameState, id: number, option: string) {
-  return settleDispute(state, id, option, tuning, contextFor(state));
+function arriveNext(game: Game): void {
+  game.state.tick = game.state.posting.desk.nextArrivalTick;
+  game.desk.run(contextFor(game));
 }
 
-function peasant(state: GameState, id: number) {
-  const found = state.posting.delegates.find((delegate) => delegate.id === id);
+function settle(game: Game, id: number, option: string) {
+  return game.desk.settle(id, option, contextFor(game));
+}
+
+function peasant(game: Game, id: number) {
+  const found = game.delegates.findById(id);
   if (found === undefined) throw new Error(`no peasant ${id}`);
   return found;
 }
@@ -44,18 +50,20 @@ describe("arrivals", () => {
   test.each([2, 4])(
     "with %p peasants nothing arrives early, then every arrival has two distinct living parties and a delay in range",
     (peasants) => {
-      const state = village(3, peasants);
-      const living = state.posting.delegates.map((delegate) => delegate.id);
-      const delays = [state.posting.desk.nextArrivalTick];
+      const game = village(3, peasants);
+      const living = game.state.posting.delegates.map(
+        (delegate) => delegate.id,
+      );
+      const delays = [game.state.posting.desk.nextArrivalTick];
 
-      state.tick = (delays[0] as number) - 1;
-      runDesk(state, tuning, contextFor(state));
-      expect(state.posting.desk.disputes).toHaveLength(0);
+      game.state.tick = (delays[0] as number) - 1;
+      game.desk.run(contextFor(game));
+      expect(game.state.posting.desk.disputes).toHaveLength(0);
       for (let i = 0; i < 100; i++) {
-        arriveNext(state);
-        delays.push(state.posting.desk.nextArrivalTick - state.tick);
-        const latest = state.posting.desk.disputes.at(-1) as Dispute;
-        expect(latest.arrivedAt).toBe(state.tick);
+        arriveNext(game);
+        delays.push(game.state.posting.desk.nextArrivalTick - game.state.tick);
+        const latest = game.state.posting.desk.disputes.at(-1) as Dispute;
+        expect(latest.arrivedAt).toBe(game.state.tick);
         expect(latest.parties[0]).not.toBe(latest.parties[1]);
         expect(living).toContain(latest.parties[0]);
         expect(living).toContain(latest.parties[1]);
@@ -70,14 +78,14 @@ describe("arrivals", () => {
   );
 
   test("with fewer than two peasants nothing arrives but the next arrival is scheduled", () => {
-    const state = village(1, 1);
-    const due = state.posting.desk.nextArrivalTick;
+    const game = village(1, 1);
+    const due = game.state.posting.desk.nextArrivalTick;
 
-    arriveNext(state);
+    arriveNext(game);
 
-    const delay = state.posting.desk.nextArrivalTick - due;
-    expect(state.posting.desk.disputes).toHaveLength(0);
-    expect(state.posting.desk.nextDisputeId).toBe(1);
+    const delay = game.state.posting.desk.nextArrivalTick - due;
+    expect(game.state.posting.desk.disputes).toHaveLength(0);
+    expect(game.state.posting.desk.nextDisputeId).toBe(1);
     expect(delay).toBeGreaterThanOrEqual(disputeArrival.minTicks);
     expect(delay).toBeLessThanOrEqual(disputeArrival.maxTicks);
   });
@@ -99,24 +107,26 @@ describe("overflow", () => {
 	];
 
   test.each(rows)("a desk that $name", ({ held, coin, ids, coinAfter }) => {
-    const state = village();
-    state.posting.resources.coin = coin;
-    state.posting.resources.grain = 50;
+    const game = village();
+    game.state.posting.resources.coin = coin;
+    game.state.posting.resources.grain = 50;
     holdDisputes(
-      state,
+      game,
       ...[
-        dispute(1, "boundary", [1, 2]),
-        dispute(2, "hen", [3, 4]),
-        dispute(3, "hen", [5, 6]),
+        dispute(1, "boundary", pair(game, 0)),
+        dispute(2, "hen", pair(game, 1)),
+        dispute(3, "hen", pair(game, 2)),
       ].slice(0, held),
     );
 
-    arriveNext(state);
+    arriveNext(game);
 
-    expect(state.posting.desk.disputes.map((entry) => entry.id)).toEqual(ids);
-    expect(state.posting.resources.coin).toBe(coinAfter);
-    expect(state.posting.resources.grain).toBe(50);
-    expect(state.posting.delegates.every((d) => d.grudgeUntil === 0)).toBe(
+    expect(game.state.posting.desk.disputes.map((entry) => entry.id)).toEqual(
+      ids,
+    );
+    expect(game.state.posting.resources.coin).toBe(coinAfter);
+    expect(game.state.posting.resources.grain).toBe(50);
+    expect(game.state.posting.delegates.every((d) => d.grudgeUntil === 0)).toBe(
       true,
     );
   });
@@ -124,43 +134,44 @@ describe("overflow", () => {
 
 describe("departed parties", () => {
   test("a dispute whose party left is dropped with no resource change or draw, and the others stay", () => {
-    const state = village();
+    const game = village();
+    const [departing] = pair(game, 0);
     holdDisputes(
-      state,
-      dispute(1, "boundary", [1, 2]),
-      dispute(2, "hen", [3, 4]),
+      game,
+      dispute(1, "boundary", pair(game, 0)),
+      dispute(2, "hen", pair(game, 1)),
     );
-    state.posting.delegates = state.posting.delegates.filter(
-      (delegate) => delegate.id !== 2,
-    );
-    const resources = { ...state.posting.resources };
-    const stream = [...(state.posting.rng.disputes as number[])];
-    state.tick = state.posting.desk.nextArrivalTick - 1;
+    game.delegates.remove(departing);
+    const resources = { ...game.state.posting.resources };
+    const stream = [...(game.state.posting.rng.disputes as number[])];
+    game.state.tick = game.state.posting.desk.nextArrivalTick - 1;
 
-    runDesk(state, tuning, contextFor(state));
+    game.desk.run(contextFor(game));
 
-    expect(state.posting.desk.disputes.map((entry) => entry.id)).toEqual([2]);
-    expect(state.posting.resources).toEqual(resources);
-    expect(state.posting.rng.disputes).toEqual(stream as never);
+    expect(game.state.posting.desk.disputes.map((entry) => entry.id)).toEqual([
+      2,
+    ]);
+    expect(game.state.posting.resources).toEqual(resources);
+    expect(game.state.posting.rng.disputes).toEqual(stream as never);
   });
 });
 
 describe("settleDispute", () => {
   function contested() {
-    const state = village();
-    state.tick = 100;
+    const game = village();
+    game.state.tick = 100;
     holdDisputes(
-      state,
-      dispute(1, "boundary", [1, 2]),
-      dispute(2, "hen", [3, 4]),
+      game,
+      dispute(1, "boundary", pair(game, 0)),
+      dispute(2, "hen", pair(game, 1)),
     );
-    return state;
+    return game;
   }
 
   type Outcome = {
     name: string;
     option: string;
-    grudged?: number;
+    grudged?: "first" | "second";
     existing?: number;
     grudgedUntil?: number;
     grain: number;
@@ -169,32 +180,35 @@ describe("settleDispute", () => {
   // The village holds 30 coin; the grudge runs to tick 700 unless a longer one was already there.
   // biome-ignore format: one row per case
   const outcomes: Outcome[] = [
-		{ name: "for-first pays the reward and grudges the second party", option: "for-first", grudged: 2, grudgedUntil: 700, grain: 5, coin: 0 },
-		{ name: "for-second grudges the first party", option: "for-second", grudged: 1, grudgedUntil: 700, grain: 0, coin: 0 },
-		{ name: "a longer grudge is not shortened", option: "for-first", grudged: 2, existing: 1100, grudgedUntil: 1100, grain: 5, coin: 0 },
-		{ name: "a shorter grudge is extended", option: "for-first", grudged: 2, existing: 110, grudgedUntil: 700, grain: 5, coin: 0 },
+		{ name: "for-first pays the reward and grudges the second party", option: "for-first", grudged: "second", grudgedUntil: 700, grain: 5, coin: 0 },
+		{ name: "for-second grudges the first party", option: "for-second", grudged: "first", grudgedUntil: 700, grain: 0, coin: 0 },
+		{ name: "a longer grudge is not shortened", option: "for-first", grudged: "second", existing: 1100, grudgedUntil: 1100, grain: 5, coin: 0 },
+		{ name: "a shorter grudge is extended", option: "for-first", grudged: "second", existing: 110, grudgedUntil: 700, grain: 5, coin: 0 },
 		{ name: "pay spends the cost and grudges nobody", option: "pay", grain: 0, coin: -10 },
 	];
 
   test.each(outcomes)(
     "$name",
     ({ option, grudged, existing = 0, grudgedUntil = 0, grain, coin }) => {
-      const state = contested();
-      state.posting.resources.coin = 30;
-      const grainBefore = state.posting.resources.grain as number;
-      expect(state.tick + grudgeTicks).toBe(700);
-      if (grudged) peasant(state, grudged).grudgeUntil = existing;
+      const game = contested();
+      game.state.posting.resources.coin = 30;
+      const grainBefore = game.state.posting.resources.grain as number;
+      expect(game.state.tick + grudgeTicks).toBe(700);
+      const parties = { first: pair(game, 0)[0], second: pair(game, 0)[1] };
+      if (grudged) peasant(game, parties[grudged]).grudgeUntil = existing;
 
-      expect(settle(state, 1, option)).toEqual({ ok: true });
+      expect(settle(game, 1, option)).toEqual({ ok: true });
 
-      for (const id of [1, 2]) {
-        expect(peasant(state, id).grudgeUntil).toBe(
-          id === grudged ? grudgedUntil : 0,
+      for (const side of ["first", "second"] as const) {
+        expect(peasant(game, parties[side]).grudgeUntil).toBe(
+          side === grudged ? grudgedUntil : 0,
         );
       }
-      expect(state.posting.resources.grain).toBe(grainBefore + grain);
-      expect(state.posting.resources.coin).toBe(30 + coin);
-      expect(state.posting.desk.disputes.map((entry) => entry.id)).toEqual([2]);
+      expect(game.state.posting.resources.grain).toBe(grainBefore + grain);
+      expect(game.state.posting.resources.coin).toBe(30 + coin);
+      expect(game.state.posting.desk.disputes.map((entry) => entry.id)).toEqual(
+        [2],
+      );
     },
   );
 
@@ -205,37 +219,39 @@ describe("settleDispute", () => {
   ])(
     "rejects %s and leaves the state unchanged",
     (_name, id, option, reason) => {
-      const state = contested();
-      state.posting.resources.coin = 4.2;
-      const before = structuredClone(state);
+      const game = contested();
+      game.state.posting.resources.coin = 4.2;
+      const before = structuredClone(game.state);
 
-      const result = settle(state, id, option);
+      const result = settle(game, id, option);
 
       expect(result).toEqual({ ok: false, reason });
-      expect(state).toEqual(before);
+      expect(game.state).toEqual(before);
     },
   );
 
   test("throws a clear error when a stored template no longer exists", () => {
-    const state = contested();
-    state.posting.desk.disputes[0] = dispute(1, "vanished", [1, 2]);
+    const game = contested();
+    game.state.posting.desk.disputes[0] = dispute(1, "vanished", pair(game, 0));
 
-    expect(() => settle(state, 1, "pay")).toThrow("vanished");
-    expect(() => runDesk(state, tuning, contextFor(state))).toThrow("vanished");
+    expect(() => settle(game, 1, "pay")).toThrow("vanished");
+    expect(() => game.desk.run(contextFor(game))).toThrow("vanished");
   });
 });
 
 describe("view desk", () => {
   test("entries keep desk order and carry names, resources, grudge and expiry for each option", () => {
-    const state = village();
+    const game = village();
+    const [a, b, c] = game.delegates.all;
+    if (!a || !b || !c) throw new Error("expected three peasants");
     holdDisputes(
-      state,
-      dispute(1, "boundary", [2, 3]),
-      dispute(2, "hen", [1, 2]),
+      game,
+      dispute(1, "boundary", [b.id, c.id]),
+      dispute(2, "hen", [a.id, b.id]),
     );
-    const [first, second] = [peasant(state, 2).name, peasant(state, 3).name];
+    const [first, second] = [b.name, c.name];
 
-    const desk = computeView(state, tuning).desk;
+    const desk = game.view.compute().desk;
 
     expect(desk.map((entry) => entry.id)).toEqual([1, 2]);
     expect(desk[0]?.parties).toEqual([first, second]);
@@ -268,11 +284,11 @@ describe("view desk", () => {
   ])(
     "an option costing 10 grain is affordable with %s only when covered",
     (_n, grain, affordable) => {
-      const state = village();
-      state.posting.resources.grain = grain;
-      holdDisputes(state, dispute(1, "hen", [1, 2]));
+      const game = village();
+      game.state.posting.resources.grain = grain;
+      holdDisputes(game, dispute(1, "hen", pair(game, 0)));
 
-      const options = computeView(state, tuning).desk[0]?.options;
+      const options = game.view.compute().desk[0]?.options;
 
       expect(options?.[0]?.affordable).toBe(affordable);
       expect(options?.[1]?.affordable).toBe(true);

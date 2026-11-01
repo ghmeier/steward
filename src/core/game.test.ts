@@ -1,15 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { fullTuningJson, tuning } from "../../test/helpers";
+import { fullTuningJson, quietOptions, tuning } from "../../test/helpers";
+import { Game } from "./game";
 import { seedStream } from "./rng";
-import { createNewGame, RNG_STREAMS, SCHEMA_VERSION } from "./state";
+import { RNG_STREAMS, SCHEMA_VERSION } from "./state";
 import { parseTuning } from "./tuning";
 import { validateState } from "./validate";
 
-describe("createNewGame", () => {
+describe("Game.create", () => {
   test("is deterministic, valid, and starts with the tuned resources and an idle village", () => {
-    const state = createNewGame(7, tuning);
+    const { state } = Game.create(7, tuning);
 
-    expect(createNewGame(7, tuning)).toEqual(state);
+    expect(Game.create(7, tuning).state).toEqual(state);
     expect(validateState(state)).toEqual([]);
     expect(state.schemaVersion).toBe(SCHEMA_VERSION);
     expect(state.tick).toBe(0);
@@ -31,7 +32,7 @@ describe("createNewGame", () => {
       economy: { ...tuning.economy, initialPopulation: 0 },
     };
 
-    const state = createNewGame(7, empty);
+    const { state } = Game.create(7, empty);
 
     // The disputes stream has already drawn the first arrival delay.
     for (const name of RNG_STREAMS.filter((name) => name !== "disputes")) {
@@ -47,10 +48,43 @@ describe("createNewGame", () => {
     [0x100000000, false],
     [Number.NaN, false],
   ])("seed %p is accepted only if it is a uint32: %p", (seed, accepted) => {
-    const create = () => createNewGame(seed, tuning);
+    const create = () => Game.create(seed, tuning);
 
     if (accepted) expect(create).not.toThrow();
     else expect(create).toThrow();
+  });
+});
+
+describe("Game.fromState and clone", () => {
+  test("fromState wraps the given state without drawing from any random stream", () => {
+    const source = Game.create(7, tuning);
+    const before = structuredClone(source.state);
+
+    const wrapped = Game.fromState(source.state, tuning);
+
+    expect(wrapped.state).toBe(source.state);
+    expect(wrapped.state).toEqual(before);
+  });
+
+  test("clone copies the state deeply so stepping the copy leaves the original untouched", () => {
+    const game = Game.create(7, tuning);
+    const before = structuredClone(game.state);
+
+    const copy = game.clone();
+    copy.steps.runSteps(5, [], quietOptions);
+
+    expect(copy.state).not.toBe(game.state);
+    expect(copy.state.tick).toBe(5);
+    expect(game.state).toEqual(before);
+  });
+
+  test("validate passes for a fresh game and throws for a corrupted one", () => {
+    const game = Game.create(7, tuning);
+    expect(() => game.validate()).not.toThrow();
+
+    game.state.posting.resources.grain = Number.NaN;
+
+    expect(() => game.validate()).toThrow("invalid game state");
   });
 });
 
