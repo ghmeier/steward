@@ -2,13 +2,13 @@
 // reorder them. The canonical serializer depends on this: the save file and the state hash are
 // the same string, so any ordering that varied by platform would change both.
 export function compareKeys(a: string, b: string): number {
-	return a < b ? -1 : a > b ? 1 : 0;
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 export function sortedKeys(value: object): string[] {
-	return Object.keys(value).sort(compareKeys);
+  return Object.keys(value).sort(compareKeys);
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

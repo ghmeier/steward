@@ -1,59 +1,59 @@
 {
-	"name": "seasonal",
-	"setup": [
-		{
-			"type": "enactDecree",
-			"decree": {
-				"id": "granary",
-				"petition": "harvest",
-				"rules": [],
-				"otherwise": "feed"
-			}
-		},
-		{
-			"type": "enactDecree",
-			"decree": {
-				"id": "workforce",
-				"petition": "labor",
-				"rules": [],
-				"otherwise": "farm"
-			}
-		}
-	],
-	"reactions": [
-		{
-			"when": {
-				"kind": "season",
-				"season": "autumn"
-			},
-			"commands": [
-				{
-					"type": "enactDecree",
-					"decree": {
-						"id": "granary",
-						"petition": "harvest",
-						"rules": [],
-						"otherwise": "stockpile"
-					}
-				}
-			]
-		},
-		{
-			"when": {
-				"kind": "season",
-				"season": "spring"
-			},
-			"commands": [
-				{
-					"type": "enactDecree",
-					"decree": {
-						"id": "granary",
-						"petition": "harvest",
-						"rules": [],
-						"otherwise": "feed"
-					}
-				}
-			]
-		}
-	]
+  "name": "seasonal",
+  "setup": [
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "granary",
+        "petition": "harvest",
+        "rules": [],
+        "otherwise": "feed"
+      }
+    },
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "workforce",
+        "petition": "labor",
+        "rules": [],
+        "otherwise": "farm"
+      }
+    }
+  ],
+  "reactions": [
+    {
+      "when": {
+        "kind": "season",
+        "season": "autumn"
+      },
+      "commands": [
+        {
+          "type": "enactDecree",
+          "decree": {
+            "id": "granary",
+            "petition": "harvest",
+            "rules": [],
+            "otherwise": "stockpile"
+          }
+        }
+      ]
+    },
+    {
+      "when": {
+        "kind": "season",
+        "season": "spring"
+      },
+      "commands": [
+        {
+          "type": "enactDecree",
+          "decree": {
+            "id": "granary",
+            "petition": "harvest",
+            "rules": [],
+            "otherwise": "feed"
+          }
+        }
+      ]
+    }
+  ]
 }

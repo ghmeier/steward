@@ -2,51 +2,51 @@ import { describe, expect, test } from "bun:test";
 import { policiesFor } from "../src/core/decree-engine";
 import type { Tuning } from "../src/core/tuning";
 import {
-	ARCHIVE_PANEL,
-	CHAINING_UNLOCK,
-	COMPOUND_UNLOCK,
-	PALETTE_UNLOCK,
-	SAVED_DECREES_UNLOCK,
+  ARCHIVE_PANEL,
+  CHAINING_UNLOCK,
+  COMPOUND_UNLOCK,
+  PALETTE_UNLOCK,
+  SAVED_DECREES_UNLOCK,
 } from "../src/core/unlocks";
 import { describePolicy } from "../src/tui/decree-format";
 import { keyHints } from "../src/tui/keys";
 import { topicText, tuning } from "./helpers";
 
 const economy = (changes: Partial<Tuning["economy"]>): Tuning => ({
-	...tuning,
-	economy: { ...tuning.economy, ...changes },
+  ...tuning,
+  economy: { ...tuning.economy, ...changes },
 });
 const village = (changes: Partial<Tuning["village"]>): Tuning => ({
-	...tuning,
-	village: { ...tuning.village, ...changes },
+  ...tuning,
+  village: { ...tuning.village, ...changes },
 });
 
 // Every ruling of the first dispute is stripped of its costs, then the first option gets `resources`.
 function rulingsWith(resources: Record<string, number>): Tuning {
-	const [first] = tuning.village.disputes;
-	if (first === undefined) throw new Error("no dispute template");
-	const [head, ...rest] = first.options.map(({ id, label }) => ({ id, label }));
-	if (head === undefined) throw new Error("no option");
-	const options = [{ ...head, resources }, ...rest];
-	return village({ disputes: [{ ...first, options }] });
+  const [first] = tuning.village.disputes;
+  if (first === undefined) throw new Error("no dispute template");
+  const [head, ...rest] = first.options.map(({ id, label }) => ({ id, label }));
+  if (head === undefined) throw new Error("no option");
+  const options = [{ ...head, resources }, ...rest];
+  return village({ disputes: [{ ...first, options }] });
 }
 
 const laborChanged = economy({
-	laborAllocations: {
-		...tuning.economy.laborAllocations,
-		lumber: { farm: 0.1, forest: 0.8, mine: 0.1 },
-	},
+  laborAllocations: {
+    ...tuning.economy.laborAllocations,
+    lumber: { farm: 0.1, forest: 0.8, mine: 0.1 },
+  },
 });
 const barren = (autumn: number) =>
-	economy({ seasonYield: { spring: 1, summer: 1, autumn, winter: 1 } });
+  economy({ seasonYield: { spring: 1, summer: 1, autumn, winter: 1 } });
 
 type Row = {
-	name: string;
-	topic: string;
-	using?: Tuning;
-	unlocks?: string[];
-	has?: string[];
-	lacks?: string[];
+  name: string;
+  topic: string;
+  using?: Tuning;
+  unlocks?: string[];
+  has?: string[];
+  lacks?: string[];
 };
 
 // biome-ignore format: one row per line keeps the table scannable
@@ -77,24 +77,24 @@ const rows: Row[] = [
 ];
 
 describe("help topics", () => {
-	test.each(rows)(
-		"$topic shows $name",
-		({ topic, using, unlocks, has, lacks }) => {
-			const text = topicText(topic, using, unlocks);
+  test.each(rows)(
+    "$topic shows $name",
+    ({ topic, using, unlocks, has, lacks }) => {
+      const text = topicText(topic, using, unlocks);
 
-			for (const fragment of has ?? []) expect(text).toContain(fragment);
-			for (const fragment of lacks ?? []) expect(text).not.toContain(fragment);
-		},
-	);
+      for (const fragment of has ?? []) expect(text).toContain(fragment);
+      for (const fragment of lacks ?? []) expect(text).not.toContain(fragment);
+    },
+  );
 
-	test("the keys topic lists every key hint the player owns", () => {
-		const owned = [ARCHIVE_PANEL, PALETTE_UNLOCK];
+  test("the keys topic lists every key hint the player owns", () => {
+    const owned = [ARCHIVE_PANEL, PALETTE_UNLOCK];
 
-		const lines = topicText("Keys", tuning, owned).split("\n");
+    const lines = topicText("Keys", tuning, owned).split("\n");
 
-		for (const hint of keyHints(owned)) {
-			const row = lines.find((line) => line.startsWith(hint.keys));
-			expect(row?.trimEnd().endsWith(hint.label)).toBe(true);
-		}
-	});
+    for (const hint of keyHints(owned)) {
+      const row = lines.find((line) => line.startsWith(hint.keys));
+      expect(row?.trimEnd().endsWith(hint.label)).toBe(true);
+    }
+  });
 });

@@ -1,24 +1,24 @@
 {
-	"name": "naive",
-	"setup": [
-		{
-			"type": "enactDecree",
-			"decree": {
-				"id": "granary",
-				"petition": "harvest",
-				"rules": [],
-				"otherwise": "feed"
-			}
-		},
-		{
-			"type": "enactDecree",
-			"decree": {
-				"id": "workforce",
-				"petition": "labor",
-				"rules": [],
-				"otherwise": "farming"
-			}
-		}
-	],
-	"reactions": []
+  "name": "naive",
+  "setup": [
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "granary",
+        "petition": "harvest",
+        "rules": [],
+        "otherwise": "feed"
+      }
+    },
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "workforce",
+        "petition": "labor",
+        "rules": [],
+        "otherwise": "farming"
+      }
+    }
+  ],
+  "reactions": []
 }

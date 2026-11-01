@@ -8,175 +8,175 @@ import { type Job, RESOURCES, type Season } from "./realm";
 import type { GameState, ResourceId } from "./state";
 import type { Tuning } from "./tuning";
 import {
-	ARCHIVE_PANEL,
-	CROWN_PANEL,
-	hasUnlock,
-	ownedUnlocks,
-	type UnlockId,
+  ARCHIVE_PANEL,
+  CROWN_PANEL,
+  hasUnlock,
+  ownedUnlocks,
+  type UnlockId,
 } from "./unlocks";
 
 export type LedgerLine = {
-	resource: ResourceId;
-	amount: number;
-	ratePerSecond: number;
+  resource: ResourceId;
+  amount: number;
+  ratePerSecond: number;
 };
 export type DeskOptionView = {
-	id: string;
-	label: string;
-	affordable: boolean;
-	expiry: boolean;
-	/** Resource deltas, keys sorted. */
-	resources: Record<string, number>;
-	/** Which party will sulk if this option is chosen. */
-	grudge: "first" | "second" | "none";
+  id: string;
+  label: string;
+  affordable: boolean;
+  expiry: boolean;
+  /** Resource deltas, keys sorted. */
+  resources: Record<string, number>;
+  /** Which party will sulk if this option is chosen. */
+  grudge: "first" | "second" | "none";
 };
 export type DeskEntryView = {
-	id: number;
-	label: string;
-	/** Names of the two parties, so an option's grudge can be shown by name. */
-	parties: [string, string];
-	options: DeskOptionView[];
+  id: number;
+  label: string;
+  /** Names of the two parties, so an option's grudge can be shown by name. */
+  parties: [string, string];
+  options: DeskOptionView[];
 };
 export type GovernorView = { id: string; name: string };
 export type DelegateView = {
-	id: number;
-	name: string;
-	job: Job | "idle";
-	grudgeTicks: number;
+  id: number;
+  name: string;
+  job: Job | "idle";
+  grudgeTicks: number;
 };
 export type PanelId = "crown" | "desk" | "ledger" | "peasants";
 export type CrownDemandView = { label: string };
 export type GameView = {
-	tick: number;
-	elapsedSeconds: number;
-	ledger: LedgerLine[];
-	realm: {
-		population: number;
-		idle: number;
-		labor: Record<Job, number>;
-		season: Season;
-		/** Running total of peasants lost to hunger. */
-		starved: number;
-	};
-	delegates: DelegateView[];
-	decrees: Decree[];
-	savedDecrees: Decree[];
-	desk: DeskEntryView[];
-	governors: GovernorView[];
-	crown: CrownDemandView | null;
-	promotion: { target: number; promotedAt: number; promotedAtSeconds: number };
-	growth: { stored: number; needed: number; perSecond: number; full: boolean };
-	lockedPanels: PanelId[];
-	unlocks: UnlockId[];
-	archive: { open: boolean; entries: ArchiveEntryView[] };
+  tick: number;
+  elapsedSeconds: number;
+  ledger: LedgerLine[];
+  realm: {
+    population: number;
+    idle: number;
+    labor: Record<Job, number>;
+    season: Season;
+    /** Running total of peasants lost to hunger. */
+    starved: number;
+  };
+  delegates: DelegateView[];
+  decrees: Decree[];
+  savedDecrees: Decree[];
+  desk: DeskEntryView[];
+  governors: GovernorView[];
+  crown: CrownDemandView | null;
+  promotion: { target: number; promotedAt: number; promotedAtSeconds: number };
+  growth: { stored: number; needed: number; perSecond: number; full: boolean };
+  lockedPanels: PanelId[];
+  unlocks: UnlockId[];
+  archive: { open: boolean; entries: ArchiveEntryView[] };
 };
 export type ArchiveEntryView = {
-	id: UnlockId;
-	label: string;
-	description: string;
-	cost: number;
-	owned: boolean;
-	affordable: boolean;
-	/** Every prerequisite is owned. */
-	available: boolean;
+  id: UnlockId;
+  label: string;
+  description: string;
+  cost: number;
+  owned: boolean;
+  affordable: boolean;
+  /** Every prerequisite is owned. */
+  available: boolean;
 };
 
 // The view is plain truth only in phase 2. Illusion, governor exaggeration and
 // unlock filtering are applied here in later phases, so the UI must never read
 // GameState directly.
 export function computeView(state: GameState, tuning: Tuning): GameView {
-	const { rates, growthPerTick } = projectFlows(state, tuning);
-	const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
-		resource,
-		amount: state.posting.resources[resource] ?? 0,
-		ratePerSecond: (rates[resource] * 1000) / tuning.stepMs,
-	}));
-	const { delegates, decrees } = state.posting;
-	return {
-		tick: state.tick,
-		elapsedSeconds: (state.tick * tuning.stepMs) / 1000,
-		ledger,
-		realm: {
-			population: delegates.length,
-			idle: idleCount(delegates),
-			labor: laborCounts(delegates),
-			season: seasonAt(state.tick, tuning.economy.ticksPerSeason),
-			starved: state.posting.economy.starved,
-		},
-		delegates: delegates.map((delegate) => ({
-			id: delegate.id,
-			name: delegate.name,
-			job: delegate.job,
-			grudgeTicks: Math.max(0, delegate.grudgeUntil - state.tick),
-		})),
-		decrees: Object.entries(decrees)
-			.sort(([a], [b]) => compareKeys(a, b))
-			.map(([, decree]) => structuredClone(decree)),
-		savedDecrees: sortedKeys(state.career.savedDecrees).flatMap((name) => {
-			const saved = state.career.savedDecrees[name];
-			return saved === undefined ? [] : [structuredClone(saved)];
-		}),
-		desk: deskView(state, tuning),
-		governors: [],
-		crown: null,
-		promotion: {
-			target: tuning.village.promotionPopulation,
-			promotedAt: state.career.promotedAt,
-			promotedAtSeconds: (state.career.promotedAt * tuning.stepMs) / 1000,
-		},
-		growth: {
-			stored: state.posting.economy.growth,
-			needed: tuning.economy.grainPerPeasant,
-			perSecond: (growthPerTick * 1000) / tuning.stepMs,
-			full: delegates.length >= tuning.economy.maxPopulation,
-		},
-		lockedPanels: hasUnlock(state, CROWN_PANEL) ? [] : ["crown"],
-		unlocks: ownedUnlocks(state),
-		archive: {
-			open: hasUnlock(state, ARCHIVE_PANEL),
-			entries: tuning.archive.entries.map((entry) => ({
-				id: entry.id,
-				label: entry.label,
-				description: entry.description,
-				cost: entry.cost,
-				owned: hasUnlock(state, entry.id),
-				affordable: (state.posting.resources.coin ?? 0) >= entry.cost,
-				available: entry.requires.every((id) => hasUnlock(state, id)),
-			})),
-		},
-	};
+  const { rates, growthPerTick } = projectFlows(state, tuning);
+  const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
+    resource,
+    amount: state.posting.resources[resource] ?? 0,
+    ratePerSecond: (rates[resource] * 1000) / tuning.stepMs,
+  }));
+  const { delegates, decrees } = state.posting;
+  return {
+    tick: state.tick,
+    elapsedSeconds: (state.tick * tuning.stepMs) / 1000,
+    ledger,
+    realm: {
+      population: delegates.length,
+      idle: idleCount(delegates),
+      labor: laborCounts(delegates),
+      season: seasonAt(state.tick, tuning.economy.ticksPerSeason),
+      starved: state.posting.economy.starved,
+    },
+    delegates: delegates.map((delegate) => ({
+      id: delegate.id,
+      name: delegate.name,
+      job: delegate.job,
+      grudgeTicks: Math.max(0, delegate.grudgeUntil - state.tick),
+    })),
+    decrees: Object.entries(decrees)
+      .sort(([a], [b]) => compareKeys(a, b))
+      .map(([, decree]) => structuredClone(decree)),
+    savedDecrees: sortedKeys(state.career.savedDecrees).flatMap((name) => {
+      const saved = state.career.savedDecrees[name];
+      return saved === undefined ? [] : [structuredClone(saved)];
+    }),
+    desk: deskView(state, tuning),
+    governors: [],
+    crown: null,
+    promotion: {
+      target: tuning.village.promotionPopulation,
+      promotedAt: state.career.promotedAt,
+      promotedAtSeconds: (state.career.promotedAt * tuning.stepMs) / 1000,
+    },
+    growth: {
+      stored: state.posting.economy.growth,
+      needed: tuning.economy.grainPerPeasant,
+      perSecond: (growthPerTick * 1000) / tuning.stepMs,
+      full: delegates.length >= tuning.economy.maxPopulation,
+    },
+    lockedPanels: hasUnlock(state, CROWN_PANEL) ? [] : ["crown"],
+    unlocks: ownedUnlocks(state),
+    archive: {
+      open: hasUnlock(state, ARCHIVE_PANEL),
+      entries: tuning.archive.entries.map((entry) => ({
+        id: entry.id,
+        label: entry.label,
+        description: entry.description,
+        cost: entry.cost,
+        owned: hasUnlock(state, entry.id),
+        affordable: (state.posting.resources.coin ?? 0) >= entry.cost,
+        available: entry.requires.every((id) => hasUnlock(state, id)),
+      })),
+    },
+  };
 }
 
 function deskView(state: GameState, tuning: Tuning): DeskEntryView[] {
-	const { delegates, desk } = state.posting;
-	const nameOf = (id: number) => {
-		const found = delegates.find((delegate) => delegate.id === id);
-		if (found === undefined)
-			throw new Error(`dispute party ${id} is not in the roster`);
-		return found.name;
-	};
-	return desk.disputes.map((dispute) => {
-		const template = templateOf(dispute, tuning);
-		const first = nameOf(dispute.parties[0]);
-		const second = nameOf(dispute.parties[1]);
-		return {
-			id: dispute.id,
-			label: fillNames(template.text, first, second),
-			parties: [first, second],
-			options: template.options.map((option) => ({
-				id: option.id,
-				label: fillNames(option.label, first, second),
-				affordable: shortfall(state, option) === null,
-				expiry: option.id === template.expiry,
-				resources: sortedResources(option.resources ?? {}),
-				grudge: option.grudge ?? "none",
-			})),
-		};
-	});
+  const { delegates, desk } = state.posting;
+  const nameOf = (id: number) => {
+    const found = delegates.find((delegate) => delegate.id === id);
+    if (found === undefined)
+      throw new Error(`dispute party ${id} is not in the roster`);
+    return found.name;
+  };
+  return desk.disputes.map((dispute) => {
+    const template = templateOf(dispute, tuning);
+    const first = nameOf(dispute.parties[0]);
+    const second = nameOf(dispute.parties[1]);
+    return {
+      id: dispute.id,
+      label: fillNames(template.text, first, second),
+      parties: [first, second],
+      options: template.options.map((option) => ({
+        id: option.id,
+        label: fillNames(option.label, first, second),
+        affordable: shortfall(state, option) === null,
+        expiry: option.id === template.expiry,
+        resources: sortedResources(option.resources ?? {}),
+        grudge: option.grudge ?? "none",
+      })),
+    };
+  });
 }
 
 function sortedResources(resources: Record<string, number>) {
-	const sorted: Record<string, number> = {};
-	for (const key of sortedKeys(resources)) sorted[key] = resources[key] ?? 0;
-	return sorted;
+  const sorted: Record<string, number> = {};
+  for (const key of sortedKeys(resources)) sorted[key] = resources[key] ?? 0;
+  return sorted;
 }

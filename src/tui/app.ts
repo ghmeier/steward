@@ -20,254 +20,254 @@ const FRAME_INTERVAL_MS = 50;
 const AUTOSAVE_INTERVAL_MS = 30_000;
 
 export type Startup =
-	| { kind: "ready"; state: GameState; notice: string | null }
-	| { kind: "refused"; error: string };
+  | { kind: "ready"; state: GameState; notice: string | null }
+  | { kind: "refused"; error: string };
 
 export function prepareStartup(
-	saveDir: string,
-	tuning: Tuning,
-	newSeed: () => number,
+  saveDir: string,
+  tuning: Tuning,
+  newSeed: () => number,
 ): Startup {
-	const result = loadGame(saveDir);
-	switch (result.kind) {
-		case "loaded": {
-			const repealed = repealStaleDecrees(result.save.state, tuning);
-			return {
-				kind: "ready",
-				state: result.save.state,
-				notice:
-					repealed.length === 0
-						? null
-						: `Repealed ${repealed.join(", ")}: their policies no longer exist.`,
-			};
-		}
-		case "missing":
-			return {
-				kind: "ready",
-				state: createNewGame(newSeed(), tuning),
-				notice: "Started a new game.",
-			};
-		case "versionRefused":
-			return {
-				kind: "ready",
-				state: createNewGame(newSeed(), tuning),
-				notice: `Save version ${String(result.foundVersion)} is not supported; it was kept as ${result.preservedAs}. Started a new game.`,
-			};
-		case "invalid":
-			// Starting anyway would let an autosave overwrite a save the player may want to recover.
-			return { kind: "refused", error: result.error };
-	}
+  const result = loadGame(saveDir);
+  switch (result.kind) {
+    case "loaded": {
+      const repealed = repealStaleDecrees(result.save.state, tuning);
+      return {
+        kind: "ready",
+        state: result.save.state,
+        notice:
+          repealed.length === 0
+            ? null
+            : `Repealed ${repealed.join(", ")}: their policies no longer exist.`,
+      };
+    }
+    case "missing":
+      return {
+        kind: "ready",
+        state: createNewGame(newSeed(), tuning),
+        notice: "Started a new game.",
+      };
+    case "versionRefused":
+      return {
+        kind: "ready",
+        state: createNewGame(newSeed(), tuning),
+        notice: `Save version ${String(result.foundVersion)} is not supported; it was kept as ${result.preservedAs}. Started a new game.`,
+      };
+    case "invalid":
+      // Starting anyway would let an autosave overwrite a save the player may want to recover.
+      return { kind: "refused", error: result.error };
+  }
 }
 
 export type AppExit = { saveError: string | null };
 export type App = {
-	frame(): void;
-	shutdown(): Promise<AppExit>;
-	hangUp(): AppExit;
-	readonly done: Promise<AppExit>;
+  frame(): void;
+  shutdown(): Promise<AppExit>;
+  hangUp(): AppExit;
+  readonly done: Promise<AppExit>;
 };
 
 export function startApp(options: {
-	renderer: CliRenderer;
-	state: GameState;
-	tuning: Tuning;
-	saveDir: string;
-	now: () => number;
-	newSeed: () => number;
-	notice: string | null;
-	frameIntervalMs?: number;
-	autosaveIntervalMs?: number;
+  renderer: CliRenderer;
+  state: GameState;
+  tuning: Tuning;
+  saveDir: string;
+  now: () => number;
+  newSeed: () => number;
+  notice: string | null;
+  frameIntervalMs?: number;
+  autosaveIntervalMs?: number;
 }): App {
-	const { renderer, tuning, saveDir } = options;
-	const makeSession = (state: GameState): Session =>
-		createSession({ state, tuning, now: options.now });
-	let session = makeSession(options.state);
-	const panels = createPanels(renderer);
-	let message = options.notice;
-	let footer = "";
-	let cursor: Cursor | null = reconcileCursor(session.view().delegates, null);
+  const { renderer, tuning, saveDir } = options;
+  const makeSession = (state: GameState): Session =>
+    createSession({ state, tuning, now: options.now });
+  let session = makeSession(options.state);
+  const panels = createPanels(renderer);
+  let message = options.notice;
+  let footer = "";
+  let cursor: Cursor | null = reconcileCursor(session.view().delegates, null);
 
-	let menu: MenuState | null = null;
-	let line: LineState | null = null;
-	let promotionAnnounced = session.view().promotion.promotedAt > 0;
-	let lastView = session.view();
-	let knownUnlocks = new Set(lastView.unlocks);
+  let menu: MenuState | null = null;
+  let line: LineState | null = null;
+  let promotionAnnounced = session.view().promotion.promotedAt > 0;
+  let lastView = session.view();
+  let knownUnlocks = new Set(lastView.unlocks);
 
-	const menuContext = () => ({ view: session.view(), tuning });
-	const currentOverlay = () => {
-		if (line !== null) return renderLine(line, menuContext());
-		return menu === null ? null : renderMenu(menu, menuContext());
-	};
-	const composeFooter = () => {
-		const open = currentOverlay();
-		const hints =
-			open === null ? hintsText(session.view().unlocks) : open.hints;
-		return `${message ?? ""}\n${hints}`;
-	};
-	const redraw = () => {
-		footer = composeFooter();
-		const view = session.view();
-		cursor = reconcileCursor(view.delegates, cursor);
-		panels.update(view, footer, cursor?.id ?? null);
-		panels.showMenu(currentOverlay());
-		renderer.requestRender();
-	};
+  const menuContext = () => ({ view: session.view(), tuning });
+  const currentOverlay = () => {
+    if (line !== null) return renderLine(line, menuContext());
+    return menu === null ? null : renderMenu(menu, menuContext());
+  };
+  const composeFooter = () => {
+    const open = currentOverlay();
+    const hints =
+      open === null ? hintsText(session.view().unlocks) : open.hints;
+    return `${message ?? ""}\n${hints}`;
+  };
+  const redraw = () => {
+    footer = composeFooter();
+    const view = session.view();
+    cursor = reconcileCursor(view.delegates, cursor);
+    panels.update(view, footer, cursor?.id ?? null);
+    panels.showMenu(currentOverlay());
+    renderer.requestRender();
+  };
 
-	// Returns the failure instead of throwing so key handlers and timers can never crash the app.
-	const save = (): string | null => {
-		try {
-			saveGame(saveDir, session.state);
-			return null;
-		} catch (error) {
-			return errorMessage(error);
-		}
-	};
-	const saveAndAnnounce = (announceSuccess: boolean) => {
-		const error = save();
-		if (error !== null) message = `Save failed: ${error}`;
-		else if (announceSuccess) message = "Saved.";
-		else return;
-		redraw();
-	};
+  // Returns the failure instead of throwing so key handlers and timers can never crash the app.
+  const save = (): string | null => {
+    try {
+      saveGame(saveDir, session.state);
+      return null;
+    } catch (error) {
+      return errorMessage(error);
+    }
+  };
+  const saveAndAnnounce = (announceSuccess: boolean) => {
+    const error = save();
+    if (error !== null) message = `Save failed: ${error}`;
+    else if (announceSuccess) message = "Saved.";
+    else return;
+    redraw();
+  };
 
-	const foundNewVillage = () => {
-		session = makeSession(createNewGame(options.newSeed(), tuning));
-		lastView = session.view();
-		promotionAnnounced = lastView.promotion.promotedAt > 0;
-		knownUnlocks = new Set(lastView.unlocks);
-		cursor = reconcileCursor(lastView.delegates, null);
-		const error = save();
-		message =
-			error === null ? "A new village is founded." : `Save failed: ${error}`;
-	};
+  const foundNewVillage = () => {
+    session = makeSession(createNewGame(options.newSeed(), tuning));
+    lastView = session.view();
+    promotionAnnounced = lastView.promotion.promotedAt > 0;
+    knownUnlocks = new Set(lastView.unlocks);
+    cursor = reconcileCursor(lastView.delegates, null);
+    const error = save();
+    message =
+      error === null ? "A new village is founded." : `Save failed: ${error}`;
+  };
 
-	let frameTimer: ReturnType<typeof setInterval> | undefined;
-	let autosaveTimer: ReturnType<typeof setInterval> | undefined;
-	let shutdownPromise: Promise<AppExit> | null = null;
-	let finalExit: AppExit | null = null;
-	let resolveDone: (exit: AppExit) => void = () => {};
-	const done = new Promise<AppExit>((resolve) => {
-		resolveDone = resolve;
-	});
-	const onKeyPress = (key: KeyEvent) => {
-		if (line !== null && !isInterrupt(key)) {
-			const result = lineKey(line, key, menuContext());
-			line = result.state;
-			for (const command of result.commands) session.enqueue(command);
-			redraw();
-			return;
-		}
-		if (menu !== null && !isInterrupt(key)) {
-			const result = menuKey(menu, key, menuContext());
-			menu = result.state;
-			for (const command of result.commands) session.enqueue(command);
-			if (result.requests.includes("newGame")) foundNewVillage();
-			redraw();
-			return;
-		}
-		const action = actionForKey(key, session.view().unlocks);
-		if (action === null) return;
-		if (action.kind === "line") {
-			line = openLine(action.prefill);
-			redraw();
-			return;
-		}
-		if (action.kind === "court") {
-			menu = openMenu(courtMenu);
-			redraw();
-			return;
-		}
-		if (action.kind === "newGame") {
-			menu = openMenu(newGameMenu);
-			redraw();
-			return;
-		}
-		if (action.kind === "help") {
-			menu = openMenu(helpMenu);
-			redraw();
-			return;
-		}
-		if (action.kind === "move") {
-			cursor = moveCursor(session.view().delegates, cursor, action.delta);
-			redraw();
-		} else if (action.kind === "assign") {
-			if (cursor === null) message = "No peasant is selected.";
-			else {
-				session.enqueue({
-					type: "assignPeasant",
-					peasant: cursor.id,
-					job: action.job,
-				});
-				return;
-			}
-			redraw();
-		} else if (action.kind === "save") saveAndAnnounce(true);
-		else void shutdown();
-	};
+  let frameTimer: ReturnType<typeof setInterval> | undefined;
+  let autosaveTimer: ReturnType<typeof setInterval> | undefined;
+  let shutdownPromise: Promise<AppExit> | null = null;
+  let finalExit: AppExit | null = null;
+  let resolveDone: (exit: AppExit) => void = () => {};
+  const done = new Promise<AppExit>((resolve) => {
+    resolveDone = resolve;
+  });
+  const onKeyPress = (key: KeyEvent) => {
+    if (line !== null && !isInterrupt(key)) {
+      const result = lineKey(line, key, menuContext());
+      line = result.state;
+      for (const command of result.commands) session.enqueue(command);
+      redraw();
+      return;
+    }
+    if (menu !== null && !isInterrupt(key)) {
+      const result = menuKey(menu, key, menuContext());
+      menu = result.state;
+      for (const command of result.commands) session.enqueue(command);
+      if (result.requests.includes("newGame")) foundNewVillage();
+      redraw();
+      return;
+    }
+    const action = actionForKey(key, session.view().unlocks);
+    if (action === null) return;
+    if (action.kind === "line") {
+      line = openLine(action.prefill);
+      redraw();
+      return;
+    }
+    if (action.kind === "court") {
+      menu = openMenu(courtMenu);
+      redraw();
+      return;
+    }
+    if (action.kind === "newGame") {
+      menu = openMenu(newGameMenu);
+      redraw();
+      return;
+    }
+    if (action.kind === "help") {
+      menu = openMenu(helpMenu);
+      redraw();
+      return;
+    }
+    if (action.kind === "move") {
+      cursor = moveCursor(session.view().delegates, cursor, action.delta);
+      redraw();
+    } else if (action.kind === "assign") {
+      if (cursor === null) message = "No peasant is selected.";
+      else {
+        session.enqueue({
+          type: "assignPeasant",
+          peasant: cursor.id,
+          job: action.job,
+        });
+        return;
+      }
+      redraw();
+    } else if (action.kind === "save") saveAndAnnounce(true);
+    else void shutdown();
+  };
 
-	function frame(): void {
-		if (finalExit !== null) return;
-		const result = session.frame();
-		const lastRejection = result.rejections.at(-1);
-		if (lastRejection !== undefined) message = lastRejection.reason;
-		const starved = starvationNotice(lastView, session.view());
-		if (starved !== null) message = starved;
-		lastView = session.view();
-		const unlocked = announceNewUnlocks(
-			knownUnlocks,
-			session.view().unlocks,
-			tuning,
-		);
-		if (unlocked !== null) message = unlocked;
-		if (!promotionAnnounced && session.view().promotion.promotedAt > 0) {
-			promotionAnnounced = true;
-			message = "The crown has noticed you. You are promoted to steward.";
-		}
-		if (result.viewChanged || composeFooter() !== footer) redraw();
-	}
+  function frame(): void {
+    if (finalExit !== null) return;
+    const result = session.frame();
+    const lastRejection = result.rejections.at(-1);
+    if (lastRejection !== undefined) message = lastRejection.reason;
+    const starved = starvationNotice(lastView, session.view());
+    if (starved !== null) message = starved;
+    lastView = session.view();
+    const unlocked = announceNewUnlocks(
+      knownUnlocks,
+      session.view().unlocks,
+      tuning,
+    );
+    if (unlocked !== null) message = unlocked;
+    if (!promotionAnnounced && session.view().promotion.promotedAt > 0) {
+      promotionAnnounced = true;
+      message = "The crown has noticed you. You are promoted to steward.";
+    }
+    if (result.viewChanged || composeFooter() !== footer) redraw();
+  }
 
-	// Shared by shutdown and hangUp so the two paths save at most once between them.
-	function stopAndSave(): AppExit {
-		if (finalExit === null) {
-			clearInterval(frameTimer);
-			clearInterval(autosaveTimer);
-			renderer.keyInput.off("keypress", onKeyPress);
-			finalExit = { saveError: save() };
-		}
-		return finalExit;
-	}
+  // Shared by shutdown and hangUp so the two paths save at most once between them.
+  function stopAndSave(): AppExit {
+    if (finalExit === null) {
+      clearInterval(frameTimer);
+      clearInterval(autosaveTimer);
+      renderer.keyInput.off("keypress", onKeyPress);
+      finalExit = { saveError: save() };
+    }
+    return finalExit;
+  }
 
-	function hangUp(): AppExit {
-		return stopAndSave();
-	}
+  function hangUp(): AppExit {
+    return stopAndSave();
+  }
 
-	function shutdown(): Promise<AppExit> {
-		shutdownPromise ??= (async () => {
-			const exit = stopAndSave();
-			renderer.destroy();
-			await renderer.closed;
-			resolveDone(exit);
-			return exit;
-		})();
-		return shutdownPromise;
-	}
+  function shutdown(): Promise<AppExit> {
+    shutdownPromise ??= (async () => {
+      const exit = stopAndSave();
+      renderer.destroy();
+      await renderer.closed;
+      resolveDone(exit);
+      return exit;
+    })();
+    return shutdownPromise;
+  }
 
-	renderer.keyInput.on("keypress", onKeyPress);
-	redraw();
-	// Started last so a failure in the initial draw cannot leave timers running that nothing can stop.
-	frameTimer = setInterval(
-		() => frame(),
-		options.frameIntervalMs ?? FRAME_INTERVAL_MS,
-	);
-	autosaveTimer = setInterval(
-		() => saveAndAnnounce(false),
-		options.autosaveIntervalMs ?? AUTOSAVE_INTERVAL_MS,
-	);
+  renderer.keyInput.on("keypress", onKeyPress);
+  redraw();
+  // Started last so a failure in the initial draw cannot leave timers running that nothing can stop.
+  frameTimer = setInterval(
+    () => frame(),
+    options.frameIntervalMs ?? FRAME_INTERVAL_MS,
+  );
+  autosaveTimer = setInterval(
+    () => saveAndAnnounce(false),
+    options.autosaveIntervalMs ?? AUTOSAVE_INTERVAL_MS,
+  );
 
-	return {
-		frame,
-		shutdown,
-		hangUp,
-		done,
-	};
+  return {
+    frame,
+    shutdown,
+    hangUp,
+    done,
+  };
 }

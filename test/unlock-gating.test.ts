@@ -3,11 +3,11 @@ import type { Decree } from "../src/core/decree";
 import { enactDecree } from "../src/core/decree-engine";
 import { createNewGame } from "../src/core/state";
 import {
-	ARCHIVE_PANEL,
-	CHAINING_UNLOCK,
-	COMPOUND_UNLOCK,
-	PALETTE_UNLOCK,
-	SAVED_DECREES_UNLOCK,
+  ARCHIVE_PANEL,
+  CHAINING_UNLOCK,
+  COMPOUND_UNLOCK,
+  PALETTE_UNLOCK,
+  SAVED_DECREES_UNLOCK,
 } from "../src/core/unlocks";
 import { computeView } from "../src/core/view";
 import { parseLine } from "../src/tui/command-line";
@@ -15,43 +15,43 @@ import { actionForKey, hintsText, type KeyPress } from "../src/tui/keys";
 import { grantUnlocks, topicText, tuning } from "./helpers";
 
 function key(name: string, modifiers: Partial<KeyPress> = {}): KeyPress {
-	return {
-		name,
-		ctrl: false,
-		meta: false,
-		shift: false,
-		sequence: name,
-		...modifiers,
-	};
+  return {
+    name,
+    ctrl: false,
+    meta: false,
+    shift: false,
+    sequence: name,
+    ...modifiers,
+  };
 }
 
 const granary: Decree = {
-	id: "granary",
-	petition: "harvest",
-	rules: [],
-	otherwise: "sell",
+  id: "granary",
+  petition: "harvest",
+  rules: [],
+  otherwise: "sell",
 };
 
 /** Everything the player can see of a control, built from a real state holding exactly these unlocks. */
 function surfaces(unlocks: readonly string[]) {
-	const state = createNewGame(1, tuning);
-	grantUnlocks(state, unlocks);
-	const enacted = enactDecree(state, granary, tuning);
-	if (!enacted.ok) throw new Error(enacted.reason);
-	const context = { view: computeView(state, tuning), tuning };
-	const owned = context.view.unlocks;
-	const words = (text: string) =>
-		parseLine(text, context).suggestions.map((s) => s.text);
-	return {
-		action: (name: string, modifiers: Partial<KeyPress> = {}) =>
-			actionForKey(key(name, modifiers), owned),
-		hints: hintsText(owned),
-		keysHelp: topicText("Keys", tuning, unlocks),
-		decreesHelp: topicText("Decrees", tuning, unlocks),
-		verbs: words(""),
-		afterCondition: words("decree wood sell when coin above 5 "),
-		startOfCondition: words("decree wood sell when "),
-	};
+  const state = createNewGame(1, tuning);
+  grantUnlocks(state, unlocks);
+  const enacted = enactDecree(state, granary, tuning);
+  if (!enacted.ok) throw new Error(enacted.reason);
+  const context = { view: computeView(state, tuning), tuning };
+  const owned = context.view.unlocks;
+  const words = (text: string) =>
+    parseLine(text, context).suggestions.map((s) => s.text);
+  return {
+    action: (name: string, modifiers: Partial<KeyPress> = {}) =>
+      actionForKey(key(name, modifiers), owned),
+    hints: hintsText(owned),
+    keysHelp: topicText("Keys", tuning, unlocks),
+    decreesHelp: topicText("Decrees", tuning, unlocks),
+    verbs: words(""),
+    afterCondition: words("decree wood sell when coin above 5 "),
+    startOfCondition: words("decree wood sell when "),
+  };
 }
 
 type Surfaces = ReturnType<typeof surfaces>;
@@ -82,17 +82,17 @@ const gated: [string, string, (s: Surfaces) => Checks][] = [
 ];
 
 const all = (checks: Checks, value: boolean) =>
-	Object.fromEntries(Object.keys(checks).map((name) => [name, value]));
+  Object.fromEntries(Object.keys(checks).map((name) => [name, value]));
 
 describe("unlock gating", () => {
-	test.each(gated)(
-		"%s surfaces appear only once owned",
-		(_name, unlock, reveals) => {
-			const before = reveals(surfaces([]));
-			const after = reveals(surfaces([unlock]));
+  test.each(gated)(
+    "%s surfaces appear only once owned",
+    (_name, unlock, reveals) => {
+      const before = reveals(surfaces([]));
+      const after = reveals(surfaces([unlock]));
 
-			expect(before).toEqual(all(before, false));
-			expect(after).toEqual(all(after, true));
-		},
-	);
+      expect(before).toEqual(all(before, false));
+      expect(after).toEqual(all(after, true));
+    },
+  );
 });

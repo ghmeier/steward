@@ -1,12 +1,12 @@
 {
-	"seed": 42,
-	"steps": 10000,
-	"commands": "test/fixtures/command-log.json",
-	"grant": [
-		"control.palette",
-		"control.savedDecrees",
-		"decree.compound",
-		"decree.chaining"
-	],
-	"hash": "09866ef4debb169e9d812d2cb7790e98283089561eefe847ee188166cc9db31f"
+  "seed": 42,
+  "steps": 10000,
+  "commands": "test/fixtures/command-log.json",
+  "grant": [
+    "control.palette",
+    "control.savedDecrees",
+    "decree.compound",
+    "decree.chaining"
+  ],
+  "hash": "09866ef4debb169e9d812d2cb7790e98283089561eefe847ee188166cc9db31f"
 }

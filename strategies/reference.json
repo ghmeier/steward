@@ -1,34 +1,34 @@
 {
-	"name": "reference",
-	"setup": [
-		{
-			"type": "enactDecree",
-			"decree": {
-				"id": "granary",
-				"petition": "harvest",
-				"rules": [
-					{
-						"when": {
-							"kind": "compare",
-							"quantity": "grainSeasons",
-							"comparison": "above",
-							"value": 2
-						},
-						"policy": "feed"
-					}
-				],
-				"otherwise": "stockpile"
-			}
-		},
-		{
-			"type": "enactDecree",
-			"decree": {
-				"id": "workforce",
-				"petition": "labor",
-				"rules": [],
-				"otherwise": "farm"
-			}
-		}
-	],
-	"reactions": []
+  "name": "reference",
+  "setup": [
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "granary",
+        "petition": "harvest",
+        "rules": [
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "grainSeasons",
+              "comparison": "above",
+              "value": 2
+            },
+            "policy": "feed"
+          }
+        ],
+        "otherwise": "stockpile"
+      }
+    },
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "workforce",
+        "petition": "labor",
+        "rules": [],
+        "otherwise": "farm"
+      }
+    }
+  ],
+  "reactions": []
 }

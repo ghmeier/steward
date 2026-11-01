@@ -1,182 +1,182 @@
 [
-	{
-		"tick": 1,
-		"command": {
-			"type": "assignPeasant",
-			"peasant": 1,
-			"job": "farm"
-		}
-	},
-	{
-		"tick": 100,
-		"command": {
-			"type": "enactDecree",
-			"decree": {
-				"id": "granary",
-				"petition": "harvest",
-				"rules": [
-					{
-						"when": {
-							"kind": "compare",
-							"quantity": "grainSeasons",
-							"comparison": "above",
-							"value": 2
-						},
-						"policy": "feed"
-					}
-				],
-				"otherwise": "stockpile"
-			}
-		}
-	},
-	{
-		"tick": 2000,
-		"command": {
-			"type": "assignPeasant",
-			"peasant": 2,
-			"job": "forest"
-		}
-	},
-	{
-		"tick": 2300,
-		"command": {
-			"type": "settleDispute",
-			"dispute": 1,
-			"option": "for-second"
-		}
-	},
-	{
-		"tick": 2400,
-		"command": {
-			"type": "enactDecree",
-			"decree": {
-				"id": "granary",
-				"petition": "harvest",
-				"rules": [
-					{
-						"when": {
-							"kind": "compare",
-							"quantity": "grainSeasons",
-							"comparison": "above",
-							"value": 3
-						},
-						"policy": "sell"
-					},
-					{
-						"when": {
-							"kind": "compare",
-							"quantity": "grainSeasons",
-							"comparison": "above",
-							"value": 2
-						},
-						"policy": "feed"
-					}
-				],
-				"otherwise": "stockpile"
-			}
-		}
-	},
-	{
-		"tick": 2401,
-		"command": {
-			"type": "enactDecree",
-			"decree": {
-				"id": "a-workforce",
-				"petition": "labor",
-				"rules": [
-					{
-						"when": {
-							"kind": "chose",
-							"decree": "granary",
-							"policy": "stockpile"
-						},
-						"policy": "farming"
-					}
-				],
-				"otherwise": "balanced"
-			}
-		}
-	},
-	{
-		"tick": 2402,
-		"command": {
-			"type": "enactDecree",
-			"decree": {
-				"id": "granary",
-				"petition": "harvest",
-				"rules": [
-					{
-						"when": {
-							"kind": "chose",
-							"decree": "a-workforce",
-							"policy": "balanced"
-						},
-						"policy": "stockpile"
-					},
-					{
-						"when": {
-							"kind": "compare",
-							"quantity": "grainSeasons",
-							"comparison": "above",
-							"value": 3
-						},
-						"policy": "sell"
-					},
-					{
-						"when": {
-							"kind": "compare",
-							"quantity": "grainSeasons",
-							"comparison": "above",
-							"value": 2
-						},
-						"policy": "feed"
-					}
-				],
-				"otherwise": "stockpile"
-			}
-		}
-	},
-	{
-		"tick": 2500,
-		"command": {
-			"type": "noop"
-		}
-	},
-	{
-		"tick": 3000,
-		"command": {
-			"type": "assignPeasant",
-			"peasant": 1,
-			"job": "idle"
-		}
-	},
-	{
-		"tick": 3001,
-		"command": {
-			"type": "assignPeasant",
-			"peasant": 1,
-			"job": "forest"
-		}
-	},
-	{
-		"tick": 5000,
-		"command": {
-			"type": "repealDecree",
-			"id": "granary"
-		}
-	},
-	{
-		"tick": 6000,
-		"command": {
-			"type": "repealDecree",
-			"id": "a-workforce"
-		}
-	},
-	{
-		"tick": 6001,
-		"command": {
-			"type": "repealDecree",
-			"id": "granary"
-		}
-	}
+  {
+    "tick": 1,
+    "command": {
+      "type": "assignPeasant",
+      "peasant": 1,
+      "job": "farm"
+    }
+  },
+  {
+    "tick": 100,
+    "command": {
+      "type": "enactDecree",
+      "decree": {
+        "id": "granary",
+        "petition": "harvest",
+        "rules": [
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "grainSeasons",
+              "comparison": "above",
+              "value": 2
+            },
+            "policy": "feed"
+          }
+        ],
+        "otherwise": "stockpile"
+      }
+    }
+  },
+  {
+    "tick": 2000,
+    "command": {
+      "type": "assignPeasant",
+      "peasant": 2,
+      "job": "forest"
+    }
+  },
+  {
+    "tick": 2300,
+    "command": {
+      "type": "settleDispute",
+      "dispute": 1,
+      "option": "for-second"
+    }
+  },
+  {
+    "tick": 2400,
+    "command": {
+      "type": "enactDecree",
+      "decree": {
+        "id": "granary",
+        "petition": "harvest",
+        "rules": [
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "grainSeasons",
+              "comparison": "above",
+              "value": 3
+            },
+            "policy": "sell"
+          },
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "grainSeasons",
+              "comparison": "above",
+              "value": 2
+            },
+            "policy": "feed"
+          }
+        ],
+        "otherwise": "stockpile"
+      }
+    }
+  },
+  {
+    "tick": 2401,
+    "command": {
+      "type": "enactDecree",
+      "decree": {
+        "id": "a-workforce",
+        "petition": "labor",
+        "rules": [
+          {
+            "when": {
+              "kind": "chose",
+              "decree": "granary",
+              "policy": "stockpile"
+            },
+            "policy": "farming"
+          }
+        ],
+        "otherwise": "balanced"
+      }
+    }
+  },
+  {
+    "tick": 2402,
+    "command": {
+      "type": "enactDecree",
+      "decree": {
+        "id": "granary",
+        "petition": "harvest",
+        "rules": [
+          {
+            "when": {
+              "kind": "chose",
+              "decree": "a-workforce",
+              "policy": "balanced"
+            },
+            "policy": "stockpile"
+          },
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "grainSeasons",
+              "comparison": "above",
+              "value": 3
+            },
+            "policy": "sell"
+          },
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "grainSeasons",
+              "comparison": "above",
+              "value": 2
+            },
+            "policy": "feed"
+          }
+        ],
+        "otherwise": "stockpile"
+      }
+    }
+  },
+  {
+    "tick": 2500,
+    "command": {
+      "type": "noop"
+    }
+  },
+  {
+    "tick": 3000,
+    "command": {
+      "type": "assignPeasant",
+      "peasant": 1,
+      "job": "idle"
+    }
+  },
+  {
+    "tick": 3001,
+    "command": {
+      "type": "assignPeasant",
+      "peasant": 1,
+      "job": "forest"
+    }
+  },
+  {
+    "tick": 5000,
+    "command": {
+      "type": "repealDecree",
+      "id": "granary"
+    }
+  },
+  {
+    "tick": 6000,
+    "command": {
+      "type": "repealDecree",
+      "id": "a-workforce"
+    }
+  },
+  {
+    "tick": 6001,
+    "command": {
+      "type": "repealDecree",
+      "id": "granary"
+    }
+  }
 ]

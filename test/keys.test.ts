@@ -1,21 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import { ARCHIVE_PANEL, PALETTE_UNLOCK } from "../src/core/unlocks";
 import {
-	actionForKey,
-	hintsText,
-	type KeyAction,
-	keyHints,
+  actionForKey,
+  hintsText,
+  type KeyAction,
+  keyHints,
 } from "../src/tui/keys";
 import { key } from "./tui-helpers";
 
 const everything = [ARCHIVE_PANEL, PALETTE_UNLOCK];
 
 describe("actionForKey", () => {
-	const decree: KeyAction = { kind: "line", prefill: "decree " };
-	const palette: KeyAction = { kind: "line", prefill: "" };
-	const archive: KeyAction = { kind: "line", prefill: "buy " };
-	// biome-ignore format: one case per line keeps the table scannable
-	const cases: [
+  const decree: KeyAction = { kind: "line", prefill: "decree " };
+  const palette: KeyAction = { kind: "line", prefill: "" };
+  const archive: KeyAction = { kind: "line", prefill: "buy " };
+  // biome-ignore format: one case per line keeps the table scannable
+  const cases: [
 		string,
 		ReturnType<typeof key>,
 		readonly string[],
@@ -49,31 +49,31 @@ describe("actionForKey", () => {
 		["an unbound key does nothing", key("x"), everything, null],
 		["an inherited object property does nothing", key("constructor"), everything, null],
 	];
-	test.each(cases)("%s", (_name, pressed, unlocks, expected) => {
-		expect(actionForKey(pressed, unlocks)).toEqual(expected);
-	});
+  test.each(cases)("%s", (_name, pressed, unlocks, expected) => {
+    expect(actionForKey(pressed, unlocks)).toEqual(expected);
+  });
 
-	test("mutating a returned action does not change later results", () => {
-		const first = actionForKey(key("f"), everything);
-		if (first?.kind === "assign") first.job = "mine";
+  test("mutating a returned action does not change later results", () => {
+    const first = actionForKey(key("f"), everything);
+    if (first?.kind === "assign") first.job = "mine";
 
-		expect(actionForKey(key("f"), everything)).toEqual({
-			kind: "assign",
-			job: "farm",
-		});
-	});
+    expect(actionForKey(key("f"), everything)).toEqual({
+      kind: "assign",
+      job: "farm",
+    });
+  });
 
-	test("every key advertised in the hints is bound", () => {
-		const advertised = keyHints(everything).flatMap((hint) =>
-			hint.keys.split("/"),
-		);
+  test("every key advertised in the hints is bound", () => {
+    const advertised = keyHints(everything).flatMap((hint) =>
+      hint.keys.split("/"),
+    );
 
-		for (const name of advertised) {
-			expect(actionForKey(key(name), everything)).not.toBeNull();
-		}
-	});
+    for (const name of advertised) {
+      expect(actionForKey(key(name), everything)).not.toBeNull();
+    }
+  });
 });
 
 test("the hints for every unlock fit a 120-column footer", () => {
-	expect(hintsText(everything).length).toBeLessThanOrEqual(120);
+  expect(hintsText(everything).length).toBeLessThanOrEqual(120);
 });

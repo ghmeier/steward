@@ -1,28 +1,28 @@
 {
-	"stepMs": 100,
-	"maxResourceValue": 1e300,
-	"decrees": { "maxRules": 4, "maxConditionNodes": 8, "maxConditionDepth": 3 },
-	"economy": {
-		"ticksPerSeason": 600,
-		"seasonYield": { "autumn": 1, "spring": 1, "summer": 1.5, "winter": 0 },
-		"grainPerFarmer": 0.025,
-		"woodPerWorker": 0.02,
-		"orePerWorker": 0.01,
-		"grainPerPerson": 0.01,
-		"grainPrice": 0.5,
-		"woodPrice": 0.5,
-		"orePrice": 1,
-		"grainPerPeasant": 25,
-		"maxPopulation": 40,
-		"laborMovesPerTick": 1,
-		"initialPopulation": 1,
-		"initialResources": { "coin": 0, "grain": 60, "ore": 0, "wood": 0 },
-		"laborAllocations": {
-			"balanced": { "farm": 0.5, "forest": 0.3, "mine": 0.2 },
-			"farming": { "farm": 0.7, "forest": 0.2, "mine": 0.1 },
-			"farm": { "farm": 1, "forest": 0, "mine": 0 },
-			"forest": { "farm": 0, "forest": 1, "mine": 0 },
-			"mine": { "farm": 0, "forest": 0, "mine": 1 }
-		}
-	}
+  "stepMs": 100,
+  "maxResourceValue": 1e300,
+  "decrees": { "maxRules": 4, "maxConditionNodes": 8, "maxConditionDepth": 3 },
+  "economy": {
+    "ticksPerSeason": 600,
+    "seasonYield": { "autumn": 1, "spring": 1, "summer": 1.5, "winter": 0 },
+    "grainPerFarmer": 0.025,
+    "woodPerWorker": 0.02,
+    "orePerWorker": 0.01,
+    "grainPerPerson": 0.01,
+    "grainPrice": 0.5,
+    "woodPrice": 0.5,
+    "orePrice": 1,
+    "grainPerPeasant": 25,
+    "maxPopulation": 40,
+    "laborMovesPerTick": 1,
+    "initialPopulation": 1,
+    "initialResources": { "coin": 0, "grain": 60, "ore": 0, "wood": 0 },
+    "laborAllocations": {
+      "balanced": { "farm": 0.5, "forest": 0.3, "mine": 0.2 },
+      "farming": { "farm": 0.7, "forest": 0.2, "mine": 0.1 },
+      "farm": { "farm": 1, "forest": 0, "mine": 0 },
+      "forest": { "farm": 0, "forest": 1, "mine": 0 },
+      "mine": { "farm": 0, "forest": 0, "mine": 1 }
+    }
+  }
 }
