@@ -1,10 +1,10 @@
 ---
 title: Finish the class-based refactor around a composed Game root
-status: draft
+status: active
 tags: [engine, refactor]
 created: 2026-11-01
 updated: 2026-11-01
-next_step: Get user approval, then dispatch phase 1 (Game API and source compile)
+next_step: Phase 1 dispatched on refactor-classes-api; phase 2 waits on its API
 ---
 # Finish the class-based refactor around a composed Game root
 
@@ -119,3 +119,4 @@ Acceptance per branch: its files typecheck and pass with `bun test <files>`.
 ## Notes and decisions
 
 - 2026-11-01: Plan drafted after reviewing `dd7ed49`. Branch currently fails typecheck in about 40 files.
+- 2026-11-01: User approved the plan. Phase 1 dispatched on `refactor-classes-api`.
