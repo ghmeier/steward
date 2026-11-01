@@ -12,9 +12,9 @@ import {
   repealStaleDecrees,
   runDecrees,
 } from "../src/core/decree-engine";
-import { laborCounts } from "../src/core/delegates";
+import { DelegateManager } from "../src/core/delegates";
 import type { AddContext } from "../src/core/math";
-import { createNewGame } from "../src/core/state";
+import { GameStateManager } from "../src/core/state";
 import {
   grantUnlocks,
   setRoster,
@@ -48,9 +48,9 @@ function decreeOf(
 }
 
 function freshState() {
-  const state = createNewGame(1, tuning);
-  grantUnlocks(state, ["decree.compound", "decree.chaining"]);
-  return state;
+  const m = new GameStateManager(1, tuning);
+  grantUnlocks(m.state, ["decree.compound", "decree.chaining"]);
+  return m.state;
 }
 
 function enactOk(state: ReturnType<typeof freshState>, value: unknown) {
@@ -107,18 +107,77 @@ describe("enactDecree", () => {
   }));
   // biome-ignore format: one row per line keeps the table scannable
   const rejections: [string, unknown, RegExp][] = [
-		["granary: rule policy from another petition", decreeOf("granary", "harvest", [{ when: above("grain", 1), policy: "farming" }]), /^decree "granary": policy "farming" is not a harvest policy$/],
-		["workers: otherwise policy from another petition", decreeOf("workers", "labor", [], "sell"), /^decree "workers": policy "sell" is not a labor policy$/],
-		["mine: ore rule cannot feed", decreeOf("mine", "ore", [{ when: above("ore", 1), policy: "feed" }], "sell"), /^decree "mine": policy "feed" is not a/],
-		["mine: ore otherwise cannot feed", decreeOf("mine", "ore", [], "feed"), /^decree "mine": policy "feed" is not a/],
-		["barn: harvest petition is already handled", decreeOf("barn", "harvest"), /^decree "granary" already handles the harvest petition$/],
-		["granary: replacing a referenced decree on another petition", decreeOf("granary", "labor", [], "balanced"), /^decree "workers" already handles the labor petition$/],
-		["mine: references unknown decree", decreeOf("mine", "ore", [{ when: chose("ghost", "sell"), policy: "sell" }]), /^decree "mine" references unknown decree "ghost"$/],
-		["mine: chose names a policy the target cannot choose", decreeOf("mine", "ore", [{ when: chose("timber", "feed"), policy: "sell" }]), /^decree "mine" tests for policy "feed", which decree "timber" cannot choose$/],
-		["granary: cycle through workers", decreeOf("granary", "harvest", [{ when: chose("workers", "balanced"), policy: "stockpile" }]), /^decree cycle: granary -> workers -> granary$/],
-		["mine: tests its own choice", decreeOf("mine", "ore", [{ when: chose("mine", "sell"), policy: "sell" }]), /^decree cycle: mine -> mine$/],
-		["granary: more rules than the limit", decreeOf("granary", "harvest", tooManyRules), new RegExp(`^decree.rules: has more than ${maxRules} rules$`)],
-	];
+    [
+      "granary: rule policy from another petition",
+      decreeOf("granary", "harvest", [
+        { when: above("grain", 1), policy: "farming" },
+      ]),
+      /^decree "granary": policy "farming" is not a harvest policy$/,
+    ],
+    [
+      "workers: otherwise policy from another petition",
+      decreeOf("workers", "labor", [], "sell"),
+      /^decree "workers": policy "sell" is not a labor policy$/,
+    ],
+    [
+      "mine: ore rule cannot feed",
+      decreeOf(
+        "mine",
+        "ore",
+        [{ when: above("ore", 1), policy: "feed" }],
+        "sell",
+      ),
+      /^decree "mine": policy "feed" is not a/,
+    ],
+    [
+      "mine: ore otherwise cannot feed",
+      decreeOf("mine", "ore", [], "feed"),
+      /^decree "mine": policy "feed" is not a/,
+    ],
+    [
+      "barn: harvest petition is already handled",
+      decreeOf("barn", "harvest"),
+      /^decree "granary" already handles the harvest petition$/,
+    ],
+    [
+      "granary: replacing a referenced decree on another petition",
+      decreeOf("granary", "labor", [], "balanced"),
+      /^decree "workers" already handles the labor petition$/,
+    ],
+    [
+      "mine: references unknown decree",
+      decreeOf("mine", "ore", [
+        { when: chose("ghost", "sell"), policy: "sell" },
+      ]),
+      /^decree "mine" references unknown decree "ghost"$/,
+    ],
+    [
+      "mine: chose names a policy the target cannot choose",
+      decreeOf("mine", "ore", [
+        { when: chose("timber", "feed"), policy: "sell" },
+      ]),
+      /^decree "mine" tests for policy "feed", which decree "timber" cannot choose$/,
+    ],
+    [
+      "granary: cycle through workers",
+      decreeOf("granary", "harvest", [
+        { when: chose("workers", "balanced"), policy: "stockpile" },
+      ]),
+      /^decree cycle: granary -> workers -> granary$/,
+    ],
+    [
+      "mine: tests its own choice",
+      decreeOf("mine", "ore", [
+        { when: chose("mine", "sell"), policy: "sell" },
+      ]),
+      /^decree cycle: mine -> mine$/,
+    ],
+    [
+      "granary: more rules than the limit",
+      decreeOf("granary", "harvest", tooManyRules),
+      new RegExp(`^decree.rules: has more than ${maxRules} rules$`),
+    ],
+  ];
 
   test.each(rejections)(
     "rejects %s and leaves the active decrees alone",
@@ -187,19 +246,49 @@ describe("conditions", () => {
   const no = grainIs("below", 0);
   // biome-ignore format: one row per line keeps the table scannable
   const rows: [string, Condition, Record<string, string>, boolean][] = [
-		["above is strict at the boundary", grainIs("above", 60), {}, false],
-		["above passes just under the boundary", grainIs("above", 59), {}, true],
-		["below is strict at the boundary", grainIs("below", 60), {}, false],
-		["below passes just over the boundary", grainIs("below", 61), {}, true],
-		["season matches the current season", { kind: "season", season: "summer" }, {}, true],
-		["season rejects another season", { kind: "season", season: "spring" }, {}, false],
-		["chose matches the policy picked this tick", chose("granary", "sell"), { granary: "sell" }, true],
-		["chose rejects another policy", chose("granary", "feed"), { granary: "sell" }, false],
-		["chose is false for a decree that has not run", chose("constructor", "sell"), {}, false],
-		["all needs every child", { kind: "all", conditions: [yes, no] }, {}, false],
-		["any needs one child", { kind: "any", conditions: [no, yes] }, {}, true],
-		["not inverts", { kind: "not", condition: no }, {}, true],
-	];
+    ["above is strict at the boundary", grainIs("above", 60), {}, false],
+    ["above passes just under the boundary", grainIs("above", 59), {}, true],
+    ["below is strict at the boundary", grainIs("below", 60), {}, false],
+    ["below passes just over the boundary", grainIs("below", 61), {}, true],
+    [
+      "season matches the current season",
+      { kind: "season", season: "summer" },
+      {},
+      true,
+    ],
+    [
+      "season rejects another season",
+      { kind: "season", season: "spring" },
+      {},
+      false,
+    ],
+    [
+      "chose matches the policy picked this tick",
+      chose("granary", "sell"),
+      { granary: "sell" },
+      true,
+    ],
+    [
+      "chose rejects another policy",
+      chose("granary", "feed"),
+      { granary: "sell" },
+      false,
+    ],
+    [
+      "chose is false for a decree that has not run",
+      chose("constructor", "sell"),
+      {},
+      false,
+    ],
+    [
+      "all needs every child",
+      { kind: "all", conditions: [yes, no] },
+      {},
+      false,
+    ],
+    ["any needs one child", { kind: "any", conditions: [no, yes] }, {}, true],
+    ["not inverts", { kind: "not", condition: no }, {}, true],
+  ];
 
   test.each(rows)("evaluateCondition: %s", (_name, condition, chosen, want) => {
     const state = freshState();
@@ -211,14 +300,76 @@ describe("conditions", () => {
 
 describe("runDecrees on resources", () => {
   // biome-ignore format: one row per line keeps the table scannable
-  const sales: [string, Petition, { stock: number; made: number; rule?: Rule; otherwise: string }, number, number][] = [
-		["a wood threshold sells the whole stock above it", "wood", { stock: 80, made: 1, rule: { when: above("wood", 50), policy: "sell" }, otherwise: "stockpile" }, 50, 30],
-		["an ore threshold sells the whole stock above it", "ore", { stock: 80, made: 1, rule: { when: above("ore", 50), policy: "sell" }, otherwise: "stockpile" }, 50, 30],
-		["sell through otherwise sells only the new production", "wood", { stock: 80, made: 4, otherwise: "sell" }, 76, 4],
-		["a threshold on another resource sells only the new production", "wood", { stock: 80, made: 4, rule: { when: above("ore", -1), policy: "sell" }, otherwise: "stockpile" }, 76, 4],
-		["a negative threshold sells down to zero, never below", "wood", { stock: 5, made: 0, rule: { when: above("wood", -10), policy: "sell" }, otherwise: "stockpile" }, 0, 5],
-		["selling never exceeds the stock", "ore", { stock: 2, made: 5, otherwise: "sell" }, 0, 2],
-	];
+  const sales: [
+    string,
+    Petition,
+    { stock: number; made: number; rule?: Rule; otherwise: string },
+    number,
+    number,
+  ][] = [
+    [
+      "a wood threshold sells the whole stock above it",
+      "wood",
+      {
+        stock: 80,
+        made: 1,
+        rule: { when: above("wood", 50), policy: "sell" },
+        otherwise: "stockpile",
+      },
+      50,
+      30,
+    ],
+    [
+      "an ore threshold sells the whole stock above it",
+      "ore",
+      {
+        stock: 80,
+        made: 1,
+        rule: { when: above("ore", 50), policy: "sell" },
+        otherwise: "stockpile",
+      },
+      50,
+      30,
+    ],
+    [
+      "sell through otherwise sells only the new production",
+      "wood",
+      { stock: 80, made: 4, otherwise: "sell" },
+      76,
+      4,
+    ],
+    [
+      "a threshold on another resource sells only the new production",
+      "wood",
+      {
+        stock: 80,
+        made: 4,
+        rule: { when: above("ore", -1), policy: "sell" },
+        otherwise: "stockpile",
+      },
+      76,
+      4,
+    ],
+    [
+      "a negative threshold sells down to zero, never below",
+      "wood",
+      {
+        stock: 5,
+        made: 0,
+        rule: { when: above("wood", -10), policy: "sell" },
+        otherwise: "stockpile",
+      },
+      0,
+      5,
+    ],
+    [
+      "selling never exceeds the stock",
+      "ore",
+      { stock: 2, made: 5, otherwise: "sell" },
+      0,
+      2,
+    ],
+  ];
 
   test.each(sales)("%s", (_name, petition, setup, wantStock, wantSold) => {
     const state = freshState();
@@ -299,8 +450,8 @@ describe("runDecrees on labor and chaining", () => {
 
     runDecrees(state, tuning, context, surplus);
     runDecrees(state, tuning, context, surplus);
-
-    expect(laborCounts(state.posting.delegates).farm).toBe(2);
+    const df = new DelegateManager(state);
+    expect(df.jobCounts().farm).toBe(2);
   });
 
   // With five farmers, farming (7/2/1) adds a farmer and balanced (5/3/2) adds a forester.
@@ -324,9 +475,9 @@ describe("runDecrees on labor and chaining", () => {
       );
 
       const chosen = runDecrees(state, tuning, context, surplus);
-
+      const df = new DelegateManager(state);
       expect(chosen["a-workforce"]).toBe(wantLabor);
-      expect(laborCounts(state.posting.delegates)).toMatchObject(wantCounts);
+      expect(df.jobCounts()).toMatchObject(wantCounts);
     },
   );
 });
@@ -349,11 +500,40 @@ describe("repealStaleDecrees", () => {
 
   // biome-ignore format: one row per line keeps the table scannable
   const cases: [string, ReturnType<typeof decreeOf>[], string[], string[]][] = [
-		["a stale labor decree is removed", [staleLabor, granary], ["workers"], ["granary"]],
-		["decrees chaining on a removed decree are removed transitively", [staleLabor, chained, chainedTwice, granary], ["market", "tithe", "workers"], ["granary"]],
-		["a decree testing a removed policy of a kept decree is removed", [decreeOf("workers", "labor", [], "balanced"), decreeOf("tithe", "wood", [{ when: chose("workers", "foraging"), policy: "sell" }], "stockpile"), granary], ["tithe"], ["granary", "workers"]],
-		["valid decrees are kept", [decreeOf("workers", "labor", [], "balanced"), granary], [], ["granary", "workers"]],
-	];
+    [
+      "a stale labor decree is removed",
+      [staleLabor, granary],
+      ["workers"],
+      ["granary"],
+    ],
+    [
+      "decrees chaining on a removed decree are removed transitively",
+      [staleLabor, chained, chainedTwice, granary],
+      ["market", "tithe", "workers"],
+      ["granary"],
+    ],
+    [
+      "a decree testing a removed policy of a kept decree is removed",
+      [
+        decreeOf("workers", "labor", [], "balanced"),
+        decreeOf(
+          "tithe",
+          "wood",
+          [{ when: chose("workers", "foraging"), policy: "sell" }],
+          "stockpile",
+        ),
+        granary,
+      ],
+      ["tithe"],
+      ["granary", "workers"],
+    ],
+    [
+      "valid decrees are kept",
+      [decreeOf("workers", "labor", [], "balanced"), granary],
+      [],
+      ["granary", "workers"],
+    ],
+  ];
 
   test.each(cases)("%s", (_name, decrees, removed, kept) => {
     const state = freshState();

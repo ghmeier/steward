@@ -5,25 +5,20 @@ import {
   parseCommand,
   parseCommandLog,
 } from "../src/core/commands";
-import { idleCount, laborCounts } from "../src/core/delegates";
 import { canonicalStringify } from "../src/core/serialize";
-import { createNewGame } from "../src/core/state";
+import { type GameState, GameStateManager } from "../src/core/state";
 import { contextFor, setRoster, tuning } from "./helpers";
 
 type Job = "farm" | "forest" | "mine" | "idle";
 
 function villageOf(count: number, tick = 0) {
-  const state = createNewGame(1, tuning);
-  setRoster(state, { idle: count });
-  state.tick = tick;
-  return state;
+  const m = new GameStateManager(1, tuning);
+  setRoster(m.state, { idle: count });
+  m.state.tick = tick;
+  return m;
 }
 
-function assign(
-  state: ReturnType<typeof villageOf>,
-  peasant: number,
-  job: Job,
-) {
+function assign(state: GameState, peasant: number, job: Job) {
   return apply(
     state,
     { type: "assignPeasant", peasant, job },
@@ -34,55 +29,55 @@ function assign(
 
 describe("assignPeasant", () => {
   test("moves exactly the named peasant, and can send a worker back to idle", () => {
-    const state = villageOf(3);
-    const [first, second] = state.posting.delegates;
+    const m = villageOf(3);
+    const [first, second] = m.state.posting.delegates;
 
-    const sent = assign(state, second?.id ?? -1, "forest");
+    const sent = assign(m.state, second?.id ?? -1, "forest");
 
     expect(sent).toEqual({ ok: true });
     expect(second?.job).toBe("forest");
     expect(first?.job).toBe("idle");
-    expect(laborCounts(state.posting.delegates).forest).toBe(1);
-    expect(idleCount(state.posting.delegates)).toBe(2);
+    expect(m.dm.jobCounts().forest).toBe(1);
+    expect(m.dm.jobCounts().idle).toBe(2);
 
-    const recalled = assign(state, second?.id ?? -1, "idle");
+    const recalled = assign(m.state, second?.id ?? -1, "idle");
 
     expect(recalled).toEqual({ ok: true });
-    expect(idleCount(state.posting.delegates)).toBe(3);
+    expect(m.dm.jobCounts().idle).toBe(3);
   });
 
   test("rejects an unknown peasant and a repeat of the current job, changing nothing", () => {
-    const state = villageOf(2);
-    const [worker, idler] = state.posting.delegates;
+    const m = villageOf(2);
+    const [worker, idler] = m.state.posting.delegates;
     if (worker) worker.job = "farm";
-    const before = canonicalStringify(state);
+    const before = canonicalStringify(m.state);
 
-    expect(assign(state, 7777, "mine")).toEqual({
+    expect(assign(m.state, 7777, "mine")).toEqual({
       ok: false,
       reason: "no peasant 7777",
     });
-    expect(assign(state, worker?.id ?? -1, "farm")).toEqual({
+    expect(assign(m.state, worker?.id ?? -1, "farm")).toEqual({
       ok: false,
       reason: `${worker?.name} already works the farm`,
     });
-    expect(assign(state, idler?.id ?? -1, "idle")).toEqual({
+    expect(assign(m.state, idler?.id ?? -1, "idle")).toEqual({
       ok: false,
       reason: `${idler?.name} is already idle`,
     });
-    expect(canonicalStringify(state)).toBe(before);
+    expect(canonicalStringify(m.state)).toBe(before);
   });
 
   test("refuses a grudged peasant a job until the grudge ends, but allows idle", () => {
-    const state = villageOf(1, 19);
-    const peasant = state.posting.delegates[0];
+    const m = villageOf(1, 19);
+    const peasant = m.state.posting.delegates[0];
     if (peasant === undefined) throw new Error("no peasant");
     peasant.grudgeUntil = 20;
     peasant.job = "farm";
 
-    const refused = assign(state, peasant.id, "mine");
-    const idled = assign(state, peasant.id, "idle");
-    state.tick = 20;
-    const afterGrudge = assign(state, peasant.id, "mine");
+    const refused = assign(m.state, peasant.id, "mine");
+    const idled = assign(m.state, peasant.id, "idle");
+    m.state.tick = 20;
+    const afterGrudge = assign(m.state, peasant.id, "mine");
 
     expect(refused).toEqual({
       ok: false,

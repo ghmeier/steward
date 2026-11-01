@@ -180,8 +180,7 @@ export function decreeReferences(decree: Decree): string[] {
 }
 
 export type DecreeOrder =
-  | { ok: true; order: string[] }
-  | { ok: false; cycle: string[] };
+  { ok: true; order: string[] } | { ok: false; cycle: string[] };
 
 export function orderDecrees(
   decrees: Readonly<Record<string, Decree>>,

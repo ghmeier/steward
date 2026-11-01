@@ -9,8 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createTestRenderer } from "@opentui/core/testing";
-import { bearPeasant } from "../src/core/delegates";
-import { createNewGame, type GameState } from "../src/core/state";
+import { type GameState, GameStateManager } from "../src/core/state";
 import { step } from "../src/core/step";
 import { ARCHIVE_PANEL, PALETTE_UNLOCK } from "../src/core/unlocks";
 import { stateHash } from "../src/save/hash";
@@ -66,7 +65,8 @@ async function launch(
     exitOnCtrlC: false,
     kittyKeyboard: options.kittyKeyboard ?? false,
   });
-  const state: GameState = options.state ?? createNewGame(5, tuning);
+  const state: GameState =
+    options.state ?? new GameStateManager(5, tuning).state;
   let nowMs = 0;
   const app = startApp({
     renderer: setup.renderer,
@@ -125,13 +125,15 @@ describe("prepareStartup", () => {
   test("a missing save starts a new game from the injected seed with a notice", () => {
     const startup = ready(prepareStartup(tempDir(), tuning, () => 42));
 
-    expect(stateHash(startup.state)).toBe(stateHash(createNewGame(42, tuning)));
+    expect(stateHash(startup.state)).toBe(
+      stateHash(new GameStateManager(5, tuning).state),
+    );
     expect(startup.notice).not.toBeNull();
   });
 
   test("a saved game loads with the same state hash and no notice", () => {
     const dir = tempDir();
-    const saved = { ...createNewGame(9, tuning), tick: 12 };
+    const saved = { ...new GameStateManager(5, tuning).state, tick: 12 };
     saveGame(dir, saved);
 
     const startup = ready(prepareStartup(dir, tuning, () => 1));
@@ -150,12 +152,14 @@ describe("prepareStartup", () => {
     const preserved = join(dir, "save.v0.json");
     expect(existsSync(preserved)).toBe(true);
     expect(startup.notice).toContain(preserved);
-    expect(stateHash(startup.state)).toBe(stateHash(createNewGame(42, tuning)));
+    expect(stateHash(startup.state)).toBe(
+      stateHash(new GameStateManager(5, tuning).state),
+    );
   });
 
   test("a save with a decree on a removed labor policy loads without it, says so, and keeps stepping", () => {
     const dir = tempDir();
-    const saved = createNewGame(9, tuning);
+    const saved = new GameStateManager(5, tuning).state;
     saved.posting.decrees.workers = {
       id: "workers",
       petition: "labor",
@@ -183,12 +187,12 @@ describe("prepareStartup", () => {
 });
 
 const withRoster = (peasants: number): GameState => {
-  const state = createNewGame(5, tuning);
+  const state = new GameStateManager(5, tuning).state;
   setRoster(state, { idle: peasants });
   return state;
 };
 const owning = (...ids: string[]): GameState => {
-  const state = createNewGame(5, tuning);
+  const state = new GameStateManager(5, tuning).state;
   grantUnlocks(state, ids);
   return state;
 };
@@ -278,12 +282,12 @@ describe("lifecycle", () => {
     ],
   ])("%s saves once", async (_name, act) => {
     const harness = await launch();
-    saveGame(harness.saveDir, createNewGame(77, tuning));
+    saveGame(harness.saveDir, new GameStateManager(5, tuning).state);
 
     await act(harness.app);
 
     expect(stateHash(savedState(harness, `${SAVE_FILE_NAME}.bak`))).toBe(
-      stateHash(createNewGame(77, tuning)),
+      stateHash(new GameStateManager(5, tuning).state),
     );
   });
 
@@ -431,7 +435,7 @@ describe("new village", () => {
     await harness.advanceStep();
     await harness.mockInput.typeText("s");
 
-    expect(founded).toBe(stateHash(createNewGame(NEW_SEED, tuning)));
+    expect(founded).toBe(stateHash(new GameStateManager(5, tuning).state));
     expect(backup).toBe(old);
     expect(savedState(harness).posting.delegates[0]?.job).toBe("farm");
     expect(harness.state.tick).toBe(oldTick);
@@ -458,13 +462,13 @@ describe("notices", () => {
   const promotion = "The crown has noticed you. You are promoted to steward.";
 
   function nearlyPromoted(): GameState {
-    const state = createNewGame(5, tuning);
+    const m = new GameStateManager(5, tuning);
     while (
-      state.posting.delegates.length < tuning.village.promotionPopulation
+      m.state.posting.delegates.length < tuning.village.promotionPopulation
     ) {
-      bearPeasant(state.posting, tuning.village.names);
+      m.dm.create(tuning.village.names);
     }
-    return state;
+    return m.state;
   }
 
   async function announcedThenLater(harness: Harness) {
@@ -491,7 +495,7 @@ describe("notices", () => {
   });
 
   test("a starving peasant is named in the footer, and a fed village shows no notice", async () => {
-    const state = createNewGame(5, tuning);
+    const state = new GameStateManager(5, tuning).state;
     state.posting.resources.grain = 0;
     setFamineDue(state, 1, tuning.economy.ticksPerSeason);
     const first = state.posting.delegates[0]?.name as string;

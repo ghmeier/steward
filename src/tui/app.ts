@@ -1,7 +1,6 @@
 import type { CliRenderer, KeyEvent } from "@opentui/core";
-import { repealStaleDecrees } from "../core/decree-engine";
 import { errorMessage } from "../core/errors";
-import { createNewGame, type GameState } from "../core/state";
+import { type GameState, GameStateManager } from "../core/state";
 import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
 import { type LineState, lineKey, openLine, renderLine } from "./command-line";
@@ -44,13 +43,13 @@ export function prepareStartup(
     case "missing":
       return {
         kind: "ready",
-        state: createNewGame(newSeed(), tuning),
+        state: new GameStateManager(newSeed(), tuning).state,
         notice: "Started a new game.",
       };
     case "versionRefused":
       return {
         kind: "ready",
-        state: createNewGame(newSeed(), tuning),
+        state: new GameStateManager(newSeed(), tuning).state,
         notice: `Save version ${String(result.foundVersion)} is not supported; it was kept as ${result.preservedAs}. Started a new game.`,
       };
     case "invalid":
@@ -131,7 +130,9 @@ export function startApp(options: {
   };
 
   const foundNewVillage = () => {
-    session = makeSession(createNewGame(options.newSeed(), tuning));
+    session = makeSession(
+      new GameStateManager(options.newSeed(), tuning).state,
+    );
     lastView = session.view();
     promotionAnnounced = lastView.promotion.promotedAt > 0;
     knownUnlocks = new Set(lastView.unlocks);

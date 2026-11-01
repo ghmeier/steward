@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { apply } from "../src/core/commands";
 import type { Condition } from "../src/core/decree";
 import { enactDecree } from "../src/core/decree-engine";
-import { createNewGame, type GameState } from "../src/core/state";
+import { type GameState, GameStateManager } from "../src/core/state";
 import { step } from "../src/core/step";
 import {
   ARCHIVE_PANEL,
@@ -25,11 +25,11 @@ const palette = entry("control.palette");
 const savedDecrees = entry("control.savedDecrees");
 
 function richVillage(coin = 10_000): GameState {
-  const state = createNewGame(1, tuning);
-  state.tick = 7;
-  state.posting.resources.coin = coin;
-  grantUnlocks(state, [ARCHIVE_PANEL]);
-  return state;
+  const m = new GameStateManager(1, tuning);
+  m.state.tick = 7;
+  m.state.posting.resources.coin = coin;
+  grantUnlocks(m.state, [ARCHIVE_PANEL]);
+  return m.state;
 }
 
 function buy(state: GameState, id: string) {
@@ -61,13 +61,33 @@ describe("buyUnlock", () => {
   };
   // biome-ignore format: one row per line keeps the table scannable
   const rejections: [string, () => GameState, string, string][] = [
-		["coin one short of the cost", () => richVillage(palette.cost - 1), palette.id, "costs"],
-		["an id the Archive does not sell", richVillage, "control.nothing", "does not sell"],
-		["an entry already owned", owned, palette.id, "already owned"],
-		["a play unlock", closed, ARCHIVE_PANEL, "only earned"],
-		["an entry whose prerequisite is missing", richVillage, savedDecrees.id, palette.label],
-		["a purchase while the Archive is closed", closed, palette.id, "the Archive is not open"],
-	];
+    [
+      "coin one short of the cost",
+      () => richVillage(palette.cost - 1),
+      palette.id,
+      "costs",
+    ],
+    [
+      "an id the Archive does not sell",
+      richVillage,
+      "control.nothing",
+      "does not sell",
+    ],
+    ["an entry already owned", owned, palette.id, "already owned"],
+    ["a play unlock", closed, ARCHIVE_PANEL, "only earned"],
+    [
+      "an entry whose prerequisite is missing",
+      richVillage,
+      savedDecrees.id,
+      palette.label,
+    ],
+    [
+      "a purchase while the Archive is closed",
+      closed,
+      palette.id,
+      "the Archive is not open",
+    ],
+  ];
 
   test.each(rejections)(
     "rejects %s and leaves the state unchanged",
@@ -95,19 +115,39 @@ describe("decree gating", () => {
   const base = { kind: "chose", decree: "base", policy: "feed" } as const;
   // biome-ignore format: one row per line keeps the table scannable
   const rows: [string, Condition, string, string][] = [
-		["any", { kind: "any", conditions: [winter, rich] }, COMPOUND_UNLOCK, COMPOUND_UNLOCK],
-		["all", { kind: "all", conditions: [winter, rich] }, COMPOUND_UNLOCK, COMPOUND_UNLOCK],
-		["not", { kind: "not", condition: winter }, COMPOUND_UNLOCK, COMPOUND_UNLOCK],
-		["chose", base, CHAINING_UNLOCK, CHAINING_UNLOCK],
-		["chose nested in all needs compound first, then chaining", { kind: "all", conditions: [base] }, COMPOUND_UNLOCK, CHAINING_UNLOCK],
-	];
+    [
+      "any",
+      { kind: "any", conditions: [winter, rich] },
+      COMPOUND_UNLOCK,
+      COMPOUND_UNLOCK,
+    ],
+    [
+      "all",
+      { kind: "all", conditions: [winter, rich] },
+      COMPOUND_UNLOCK,
+      COMPOUND_UNLOCK,
+    ],
+    [
+      "not",
+      { kind: "not", condition: winter },
+      COMPOUND_UNLOCK,
+      COMPOUND_UNLOCK,
+    ],
+    ["chose", base, CHAINING_UNLOCK, CHAINING_UNLOCK],
+    [
+      "chose nested in all needs compound first, then chaining",
+      { kind: "all", conditions: [base] },
+      COMPOUND_UNLOCK,
+      CHAINING_UNLOCK,
+    ],
+  ];
 
   test.each(rows)(
     "%s: rejected without the unlock, accepted once owned",
     (_name, when, first, second) => {
-      const state = createNewGame(1, tuning);
+      const m = new GameStateManager(1, tuning);
       enactDecree(
-        state,
+        m.state,
         { id: "base", petition: "harvest", rules: [], otherwise: "sell" },
         tuning,
       );
@@ -117,14 +157,14 @@ describe("decree gating", () => {
         rules: [{ when, policy: "farming" }],
         otherwise: "balanced",
       };
-      const before = stateHash(state);
+      const before = stateHash(m.state);
 
-      const rejected = enactDecree(state, decree, tuning);
-      const unchanged = stateHash(state);
-      grantUnlocks(state, [first]);
-      const afterFirst = enactDecree(state, decree, tuning);
-      grantUnlocks(state, [second]);
-      const afterSecond = enactDecree(state, decree, tuning);
+      const rejected = enactDecree(m.state, decree, tuning);
+      const unchanged = stateHash(m.state);
+      grantUnlocks(m.state, [first]);
+      const afterFirst = enactDecree(m.state, decree, tuning);
+      grantUnlocks(m.state, [second]);
+      const afterSecond = enactDecree(m.state, decree, tuning);
 
       expect(rejected.ok ? "" : rejected.reason).toContain(entry(first).label);
       expect(unchanged).toBe(before);
@@ -140,31 +180,31 @@ describe("decree gating", () => {
 
 describe("play unlocks and need hooks", () => {
   test("each records the first tick its condition held and never changes it", () => {
-    const state = createNewGame(1, tuning);
+    const m = new GameStateManager(1, tuning);
     const coinAt = (tick: number, coin: number) => {
-      state.tick = tick;
-      state.posting.resources.coin = coin;
-      runUnlocks(state, tuning);
+      m.state.tick = tick;
+      m.state.posting.resources.coin = coin;
+      runUnlocks(m.state, tuning);
     };
 
     coinAt(3, 0);
-    expect(hasUnlock(state, ARCHIVE_PANEL)).toBe(false);
-    expect(state.career.needed).toEqual({});
+    expect(hasUnlock(m.state, ARCHIVE_PANEL)).toBe(false);
+    expect(m.state.career.needed).toEqual({});
     coinAt(4, 5);
     coinAt(5, 0);
     coinAt(6, 9);
 
-    expect(state.career.unlocks[ARCHIVE_PANEL]).toBe(4);
-    expect(state.career.needed.archive).toBe(4);
+    expect(m.state.career.unlocks[ARCHIVE_PANEL]).toBe(4);
+    expect(m.state.career.needed.archive).toBe(4);
   });
 
   test("step runs unlocks, so the Archive opens on the step coin first exists", () => {
-    const state = createNewGame(1, tuning);
-    state.posting.resources.coin = 5;
+    const m = new GameStateManager(1, tuning);
+    m.state.posting.resources.coin = 5;
 
-    step(state, [], tuning, quietOptions);
+    step(m.state, [], tuning, quietOptions);
 
-    expect(state.career.unlocks[ARCHIVE_PANEL]).toBe(state.tick);
+    expect(m.state.career.unlocks[ARCHIVE_PANEL]).toBe(m.state.tick);
   });
 });
 

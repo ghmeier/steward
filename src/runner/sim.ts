@@ -5,7 +5,7 @@ import { sortedKeys } from "../core/data";
 import { repealStaleDecrees } from "../core/decree-engine";
 import { errorMessage } from "../core/errors";
 import type { AbsorbedAdditionLog } from "../core/math";
-import { createNewGame, type GameState } from "../core/state";
+import { type GameState, GameStateManager } from "../core/state";
 import { runSteps } from "../core/step";
 import type { Tuning } from "../core/tuning";
 import { loadTuning } from "../save/content";
@@ -154,7 +154,7 @@ export function runSim(
     state =
       options.load !== null
         ? readSaveFile(options.load).state
-        : createNewGame(options.seed as number, tuning);
+        : new GameStateManager(options.seed as number, tuning).state;
     if (options.load !== null) {
       const repealed = repealStaleDecrees(state, tuning);
       if (repealed.length > 0) {

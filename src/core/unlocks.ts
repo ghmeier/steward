@@ -1,10 +1,8 @@
 import type { CommandResult } from "./commands";
-import { evaluateCondition } from "./conditions";
 import { compareKeys, sortedKeys } from "./data";
 import type { Condition, Decree } from "./decree";
 import { type AddContext, add } from "./math";
-import type { GameState } from "./state";
-import type { Tuning } from "./tuning";
+import { GameStateManager } from "./state";
 
 export type UnlockId = string;
 export type ArchiveEntry = {
@@ -30,69 +28,89 @@ export const CHAINING_UNLOCK: UnlockId = "decree.chaining";
 export const PALETTE_UNLOCK: UnlockId = "control.palette";
 export const SAVED_DECREES_UNLOCK: UnlockId = "control.savedDecrees";
 
-export function hasUnlock(state: GameState, id: UnlockId): boolean {
-  return Object.hasOwn(state.career.unlocks, id);
-}
+export class UnlockManager {
+  constructor(private manager: GameStateManager) {}
 
-/** Records play unlocks and first-needed ticks whose condition first holds this step, in sorted id order. */
-export function runUnlocks(state: GameState, tuning: Tuning): void {
-  const { play, needs } = tuning.archive;
-  const sortedPlay = [...play].sort((a, b) => compareKeys(a.id, b.id));
-  for (const unlock of sortedPlay) {
-    if (hasUnlock(state, unlock.id)) continue;
-    if (evaluateCondition(unlock.when, state, tuning, {})) {
-      state.career.unlocks[unlock.id] = state.tick;
-    }
+  enabled(id: UnlockId) {
+    return Object.hasOwn(this.manager.state.career.unlocks, id);
   }
-  const sortedNeeds = [...needs].sort((a, b) =>
-    compareKeys(a.control, b.control),
-  );
-  for (const hook of sortedNeeds) {
-    if (Object.hasOwn(state.career.needed, hook.control)) continue;
-    if (evaluateCondition(hook.when, state, tuning, {})) {
-      state.career.needed[hook.control] = state.tick;
-    }
-  }
-}
 
-export function buyUnlock(
-  state: GameState,
-  id: UnlockId,
-  tuning: Tuning,
-  context: AddContext,
-): CommandResult {
-  const { entries, play } = tuning.archive;
-  if (play.some((unlock) => unlock.id === id)) {
-    return { ok: false, reason: `"${id}" cannot be bought, only earned` };
+  get purchased(): UnlockId[] {
+    return sortedKeys(this.manager.state.career.unlocks);
   }
-  const entry = entries.find((candidate) => candidate.id === id);
-  if (entry === undefined) {
-    return { ok: false, reason: `the Archive does not sell "${id}"` };
-  }
-  if (hasUnlock(state, id)) {
-    return { ok: false, reason: `${entry.label} is already owned` };
-  }
-  if (!hasUnlock(state, ARCHIVE_PANEL)) {
-    return { ok: false, reason: "the Archive is not open" };
-  }
-  for (const required of entry.requires) {
-    if (!hasUnlock(state, required)) {
-      const label =
-        entries.find((candidate) => candidate.id === required)?.label ??
-        required;
-      return { ok: false, reason: `${entry.label} needs ${label} first` };
+
+  run(): void {
+    const { play, needs } = this.manager.tuning.archive;
+    const sortedPlay = [...play].sort((a, b) => compareKeys(a.id, b.id));
+    for (const unlock of sortedPlay) {
+      if (this.enabled(unlock.id)) continue;
+      if (this.manager.cm.evaluate(unlock.when, {})) {
+        this.manager.state.career.unlocks[unlock.id] = this.manager.state.tick;
+      }
+    }
+    const sortedNeeds = [...needs].sort((a, b) =>
+      compareKeys(a.control, b.control),
+    );
+    for (const hook of sortedNeeds) {
+      if (Object.hasOwn(this.manager.state.career.needed, hook.control))
+        continue;
+      if (this.manager.cm.evaluate(hook.when, {})) {
+        this.manager.state.career.needed[hook.control] =
+          this.manager.state.tick;
+      }
     }
   }
-  const coin = state.posting.resources.coin ?? 0;
-  if (coin < entry.cost) {
-    return {
-      ok: false,
-      reason: `${entry.label} costs ${entry.cost} coin, and the village has ${coin}`,
-    };
+
+  buy(id: UnlockId, context: AddContext): void {
+    const { entries, play } = this.manager.tuning.archive;
+    if (play.some((unlock) => unlock.id === id)) {
+      throw new Error(`"${id}" is not purchasable`);
+    }
+    const entry = entries.find((candidate) => candidate.id === id);
+    if (entry === undefined) {
+      throw new Error(`the Archive does not sell "${id}"`);
+    }
+    if (this.enabled(id)) {
+      throw new Error(`you already own ${entry.label}`);
+    }
+    if (!this.enabled(ARCHIVE_PANEL)) {
+      throw new Error("the Archive is not open");
+    }
+    for (const required of entry.requires) {
+      if (!this.enabled(required)) {
+        const label =
+          entries.find((candidate) => candidate.id === required)?.label ??
+          required;
+        throw new Error(`${entry.label} needs ${label} first`);
+      }
+    }
+    const coin = this.manager.state.posting.resources.coin ?? 0;
+    if (coin < entry.cost) {
+      throw new Error(`you do not have enough coin to purchase ${entry.label}`);
+    }
+    add(this.manager.state.posting.resources, "coin", -entry.cost, context);
+    this.manager.state.career.unlocks[id] = this.manager.state.tick;
   }
-  add(state.posting.resources, "coin", -entry.cost, context);
-  state.career.unlocks[id] = state.tick;
-  return { ok: true };
+
+  /** The unlock a decree needs and does not have, or null. Used by enactDecree and, in step 3, saveDecree. */
+  missingDecreeUnlock(decree: Decree): ArchiveEntry | null {
+    const needs = (kinds: readonly string[], id: UnlockId) =>
+      !this.enabled(id) &&
+      decree.rules.some((rule) => usesKind(rule.when, kinds));
+    const missing: UnlockId[] = [];
+    if (needs(["all", "any", "not"], COMPOUND_UNLOCK)) {
+      missing.push(COMPOUND_UNLOCK);
+    }
+    if (needs(["chose"], CHAINING_UNLOCK)) missing.push(CHAINING_UNLOCK);
+    const id = missing[0];
+    if (id === undefined) return null;
+    const found = this.manager.tuning.archive.entries.find(
+      (entry) => entry.id === id,
+    );
+    if (found === undefined)
+      throw new Error(`archive entry "${id}" is missing`);
+    return found;
+  }
 }
 
 function usesKind(condition: Condition, kinds: readonly string[]): boolean {
@@ -108,31 +126,6 @@ function usesKind(condition: Condition, kinds: readonly string[]): boolean {
   }
 }
 
-/** The unlock a decree needs and does not have, or null. Used by enactDecree and, in step 3, saveDecree. */
-export function missingDecreeUnlock(
-  state: GameState,
-  decree: Decree,
-  tuning: Tuning,
-): ArchiveEntry | null {
-  const needs = (kinds: readonly string[], id: UnlockId) =>
-    !hasUnlock(state, id) &&
-    decree.rules.some((rule) => usesKind(rule.when, kinds));
-  const missing: UnlockId[] = [];
-  if (needs(["all", "any", "not"], COMPOUND_UNLOCK)) {
-    missing.push(COMPOUND_UNLOCK);
-  }
-  if (needs(["chose"], CHAINING_UNLOCK)) missing.push(CHAINING_UNLOCK);
-  const id = missing[0];
-  if (id === undefined) return null;
-  const found = tuning.archive.entries.find((entry) => entry.id === id);
-  if (found === undefined) throw new Error(`archive entry "${id}" is missing`);
-  return found;
-}
-
 export function missingDecreeUnlockReason(entry: ArchiveEntry): string {
   return `this decree needs "${entry.label}" from the Archive`;
-}
-
-export function ownedUnlocks(state: GameState): UnlockId[] {
-  return sortedKeys(state.career.unlocks);
 }

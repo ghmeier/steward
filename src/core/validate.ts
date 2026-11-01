@@ -85,7 +85,7 @@ const delegate = object({
   id: positiveCount,
   name: string({ nonEmpty: true }),
   kind: literal("peasant"),
-  job: literal(...JOBS, "idle"),
+  job: literal(...JOBS),
   grudgeUntil: count,
 });
 
