@@ -19,33 +19,23 @@ function villageOf(population: number): GameState {
 describe("promotion", () => {
 	test("fires at the first step where the population reaches the target, and not before", () => {
 		const state = villageOf(target - 1);
-		step(state, [], tuning, quietOptions);
+		for (let i = 0; i < 5; i++) step(state, [], tuning, quietOptions);
 		expect(state.career.promotedAt).toBe(0);
 
 		bearPeasant(state.posting, tuning.village.names);
 		step(state, [], tuning, quietOptions);
 
 		expect(state.career.promotedAt).toBe(state.tick);
-		expect(state.tick).toBe(2);
-	});
-
-	test("does not fire while the population is below the target", () => {
-		const state = villageOf(target - 1);
-
-		for (let i = 0; i < 5; i++) step(state, [], tuning, quietOptions);
-
-		expect(state.career.promotedAt).toBe(0);
+		expect(state.tick).toBe(6);
 	});
 
 	test("stays set after the population falls below the target", () => {
 		const state = villageOf(target);
 		step(state, [], tuning, quietOptions);
-		const promotedAt = state.career.promotedAt;
 
 		setRoster(state, { idle: 2 });
 		for (let i = 0; i < 3; i++) step(state, [], tuning, quietOptions);
 
-		expect(promotedAt).toBe(1);
-		expect(state.career.promotedAt).toBe(promotedAt);
+		expect(state.career.promotedAt).toBe(1);
 	});
 });

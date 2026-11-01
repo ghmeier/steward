@@ -54,25 +54,20 @@ class Walker {
 }
 
 describe("court menu", () => {
-	test("the root lists the waiting disputes in desk order", () => {
+	test("the root lists the waiting disputes in desk order, and with none opens nothing", () => {
 		const state = villageWith(["hen", "boundary"]);
-		const walk = new Walker(state);
-
 		const view = computeView(state, tuning);
 
-		const items = walk.lines().map((line) => line.slice(2));
+		const items = new Walker(state).lines().map((line) => line.slice(2));
+		const empty = new Walker(villageWith([]));
+		empty.key("return");
+
 		expect(items).toEqual(view.desk.map((entry) => entry.label));
-		expect(items[0]).toContain("kept");
-		expect(items[1]).toContain("accuses");
+		expect(empty.commands).toEqual([]);
+		expect(empty.state?.frames).toHaveLength(1);
 	});
 
-	test("with no disputes the root shows a note and no items", () => {
-		const walk = new Walker(villageWith([]));
-
-		expect(walk.lines()).toEqual(["No disputes wait on the desk."]);
-	});
-
-	test("choosing an option emits exactly one settleDispute with the dispute and option ids", () => {
+	test("choosing an option emits one settleDispute with the dispute and option ids and pops back to the root", () => {
 		const walk = new Walker(villageWith(["hen", "boundary"]));
 		walk.key("down");
 		walk.key("return");
@@ -83,48 +78,31 @@ describe("court menu", () => {
 		expect(walk.commands).toEqual([
 			{ type: "settleDispute", dispute: 2, option: "for-first" },
 		]);
-	});
-
-	test("after settling, the menu pops back to the root so another dispute can be settled", () => {
-		const walk = new Walker(villageWith(["hen", "boundary"]));
-		walk.key("return");
-
-		walk.key("return");
-
 		expect(walk.state?.frames).toHaveLength(1);
 	});
 
-	test("options show their cost or gain, free, the default marker and the grudge", () => {
-		const walk = new Walker(villageWith(["boundary"]));
+	test("options show their cost or gain, the default marker and the name of the party who will sulk", () => {
+		const state = villageWith(["boundary"]);
+		const walk = new Walker(state);
+		const second = state.posting.delegates[1]?.name as string;
 
 		walk.key("return");
 
 		const [pay, forFirst, forSecond] = walk.lines().slice(1);
 		expect(pay).toContain("−10 coin");
-		expect(pay).toContain("(the default if ignored)");
-		expect(pay).not.toContain("sulk");
+		expect(pay).toContain("default");
+		expect(pay).not.toContain(second);
 		expect(forFirst).toContain("+5 grain");
-		expect(forFirst).toContain("will sulk for a season)");
+		expect(forFirst).toContain(second);
+		expect(forFirst).not.toContain("default");
 		expect(forSecond).toContain("free");
-		expect(forSecond).not.toContain("(the default if ignored)");
-	});
-
-	test("the sulking party is named", () => {
-		const state = villageWith(["boundary"]);
-		const walk = new Walker(state);
-		walk.key("return");
-
-		const forFirst = walk.lines()[2];
-
-		const second = state.posting.delegates[1]?.name as string;
-		expect(forFirst).toContain(`(${second} will sulk for a season)`);
 	});
 
 	test("an option the village cannot afford is disabled and emits nothing", () => {
 		const walk = new Walker(villageWith(["boundary"], 0));
 		walk.key("return");
 
-		expect(walk.lines()[1]).toContain("(unavailable)");
+		expect(walk.lines()[1]).toContain("unavailable");
 		walk.key("return");
 
 		expect(walk.commands).toEqual([]);

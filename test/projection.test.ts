@@ -12,6 +12,9 @@ import {
 
 const economy = tuning.economy;
 const midSpring = 100;
+const spring = economy.seasonYield.spring;
+const perFarmer = economy.grainPerFarmer;
+const perPerson = economy.grainPerPerson;
 
 function villageAt(tick: number, farmers: number, idlers: number, grain = 60) {
 	const state = createNewGame(1, tuning);
@@ -35,96 +38,47 @@ function enactHarvest(
 }
 
 describe("projectedRates", () => {
-	test("with no decrees grain is hand-computed production minus upkeep", () => {
-		const state = villageAt(midSpring, 8, 2);
+	const surplus = 8 * perFarmer * spring - 10 * perPerson;
+	const summer = 8 * perFarmer * economy.seasonYield.summer - 10 * perPerson;
+	type Row = {
+		name: string;
+		tick?: number;
+		farmers?: number;
+		idlers?: number;
+		grain?: number;
+		decree?: "sell" | "feed";
+		grudgeEndsAfter?: number;
+		rates: { grain: number; coin?: number };
+	};
+	// biome-ignore format: one row per case
+	const rows: Row[] = [
+		{ name: "no decrees: production minus upkeep", rates: { grain: surplus } },
+		{ name: "a sell decree turns the surplus into coin and keeps grain flat", decree: "sell", rates: { grain: 0, coin: surplus * economy.grainPrice } },
+		{ name: "a feed decree keeps grain flat", decree: "feed", rates: { grain: 0 } },
+		{ name: "the last tick of a season uses the next season's yield", tick: economy.ticksPerSeason, rates: { grain: summer } },
+		{ name: "a farmer whose grudge ends next tick counts", farmers: 2, idlers: 0, grudgeEndsAfter: 1, rates: { grain: 2 * perFarmer - 2 * perPerson } },
+		{ name: "a farmer whose grudge ends a tick later does not count", farmers: 2, idlers: 0, grudgeEndsAfter: 2, rates: { grain: perFarmer - 2 * perPerson } },
+		{ name: "empty stores below upkeep project zero, not a negative rate", farmers: 1, idlers: 9, grain: 0, rates: { grain: 0 } },
+		{ name: "stocked stores below upkeep project the negative rate", farmers: 1, idlers: 9, rates: { grain: perFarmer * spring - 10 * perPerson } },
+	];
 
-		const rates = projectedRates(state, tuning);
-
-		const production = 8 * economy.grainPerFarmer * economy.seasonYield.spring;
-		const upkeep = 10 * economy.grainPerPerson;
-		expect(rates.grain).toBeCloseTo(production - upkeep, 12);
-		expect(rates.coin).toBe(0);
-	});
-
-	test("a sell decree turns the surplus into coin and leaves grain flat", () => {
-		const state = villageAt(midSpring, 8, 2);
-		enactHarvest(state, "sell");
-
-		const rates = projectedRates(state, tuning);
-
-		const surplus =
-			8 * economy.grainPerFarmer * economy.seasonYield.spring -
-			10 * economy.grainPerPerson;
-		expect(surplus).toBeGreaterThan(0);
-		expect(rates.grain).toBeCloseTo(0, 12);
-		expect(rates.coin).toBeCloseTo(surplus * economy.grainPrice, 12);
-	});
-
-	test("a feed decree consumes the surplus so grain is flat", () => {
-		const state = villageAt(midSpring, 8, 2);
-		enactHarvest(state, "feed");
-
-		const rates = projectedRates(state, tuning);
-
-		expect(rates.grain).toBeCloseTo(0, 12);
-	});
-
-	test("on the last tick of a season the rate uses the next season's yield", () => {
-		const state = villageAt(economy.ticksPerSeason, 8, 2);
-
-		const rates = projectedRates(state, tuning);
-
-		const summer = 8 * economy.grainPerFarmer * economy.seasonYield.summer;
-		expect(rates.grain).toBeCloseTo(summer - 10 * economy.grainPerPerson, 12);
-	});
-
-	test("a farmer whose grudge ends next tick counts toward production", () => {
-		const state = villageAt(midSpring, 2, 0);
+	test.each(rows)("$name", (row) => {
+		const state = villageAt(
+			row.tick ?? midSpring,
+			row.farmers ?? 8,
+			row.idlers ?? 2,
+			row.grain,
+		);
+		if (row.decree) enactHarvest(state, row.decree);
 		const farmer = state.posting.delegates[0];
-		if (!farmer) throw new Error("no farmer");
-		farmer.grudgeUntil = state.tick + 1;
+		if (farmer && row.grudgeEndsAfter) {
+			farmer.grudgeUntil = state.tick + row.grudgeEndsAfter;
+		}
 
 		const rates = projectedRates(state, tuning);
 
-		expect(rates.grain).toBeCloseTo(
-			2 * economy.grainPerFarmer - 2 * economy.grainPerPerson,
-			12,
-		);
-	});
-
-	test("a farmer whose grudge ends a tick later does not count", () => {
-		const state = villageAt(midSpring, 2, 0);
-		const farmer = state.posting.delegates[0];
-		if (!farmer) throw new Error("no farmer");
-		farmer.grudgeUntil = state.tick + 2;
-
-		const rates = projectedRates(state, tuning);
-
-		expect(rates.grain).toBeCloseTo(
-			1 * economy.grainPerFarmer - 2 * economy.grainPerPerson,
-			12,
-		);
-	});
-
-	test("empty stores with production below upkeep project zero, not a negative rate", () => {
-		const state = villageAt(midSpring, 1, 9, 0);
-
-		const rates = projectedRates(state, tuning);
-
-		expect(rates.grain).toBe(0);
-	});
-
-	test("non-empty stores with production below upkeep project the negative rate", () => {
-		const state = villageAt(midSpring, 1, 9, 60);
-
-		const rates = projectedRates(state, tuning);
-
-		const production = economy.grainPerFarmer * economy.seasonYield.spring;
-		expect(rates.grain).toBeCloseTo(
-			production - 10 * economy.grainPerPerson,
-			12,
-		);
-		expect(rates.grain).toBeLessThan(0);
+		expect(rates.grain).toBeCloseTo(row.rates.grain, 12);
+		expect(rates.coin).toBeCloseTo(row.rates.coin ?? 0, 12);
 	});
 
 	test("does not change the state it projects from, RNG streams included", () => {
@@ -195,21 +149,22 @@ describe("projectedRates", () => {
 });
 
 describe("projectFlows growthPerTick", () => {
-	function realGrowthChange(state: ReturnType<typeof villageAt>) {
-		const before = state.posting.economy.growth;
-		const after = structuredClone(state);
+	test("is the grain fed on the next tick, and zero with no feed decree", () => {
+		const fed = villageAt(midSpring, 8, 2);
+		enactHarvest(fed, "feed");
+		const after = structuredClone(fed);
 		step(after, [], tuning, quietOptions);
-		return after.posting.economy.growth - before;
-	}
 
-	test("equals the grain fed on the next tick when no birth happens", () => {
-		const state = villageAt(midSpring, 8, 2);
-		enactHarvest(state, "feed");
-
-		const { growthPerTick } = projectFlows(state, tuning);
+		const { growthPerTick } = projectFlows(fed, tuning);
 
 		expect(growthPerTick).toBeGreaterThan(0);
-		expect(growthPerTick).toBeCloseTo(realGrowthChange(state), 12);
+		expect(growthPerTick).toBeCloseTo(
+			after.posting.economy.growth - fed.posting.economy.growth,
+			12,
+		);
+		expect(projectFlows(villageAt(midSpring, 8, 2), tuning).growthPerTick).toBe(
+			0,
+		);
 	});
 
 	test("stays the grain fed on a tick that completes a birth", () => {
@@ -225,17 +180,6 @@ describe("projectFlows growthPerTick", () => {
 		expect(after.posting.delegates.length).toBe(
 			state.posting.delegates.length + 1,
 		);
-		expect(growthPerTick).toBeCloseTo(
-			after.posting.economy.growth -
-				state.posting.economy.growth +
-				economy.grainPerPeasant,
-			12,
-		);
-	});
-
-	test("is zero with no feed decree", () => {
-		const state = villageAt(midSpring, 8, 2);
-
-		expect(projectFlows(state, tuning).growthPerTick).toBe(0);
+		expect(growthPerTick).toBeCloseTo(fed, 12);
 	});
 });

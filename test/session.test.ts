@@ -45,117 +45,59 @@ describe("session frames", () => {
 		expect(state.tick).toBe(0);
 	});
 
-	test("no step runs before a full stepMs has passed", () => {
-		const { state, advance } = setup();
+	test.each([
+		["less than a stepMs runs nothing", undefined, tuning.stepMs - 1, 0],
+		["n stepMs runs exactly n steps", undefined, 3 * tuning.stepMs, 3],
+		["a large jump is capped at maxStepsPerFrame", 5, 1000 * tuning.stepMs, 5],
+	])("%s", (_name, cap, elapsed, steps) => {
+		const { state, session, advance } = setup(cap);
+		const before = session.view();
 
-		const result = advance(tuning.stepMs - 1);
+		const result = advance(elapsed);
 
-		expect(result.steps).toBe(0);
-		expect(state.tick).toBe(0);
-	});
-
-	test("n stepMs of elapsed time runs exactly n steps", () => {
-		const { state, advance } = setup();
-
-		const result = advance(3 * tuning.stepMs);
-
-		expect(result.steps).toBe(3);
-		expect(state.tick).toBe(3);
-	});
-
-	test("a large time jump runs at most maxStepsPerFrame steps", () => {
-		const { state, advance } = setup(5);
-
-		const result = advance(1000 * tuning.stepMs);
-
-		expect(result.steps).toBe(5);
-		expect(state.tick).toBe(5);
+		expect(result.steps).toBe(steps);
+		expect(state.tick).toBe(steps);
+		expect(result.viewChanged).toBe(steps > 0);
+		if (steps === 0) expect(session.view()).toBe(before);
 	});
 });
 
 describe("session commands", () => {
-	test("a command applies in the next step and is logged with that step's tick", () => {
+	test("a command waits for a stepping frame, applies in its first step only, and is logged with that tick", () => {
 		const { state, session, advance } = setup();
 		const farmers = () => laborCounts(state.posting.delegates).farm;
 		const before = farmers();
 
 		session.enqueue(assignFarmer);
+		advance(1);
 		expect(farmers()).toBe(before);
-		advance(tuning.stepMs);
+		expect(session.commandLog).toEqual([]);
+		const result = advance(3 * tuning.stepMs);
 
 		expect(farmers()).toBe(before + 1);
+		expect(result.rejections).toEqual([]);
 		expect(session.commandLog).toEqual([{ tick: 1, command: assignFarmer }]);
-	});
-
-	test("a command enqueued before a zero-step frame stays queued for the next stepping frame", () => {
-		const { session, advance } = setup();
-
-		session.enqueue(assignFarmer);
-		advance(1);
-		expect(session.commandLog).toEqual([]);
-		advance(tuning.stepMs);
-
-		expect(session.commandLog).toEqual([{ tick: 1, command: assignFarmer }]);
-	});
-
-	test("in a multi-step frame only the first step receives queued commands", () => {
-		const { session, advance } = setup();
-
-		session.enqueue(assignFarmer);
-		advance(3 * tuning.stepMs);
-
-		expect(session.commandLog.map((entry) => entry.tick)).toEqual([1]);
+		expect(session.view().tick).toBe(state.tick);
 	});
 
 	test("a rejected command is reported with its tick and reason and still logged", () => {
 		const { session, advance } = setup();
-		const unassignMissingMiner: Command = {
+		const missingMiner: Command = {
 			type: "assignPeasant",
 			peasant: 9999,
 			job: "mine",
 		};
 
-		session.enqueue(unassignMissingMiner);
+		session.enqueue(missingMiner);
 		const result = advance(tuning.stepMs);
 
 		expect(result.rejections).toHaveLength(1);
 		expect(result.rejections[0]).toMatchObject({
 			tick: 1,
-			command: unassignMissingMiner,
+			command: missingMiner,
 		});
 		expect(result.rejections[0]?.reason).toContain("no peasant 9999");
-		expect(session.commandLog).toEqual([
-			{ tick: 1, command: unassignMissingMiner },
-		]);
-	});
-
-	test("an accepted command produces no rejection", () => {
-		const { session, advance } = setup();
-
-		session.enqueue(assignFarmer);
-
-		expect(advance(tuning.stepMs).rejections).toEqual([]);
-	});
-});
-
-describe("session view", () => {
-	test("viewChanged is true after a stepping frame and view reflects the new tick", () => {
-		const { state, session, advance } = setup();
-
-		const result = advance(tuning.stepMs);
-
-		expect(result.viewChanged).toBe(true);
-		expect(session.view().tick).toBe(state.tick);
-	});
-
-	test("viewChanged is false after a frame that ran no step", () => {
-		const { session, advance } = setup();
-		const before = session.view();
-
-		const result = advance(1);
-
-		expect(result.viewChanged).toBe(false);
-		expect(session.view()).toBe(before);
+		expect(session.commandLog).toEqual([{ tick: 1, command: missingMiner }]);
 	});
 });
 

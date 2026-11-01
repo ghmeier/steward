@@ -1,7 +1,6 @@
 import archiveJson from "../data/archive.json";
 import tuningJson from "../data/tuning.json";
 import villageJson from "../data/village.json";
-import type { CommandLogEntry } from "../src/core/commands";
 import type { Delegate } from "../src/core/delegates";
 import type { AddContext } from "../src/core/math";
 import { createNewGame, type GameState } from "../src/core/state";
@@ -83,40 +82,6 @@ export const economyTestTuning: Tuning = {
 	},
 	archive: tuning.archive,
 };
-
-export const sampleCommandLog: CommandLogEntry[] = [
-	...[1, 2, 3, 4, 5, 6, 7].map(
-		(peasant): CommandLogEntry => ({
-			tick: peasant,
-			command: { type: "assignPeasant", peasant, job: "farm" },
-		}),
-	),
-	{
-		tick: 8,
-		command: { type: "assignPeasant", peasant: 8, job: "forest" },
-	},
-	{
-		tick: 9,
-		command: { type: "assignPeasant", peasant: 9, job: "forest" },
-	},
-	{
-		tick: 10,
-		command: { type: "assignPeasant", peasant: 10, job: "mine" },
-	},
-	{
-		tick: 11,
-		command: { type: "assignPeasant", peasant: 1, job: "farm" },
-	},
-	{ tick: 100, command: { type: "noop" } },
-	{
-		tick: 3000,
-		command: { type: "assignPeasant", peasant: 1, job: "idle" },
-	},
-	{
-		tick: 3001,
-		command: { type: "assignPeasant", peasant: 1, job: "forest" },
-	},
-];
 
 export const quietOptions = { absorbed: null, validate: false } as const;
 
