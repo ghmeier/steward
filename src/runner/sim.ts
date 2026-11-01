@@ -1,12 +1,10 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { type CommandLogEntry, parseCommandLog } from "../core/commands";
+import type { CommandLogEntry } from "../core/commands";
 import { sortedKeys } from "../core/data";
-import { repealStaleDecrees } from "../core/decree-engine";
 import { errorMessage } from "../core/errors";
+import { Game } from "../core/game";
 import type { AbsorbedAdditionLog } from "../core/math";
-import { type GameState, GameStateManager } from "../core/state";
-import { runSteps } from "../core/step";
 import type { Tuning } from "../core/tuning";
 import { loadTuning } from "../save/content";
 import { stateHash } from "../save/hash";
@@ -145,18 +143,18 @@ export function runSim(
   }
 
   let tuning: Tuning;
-  let state: GameState;
+  let game: Game;
   let log: CommandLogEntry[] = [];
   let player: StrategyPlayer | null = null;
   let strategyName = "";
   try {
     tuning = dependencies.tuning ?? loadTuning();
-    state =
+    game =
       options.load !== null
-        ? readSaveFile(options.load).state
-        : new GameStateManager(options.seed as number, tuning).state;
+        ? Game.fromState(readSaveFile(options.load).state, tuning)
+        : Game.create(options.seed as number, tuning);
     if (options.load !== null) {
-      const repealed = repealStaleDecrees(state, tuning);
+      const repealed = game.decrees.repealStale();
       if (repealed.length > 0) {
         io.stderr(
           `repealed decrees whose policies no longer exist: ${repealed.join(", ")}`,
@@ -169,10 +167,12 @@ export function runSim(
     ]);
     for (const id of options.grant) {
       if (!known.has(id)) throw new Error(`--grant: unknown unlock id "${id}"`);
-      state.career.unlocks[id] = 0;
+      game.state.career.unlocks[id] = 0;
     }
     if (options.commands !== null) {
-      log = parseCommandLog(JSON.parse(readFileSync(options.commands, "utf8")));
+      log = game.commands.parseCommandLog(
+        JSON.parse(readFileSync(options.commands, "utf8")),
+      );
     }
     if (options.strategy !== null) {
       const strategy = parseStrategy(
@@ -186,17 +186,16 @@ export function runSim(
     return reportError(io, null, error);
   }
 
+  const { state } = game;
   const absorbed: AbsorbedAdditionLog = {};
   const rejectedCommands: { tick: number; type: string; reason: string }[] = [];
   const issued: CommandLogEntry[] = [];
-  let minPopulation = state.posting.delegates.length;
+  let minPopulation = game.state.posting.delegates.length;
   let stepsDone = 0;
   const commandSource = player === null ? undefined : player.next;
   try {
-    runSteps(
-      state,
+    game.steps.runSteps(
       options.steps,
-      tuning,
       log,
       { validate: true, absorbed },
       (tick, commands, results) => {
@@ -212,8 +211,11 @@ export function runSim(
         if (options.record !== null) {
           for (const command of commands) issued.push({ tick, command });
         }
-        player?.observe(state, tuning);
-        minPopulation = Math.min(minPopulation, state.posting.delegates.length);
+        player?.observe(game);
+        minPopulation = Math.min(
+          minPopulation,
+          game.state.posting.delegates.length,
+        );
         stepsDone += 1;
         if (options.trace !== null && stepsDone % options.trace === 0) {
           io.stdout(

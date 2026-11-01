@@ -1,5 +1,5 @@
 import { type Condition, type DecreeLimits, parseCondition } from "./decree";
-import { JOBS, RESOURCES, SEASONS } from "./realm";
+import { RESOURCES, SEASONS, WORKING_JOBS } from "./realm";
 import {
   array,
   custom,
@@ -46,9 +46,9 @@ const decreeLimits: Schema<DecreeLimits> = object({
 
 const laborAllocations = refine(
   record(
-    refine(keyedBy(JOBS, nonNegative), (shares, path, problems) => {
+    refine(keyedBy(WORKING_JOBS, nonNegative), (shares, path, problems) => {
       let total = 0;
-      for (const job of JOBS) total += shares[job];
+      for (const job of WORKING_JOBS) total += shares[job];
       if (Math.abs(total - 1) > 1e-9) {
         problems.push(`${path}: shares must sum to 1`);
       }

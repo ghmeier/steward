@@ -1,6 +1,6 @@
 import type { CliRenderer, KeyEvent } from "@opentui/core";
 import { errorMessage } from "../core/errors";
-import { type GameState, GameStateManager } from "../core/state";
+import { Game } from "../core/game";
 import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
 import { type LineState, lineKey, openLine, renderLine } from "./command-line";
@@ -11,7 +11,7 @@ import { actionForKey, hintsText, isInterrupt } from "./keys";
 import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
 import { newGameMenu } from "./new-game-menu";
 import { createPanels } from "./panels";
-import { createSession, type Session } from "./session";
+import { Session } from "./session";
 import { starvationNotice } from "./starvation-notice";
 import { announceNewUnlocks } from "./unlock-notices";
 
@@ -19,7 +19,7 @@ const FRAME_INTERVAL_MS = 50;
 const AUTOSAVE_INTERVAL_MS = 30_000;
 
 export type Startup =
-  | { kind: "ready"; state: GameState; notice: string | null }
+  | { kind: "ready"; game: Game; notice: string | null }
   | { kind: "refused"; error: string };
 
 export function prepareStartup(
@@ -30,10 +30,11 @@ export function prepareStartup(
   const result = loadGame(saveDir);
   switch (result.kind) {
     case "loaded": {
-      const repealed = repealStaleDecrees(result.save.state, tuning);
+      const game = Game.fromState(result.save.state, tuning);
+      const repealed = game.decrees.repealStale();
       return {
         kind: "ready",
-        state: result.save.state,
+        game,
         notice:
           repealed.length === 0
             ? null
@@ -43,13 +44,13 @@ export function prepareStartup(
     case "missing":
       return {
         kind: "ready",
-        state: new GameStateManager(newSeed(), tuning).state,
+        game: Game.create(newSeed(), tuning),
         notice: "Started a new game.",
       };
     case "versionRefused":
       return {
         kind: "ready",
-        state: new GameStateManager(newSeed(), tuning).state,
+        game: Game.create(newSeed(), tuning),
         notice: `Save version ${String(result.foundVersion)} is not supported; it was kept as ${result.preservedAs}. Started a new game.`,
       };
     case "invalid":
@@ -68,7 +69,7 @@ export type App = {
 
 export function startApp(options: {
   renderer: CliRenderer;
-  state: GameState;
+  game: Game;
   tuning: Tuning;
   saveDir: string;
   now: () => number;
@@ -78,9 +79,9 @@ export function startApp(options: {
   autosaveIntervalMs?: number;
 }): App {
   const { renderer, tuning, saveDir } = options;
-  const makeSession = (state: GameState): Session =>
-    createSession({ state, tuning, now: options.now });
-  let session = makeSession(options.state);
+  const makeSession = (game: Game): Session =>
+    new Session(game, { now: options.now });
+  let session = makeSession(options.game);
   const panels = createPanels(renderer);
   let message = options.notice;
   let footer = "";
@@ -115,7 +116,7 @@ export function startApp(options: {
   // Returns the failure instead of throwing so key handlers and timers can never crash the app.
   const save = (): string | null => {
     try {
-      saveGame(saveDir, session.state);
+      saveGame(saveDir, session.game.state);
       return null;
     } catch (error) {
       return errorMessage(error);
@@ -130,9 +131,7 @@ export function startApp(options: {
   };
 
   const foundNewVillage = () => {
-    session = makeSession(
-      new GameStateManager(options.newSeed(), tuning).state,
-    );
+    session = makeSession(Game.create(options.newSeed(), tuning));
     lastView = session.view();
     promotionAnnounced = lastView.promotion.promotedAt > 0;
     knownUnlocks = new Set(lastView.unlocks);

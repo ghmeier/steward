@@ -1,8 +1,7 @@
-import type { CommandResult } from "./commands";
 import { compareKeys, sortedKeys } from "./data";
 import type { Condition, Decree } from "./decree";
+import type { Game } from "./game";
 import { type AddContext, add } from "./math";
-import { GameStateManager } from "./state";
 
 export type UnlockId = string;
 export type ArchiveEntry = {
@@ -29,40 +28,38 @@ export const PALETTE_UNLOCK: UnlockId = "control.palette";
 export const SAVED_DECREES_UNLOCK: UnlockId = "control.savedDecrees";
 
 export class UnlockManager {
-  constructor(private manager: GameStateManager) {}
+  constructor(private game: Game) {}
 
   enabled(id: UnlockId) {
-    return Object.hasOwn(this.manager.state.career.unlocks, id);
+    return Object.hasOwn(this.game.state.career.unlocks, id);
   }
 
   get purchased(): UnlockId[] {
-    return sortedKeys(this.manager.state.career.unlocks);
+    return sortedKeys(this.game.state.career.unlocks);
   }
 
   run(): void {
-    const { play, needs } = this.manager.tuning.archive;
+    const { play, needs } = this.game.tuning.archive;
     const sortedPlay = [...play].sort((a, b) => compareKeys(a.id, b.id));
     for (const unlock of sortedPlay) {
       if (this.enabled(unlock.id)) continue;
-      if (this.manager.cm.evaluate(unlock.when, {})) {
-        this.manager.state.career.unlocks[unlock.id] = this.manager.state.tick;
+      if (this.game.conditions.evaluate(unlock.when, {})) {
+        this.game.state.career.unlocks[unlock.id] = this.game.state.tick;
       }
     }
     const sortedNeeds = [...needs].sort((a, b) =>
       compareKeys(a.control, b.control),
     );
     for (const hook of sortedNeeds) {
-      if (Object.hasOwn(this.manager.state.career.needed, hook.control))
-        continue;
-      if (this.manager.cm.evaluate(hook.when, {})) {
-        this.manager.state.career.needed[hook.control] =
-          this.manager.state.tick;
+      if (Object.hasOwn(this.game.state.career.needed, hook.control)) continue;
+      if (this.game.conditions.evaluate(hook.when, {})) {
+        this.game.state.career.needed[hook.control] = this.game.state.tick;
       }
     }
   }
 
   buy(id: UnlockId, context: AddContext): void {
-    const { entries, play } = this.manager.tuning.archive;
+    const { entries, play } = this.game.tuning.archive;
     if (play.some((unlock) => unlock.id === id)) {
       throw new Error(`"${id}" is not purchasable`);
     }
@@ -84,12 +81,12 @@ export class UnlockManager {
         throw new Error(`${entry.label} needs ${label} first`);
       }
     }
-    const coin = this.manager.state.posting.resources.coin ?? 0;
+    const coin = this.game.state.posting.resources.coin ?? 0;
     if (coin < entry.cost) {
       throw new Error(`you do not have enough coin to purchase ${entry.label}`);
     }
-    add(this.manager.state.posting.resources, "coin", -entry.cost, context);
-    this.manager.state.career.unlocks[id] = this.manager.state.tick;
+    add(this.game.state.posting.resources, "coin", -entry.cost, context);
+    this.game.state.career.unlocks[id] = this.game.state.tick;
   }
 
   /** The unlock a decree needs and does not have, or null. Used by enactDecree and, in step 3, saveDecree. */
@@ -104,7 +101,7 @@ export class UnlockManager {
     if (needs(["chose"], CHAINING_UNLOCK)) missing.push(CHAINING_UNLOCK);
     const id = missing[0];
     if (id === undefined) return null;
-    const found = this.manager.tuning.archive.entries.find(
+    const found = this.game.tuning.archive.entries.find(
       (entry) => entry.id === id,
     );
     if (found === undefined)

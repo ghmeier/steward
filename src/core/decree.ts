@@ -12,6 +12,7 @@ import {
   string,
   variant,
 } from "./schema";
+import type { Tuning } from "./tuning";
 
 export const PETITIONS = ["harvest", "wood", "ore", "labor"] as const;
 export type Petition = (typeof PETITIONS)[number];
@@ -180,7 +181,8 @@ export function decreeReferences(decree: Decree): string[] {
 }
 
 export type DecreeOrder =
-  { ok: true; order: string[] } | { ok: false; cycle: string[] };
+  | { ok: true; order: string[] }
+  | { ok: false; cycle: string[] };
 
 export function orderDecrees(
   decrees: Readonly<Record<string, Decree>>,
@@ -224,6 +226,16 @@ export function orderDecrees(
 
 export const HARVEST_POLICIES = ["feed", "sell", "stockpile"] as const;
 export const STORE_POLICIES = ["sell", "stockpile"] as const;
+
+/** The policies a decree of this petition may name; the TUI lists them from tuning alone, without a game. */
+export function policiesFor(
+  petition: Petition,
+  tuning: Tuning,
+): readonly string[] {
+  if (petition === "harvest") return HARVEST_POLICIES;
+  if (petition === "labor") return sortedKeys(tuning.economy.laborAllocations);
+  return STORE_POLICIES;
+}
 
 /** The resource each resource petition governs; `harvest` keeps its id for grain so saves stay valid. */
 export const PETITION_RESOURCE = {

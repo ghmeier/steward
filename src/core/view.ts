@@ -1,8 +1,9 @@
 import { compareKeys, sortedKeys } from "./data";
 import type { Decree } from "./decree";
-import { fillNames, shortfall, templateOf } from "./desk";
+import { fillNames } from "./desk";
+import type { Game } from "./game";
 import { type Job, RESOURCES, type Season } from "./realm";
-import type { GameStateManager, ResourceId } from "./state";
+import type { ResourceId } from "./state";
 import { ARCHIVE_PANEL, CROWN_PANEL, type UnlockId } from "./unlocks";
 
 export type LedgerLine = {
@@ -71,85 +72,82 @@ export type ArchiveEntryView = {
 };
 
 export class ViewManager {
-  constructor(private manager: GameStateManager) {}
+  constructor(private game: Game) {}
 
   // The view is plain truth only in phase 2. Illusion, governor exaggeration and
   // unlock filtering are applied here in later phases, so the UI must never read
   // GameState directly.
   compute(): GameView {
-    const { rates, growthPerTick } = this.manager.pm.flows();
+    const { rates, growthPerTick } = this.game.projection.flows();
     const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
       resource,
-      amount: this.manager.state.posting.resources[resource] ?? 0,
-      ratePerSecond: (rates[resource] * 1000) / this.manager.tuning.stepMs,
+      amount: this.game.state.posting.resources[resource] ?? 0,
+      ratePerSecond: (rates[resource] * 1000) / this.game.tuning.stepMs,
     }));
-    const { delegates, decrees } = this.manager.state.posting;
-    const labor = this.manager.dm.jobCounts();
+    const { delegates, decrees } = this.game.state.posting;
+    const labor = this.game.delegates.jobCounts();
     return {
-      tick: this.manager.state.tick,
-      elapsedSeconds:
-        (this.manager.state.tick * this.manager.tuning.stepMs) / 1000,
+      tick: this.game.state.tick,
+      elapsedSeconds: (this.game.state.tick * this.game.tuning.stepMs) / 1000,
       ledger,
       realm: {
         population: delegates.length,
         labor,
-        season: this.manager.em.seasonAt(this.manager.state.tick),
-        starved: this.manager.state.posting.economy.starved,
+        season: this.game.economy.seasonAt(this.game.state.tick),
+        starved: this.game.state.posting.economy.starved,
       },
       delegates: delegates.map((delegate) => ({
         id: delegate.id,
         name: delegate.name,
         job: delegate.job,
-        grudgeTicks: Math.max(
-          0,
-          delegate.grudgeUntil - this.manager.state.tick,
-        ),
+        grudgeTicks: Math.max(0, delegate.grudgeUntil - this.game.state.tick),
       })),
       decrees: Object.entries(decrees)
         .sort(([a], [b]) => compareKeys(a, b))
         .map(([, decree]) => structuredClone(decree)),
-      savedDecrees: sortedKeys(this.manager.state.career.savedDecrees).flatMap(
+      savedDecrees: sortedKeys(this.game.state.career.savedDecrees).flatMap(
         (name) => {
-          const saved = this.manager.state.career.savedDecrees[name];
+          const saved = this.game.state.career.savedDecrees[name];
           return saved === undefined ? [] : [structuredClone(saved)];
         },
       ),
-      desk: this.desk(),
+      desk: this.deskEntries(),
       governors: [],
       crown: null,
       promotion: {
-        target: this.manager.tuning.village.promotionPopulation,
-        promotedAt: this.manager.state.career.promotedAt,
+        target: this.game.tuning.village.promotionPopulation,
+        promotedAt: this.game.state.career.promotedAt,
         promotedAtSeconds:
-          (this.manager.state.career.promotedAt * this.manager.tuning.stepMs) /
-          1000,
+          (this.game.state.career.promotedAt * this.game.tuning.stepMs) / 1000,
       },
       growth: {
-        stored: this.manager.state.posting.economy.growth,
-        needed: this.manager.tuning.economy.grainPerPeasant,
-        perSecond: (growthPerTick * 1000) / this.manager.tuning.stepMs,
-        full: delegates.length >= this.manager.tuning.economy.maxPopulation,
+        stored: this.game.state.posting.economy.growth,
+        needed: this.game.tuning.economy.grainPerPeasant,
+        perSecond: (growthPerTick * 1000) / this.game.tuning.stepMs,
+        full: delegates.length >= this.game.tuning.economy.maxPopulation,
       },
-      lockedPanels: this.manager.um.enabled(CROWN_PANEL) ? [] : ["crown"],
-      unlocks: this.manager.um.purchased,
+      lockedPanels: this.game.unlocks.enabled(CROWN_PANEL) ? [] : ["crown"],
+      unlocks: this.game.unlocks.purchased,
       archive: {
-        open: this.manager.um.enabled(ARCHIVE_PANEL),
-        entries: this.manager.tuning.archive.entries.map((entry) => ({
+        open: this.game.unlocks.enabled(ARCHIVE_PANEL),
+        entries: this.game.tuning.archive.entries.map((entry) => ({
           id: entry.id,
           label: entry.label,
           description: entry.description,
           cost: entry.cost,
-          owned: this.manager.um.enabled(entry.id),
+          owned: this.game.unlocks.enabled(entry.id),
           affordable:
-            (this.manager.state.posting.resources.coin ?? 0) >= entry.cost,
-          available: entry.requires.every((id) => this.manager.um.enabled(id)),
+            (this.game.state.posting.resources.coin ?? 0) >= entry.cost,
+          available: entry.requires.every((id) =>
+            this.game.unlocks.enabled(id),
+          ),
         })),
       },
     };
   }
 
-  private desk(): DeskEntryView[] {
-    const { delegates, desk } = this.manager.state.posting;
+  private deskEntries(): DeskEntryView[] {
+    const { delegates, desk } = this.game.state.posting;
     const nameOf = (id: number) => {
       const found = delegates.find((delegate) => delegate.id === id);
       if (found === undefined)
@@ -157,7 +155,7 @@ export class ViewManager {
       return found.name;
     };
     return desk.disputes.map((dispute) => {
-      const template = templateOf(dispute, this.manager.tuning);
+      const template = this.game.desk.templateOf(dispute);
       const first = nameOf(dispute.parties[0]);
       const second = nameOf(dispute.parties[1]);
       return {
@@ -167,7 +165,7 @@ export class ViewManager {
         options: template.options.map((option) => ({
           id: option.id,
           label: fillNames(option.label, first, second),
-          affordable: shortfall(this.manager.state, option) === null,
+          affordable: this.game.desk.shortfall(option) === null,
           expiry: option.id === template.expiry,
           resources: sortedResources(option.resources ?? {}),
           grudge: option.grudge ?? "none",

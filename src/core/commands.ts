@@ -1,5 +1,5 @@
 import { isRecord } from "./data";
-import { settleDispute } from "./desk";
+import type { Game } from "./game";
 import type { AddContext } from "./math";
 import { JOBS } from "./realm";
 import {
@@ -15,7 +15,6 @@ import {
   string,
   variant,
 } from "./schema";
-import type { GameStateManager } from "./state";
 
 const text = string();
 
@@ -76,7 +75,7 @@ const commandLogSchema: Schema<CommandLogEntry[]> = refine(
 );
 
 export class CommandManager {
-  constructor(private manager: GameStateManager) {}
+  constructor(private game: Game) {}
 
   apply(command: Command, context: AddContext): CommandResult {
     try {
@@ -84,33 +83,31 @@ export class CommandManager {
         case "noop":
           return { ok: true };
         case "assignPeasant":
-          this.manager.dm.assignJob(command.peasant, command.job);
+          this.game.delegates.assignJob(command.peasant, command.job);
           return { ok: true };
         case "enactDecree":
-          this.manager.de.enact(command.decree);
+          this.game.decrees.enact(command.decree);
           return { ok: true };
         case "repealDecree":
-          this.manager.de.repeal(command.id);
+          this.game.decrees.repeal(command.id);
           return { ok: true };
         case "settleDispute":
-          return settleDispute(
-            this.manager.state,
+          return this.game.desk.settle(
             command.dispute,
             command.option,
-            this.manager.tuning,
             context,
           );
         case "buyUnlock":
-          this.manager.um.buy(command.id, context);
+          this.game.unlocks.buy(command.id, context);
           return { ok: true };
         case "saveDecree":
-          this.manager.sdm.save(command.name, command.decree);
+          this.game.savedDecrees.save(command.name, command.decree);
           return { ok: true };
         case "enactSaved":
-          this.manager.sdm.enact(command.name);
+          this.game.savedDecrees.enact(command.name);
           return { ok: true };
         case "forgetSaved":
-          this.manager.sdm.forget(command.name);
+          this.game.savedDecrees.forget(command.name);
           return { ok: true };
         default: {
           const unreachable: never = command;
@@ -126,7 +123,7 @@ export class CommandManager {
     }
   }
 
-  parseComand(value: unknown): Command {
+  parseCommand(value: unknown): Command {
     return parse(commandSchema, value, "command");
   }
   parseCommandLog(value: unknown): CommandLogEntry[] {

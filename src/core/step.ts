@@ -1,8 +1,6 @@
 import type { Command, CommandLogEntry, CommandResult } from "./commands";
-import { runDesk } from "./desk";
+import type { Game } from "./game";
 import type { AbsorbedAdditionLog, AddContext } from "./math";
-import { checkPromotion } from "./promotion";
-import type { GameStateManager } from "./state";
 import { validateState } from "./validate";
 
 export type StepOptions = {
@@ -18,35 +16,44 @@ export type StepObserver = (
 ) => void;
 
 export class StepManager {
-  constructor(private manager: GameStateManager) {}
+  constructor(private game: Game) {}
 
   /** The phases that move resources every tick; the ledger projects its rates by running exactly this. */
   runFlows(context: AddContext): void {
-    const flows = this.manager.em.run(context);
-    this.manager.de.run(context, flows);
+    const flows = this.game.economy.run(context);
+    this.game.decrees.run(context, flows);
+  }
+
+  /** Promotion is never revoked, so a village that later shrinks stays promoted. */
+  private checkPromotion(): void {
+    const { state, tuning } = this.game;
+    if (state.career.promotedAt !== 0) return;
+    if (state.posting.delegates.length >= tuning.village.promotionPopulation) {
+      state.career.promotedAt = state.tick;
+    }
   }
 
   step(commands: readonly Command[], options: StepOptions): CommandResult[] {
-    this.manager.state.tick += 1;
+    this.game.state.tick += 1;
 
     const context: AddContext = {
-      tick: this.manager.state.tick,
-      maxValue: this.manager.tuning.maxResourceValue,
+      tick: this.game.state.tick,
+      maxValue: this.game.tuning.maxResourceValue,
       absorbed: options.absorbed,
     };
     const results = commands.map((command) =>
-      this.manager.cmdm.apply(command, context),
+      this.game.commands.apply(command, context),
     );
     this.runFlows(context);
-    runDesk(this.manager.state, this.manager.tuning, context);
-    checkPromotion(this.manager.state, this.manager.tuning);
-    this.manager.um.run();
+    this.game.desk.run(context);
+    this.checkPromotion();
+    this.game.unlocks.run();
 
     if (options.validate) {
-      const problems = validateState(this.manager.state);
+      const problems = validateState(this.game.state);
       if (problems.length > 0) {
         throw new Error(
-          `state invalid at tick ${this.manager.state.tick}: ${problems.join("; ")}`,
+          `state invalid at tick ${this.game.state.tick}: ${problems.join("; ")}`,
         );
       }
     }
@@ -64,12 +71,12 @@ export class StepManager {
     // Entries for ticks already produced (resuming from a later state) must not be reapplied.
     while (
       cursor < log.length &&
-      (log[cursor]?.tick ?? 0) <= this.manager.state.tick
+      (log[cursor]?.tick ?? 0) <= this.game.state.tick
     ) {
       cursor += 1;
     }
     for (let i = 0; i < count; i++) {
-      const nextTick = this.manager.state.tick + 1;
+      const nextTick = this.game.state.tick + 1;
       const commands: Command[] = commandSource ? [...commandSource()] : [];
       for (
         let entry = log[cursor];
@@ -80,7 +87,7 @@ export class StepManager {
         cursor += 1;
       }
       const results = this.step(commands, options);
-      onStep?.(this.manager.state.tick, commands, results);
+      onStep?.(this.game.state.tick, commands, results);
     }
   }
 }

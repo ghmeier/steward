@@ -1,6 +1,6 @@
+import type { Game } from "./game";
 import { Job } from "./realm";
 import { intBelow } from "./rng";
-import type { GameStateManager } from "./state";
 
 export type Delegate = {
   id: number;
@@ -13,14 +13,14 @@ export type Delegate = {
 type DelegateCounts = Record<Job, number> & { idle: number };
 
 export class DelegateManager {
-  constructor(private manager: GameStateManager) {}
+  constructor(private game: Game) {}
 
-  get delegates() {
-    return this.manager.state.posting.delegates;
+  get all() {
+    return this.game.state.posting.delegates;
   }
 
   get availableNames() {
-    return this.manager.tuning.village.names;
+    return this.game.tuning.village.names;
   }
 
   jobCounts(): DelegateCounts {
@@ -30,7 +30,7 @@ export class DelegateManager {
       mine: 0,
       idle: 0,
     };
-    for (const delegate of this.delegates) {
+    for (const delegate of this.all) {
       counts[delegate.job] += 1;
     }
     return counts;
@@ -43,7 +43,7 @@ export class DelegateManager {
       mine: 0,
       idle: 0,
     };
-    for (const delegate of this.delegates) {
+    for (const delegate of this.all) {
       if (tick >= delegate.grudgeUntil) {
         counts[delegate.job] += 1;
       } else {
@@ -54,17 +54,17 @@ export class DelegateManager {
   }
 
   firstWithJob(job: Job): Delegate | undefined {
-    return this.delegates.find((delegate) => delegate.job === job);
+    return this.all.find((delegate) => delegate.job === job);
   }
 
   firstFreeWithJob(job: Job, tick: number): Delegate | undefined {
-    return this.delegates.find(
+    return this.all.find(
       (delegate) => delegate.job === job && tick >= delegate.grudgeUntil,
     );
   }
 
   findById(id: number): Delegate | undefined {
-    return this.delegates.find((d) => d.id === id);
+    return this.all.find((d) => d.id === id);
   }
 
   assignJob(id: number, job: Job) {
@@ -76,22 +76,22 @@ export class DelegateManager {
       if (job === Job.IDLE) throw new Error(`${assignee.name} is already idle`);
       throw new Error(`${assignee.name} already works the ${job}`);
     }
-    if (job !== Job.IDLE && this.manager.state.tick < assignee.grudgeUntil) {
+    if (job !== Job.IDLE && this.game.state.tick < assignee.grudgeUntil) {
       throw new Error(`${assignee.name} holds a grudge and refuses to work`);
     }
     assignee.job = job;
   }
 
   remove(id: number): void {
-    const index = this.delegates.findIndex((delegate) => delegate.id === id);
-    if (index >= 0) this.delegates.splice(index, 1);
+    const index = this.all.findIndex((delegate) => delegate.id === id);
+    if (index >= 0) this.all.splice(index, 1);
   }
 
   // Picks an unused name.
   findName(): string {
-    const held = new Set(this.delegates.map((delegate) => delegate.name));
+    const held = new Set(this.all.map((delegate) => delegate.name));
     const free = this.availableNames.filter((name) => !held.has(name));
-    const stream = this.manager.state.posting.rng.names;
+    const stream = this.game.state.posting.rng.names;
     if (stream === undefined || free.length === 0) {
       throw new Error("no free peasant name to draw");
     }
@@ -102,14 +102,14 @@ export class DelegateManager {
 
   create(): Delegate {
     const delegate: Delegate = {
-      id: this.manager.state.posting.nextDelegateId,
+      id: this.game.state.posting.nextDelegateId,
       name: this.findName(),
       kind: "peasant",
       job: Job.IDLE,
       grudgeUntil: 0,
     };
-    this.manager.state.posting.nextDelegateId += 1;
-    this.delegates.push(delegate);
+    this.game.state.posting.nextDelegateId += 1;
+    this.all.push(delegate);
     return delegate;
   }
 }

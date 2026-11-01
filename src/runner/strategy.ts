@@ -1,10 +1,10 @@
 import { type Command, commandSchema } from "../core/commands";
-import { evaluateCondition } from "../core/conditions";
 import {
   type Condition,
   conditionSchema,
   type DecreeLimits,
 } from "../core/decree";
+import type { Game } from "../core/game";
 import {
   array,
   object,
@@ -13,8 +13,6 @@ import {
   type Schema,
   string,
 } from "../core/schema";
-import type { GameState } from "../core/state";
-import type { Tuning } from "../core/tuning";
 
 export type Reaction = { when: Condition; commands: Command[] };
 export type Strategy = {
@@ -68,7 +66,7 @@ export function parseStrategy(value: unknown, limits: DecreeLimits): Strategy {
 
 export type StrategyPlayer = {
   next(): Command[];
-  observe(state: GameState, tuning: Tuning): void;
+  observe(game: Game): void;
   stats(): StrategyStats;
 };
 
@@ -108,10 +106,10 @@ export function createStrategyPlayer(strategy: Strategy): StrategyPlayer {
       longestQuietTicks = Math.max(longestQuietTicks, quiet);
       return handed;
     },
-    observe(state, tuning) {
+    observe(game) {
       const fired: Command[] = [];
       for (const [index, reaction] of strategy.reactions.entries()) {
-        const holds = evaluateCondition(reaction.when, state, tuning, {});
+        const holds = game.conditions.evaluate(reaction.when, {});
         if (holds && !held[index]) fired.push(...copy(reaction.commands));
         held[index] = holds;
       }

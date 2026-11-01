@@ -1,11 +1,11 @@
 import type { Condition, Quantity } from "./decree";
-import type { GameStateManager } from "./state";
+import type { Game } from "./game";
 
 export class ConditionManager {
-  constructor(private manager: GameStateManager) {}
+  constructor(private game: Game) {}
 
   quantityOf(quantity: Quantity): number {
-    const { resources, delegates } = this.manager.state.posting;
+    const { resources, delegates } = this.game.state.posting;
     switch (quantity) {
       case "coin":
       case "grain":
@@ -15,9 +15,9 @@ export class ConditionManager {
       case "population":
         return delegates.length;
       case "idle":
-        return this.manager.dm.jobCounts().idle;
+        return this.game.delegates.jobCounts().idle;
       case "grainSeasons":
-        return this.manager.em.grainSeasons();
+        return this.game.economy.grainSeasons();
     }
   }
 
@@ -34,7 +34,7 @@ export class ConditionManager {
       }
       case "season":
         return (
-          this.manager.em.seasonAt(this.manager.state.tick) === condition.season
+          this.game.economy.seasonAt(this.game.state.tick) === condition.season
         );
       case "chose":
         return (

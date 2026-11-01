@@ -7,38 +7,34 @@ import {
   decreeReferences,
   decreeSetProblem,
   formatCycle,
-  HARVEST_POLICIES,
   orderDecrees,
   PETITION_RESOURCE,
   type Petition,
   parseDecree,
+  policiesFor,
   type ResourcePetition,
-  STORE_POLICIES,
 } from "./decree";
 import type { EconomyFlows } from "./economy";
 import { errorMessage } from "./errors";
+import type { Game } from "./game";
 import type { AddContext } from "./math";
-import type { GameStateManager } from "./state";
 import { missingDecreeUnlockReason } from "./unlocks";
 
 export { HARVEST_POLICIES } from "./decree";
 
 export class DecreeEngine {
-  constructor(private manager: GameStateManager) {}
+  constructor(private game: Game) {}
 
   policiesFor(petition: Petition): readonly string[] {
-    if (petition === "harvest") return HARVEST_POLICIES;
-    if (petition === "labor")
-      return sortedKeys(this.manager.tuning.economy.laborAllocations);
-    return STORE_POLICIES;
+    return policiesFor(petition, this.game.tuning);
   }
 
   get enacted() {
-    return this.manager.state.posting.decrees;
+    return this.game.state.posting.decrees;
   }
 
   get limits() {
-    return this.manager.tuning.decrees;
+    return this.game.tuning.decrees;
   }
 
   enact(value: unknown): void {
@@ -49,7 +45,7 @@ export class DecreeEngine {
       throw new Error(errorMessage(error));
     }
 
-    const missing = this.manager.um.missingDecreeUnlock(decree);
+    const missing = this.game.unlocks.missingDecreeUnlock(decree);
     if (missing !== null) {
       throw new Error(missingDecreeUnlockReason(missing));
     }
@@ -138,7 +134,7 @@ export class DecreeEngine {
       const decree = decrees[id];
       if (!decree) continue;
       const matched = decree.rules.find((rule) =>
-        this.manager.cm.evaluate(rule.when, chosen),
+        this.game.conditions.evaluate(rule.when, chosen),
       );
       const policy = matched ? matched.policy : decree.otherwise;
       chosen[id] = policy;
@@ -151,25 +147,20 @@ export class DecreeEngine {
           flows[decree.petition],
         );
         if (policy === "sell") {
-          this.manager.em.sellResource(resource, amount, context);
+          this.game.economy.sellResource(resource, amount, context);
         } else if (policy === "feed" && decree.petition === "harvest") {
-          this.manager.em.feedGrain(amount, context);
+          this.game.economy.feedGrain(amount, context);
         } else if (policy !== "stockpile") {
           throw new Error(`unknown ${decree.petition} policy "${policy}"`);
         }
       } else {
-        const allocations = this.manager.tuning.economy.laborAllocations;
+        const allocations = this.game.tuning.economy.laborAllocations;
         const shares = Object.hasOwn(allocations, policy)
           ? allocations[policy]
           : undefined;
         if (!shares) throw new Error(`unknown labor policy "${policy}"`);
-        this.manager.em.moveLaborToward(
-          this.manager.em.laborTargets(
-            this.manager.state.posting.delegates.length,
-            shares,
-          ),
-          this.manager.tuning.economy.laborMovesPerTick,
-          this.manager.state.tick,
+        this.game.economy.moveLaborToward(
+          this.game.economy.laborTargets(shares),
         );
       }
     }
@@ -182,7 +173,7 @@ export class DecreeEngine {
     when: Condition | undefined,
     produced: number,
   ): number {
-    const stock = this.manager.state.posting.resources[resource] ?? 0;
+    const stock = this.game.state.posting.resources[resource] ?? 0;
     if (
       when?.kind === "compare" &&
       when.comparison === "above" &&

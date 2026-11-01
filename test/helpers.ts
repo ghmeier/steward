@@ -2,11 +2,11 @@ import archiveJson from "../data/archive.json";
 import tuningJson from "../data/tuning.json";
 import villageJson from "../data/village.json";
 import type { Delegate } from "../src/core/delegates";
+import { Game } from "../src/core/game";
 import type { AddContext } from "../src/core/math";
-import { createNewGame, type GameState } from "../src/core/state";
+import { JOBS, type Job } from "../src/core/realm";
 import { parseTuning, type Tuning } from "../src/core/tuning";
 import { ARCHIVE_PANEL } from "../src/core/unlocks";
-import { computeView } from "../src/core/view";
 import { helpMenu } from "../src/tui/help-menu";
 import { menuKey, openMenu, renderMenu } from "../src/tui/menu";
 
@@ -85,18 +85,12 @@ export const economyTestTuning: Tuning = {
 
 export const quietOptions = { absorbed: null, validate: false } as const;
 
-export type RosterCounts = {
-  farm?: number;
-  forest?: number;
-  mine?: number;
-  idle?: number;
-};
+export type RosterCounts = Partial<Record<Job, number>>;
 
 /** Ids ascend in the order farm, forest, mine, idle, so lowest-id expectations are easy to state. */
 export function rosterOf(counts: RosterCounts): Delegate[] {
-  const jobs = ["farm", "forest", "mine", "idle"] as const;
   const delegates: Delegate[] = [];
-  for (const job of jobs) {
+  for (const job of JOBS) {
     for (let i = 0; i < (counts[job] ?? 0); i++) {
       const id = delegates.length + 1;
       delegates.push({
@@ -111,40 +105,40 @@ export function rosterOf(counts: RosterCounts): Delegate[] {
   return delegates;
 }
 
-export function setRoster(state: GameState, counts: RosterCounts): void {
-  state.posting.delegates = rosterOf(counts);
-  state.posting.nextDelegateId = state.posting.delegates.length + 1;
+export function setRoster(game: Game, counts: RosterCounts): void {
+  game.state.posting.delegates = rosterOf(counts);
+  game.state.posting.nextDelegateId = game.state.posting.delegates.length + 1;
 }
 
-export function contextFor(state: GameState): AddContext {
-  return { tick: state.tick, maxValue: 1e300, absorbed: null };
+export function contextFor(game: Game): AddContext {
+  return { tick: game.state.tick, maxValue: 1e300, absorbed: null };
 }
 
-export function grantUnlocks(state: GameState, ids: readonly string[]): void {
-  for (const id of ids) state.career.unlocks[id] = 0;
+export function grantUnlocks(game: Game, ids: readonly string[]): void {
+  for (const id of ids) game.state.career.unlocks[id] = 0;
 }
 
 /** The ten-peasant village the sample command log was written for, so the desk and multi-peasant labor stay covered. */
-export function sampleVillage(seed: number): GameState {
-  const state = createNewGame(seed, tuning);
-  setRoster(state, { idle: 10 });
-  grantUnlocks(state, [
+export function sampleVillage(seed: number): Game {
+  const game = Game.create(seed, tuning);
+  setRoster(game, { idle: 10 });
+  grantUnlocks(game, [
     ARCHIVE_PANEL,
     ...tuning.archive.entries.map((entry) => entry.id),
   ]);
-  return state;
+  return game;
 }
 
 /** Arranges a famine so that the next unfed tick brings the total deaths due up to `totalDeaths`. */
 export function setFamineDue(
-  state: GameState,
+  game: Game,
   totalDeaths: number,
   ticksPerSeason: number,
 ): void {
-  state.posting.economy.famine = {
+  game.state.posting.economy.famine = {
     startPopulation: 2 * totalDeaths,
     ticks: ticksPerSeason - 1,
-    deaths: state.posting.economy.famine.deaths,
+    deaths: game.state.posting.economy.famine.deaths,
   };
 }
 
@@ -154,9 +148,9 @@ export function topicText(
   using: Tuning = tuning,
   unlocks: readonly string[] = [],
 ): string {
-  const game = createNewGame(1, using);
+  const game = Game.create(1, using);
   grantUnlocks(game, unlocks);
-  const context = { view: computeView(game, using), tuning: using };
+  const context = { view: game.view.compute(), tuning: using };
   const root = openMenu(helpMenu);
   const index = renderMenu(root, context).lines.findIndex((line) =>
     line.includes(topic),
