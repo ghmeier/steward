@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { type CommandLogEntry, parseCommandLog } from "../core/commands";
 import { sortedKeys } from "../core/data";
+import { repealStaleDecrees } from "../core/decree-engine";
 import { errorMessage } from "../core/errors";
 import type { AbsorbedAdditionLog } from "../core/math";
 import { createNewGame, type GameState } from "../core/state";
@@ -154,6 +155,14 @@ export function runSim(
 			options.load !== null
 				? readSaveFile(options.load).state
 				: createNewGame(options.seed as number, tuning);
+		if (options.load !== null) {
+			const repealed = repealStaleDecrees(state, tuning);
+			if (repealed.length > 0) {
+				io.stderr(
+					`repealed decrees whose policies no longer exist: ${repealed.join(", ")}`,
+				);
+			}
+		}
 		const known = new Set([
 			...tuning.archive.entries.map((entry) => entry.id),
 			...tuning.archive.play.map((unlock) => unlock.id),

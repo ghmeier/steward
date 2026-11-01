@@ -1,9 +1,11 @@
 import type { CommandResult } from "./commands";
 import { evaluateCondition } from "./conditions";
-import { sortedKeys } from "./data";
+import { compareKeys, sortedKeys } from "./data";
 import {
 	type Condition,
+	choseConditions,
 	type Decree,
+	decreePolicyProblem,
 	decreeReferences,
 	decreeSetProblem,
 	formatCycle,
@@ -84,6 +86,51 @@ export function repealDecree(state: GameState, id: string): CommandResult {
 	}
 	delete decrees[id];
 	return { ok: true };
+}
+
+/**
+ * Labor policies come from tuning, which state validation cannot see, so a save can hold a labor
+ * decree whose allocation has since been removed. Dropping those, and any decree that chains on
+ * a dropped one, keeps the remaining set runnable instead of failing on the next step.
+ */
+export function repealStaleDecrees(state: GameState, tuning: Tuning): string[] {
+	const decrees = state.posting.decrees;
+	const removed = new Set<string>();
+	// A chose test on a policy its target can no longer choose would fail every later enactment.
+	const isStale = (decree: Decree): boolean =>
+		decreePolicyProblem(decree, policiesFor(decree.petition, tuning)) !==
+			null ||
+		choseConditions(decree).some((test) => {
+			const target = Object.hasOwn(decrees, test.decree)
+				? decrees[test.decree]
+				: undefined;
+			return (
+				target !== undefined &&
+				!policiesFor(target.petition, tuning).includes(test.policy)
+			);
+		});
+	for (const id of sortedKeys(decrees)) {
+		const decree = decrees[id];
+		if (decree && isStale(decree)) removed.add(id);
+	}
+	let grew = removed.size > 0;
+	while (grew) {
+		grew = false;
+		for (const id of sortedKeys(decrees)) {
+			const decree = decrees[id];
+			if (
+				decree &&
+				!removed.has(id) &&
+				decreeReferences(decree).some((ref) => removed.has(ref))
+			) {
+				removed.add(id);
+				grew = true;
+			}
+		}
+	}
+	const ids = [...removed].sort(compareKeys);
+	for (const id of ids) delete decrees[id];
+	return ids;
 }
 
 // A bare "resource above N" rule means everything over N, not just this tick's production.

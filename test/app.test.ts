@@ -11,6 +11,7 @@ import { dirname, join } from "node:path";
 import { createTestRenderer } from "@opentui/core/testing";
 import { bearPeasant } from "../src/core/delegates";
 import { createNewGame, type GameState } from "../src/core/state";
+import { step } from "../src/core/step";
 import { ARCHIVE_PANEL, PALETTE_UNLOCK } from "../src/core/unlocks";
 import { stateHash } from "../src/save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../src/save/save";
@@ -21,7 +22,13 @@ import {
 	startApp,
 } from "../src/tui/app";
 import { ARCHIVE_OPENS } from "../src/tui/unlock-notices";
-import { grantUnlocks, setFamineDue, setRoster, tuning } from "./helpers";
+import {
+	grantUnlocks,
+	quietOptions,
+	setFamineDue,
+	setRoster,
+	tuning,
+} from "./helpers";
 
 const NEVER_MS = 1e9;
 const NEW_SEED = 321;
@@ -144,6 +151,24 @@ describe("prepareStartup", () => {
 		expect(existsSync(preserved)).toBe(true);
 		expect(startup.notice).toContain(preserved);
 		expect(stateHash(startup.state)).toBe(stateHash(createNewGame(42, tuning)));
+	});
+
+	test("a save with a decree on a removed labor policy loads without it, says so, and keeps stepping", () => {
+		const dir = tempDir();
+		const saved = createNewGame(9, tuning);
+		saved.posting.decrees.workers = {
+			id: "workers",
+			petition: "labor",
+			rules: [],
+			otherwise: "foraging",
+		};
+		saveGame(dir, saved);
+
+		const startup = ready(prepareStartup(dir, tuning, () => 1));
+
+		expect(startup.state.posting.decrees.workers).toBeUndefined();
+		expect(startup.notice).toContain("workers");
+		expect(() => step(startup.state, [], tuning, quietOptions)).not.toThrow();
 	});
 
 	test("an invalid save is refused and left byte for byte unchanged", () => {

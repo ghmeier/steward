@@ -1,4 +1,5 @@
 import type { CliRenderer, KeyEvent } from "@opentui/core";
+import { repealStaleDecrees } from "../core/decree-engine";
 import { errorMessage } from "../core/errors";
 import { createNewGame, type GameState } from "../core/state";
 import type { Tuning } from "../core/tuning";
@@ -29,8 +30,17 @@ export function prepareStartup(
 ): Startup {
 	const result = loadGame(saveDir);
 	switch (result.kind) {
-		case "loaded":
-			return { kind: "ready", state: result.save.state, notice: null };
+		case "loaded": {
+			const repealed = repealStaleDecrees(result.save.state, tuning);
+			return {
+				kind: "ready",
+				state: result.save.state,
+				notice:
+					repealed.length === 0
+						? null
+						: `Repealed ${repealed.join(", ")}: their policies no longer exist.`,
+			};
+		}
 		case "missing":
 			return {
 				kind: "ready",

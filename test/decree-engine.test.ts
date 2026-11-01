@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { evaluateCondition, quantityValue } from "../src/core/conditions";
-import type { Condition, Petition } from "../src/core/decree";
+import {
+	type Condition,
+	decreeSetProblem,
+	type Petition,
+} from "../src/core/decree";
 import {
 	enactDecree,
 	policiesFor,
 	repealDecree,
+	repealStaleDecrees,
 	runDecrees,
 } from "../src/core/decree-engine";
 import { laborCounts } from "../src/core/delegates";
@@ -324,4 +329,42 @@ describe("runDecrees on labor and chaining", () => {
 			expect(laborCounts(state.posting.delegates)).toMatchObject(wantCounts);
 		},
 	);
+});
+
+describe("repealStaleDecrees", () => {
+	const staleLabor = decreeOf("workers", "labor", [], "foraging");
+	const chained = decreeOf(
+		"tithe",
+		"wood",
+		[{ when: chose("workers", "balanced"), policy: "sell" }],
+		"stockpile",
+	);
+	const chainedTwice = decreeOf(
+		"market",
+		"ore",
+		[{ when: chose("tithe", "sell"), policy: "sell" }],
+		"stockpile",
+	);
+	const granary = decreeOf("granary", "harvest", [], "feed");
+
+	// biome-ignore format: one row per line keeps the table scannable
+	const cases: [string, ReturnType<typeof decreeOf>[], string[], string[]][] = [
+		["a stale labor decree is removed", [staleLabor, granary], ["workers"], ["granary"]],
+		["decrees chaining on a removed decree are removed transitively", [staleLabor, chained, chainedTwice, granary], ["market", "tithe", "workers"], ["granary"]],
+		["a decree testing a removed policy of a kept decree is removed", [decreeOf("workers", "labor", [], "balanced"), decreeOf("tithe", "wood", [{ when: chose("workers", "foraging"), policy: "sell" }], "stockpile"), granary], ["tithe"], ["granary", "workers"]],
+		["valid decrees are kept", [decreeOf("workers", "labor", [], "balanced"), granary], [], ["granary", "workers"]],
+	];
+
+	test.each(cases)("%s", (_name, decrees, removed, kept) => {
+		const state = freshState();
+		for (const decree of decrees) state.posting.decrees[decree.id] = decree;
+
+		const result = repealStaleDecrees(state, tuning);
+
+		expect(result).toEqual(removed);
+		expect(Object.keys(state.posting.decrees).sort()).toEqual(kept);
+		expect(
+			decreeSetProblem(state.posting.decrees, policiesFor("labor", tuning)),
+		).toBeNull();
+	});
 });
