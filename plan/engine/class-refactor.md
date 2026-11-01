@@ -4,7 +4,7 @@ status: active
 tags: [engine, refactor]
 created: 2026-11-01
 updated: 2026-11-01
-next_step: Phase 1 dispatched on refactor-classes-api; phase 2 waits on its API
+next_step: Phase 2 dispatched (four test-rewrite branches off refactor-classes-api)
 ---
 # Finish the class-based refactor around a composed Game root
 
@@ -120,3 +120,5 @@ Acceptance per branch: its files typecheck and pass with `bun test <files>`.
 
 - 2026-11-01: Plan drafted after reviewing `dd7ed49`. Branch currently fails typecheck in about 40 files.
 - 2026-11-01: User approved the plan. Phase 1 dispatched on `refactor-classes-api`.
+- 2026-11-01: Phase 1 done on `refactor-classes-api` (`0a6b8d6` test move, `2098a25` Game API). Verified: zero non-test type errors, golden hash unchanged, Biome clean. Deviations accepted: `Game` lives in new `src/core/game.ts` while `state.ts` keeps the state types (keeps type imports acyclic); `WORKING_JOBS`/`WorkingJob` added to `realm.ts` because `JOBS` now includes idle; `GameView.realm.labor` now includes `idle` and `realm.idle` is gone; `policiesFor(petition, tuning)` is a pure export in `decree.ts` because TUI menus have a view and tuning but no game; `promotion.ts` deleted, its test to be folded into step tests. Save functions still take `GameState` (callers pass `game.state`).
+- 2026-11-01: Phase 2 dispatched to four parallel branches.
