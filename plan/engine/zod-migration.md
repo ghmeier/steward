@@ -1,10 +1,10 @@
 ---
 title: Replace the in-house schema module with Zod
-status: draft
+status: active
 tags: [engine, validation]
 created: 2026-11-01
-updated: 2026-11-01
-next_step: Get user approval, then dispatch one implementer on zod-migration
+updated: 2026-11-02
+next_step: Implementer running on zod-migration; then refactor pass and PR
 ---
 # Replace the in-house schema module with Zod
 
@@ -69,3 +69,4 @@ Branch `zod-migration` off `main`. One PR, in commits:
 ## Notes and decisions
 
 - 2026-11-01: Plan drafted after the class refactor merged (PR #1, `62057db`).
+- 2026-11-01: User approved. Dispatched one implementer on `zod-migration`.
