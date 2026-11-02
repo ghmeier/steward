@@ -4,7 +4,7 @@ status: active
 tags: [engine, validation]
 created: 2026-11-01
 updated: 2026-11-02
-next_step: Implementer running on zod-migration; then refactor pass and PR
+next_step: Refactor pass running on zod-migration; then PR to main
 ---
 # Replace the in-house schema module with Zod
 
@@ -70,3 +70,5 @@ Branch `zod-migration` off `main`. One PR, in commits:
 
 - 2026-11-01: Plan drafted after the class refactor merged (PR #1, `62057db`).
 - 2026-11-01: User approved. Dispatched one implementer on `zod-migration`.
+- 2026-11-01: Implementation done on `zod-migration` (`5c0cfeb` dependency and boundary, `9c73805` port and delete). Verified: `bun run check` 806 pass, golden unchanged, no schema imports, no casts in core. Depth guard caps at 64 levels before `z.lazy`; 10,000-level decree rejected through `parseDecree` and `validateState`.
+- 2026-11-01: Finding: the command-line grammar rejects malformed decrees before `parseDecree` runs, so players meet Zod's wording mainly on save or tuning load failures, not while typing decrees. Unknown keys now report at the parent path (`decree: Unrecognized key: "extra"`), and missing keys read as `expected string, received undefined`.
