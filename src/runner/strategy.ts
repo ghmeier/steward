@@ -5,8 +5,9 @@ import {
   conditionSchema,
   type DecreeLimits,
 } from "../core/decree";
-import { parseWith } from "../core/errors";
+import { addIssue, parseWith } from "../core/errors";
 import type { Game } from "../core/game";
+
 export type Reaction = { when: Condition; commands: Command[] };
 export type Strategy = {
   name: string;
@@ -40,11 +41,9 @@ function strategySchema(limits: DecreeLimits): z.ZodType<Strategy> {
     .strictObject({ when: conditionSchema(limits), commands })
     .superRefine((entry, ctx) => {
       if (containsChose(entry.when)) {
-        ctx.addIssue({
-          code: "custom",
-          message: "chose conditions are not available to strategies",
-          path: ["when"],
-        });
+        addIssue(ctx, "chose conditions are not available to strategies", [
+          "when",
+        ]);
       }
     });
   return z.strictObject({

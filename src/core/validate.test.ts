@@ -212,22 +212,18 @@ describe("validateState condition nesting", () => {
     return { ...granary, rules: [{ when, policy: "sell" }] };
   }
 
-  test("rejects a pathologically deep condition with a message instead of overflowing the stack", () => {
-    const state = patched({
+  test("accepts nesting exactly to the cap and rejects 10,000 levels with a message instead of a stack overflow", () => {
+    const atCap = patched({
+      "posting.decrees": { granary: decreeNestedBy(64) },
+    });
+    const pathological = patched({
       "posting.decrees": { granary: decreeNestedBy(10_000) },
     });
 
-    const text = validateState(state).join("\n");
-
-    expect(text).toContain("nests deeper than 64 levels");
-  });
-
-  test("accepts a condition nested exactly to the cap", () => {
-    const state = patched({
-      "posting.decrees": { granary: decreeNestedBy(64) },
-    });
-
-    expect(validateState(state)).toEqual([]);
+    expect(validateState(atCap)).toEqual([]);
+    expect(validateState(pathological).join("\n")).toContain(
+      "nests deeper than 64 levels",
+    );
   });
 });
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { compareKeys, isRecord, sortedKeys } from "./data";
-import { parseWith } from "./errors";
+import { addIssue, type IssuePath, parseWith } from "./errors";
 import { normalizeZero } from "./math";
 import { SEASONS, type Season } from "./realm";
 import type { Tuning } from "./tuning";
@@ -81,9 +81,9 @@ const conditionTree: z.ZodType<Condition> = z.lazy(() =>
 function firstTooDeepPath(
   value: unknown,
   maxLevels: number,
-  path: (string | number)[] = [],
+  path: IssuePath = [],
   level = 1,
-): (string | number)[] | null {
+): IssuePath | null {
   if (!isRecord(value)) return null;
   if (level > maxLevels) return path;
   if (value.kind === "not") {
@@ -118,11 +118,11 @@ export function conditionSchema(limits: DecreeLimits): z.ZodType<Condition> {
     .superRefine((value, ctx) => {
       const path = firstTooDeepPath(value, MAX_CONDITION_NESTING);
       if (path !== null) {
-        ctx.addIssue({
-          code: "custom",
-          message: `nests deeper than ${MAX_CONDITION_NESTING} levels`,
+        addIssue(
+          ctx,
+          `nests deeper than ${MAX_CONDITION_NESTING} levels`,
           path,
-        });
+        );
       }
     })
     .pipe(conditionTree)
@@ -130,24 +130,24 @@ export function conditionSchema(limits: DecreeLimits): z.ZodType<Condition> {
       let nodes = 0;
       const withinLimits = (
         node: Condition,
-        at: (string | number)[],
+        at: IssuePath,
         depth: number,
       ): boolean => {
         if (depth > limits.maxConditionDepth) {
-          ctx.addIssue({
-            code: "custom",
-            message: `nests deeper than ${limits.maxConditionDepth} levels`,
-            path: at,
-          });
+          addIssue(
+            ctx,
+            `nests deeper than ${limits.maxConditionDepth} levels`,
+            at,
+          );
           return false;
         }
         nodes += 1;
         if (nodes > limits.maxConditionNodes) {
-          ctx.addIssue({
-            code: "custom",
-            message: `condition has more than ${limits.maxConditionNodes} nodes`,
-            path: at,
-          });
+          addIssue(
+            ctx,
+            `condition has more than ${limits.maxConditionNodes} nodes`,
+            at,
+          );
           return false;
         }
         switch (node.kind) {
@@ -180,10 +180,7 @@ export function decreeSchema(limits: DecreeLimits): z.ZodType<Decree> {
     petition: z.enum(PETITIONS),
     rules: z.array(rule).superRefine((rules, ctx) => {
       if (rules.length > limits.maxRules) {
-        ctx.addIssue({
-          code: "custom",
-          message: `has more than ${limits.maxRules} rules`,
-        });
+        addIssue(ctx, `has more than ${limits.maxRules} rules`);
       }
     }),
     otherwise: policyName,

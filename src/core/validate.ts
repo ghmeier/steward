@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { sortedKeys } from "./data";
 import { type Decree, decreeSchema, decreeSetProblem } from "./decree";
-import { formatIssue } from "./errors";
+import { addIssue, formatIssue } from "./errors";
 import { JOBS, RESOURCES } from "./realm";
 import { type GameState, type PostingState, SCHEMA_VERSION } from "./state";
 
@@ -62,13 +62,11 @@ const count = z.int().min(0);
 const positiveCount = z.int().min(1);
 const uint32 = z.int().min(0).max(0xffffffff);
 
-type IssuePath = (string | number)[];
-
 const rngStream = z
   .tuple([uint32, uint32, uint32, uint32])
   .superRefine((words, ctx) => {
     if (words.every((word) => word === 0)) {
-      ctx.addIssue({ code: "custom", message: "must not be all zero" });
+      addIssue(ctx, "must not be all zero");
     }
   });
 
@@ -87,29 +85,17 @@ const dispute = z.strictObject({
   arrivedAt: count,
 });
 
-function ascendingIdIssues(
-  items: readonly { id: number }[],
-  next: number,
-  nextName: string,
-  path: IssuePath,
+function ascendingIdIssues<List extends string, Next extends string>(
   ctx: z.RefinementCtx,
+  parent: Record<List, readonly { id: number }[]> & Record<Next, number>,
+  listKey: List,
+  nextKey: Next,
 ): void {
   let previousId = 0;
-  for (const [index, { id }] of items.entries()) {
-    if (id <= previousId) {
-      ctx.addIssue({
-        code: "custom",
-        message: "ids must be strictly ascending",
-        path: [...path, index, "id"],
-      });
-    }
-    if (id >= next) {
-      ctx.addIssue({
-        code: "custom",
-        message: `must be below ${nextName}`,
-        path: [...path, index, "id"],
-      });
-    }
+  for (const [index, { id }] of parent[listKey].entries()) {
+    const path = [listKey, index, "id"];
+    if (id <= previousId) addIssue(ctx, "ids must be strictly ascending", path);
+    if (id >= parent[nextKey]) addIssue(ctx, `must be below ${nextKey}`, path);
     previousId = id;
   }
 }
@@ -121,13 +107,7 @@ const desk = z
     disputes: z.array(dispute),
   })
   .superRefine((value, ctx) =>
-    ascendingIdIssues(
-      value.disputes,
-      value.nextDisputeId,
-      "nextDisputeId",
-      ["disputes"],
-      ctx,
-    ),
+    ascendingIdIssues(ctx, value, "disputes", "nextDisputeId"),
   );
 
 // Validation has no tuning, so the size caps are enforced when a decree is enacted, not here.
@@ -148,36 +128,26 @@ function decreeRecord(
       for (const key of sortedKeys(decrees)) {
         if (decrees[key]?.id !== key) {
           idMismatch = true;
-          ctx.addIssue({
-            code: "custom",
-            message: "id must equal its key",
-            path: [key],
-          });
+          addIssue(ctx, "id must equal its key", [key]);
         }
       }
       if (!requireRunnableSet || idMismatch) return;
       // Labor policies need tuning, so only enacting checks them; loading cannot.
       const problem = decreeSetProblem(decrees, null);
-      if (problem !== null) ctx.addIssue({ code: "custom", message: problem });
+      if (problem !== null) addIssue(ctx, problem);
     });
 }
 
 function rosterIssues(posting: PostingState, ctx: z.RefinementCtx): void {
-  ascendingIdIssues(
-    posting.delegates,
-    posting.nextDelegateId,
-    "nextDelegateId",
-    ["delegates"],
-    ctx,
-  );
+  ascendingIdIssues(ctx, posting, "delegates", "nextDelegateId");
   const names = new Set<string>();
   for (const [index, { name }] of posting.delegates.entries()) {
     if (names.has(name)) {
-      ctx.addIssue({
-        code: "custom",
-        message: `"${name}" is held by another peasant`,
-        path: ["delegates", index, "name"],
-      });
+      addIssue(ctx, `"${name}" is held by another peasant`, [
+        "delegates",
+        index,
+        "name",
+      ]);
     }
     names.add(name);
   }
@@ -186,30 +156,29 @@ function rosterIssues(posting: PostingState, ctx: z.RefinementCtx): void {
   for (const [index, { parties }] of posting.desk.disputes.entries()) {
     const [first, second] = parties;
     if (first === second || !living.has(first) || !living.has(second)) {
-      ctx.addIssue({
-        code: "custom",
-        message: "must be two distinct peasants in the roster",
-        path: ["desk", "disputes", index, "parties"],
-      });
+      addIssue(ctx, "must be two distinct peasants in the roster", [
+        "desk",
+        "disputes",
+        index,
+        "parties",
+      ]);
     }
   }
 }
 
 function tickBoundIssues(state: GameState, ctx: z.RefinementCtx): void {
   if (state.career.promotedAt > state.tick) {
-    ctx.addIssue({
-      code: "custom",
-      message: "must not exceed tick",
-      path: ["career", "promotedAt"],
-    });
+    addIssue(ctx, "must not exceed tick", ["career", "promotedAt"]);
   }
   for (const [index, { arrivedAt }] of state.posting.desk.disputes.entries()) {
     if (arrivedAt > state.tick) {
-      ctx.addIssue({
-        code: "custom",
-        message: "must be no later than the tick",
-        path: ["posting", "desk", "disputes", index, "arrivedAt"],
-      });
+      addIssue(ctx, "must be no later than the tick", [
+        "posting",
+        "desk",
+        "disputes",
+        index,
+        "arrivedAt",
+      ]);
     }
   }
 }
@@ -219,7 +188,7 @@ const resources = z
   .superRefine((amounts, ctx) => {
     for (const id of RESOURCES) {
       if (!Object.hasOwn(amounts, id)) {
-        ctx.addIssue({ code: "custom", message: "is missing", path: [id] });
+        addIssue(ctx, "is missing", [id]);
       }
     }
   });
@@ -269,9 +238,9 @@ export function validateState(state: unknown): string[] {
   scanPlainData(state, "$", problems);
   const result = gameState.safeParse(state);
   if (!result.success) {
-    for (const issue of result.error.issues) {
-      problems.push(formatIssue(issue, "$"));
-    }
+    problems.push(
+      ...result.error.issues.map((issue) => formatIssue(issue, "$")),
+    );
   }
   return problems;
 }

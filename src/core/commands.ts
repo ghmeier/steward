@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { parseWith } from "./errors";
+import { addIssue, parseWith } from "./errors";
 import type { Game } from "./game";
 import type { AddContext } from "./math";
 import { JOBS } from "./realm";
@@ -52,11 +52,11 @@ const commandLogSchema: z.ZodType<CommandLogEntry[]> = z
     let previousTick = 1;
     for (const [index, entry] of entries.entries()) {
       if (entry.tick < previousTick) {
-        ctx.addIssue({
-          code: "custom",
-          message: `${entry.tick} is lower than the previous tick ${previousTick}`,
-          path: [index, "tick"],
-        });
+        addIssue(
+          ctx,
+          `${entry.tick} is lower than the previous tick ${previousTick}`,
+          [index, "tick"],
+        );
       }
       previousTick = entry.tick;
     }

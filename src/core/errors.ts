@@ -14,6 +14,16 @@ export function formatIssue(issue: z.core.$ZodIssue, root: string): string {
   return `${root}${path}: ${issue.message}`;
 }
 
+export type IssuePath = (string | number)[];
+
+export function addIssue(
+  ctx: z.RefinementCtx,
+  message: string,
+  path: IssuePath = [],
+): void {
+  ctx.addIssue({ code: "custom", message, path });
+}
+
 export function formatIssues(error: z.ZodError, root: string): string {
   return error.issues.map((issue) => formatIssue(issue, root)).join("; ");
 }

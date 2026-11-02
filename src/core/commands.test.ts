@@ -93,20 +93,20 @@ describe("parseCommand", () => {
 });
 
 describe("parseCommand rejections", () => {
-  test.each([
-    ["a missing decree", { type: "enactDecree" }],
-    ["a decree that is an array", { type: "enactDecree", decree: [] }],
-    ["a decree that is null", { type: "saveDecree", name: "a", decree: null }],
-    ["an unknown command type", { type: "nope" }],
-    ["an unknown key", { type: "noop", extra: 1 }],
-    [
-      "a fractional peasant id",
-      { type: "assignPeasant", peasant: 1.5, job: Job.FARM },
-    ],
-  ])("rejects %s", (_name, command) => {
+  test("rejects a missing or non-object decree, an unknown type or key, and a fractional peasant id", () => {
     const { commands } = villageOf(0);
+    const invalid = [
+      { type: "enactDecree" },
+      { type: "enactDecree", decree: [] },
+      { type: "saveDecree", name: "a", decree: null },
+      { type: "nope" },
+      { type: "noop", extra: 1 },
+      { type: "assignPeasant", peasant: 1.5, job: Job.FARM },
+    ];
 
-    expect(() => commands.parseCommand(command)).toThrow("command");
+    for (const command of invalid) {
+      expect(() => commands.parseCommand(command)).toThrow("command");
+    }
   });
 });
 

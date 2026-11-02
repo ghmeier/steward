@@ -109,25 +109,21 @@ describe("parseDecree condition nesting", () => {
     maxConditionDepth: Number.MAX_SAFE_INTEGER,
   };
 
-  test("rejects a pathologically deep condition with a message instead of overflowing the stack", () => {
-    const message = rejection(() =>
-      parseDecree(decree("a", nested(10_000)), unbounded),
-    );
-
-    expect(message).toContain("nests deeper than 64 levels");
-    expect(message).toStartWith("decree.rules[0].when.condition");
-  });
-
-  test("accepts a condition nested exactly to the cap and rejects one level more", () => {
+  test("accepts nesting exactly to the cap and rejects deeper, even 10,000 levels, with a message instead of a stack overflow", () => {
     const atCap = rejection(() =>
       parseDecree(decree("a", nested(64)), unbounded),
     );
     const pastCap = rejection(() =>
       parseDecree(decree("a", nested(65)), unbounded),
     );
+    const pathological = rejection(() =>
+      parseDecree(decree("a", nested(10_000)), unbounded),
+    );
 
     expect(atCap).toBe("");
     expect(pastCap).toContain("nests deeper than 64 levels");
+    expect(pathological).toContain("nests deeper than 64 levels");
+    expect(pathological).toStartWith("decree.rules[0].when.condition");
   });
 });
 
@@ -140,18 +136,18 @@ describe("parseDecree rejections", () => {
       value,
     });
 
-  test.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
-    "rejects a non-finite compare value of %p",
-    (value) => {
+  test("rejects non-finite compare values and turns negative zero into zero", () => {
+    const parsed = parseDecree(compare(-0), limits);
+
+    for (const value of [
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+    ]) {
       expect(rejection(() => parseDecree(compare(value), limits))).toStartWith(
         "decree.rules[0].when.value:",
       );
-    },
-  );
-
-  test("turns a negative-zero compare value into zero", () => {
-    const parsed = parseDecree(compare(-0), limits);
-
+    }
     expect(
       Object.is(
         parsed.rules[0]?.when.kind === "compare" && parsed.rules[0].when.value,
