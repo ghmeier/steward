@@ -98,6 +98,18 @@ function findDirectResourceMutation(code: string): string[] {
     : [];
 }
 
+// Zod is pure and deterministic, so it is the one package the core may import.
+const allowedPackages = new Set(["zod"]);
+
+function outsideCoreImports(file: string, source: string): string[] {
+  return importSpecifiers(source).filter((specifier) => {
+    if (allowedPackages.has(specifier)) return false;
+    if (!specifier.startsWith(".")) return true;
+    const resolved = join(file, "..", specifier);
+    return relative(coreDir, resolved).startsWith("..");
+  });
+}
+
 const files = coreSourceFiles(coreDir);
 
 describe("src/core boundary", () => {
@@ -106,13 +118,7 @@ describe("src/core boundary", () => {
     (_name, file) => {
       const source = readFileSync(file, "utf8");
 
-      const outside = importSpecifiers(source).filter((specifier) => {
-        if (!specifier.startsWith(".")) return true;
-        const resolved = join(file, "..", specifier);
-        return relative(coreDir, resolved).startsWith("..");
-      });
-
-      expect(outside).toEqual([]);
+      expect(outsideCoreImports(file, source)).toEqual([]);
     },
   );
 
@@ -170,6 +176,18 @@ describe("src/core boundary", () => {
     ]);
     expect(/(?<![\w.$])Date(?![\w$])/.test(code)).toBe(true);
     expect(/(?<![\w.$])Math\s*\.\s*random(?![\w$])/.test(code)).toBe(false);
+  });
+
+  test("the import scan allows zod but still flags other packages", () => {
+    const file = join(coreDir, "example.ts");
+
+    expect(outsideCoreImports(file, 'import { z } from "zod";')).toEqual([]);
+    expect(outsideCoreImports(file, 'import { x } from "lodash";')).toEqual([
+      "lodash",
+    ]);
+    expect(outsideCoreImports(file, 'import { y } from "../save/x";')).toEqual([
+      "../save/x",
+    ]);
   });
 
   test("the math scan catches banned members and names powInt for pow", () => {

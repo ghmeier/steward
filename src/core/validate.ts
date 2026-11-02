@@ -1,18 +1,8 @@
+import { z } from "zod";
 import { sortedKeys } from "./data";
 import { type Decree, decreeSchema, decreeSetProblem } from "./decree";
+import { addIssue, formatIssue } from "./errors";
 import { JOBS, RESOURCES } from "./realm";
-import {
-  array,
-  integer,
-  literal,
-  number,
-  object,
-  record,
-  refine,
-  type Schema,
-  string,
-  tuple,
-} from "./schema";
 import { type GameState, type PostingState, SCHEMA_VERSION } from "./state";
 
 function isPlainObject(value: object): boolean {
@@ -68,68 +58,57 @@ function scanPlainData(value: unknown, path: string, problems: string[]): void {
   }
 }
 
-const count = integer({ min: 0 });
-const positiveCount = integer({ min: 1 });
-const uint32 = integer({ min: 0, max: 0xffffffff });
+const count = z.int().min(0);
+const positiveCount = z.int().min(1);
+const uint32 = z.int().min(0).max(0xffffffff);
 
-const rngStream = refine(
-  tuple(uint32, uint32, uint32, uint32),
-  (words, path, problems) => {
+const rngStream = z
+  .tuple([uint32, uint32, uint32, uint32])
+  .superRefine((words, ctx) => {
     if (words.every((word) => word === 0)) {
-      problems.push(`${path}: must not be all zero`);
+      addIssue(ctx, "must not be all zero");
     }
-  },
-);
+  });
 
-const delegate = object({
+const delegate = z.strictObject({
   id: positiveCount,
-  name: string({ nonEmpty: true }),
-  kind: literal("peasant"),
-  job: literal(...JOBS),
+  name: z.string().min(1),
+  kind: z.literal("peasant"),
+  job: z.enum(JOBS),
   grudgeUntil: count,
 });
 
-const dispute = object({
+const dispute = z.strictObject({
   id: positiveCount,
-  template: string({ nonEmpty: true }),
-  parties: tuple(positiveCount, positiveCount),
+  template: z.string().min(1),
+  parties: z.tuple([positiveCount, positiveCount]),
   arrivedAt: count,
 });
 
-function ascendingIdProblems(
-  items: readonly { id: number }[],
-  next: number,
-  nextName: string,
-  path: string,
-  problems: string[],
+function ascendingIdIssues<List extends string, Next extends string>(
+  ctx: z.RefinementCtx,
+  parent: Record<List, readonly { id: number }[]> & Record<Next, number>,
+  listKey: List,
+  nextKey: Next,
 ): void {
   let previousId = 0;
-  for (const [index, { id }] of items.entries()) {
-    if (id <= previousId) {
-      problems.push(`${path}[${index}].id: ids must be strictly ascending`);
-    }
-    if (id >= next) {
-      problems.push(`${path}[${index}].id: must be below ${nextName}`);
-    }
+  for (const [index, { id }] of parent[listKey].entries()) {
+    const path = [listKey, index, "id"];
+    if (id <= previousId) addIssue(ctx, "ids must be strictly ascending", path);
+    if (id >= parent[nextKey]) addIssue(ctx, `must be below ${nextKey}`, path);
     previousId = id;
   }
 }
 
-const desk = refine(
-  object({
+const desk = z
+  .strictObject({
     nextDisputeId: positiveCount,
     nextArrivalTick: count,
-    disputes: array(dispute),
-  }),
-  (value, path, problems) =>
-    ascendingIdProblems(
-      value.disputes,
-      value.nextDisputeId,
-      "nextDisputeId",
-      `${path}.disputes`,
-      problems,
-    ),
-);
+    disputes: z.array(dispute),
+  })
+  .superRefine((value, ctx) =>
+    ascendingIdIssues(ctx, value, "disputes", "nextDisputeId"),
+  );
 
 // Validation has no tuning, so the size caps are enforced when a decree is enacted, not here.
 const UNBOUNDED_DECREE = {
@@ -141,42 +120,34 @@ const UNBOUNDED_DECREE = {
 /** A decree lives under its own id; `decrees` also rejects sets that could never run. */
 function decreeRecord(
   requireRunnableSet: boolean,
-): Schema<Record<string, Decree>> {
-  return refine(
-    record(decreeSchema(UNBOUNDED_DECREE)),
-    (decrees, path, problems) => {
-      const before = problems.length;
+): z.ZodType<Record<string, Decree>> {
+  return z
+    .record(z.string(), decreeSchema(UNBOUNDED_DECREE))
+    .superRefine((decrees, ctx) => {
+      let idMismatch = false;
       for (const key of sortedKeys(decrees)) {
         if (decrees[key]?.id !== key) {
-          problems.push(`${path}.${key}: id must equal its key`);
+          idMismatch = true;
+          addIssue(ctx, "id must equal its key", [key]);
         }
       }
-      if (!requireRunnableSet || problems.length > before) return;
+      if (!requireRunnableSet || idMismatch) return;
       // Labor policies need tuning, so only enacting checks them; loading cannot.
       const problem = decreeSetProblem(decrees, null);
-      if (problem !== null) problems.push(`${path}: ${problem}`);
-    },
-  );
+      if (problem !== null) addIssue(ctx, problem);
+    });
 }
 
-function rosterProblems(
-  posting: PostingState,
-  path: string,
-  problems: string[],
-): void {
-  ascendingIdProblems(
-    posting.delegates,
-    posting.nextDelegateId,
-    "nextDelegateId",
-    `${path}.delegates`,
-    problems,
-  );
+function rosterIssues(posting: PostingState, ctx: z.RefinementCtx): void {
+  ascendingIdIssues(ctx, posting, "delegates", "nextDelegateId");
   const names = new Set<string>();
   for (const [index, { name }] of posting.delegates.entries()) {
     if (names.has(name)) {
-      problems.push(
-        `${path}.delegates[${index}].name: "${name}" is held by another peasant`,
-      );
+      addIssue(ctx, `"${name}" is held by another peasant`, [
+        "delegates",
+        index,
+        "name",
+      ]);
     }
     names.add(name);
   }
@@ -185,86 +156,92 @@ function rosterProblems(
   for (const [index, { parties }] of posting.desk.disputes.entries()) {
     const [first, second] = parties;
     if (first === second || !living.has(first) || !living.has(second)) {
-      problems.push(
-        `${path}.desk.disputes[${index}].parties: must be two distinct peasants in the roster`,
-      );
+      addIssue(ctx, "must be two distinct peasants in the roster", [
+        "desk",
+        "disputes",
+        index,
+        "parties",
+      ]);
     }
   }
 }
 
-function tickBoundProblems(
-  state: GameState,
-  path: string,
-  problems: string[],
-): void {
+function tickBoundIssues(state: GameState, ctx: z.RefinementCtx): void {
   if (state.career.promotedAt > state.tick) {
-    problems.push(`${path}.career.promotedAt: must not exceed tick`);
+    addIssue(ctx, "must not exceed tick", ["career", "promotedAt"]);
   }
   for (const [index, { arrivedAt }] of state.posting.desk.disputes.entries()) {
     if (arrivedAt > state.tick) {
-      problems.push(
-        `${path}.posting.desk.disputes[${index}].arrivedAt: must be no later than the tick`,
-      );
+      addIssue(ctx, "must be no later than the tick", [
+        "posting",
+        "desk",
+        "disputes",
+        index,
+        "arrivedAt",
+      ]);
     }
   }
 }
 
-const resources = refine(record(number()), (amounts, path, problems) => {
-  for (const id of RESOURCES) {
-    if (!Object.hasOwn(amounts, id)) problems.push(`${path}.${id}: is missing`);
-  }
-});
+const resources = z
+  .record(z.string(), z.number())
+  .superRefine((amounts, ctx) => {
+    for (const id of RESOURCES) {
+      if (!Object.hasOwn(amounts, id)) {
+        addIssue(ctx, "is missing", [id]);
+      }
+    }
+  });
 
-const posting: Schema<PostingState> = refine(
-  object({
-    postingId: string(),
+const posting: z.ZodType<PostingState> = z
+  .strictObject({
+    postingId: z.string(),
     seed: uint32,
-    rng: record(rngStream),
+    rng: z.record(z.string(), rngStream),
     resources,
-    economy: object({
-      famine: object({
+    economy: z.strictObject({
+      famine: z.strictObject({
         startPopulation: count,
         ticks: count,
         deaths: count,
       }),
-      growth: number({ min: 0 }),
+      growth: z.number().min(0),
       starved: count,
     }),
-    delegates: array(delegate),
+    delegates: z.array(delegate),
     nextDelegateId: positiveCount,
     decrees: decreeRecord(true),
     desk,
-  }),
-  rosterProblems,
-);
+  })
+  .superRefine(rosterIssues);
 
-const career = object({
-  unlocks: record(count),
+const career = z.strictObject({
+  unlocks: z.record(z.string(), count),
   savedDecrees: decreeRecord(false),
-  needed: record(count),
-  followers: array(string()),
-  formerStaff: array(string()),
+  needed: z.record(z.string(), count),
+  followers: z.array(z.string()),
+  formerStaff: z.array(z.string()),
   promotedAt: count,
 });
 
-const gameState: Schema<GameState> = refine(
-  object({
-    schemaVersion: refine(integer(), (version, path, problems) => {
-      if (version !== SCHEMA_VERSION) {
-        problems.push(`${path}: must be ${SCHEMA_VERSION}`);
-      }
-    }),
+const gameState: z.ZodType<GameState> = z
+  .strictObject({
+    schemaVersion: z.literal(SCHEMA_VERSION),
     tick: count,
     career,
     posting,
-  }),
-  tickBoundProblems,
-);
+  })
+  .superRefine(tickBoundIssues);
 
 export function validateState(state: unknown): string[] {
   const problems: string[] = [];
   scanPlainData(state, "$", problems);
-  gameState.check(state, "$", problems);
+  const result = gameState.safeParse(state);
+  if (!result.success) {
+    problems.push(
+      ...result.error.issues.map((issue) => formatIssue(issue, "$")),
+    );
+  }
   return problems;
 }
 

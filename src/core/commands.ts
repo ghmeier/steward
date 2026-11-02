@@ -1,54 +1,41 @@
-import { isRecord } from "./data";
+import { z } from "zod";
+import { addIssue, parseWith } from "./errors";
 import type { Game } from "./game";
 import type { AddContext } from "./math";
 import { JOBS } from "./realm";
-import {
-  array,
-  custom,
-  type Infer,
-  integer,
-  literal,
-  object,
-  parse,
-  refine,
-  type Schema,
-  string,
-  variant,
-} from "./schema";
 
-const text = string();
+const text = z.string();
 
 // The decree is judged only when enacted or saved, against the tuning in force then.
-const opaqueDecree = custom<unknown>((value) => {
-  if (!isRecord(value)) throw new Error("the decree must be an object");
-  return structuredClone(value);
-});
+const opaqueDecree = z
+  .record(z.string(), z.unknown())
+  .transform((value): unknown => structuredClone(value));
 
-export const commandSchema = variant("type", {
-  noop: object({ type: literal("noop") }),
-  assignPeasant: object({
-    type: literal("assignPeasant"),
-    peasant: integer(),
-    job: literal(...JOBS),
+export const commandSchema = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("noop") }),
+  z.strictObject({
+    type: z.literal("assignPeasant"),
+    peasant: z.int(),
+    job: z.enum(JOBS),
   }),
-  enactDecree: object({ type: literal("enactDecree"), decree: opaqueDecree }),
-  repealDecree: object({ type: literal("repealDecree"), id: text }),
-  settleDispute: object({
-    type: literal("settleDispute"),
-    dispute: integer(),
+  z.strictObject({ type: z.literal("enactDecree"), decree: opaqueDecree }),
+  z.strictObject({ type: z.literal("repealDecree"), id: text }),
+  z.strictObject({
+    type: z.literal("settleDispute"),
+    dispute: z.int(),
     option: text,
   }),
-  buyUnlock: object({ type: literal("buyUnlock"), id: text }),
-  saveDecree: object({
-    type: literal("saveDecree"),
+  z.strictObject({ type: z.literal("buyUnlock"), id: text }),
+  z.strictObject({
+    type: z.literal("saveDecree"),
     name: text,
     decree: opaqueDecree,
   }),
-  enactSaved: object({ type: literal("enactSaved"), name: text }),
-  forgetSaved: object({ type: literal("forgetSaved"), name: text }),
-});
+  z.strictObject({ type: z.literal("enactSaved"), name: text }),
+  z.strictObject({ type: z.literal("forgetSaved"), name: text }),
+]);
 
-export type Command = Infer<typeof commandSchema>;
+export type Command = z.infer<typeof commandSchema>;
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
 
@@ -59,20 +46,21 @@ export type CommandResult = { ok: true } | { ok: false; reason: string };
  */
 export type CommandLogEntry = { tick: number; command: Command };
 
-const commandLogSchema: Schema<CommandLogEntry[]> = refine(
-  array(object({ tick: integer({ min: 1 }), command: commandSchema })),
-  (entries, path, problems) => {
+const commandLogSchema: z.ZodType<CommandLogEntry[]> = z
+  .array(z.strictObject({ tick: z.int().min(1), command: commandSchema }))
+  .superRefine((entries, ctx) => {
     let previousTick = 1;
     for (const [index, entry] of entries.entries()) {
       if (entry.tick < previousTick) {
-        problems.push(
-          `${path}[${index}].tick: ${entry.tick} is lower than the previous tick ${previousTick}`,
+        addIssue(
+          ctx,
+          `${entry.tick} is lower than the previous tick ${previousTick}`,
+          [index, "tick"],
         );
       }
       previousTick = entry.tick;
     }
-  },
-);
+  });
 
 export class CommandManager {
   constructor(private game: Game) {}
@@ -124,9 +112,9 @@ export class CommandManager {
   }
 
   parseCommand(value: unknown): Command {
-    return parse(commandSchema, value, "command");
+    return parseWith(commandSchema, value, "command");
   }
   parseCommandLog(value: unknown): CommandLogEntry[] {
-    return parse(commandLogSchema, value, "command log");
+    return parseWith(commandLogSchema, value, "command log");
   }
 }

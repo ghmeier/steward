@@ -102,6 +102,70 @@ describe("parseDecree", () => {
   });
 });
 
+describe("parseDecree condition nesting", () => {
+  const unbounded = {
+    maxRules: 2,
+    maxConditionNodes: Number.MAX_SAFE_INTEGER,
+    maxConditionDepth: Number.MAX_SAFE_INTEGER,
+  };
+
+  test("accepts nesting exactly to the cap and rejects deeper, even 10,000 levels, with a message instead of a stack overflow", () => {
+    const atCap = rejection(() =>
+      parseDecree(decree("a", nested(64)), unbounded),
+    );
+    const pastCap = rejection(() =>
+      parseDecree(decree("a", nested(65)), unbounded),
+    );
+    const pathological = rejection(() =>
+      parseDecree(decree("a", nested(10_000)), unbounded),
+    );
+
+    expect(atCap).toBe("");
+    expect(pastCap).toContain("nests deeper than 64 levels");
+    expect(pathological).toContain("nests deeper than 64 levels");
+    expect(pathological).toStartWith("decree.rules[0].when.condition");
+  });
+});
+
+describe("parseDecree rejections", () => {
+  const compare = (value: number) =>
+    decree("a", {
+      kind: "compare",
+      quantity: "coin",
+      comparison: "above",
+      value,
+    });
+
+  test("rejects non-finite compare values and turns negative zero into zero", () => {
+    const parsed = parseDecree(compare(-0), limits);
+
+    for (const value of [
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+    ]) {
+      expect(rejection(() => parseDecree(compare(value), limits))).toStartWith(
+        "decree.rules[0].when.value:",
+      );
+    }
+    expect(
+      Object.is(
+        parsed.rules[0]?.when.kind === "compare" && parsed.rules[0].when.value,
+        0,
+      ),
+    ).toBe(true);
+  });
+
+  test("rejects an unknown key, naming the object that holds it", () => {
+    const message = rejection(() =>
+      parseDecree({ ...decree("a"), extra: 1 }, limits),
+    );
+
+    expect(message).toStartWith("decree:");
+    expect(message).toContain("extra");
+  });
+});
+
 test("parseCondition reports problems under the caller's path", () => {
   const message = rejection(() =>
     parseCondition({ kind: "season", season: "monsoon" }, limits, "x.when"),

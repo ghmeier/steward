@@ -92,6 +92,24 @@ describe("parseCommand", () => {
   });
 });
 
+describe("parseCommand rejections", () => {
+  test("rejects a missing or non-object decree, an unknown type or key, and a fractional peasant id", () => {
+    const { commands } = villageOf(0);
+    const invalid = [
+      { type: "enactDecree" },
+      { type: "enactDecree", decree: [] },
+      { type: "saveDecree", name: "a", decree: null },
+      { type: "nope" },
+      { type: "noop", extra: 1 },
+      { type: "assignPeasant", peasant: 1.5, job: Job.FARM },
+    ];
+
+    for (const command of invalid) {
+      expect(() => commands.parseCommand(command)).toThrow("command");
+    }
+  });
+});
+
 describe("parseCommandLog", () => {
   test("keeps same-tick entries in file order", () => {
     const input: CommandLogEntry[] = [

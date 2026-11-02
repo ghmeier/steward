@@ -1,20 +1,8 @@
-import { type Condition, type DecreeLimits, parseCondition } from "./decree";
+import { z } from "zod";
+import { type Condition, conditionSchema, type DecreeLimits } from "./decree";
+import { addIssue, type IssuePath, parseWith } from "./errors";
+import { normalizeZero } from "./math";
 import { RESOURCES, SEASONS, WORKING_JOBS } from "./realm";
-import {
-  array,
-  custom,
-  type Infer,
-  integer,
-  keyedBy,
-  literal,
-  number,
-  object,
-  parse,
-  record,
-  refine,
-  type Schema,
-  string,
-} from "./schema";
 import {
   ARCHIVE_PANEL,
   type ArchiveEntry,
@@ -25,46 +13,46 @@ import {
   type PlayUnlock,
 } from "./unlocks";
 
-const nonNegative = number({ min: 0 });
-const positive = number({ exclusiveMin: 0 });
-const positiveInteger = integer({ min: 1 });
-const name = string({ nonEmpty: true });
+const nonNegative = z.number().min(0).transform(normalizeZero);
+const positive = z.number().gt(0).transform(normalizeZero);
+const positiveInteger = z.int().min(1);
+const name = z.string().min(1);
 
-const placeholderText = refine(name, (text, path, problems) => {
+const placeholderText = name.superRefine((text, ctx) => {
   for (const match of text.matchAll(/\{([^{}]*)\}/g)) {
     if (match[1] !== "first" && match[1] !== "second") {
-      problems.push(`${path}: has unknown placeholder ${match[0]}`);
+      addIssue(ctx, `has unknown placeholder ${match[0]}`);
     }
   }
 });
 
-const decreeLimits: Schema<DecreeLimits> = object({
+const decreeLimits: z.ZodType<DecreeLimits> = z.strictObject({
   maxRules: positiveInteger,
   maxConditionNodes: positiveInteger,
   maxConditionDepth: positiveInteger,
 });
 
-const laborAllocations = refine(
-  record(
-    refine(keyedBy(WORKING_JOBS, nonNegative), (shares, path, problems) => {
+const laborAllocations = z
+  .record(
+    z.string(),
+    z.record(z.enum(WORKING_JOBS), nonNegative).superRefine((shares, ctx) => {
       let total = 0;
       for (const job of WORKING_JOBS) total += shares[job];
       if (Math.abs(total - 1) > 1e-9) {
-        problems.push(`${path}: shares must sum to 1`);
+        addIssue(ctx, "shares must sum to 1");
       }
     }),
-  ),
-  (allocations, path, problems) => {
+  )
+  .superRefine((allocations, ctx) => {
     if (Object.keys(allocations).length === 0) {
-      problems.push(`${path}: must not be empty`);
+      addIssue(ctx, "must not be empty");
     }
-  },
-);
+  });
 
-const economy = refine(
-  object({
+const economy = z
+  .strictObject({
     ticksPerSeason: positiveInteger,
-    seasonYield: keyedBy(SEASONS, nonNegative),
+    seasonYield: z.record(z.enum(SEASONS), nonNegative),
     grainPerFarmer: nonNegative,
     woodPerWorker: nonNegative,
     orePerWorker: nonNegative,
@@ -75,182 +63,171 @@ const economy = refine(
     grainPerPeasant: positive,
     maxPopulation: positiveInteger,
     laborMovesPerTick: positiveInteger,
-    initialPopulation: integer({ min: 0 }),
-    initialResources: keyedBy(RESOURCES, nonNegative),
+    initialPopulation: z.int().min(0),
+    initialResources: z.record(z.enum(RESOURCES), nonNegative),
     laborAllocations,
-  }),
-  (value, path, problems) => {
+  })
+  .superRefine((value, ctx) => {
     if (value.initialPopulation > value.maxPopulation) {
-      problems.push(`${path}.initialPopulation: must not exceed maxPopulation`);
+      addIssue(ctx, "must not exceed maxPopulation", ["initialPopulation"]);
     }
-  },
-);
+  });
 
-const disputeOption = object(
-  {
-    id: name,
-    label: placeholderText,
-    resources: object(
-      {
-        coin: number(),
-        grain: number(),
-        ore: number(),
-        wood: number(),
-      },
-      { optional: RESOURCES },
-    ),
-    grudge: literal("first", "second"),
-  },
-  { optional: ["resources", "grudge"] },
-);
+const amount = z.number().transform(normalizeZero).exactOptional();
 
-const disputeTemplate = refine(
-  object({
+const disputeOption = z.strictObject({
+  id: name,
+  label: placeholderText,
+  resources: z
+    .strictObject({
+      coin: amount,
+      grain: amount,
+      ore: amount,
+      wood: amount,
+    })
+    .exactOptional(),
+  grudge: z.enum(["first", "second"]).exactOptional(),
+});
+
+const disputeTemplate = z
+  .strictObject({
     id: name,
     text: placeholderText,
-    options: array(disputeOption, { minLength: 2 }),
-    expiry: string(),
-  }),
-  (template, path, problems) => {
-    const seen = new Set<string>();
-    for (const option of template.options) {
-      if (seen.has(option.id)) {
-        problems.push(`${path}.options: repeats option id "${option.id}"`);
-      }
-      seen.add(option.id);
-    }
+    options: z.array(disputeOption).min(2),
+    expiry: z.string(),
+  })
+  .superRefine((template, ctx) => {
+    repeatIssues(
+      template.options.map((option) => option.id),
+      "option id",
+      ctx,
+      ["options"],
+    );
     const expiry = template.options.find(
       (option) => option.id === template.expiry,
     );
     if (expiry === undefined) {
-      problems.push(`${path}.expiry: must name one of its options`);
+      addIssue(ctx, "must name one of its options", ["expiry"]);
       return;
     }
     if (expiry.grudge !== undefined) {
-      problems.push(`${path}.expiry: option "${expiry.id}" must not grudge`);
+      addIssue(ctx, `option "${expiry.id}" must not grudge`, ["expiry"]);
     }
     for (const resource of RESOURCES) {
       if ((expiry.resources?.[resource] ?? 0) > 0) {
-        problems.push(
-          `${path}.expiry: option "${expiry.id}" must not gain ${resource}`,
-        );
+        addIssue(ctx, `option "${expiry.id}" must not gain ${resource}`, [
+          "expiry",
+        ]);
       }
     }
-  },
-);
+  });
 
-function checkRepeats(
+function repeatIssues(
   items: readonly string[],
-  path: string,
-  problems: string[],
   label: string,
+  ctx: z.RefinementCtx,
+  path: IssuePath = [],
 ): void {
   const seen = new Set<string>();
   for (const item of items) {
-    if (seen.has(item)) problems.push(`${path}: repeats ${label} "${item}"`);
+    if (seen.has(item)) {
+      addIssue(ctx, `repeats ${label} "${item}"`, path);
+    }
     seen.add(item);
   }
 }
 
-const village = object({
-  names: refine(array(name), (names, path, problems) =>
-    checkRepeats(names, path, problems, "name"),
-  ),
+const village = z.strictObject({
+  names: z
+    .array(name)
+    .superRefine((names, ctx) => repeatIssues(names, "name", ctx)),
   deskSlots: positiveInteger,
   promotionPopulation: positiveInteger,
-  disputeArrival: refine(
-    object({ minTicks: positiveInteger, maxTicks: positiveInteger }),
-    (arrival, path, problems) => {
+  disputeArrival: z
+    .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
+    .superRefine((arrival, ctx) => {
       if (arrival.minTicks > arrival.maxTicks) {
-        problems.push(`${path}.minTicks: must not exceed maxTicks`);
+        addIssue(ctx, "must not exceed maxTicks", ["minTicks"]);
       }
-    },
-  ),
+    }),
   grudgeTicks: positiveInteger,
-  disputes: refine(
-    array(disputeTemplate, { minLength: 1 }),
-    (templates, path, problems) =>
-      checkRepeats(
+  disputes: z
+    .array(disputeTemplate)
+    .min(1)
+    .superRefine((templates, ctx) =>
+      repeatIssues(
         templates.map((template) => template.id),
-        path,
-        problems,
         "id",
+        ctx,
       ),
-  ),
+    ),
 });
 
-const simpleCondition: Schema<Condition> = custom((value, path) => {
-  const condition = parseCondition(
-    value,
-    { maxRules: 1, maxConditionNodes: 8, maxConditionDepth: 3 },
-    path,
-  );
+const simpleCondition: z.ZodType<Condition> = conditionSchema({
+  maxRules: 1,
+  maxConditionNodes: 8,
+  maxConditionDepth: 3,
+}).superRefine((condition, ctx) => {
   if (condition.kind !== "compare" && condition.kind !== "season") {
-    throw new Error(`${path}: must be a compare or season condition`);
+    addIssue(ctx, "must be a compare or season condition");
   }
-  return condition;
 });
 
-const archiveEntry: Schema<ArchiveEntry> = object({
+const archiveEntry: z.ZodType<ArchiveEntry> = z.strictObject({
   id: name,
   label: name,
   description: name,
   cost: positive,
-  requires: array(name),
+  requires: z.array(name),
 });
-const playUnlock: Schema<PlayUnlock> = object({
+const playUnlock: z.ZodType<PlayUnlock> = z.strictObject({
   id: name,
   label: name,
   when: simpleCondition,
 });
-const needHook: Schema<NeedHook> = object({
+const needHook: z.ZodType<NeedHook> = z.strictObject({
   control: name,
   when: simpleCondition,
 });
 
-function checkArchive(
-  archive: ArchiveTuning,
-  path: string,
-  problems: string[],
-): void {
+function archiveIssues(archive: ArchiveTuning, ctx: z.RefinementCtx): void {
   const { entries, play, needs } = archive;
   for (const id of [COMPOUND_UNLOCK, CHAINING_UNLOCK]) {
     if (!entries.some((entry) => entry.id === id)) {
-      problems.push(`${path}.entries: must include "${id}"`);
+      addIssue(ctx, `must include "${id}"`, ["entries"]);
     }
   }
   if (!play.some((unlock) => unlock.id === ARCHIVE_PANEL)) {
-    problems.push(`${path}.play: must include "${ARCHIVE_PANEL}"`);
+    addIssue(ctx, `must include "${ARCHIVE_PANEL}"`, ["play"]);
   }
-  checkRepeats(
+  repeatIssues(
     [...entries.map((entry) => entry.id), ...play.map((unlock) => unlock.id)],
-    path,
-    problems,
     "id",
+    ctx,
   );
-  checkRepeats(
+  repeatIssues(
     needs.map((hook) => hook.control),
-    `${path}.needs`,
-    problems,
     "control",
+    ctx,
+    ["needs"],
   );
 
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
   for (const entry of entries) {
     for (const required of entry.requires) {
       if (!byId.has(required)) {
-        problems.push(
-          `${path}.entries: "${entry.id}" requires unknown id "${required}"`,
-        );
+        addIssue(ctx, `"${entry.id}" requires unknown id "${required}"`, [
+          "entries",
+        ]);
       }
     }
   }
   const done = new Set<string>();
   const visit = (id: string, trail: string[]): void => {
     if (trail.includes(id)) {
-      problems.push(
-        `${path}.entries: requires cycle ${[...trail, id].join(" -> ")}`,
-      );
+      addIssue(ctx, `requires cycle ${[...trail, id].join(" -> ")}`, [
+        "entries",
+      ]);
       return;
     }
     if (done.has(id)) return;
@@ -262,46 +239,47 @@ function checkArchive(
   for (const entry of entries) visit(entry.id, []);
 }
 
-const archive: Schema<ArchiveTuning> = refine(
-  object({
+const archive: z.ZodType<ArchiveTuning> = z
+  .strictObject({
     maxSaved: positiveInteger,
-    entries: array(archiveEntry),
-    play: array(playUnlock),
-    needs: array(needHook),
-  }),
-  checkArchive,
-);
+    entries: z.array(archiveEntry),
+    play: z.array(playUnlock),
+    needs: z.array(needHook),
+  })
+  .superRefine(archiveIssues);
 
-const tuningSchema = refine(
-  object({
+const tuningSchema = z
+  .strictObject({
     stepMs: positive,
     maxResourceValue: positive,
     decrees: decreeLimits,
     economy,
     village,
     archive,
-  }),
-  (tuning, path, problems) => {
+  })
+  .superRefine((tuning, ctx) => {
     const max = tuning.economy.maxPopulation;
     if (tuning.village.names.length < max) {
-      problems.push(
-        `${path}.village.names: needs at least maxPopulation (${max}) names, got ${tuning.village.names.length}`,
+      addIssue(
+        ctx,
+        `needs at least maxPopulation (${max}) names, got ${tuning.village.names.length}`,
+        ["village", "names"],
       );
     }
     if (tuning.village.promotionPopulation > max) {
-      problems.push(
-        `${path}.village.promotionPopulation: must not exceed economy.maxPopulation (${max})`,
-      );
+      addIssue(ctx, `must not exceed economy.maxPopulation (${max})`, [
+        "village",
+        "promotionPopulation",
+      ]);
     }
-  },
-);
+  });
 
-export type Tuning = Infer<typeof tuningSchema>;
-export type VillageTuning = Infer<typeof village>;
-export type DisputeTemplate = Infer<typeof disputeTemplate>;
-export type DisputeOption = Infer<typeof disputeOption>;
+export type Tuning = z.infer<typeof tuningSchema>;
+export type VillageTuning = z.infer<typeof village>;
+export type DisputeTemplate = z.infer<typeof disputeTemplate>;
+export type DisputeOption = z.infer<typeof disputeOption>;
 
 /** Takes the merged contents of tuning.json, village.json and archive.json. */
 export function parseTuning(value: unknown): Tuning {
-  return parse(tuningSchema, value, "tuning");
+  return parseWith(tuningSchema, value, "tuning");
 }
