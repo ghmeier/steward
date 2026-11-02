@@ -1,17 +1,8 @@
-import { compareKeys, sortedKeys } from "./data";
+import { z } from "zod";
+import { compareKeys, isRecord, sortedKeys } from "./data";
+import { parseWith } from "./errors";
+import { normalizeZero } from "./math";
 import { SEASONS, type Season } from "./realm";
-import {
-  array,
-  lazy,
-  literal,
-  number,
-  object,
-  parse,
-  refine,
-  type Schema,
-  string,
-  variant,
-} from "./schema";
 import type { Tuning } from "./tuning";
 
 export const PETITIONS = ["harvest", "wood", "ore", "labor"] as const;
@@ -53,82 +44,146 @@ export type DecreeLimits = {
 
 export const DECREE_ID_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
 
-const decreeId = string({ pattern: DECREE_ID_PATTERN });
-const policyName = string({ nonEmpty: true });
+const decreeId = z.string().regex(DECREE_ID_PATTERN);
+const policyName = z.string().min(1);
+
+// Zod's lazy schemas recurse without a cap, so untrusted input is bounded before it reaches them.
+const MAX_CONDITION_NESTING = 64;
 
 function conditionGroup<K extends "all" | "any">(kind: K) {
-  return object({
-    kind: literal(kind),
-    conditions: array(conditionTree, { minLength: 1 }),
+  return z.strictObject({
+    kind: z.literal(kind),
+    conditions: z.array(conditionTree).min(1),
   });
 }
 
-const conditionTree: Schema<Condition> = lazy(() =>
-  variant("kind", {
-    compare: object({
-      kind: literal("compare"),
-      quantity: literal(...QUANTITIES),
-      comparison: literal("above", "below"),
-      value: number(),
+const conditionTree: z.ZodType<Condition> = z.lazy(() =>
+  z.discriminatedUnion("kind", [
+    z.strictObject({
+      kind: z.literal("compare"),
+      quantity: z.enum(QUANTITIES),
+      comparison: z.enum(["above", "below"]),
+      value: z.number().transform(normalizeZero),
     }),
-    season: object({ kind: literal("season"), season: literal(...SEASONS) }),
-    chose: object({
-      kind: literal("chose"),
+    z.strictObject({ kind: z.literal("season"), season: z.enum(SEASONS) }),
+    z.strictObject({
+      kind: z.literal("chose"),
       decree: decreeId,
       policy: policyName,
     }),
-    all: conditionGroup("all"),
-    any: conditionGroup("any"),
-    not: object({ kind: literal("not"), condition: conditionTree }),
-  }),
+    conditionGroup("all"),
+    conditionGroup("any"),
+    z.strictObject({ kind: z.literal("not"), condition: conditionTree }),
+  ]),
 );
 
-/** Nodes are counted in reading order, so the first node past a limit is the one reported. */
-export function conditionSchema(limits: DecreeLimits): Schema<Condition> {
-  return refine(conditionTree, (condition, path, problems) => {
-    let nodes = 0;
-    const withinLimits = (
-      node: Condition,
-      at: string,
-      depth: number,
-    ): boolean => {
-      if (depth > limits.maxConditionDepth) {
-        problems.push(
-          `${at}: nests deeper than ${limits.maxConditionDepth} levels`,
-        );
-        return false;
-      }
-      nodes += 1;
-      if (nodes > limits.maxConditionNodes) {
-        problems.push(
-          `${at}: condition has more than ${limits.maxConditionNodes} nodes`,
-        );
-        return false;
-      }
-      switch (node.kind) {
-        case "all":
-        case "any":
-          return node.conditions.every((child, index) =>
-            withinLimits(child, `${at}.conditions[${index}]`, depth + 1),
-          );
-        case "not":
-          return withinLimits(node.condition, `${at}.condition`, depth + 1);
-        default:
-          return true;
-      }
-    };
-    withinLimits(condition, path, 1);
-  });
+/** The path to the first node nested past `maxLevels` levels, found without recursing past the cap. */
+function firstTooDeepPath(
+  value: unknown,
+  maxLevels: number,
+  path: (string | number)[] = [],
+  level = 1,
+): (string | number)[] | null {
+  if (!isRecord(value)) return null;
+  if (level > maxLevels) return path;
+  if (value.kind === "not") {
+    return firstTooDeepPath(
+      value.condition,
+      maxLevels,
+      [...path, "condition"],
+      level + 1,
+    );
+  }
+  if (
+    (value.kind === "all" || value.kind === "any") &&
+    Array.isArray(value.conditions)
+  ) {
+    for (const [index, child] of value.conditions.entries()) {
+      const found = firstTooDeepPath(
+        child,
+        maxLevels,
+        [...path, "conditions", index],
+        level + 1,
+      );
+      if (found !== null) return found;
+    }
+  }
+  return null;
 }
 
-export function decreeSchema(limits: DecreeLimits): Schema<Decree> {
-  const rule = object({ when: conditionSchema(limits), policy: policyName });
-  return object({
+/** Nodes are counted in reading order, so the first node past a limit is the one reported. */
+export function conditionSchema(limits: DecreeLimits): z.ZodType<Condition> {
+  return z
+    .unknown()
+    .superRefine((value, ctx) => {
+      const path = firstTooDeepPath(value, MAX_CONDITION_NESTING);
+      if (path !== null) {
+        ctx.addIssue({
+          code: "custom",
+          message: `nests deeper than ${MAX_CONDITION_NESTING} levels`,
+          path,
+        });
+      }
+    })
+    .pipe(conditionTree)
+    .superRefine((condition, ctx) => {
+      let nodes = 0;
+      const withinLimits = (
+        node: Condition,
+        at: (string | number)[],
+        depth: number,
+      ): boolean => {
+        if (depth > limits.maxConditionDepth) {
+          ctx.addIssue({
+            code: "custom",
+            message: `nests deeper than ${limits.maxConditionDepth} levels`,
+            path: at,
+          });
+          return false;
+        }
+        nodes += 1;
+        if (nodes > limits.maxConditionNodes) {
+          ctx.addIssue({
+            code: "custom",
+            message: `condition has more than ${limits.maxConditionNodes} nodes`,
+            path: at,
+          });
+          return false;
+        }
+        switch (node.kind) {
+          case "all":
+          case "any":
+            return node.conditions.every((child, index) =>
+              withinLimits(child, [...at, "conditions", index], depth + 1),
+            );
+          case "not":
+            return withinLimits(
+              node.condition,
+              [...at, "condition"],
+              depth + 1,
+            );
+          default:
+            return true;
+        }
+      };
+      withinLimits(condition, [], 1);
+    });
+}
+
+export function decreeSchema(limits: DecreeLimits): z.ZodType<Decree> {
+  const rule = z.strictObject({
+    when: conditionSchema(limits),
+    policy: policyName,
+  });
+  return z.strictObject({
     id: decreeId,
-    petition: literal(...PETITIONS),
-    rules: refine(array(rule), (rules, path, problems) => {
+    petition: z.enum(PETITIONS),
+    rules: z.array(rule).superRefine((rules, ctx) => {
       if (rules.length > limits.maxRules) {
-        problems.push(`${path}: has more than ${limits.maxRules} rules`);
+        ctx.addIssue({
+          code: "custom",
+          message: `has more than ${limits.maxRules} rules`,
+        });
       }
     }),
     otherwise: policyName,
@@ -138,13 +193,13 @@ export function decreeSchema(limits: DecreeLimits): Schema<Decree> {
 export function parseCondition(
   value: unknown,
   limits: DecreeLimits,
-  path: string,
+  root: string,
 ): Condition {
-  return parse(conditionSchema(limits), value, path);
+  return parseWith(conditionSchema(limits), value, root);
 }
 
 export function parseDecree(value: unknown, limits: DecreeLimits): Decree {
-  return parse(decreeSchema(limits), value, "decree");
+  return parseWith(decreeSchema(limits), value, "decree");
 }
 
 function collectChoses(

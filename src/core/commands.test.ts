@@ -92,6 +92,24 @@ describe("parseCommand", () => {
   });
 });
 
+describe("parseCommand rejections", () => {
+  test.each([
+    ["a missing decree", { type: "enactDecree" }],
+    ["a decree that is an array", { type: "enactDecree", decree: [] }],
+    ["a decree that is null", { type: "saveDecree", name: "a", decree: null }],
+    ["an unknown command type", { type: "nope" }],
+    ["an unknown key", { type: "noop", extra: 1 }],
+    [
+      "a fractional peasant id",
+      { type: "assignPeasant", peasant: 1.5, job: Job.FARM },
+    ],
+  ])("rejects %s", (_name, command) => {
+    const { commands } = villageOf(0);
+
+    expect(() => commands.parseCommand(command)).toThrow("command");
+  });
+});
+
 describe("parseCommandLog", () => {
   test("keeps same-tick entries in file order", () => {
     const input: CommandLogEntry[] = [

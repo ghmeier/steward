@@ -89,7 +89,7 @@ describe("validateState", () => {
     [
       "a wrong schemaVersion",
       { schemaVersion: 99 },
-      "$.schemaVersion: must be",
+      "$.schemaVersion: Invalid input: expected 8",
     ],
     [
       "an all-zero rng stream",
@@ -200,6 +200,34 @@ describe("validateState", () => {
     ["a promotedAt equal to the tick", { "career.promotedAt": 50 }],
   ])("cross-field: accepts %s", (_name, patches) => {
     expect(validateState(patched(patches))).toEqual([]);
+  });
+});
+
+describe("validateState condition nesting", () => {
+  function decreeNestedBy(levels: number) {
+    let when: Tree = { kind: "season", season: "winter" };
+    for (let level = 1; level < levels; level++) {
+      when = { kind: "not", condition: when };
+    }
+    return { ...granary, rules: [{ when, policy: "sell" }] };
+  }
+
+  test("rejects a pathologically deep condition with a message instead of overflowing the stack", () => {
+    const state = patched({
+      "posting.decrees": { granary: decreeNestedBy(10_000) },
+    });
+
+    const text = validateState(state).join("\n");
+
+    expect(text).toContain("nests deeper than 64 levels");
+  });
+
+  test("accepts a condition nested exactly to the cap", () => {
+    const state = patched({
+      "posting.decrees": { granary: decreeNestedBy(64) },
+    });
+
+    expect(validateState(state)).toEqual([]);
   });
 });
 

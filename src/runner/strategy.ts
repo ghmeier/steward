@@ -1,19 +1,12 @@
+import { z } from "zod";
 import { type Command, commandSchema } from "../core/commands";
 import {
   type Condition,
   conditionSchema,
   type DecreeLimits,
 } from "../core/decree";
+import { parseWith } from "../core/errors";
 import type { Game } from "../core/game";
-import {
-  array,
-  object,
-  parse,
-  refine,
-  type Schema,
-  string,
-} from "../core/schema";
-
 export type Reaction = { when: Condition; commands: Command[] };
 export type Strategy = {
   name: string;
@@ -41,27 +34,28 @@ function containsChose(condition: Condition): boolean {
   }
 }
 
-function strategySchema(limits: DecreeLimits): Schema<Strategy> {
-  const commands = array(commandSchema);
-  const reaction = refine(
-    object({ when: conditionSchema(limits), commands }),
-    (entry, path, problems) => {
+function strategySchema(limits: DecreeLimits): z.ZodType<Strategy> {
+  const commands = z.array(commandSchema);
+  const reaction = z
+    .strictObject({ when: conditionSchema(limits), commands })
+    .superRefine((entry, ctx) => {
       if (containsChose(entry.when)) {
-        problems.push(
-          `${path}.when: chose conditions are not available to strategies`,
-        );
+        ctx.addIssue({
+          code: "custom",
+          message: "chose conditions are not available to strategies",
+          path: ["when"],
+        });
       }
-    },
-  );
-  return object({
-    name: string({ nonEmpty: true }),
+    });
+  return z.strictObject({
+    name: z.string().min(1),
     setup: commands,
-    reactions: array(reaction),
+    reactions: z.array(reaction),
   });
 }
 
 export function parseStrategy(value: unknown, limits: DecreeLimits): Strategy {
-  return parse(strategySchema(limits), value, "strategy");
+  return parseWith(strategySchema(limits), value, "strategy");
 }
 
 export type StrategyPlayer = {
