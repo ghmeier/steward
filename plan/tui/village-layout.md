@@ -5,7 +5,7 @@ tags: [tui]
 created: 2026-11-03
 updated: 2026-11-03
 last_pr: 4
-next_step: Garret reviews PR #4; on merge flip to completed and write the handoff
+next_step: PR 3 (bar layout and arrow keys) in progress
 ---
 # Village UI overhaul: five focusable panels and a command bar
 
@@ -105,7 +105,8 @@ The command line moves into the bottom bar.
 | PR | Branch | Status |
 | --- | --- | --- |
 | 1 | `village-layout` | merged, PR #3 (3169402) |
-| 2 | `village-command-bar` | PR #4 open (b6cbfad), awaiting review |
+| 2 | `village-command-bar` | merged, PR #4 (c2f3afc) |
+| 3 | `village-bar-polish` | implementer running |
 
 ## Notes and decisions
 
@@ -118,3 +119,4 @@ The command line moves into the bottom bar.
 - 2026-11-03: PR 2 implemented. OpenTUI reports a box's size only after its first paint, so panels draw against the terminal size first and correct themselves through `onSizeChange` on the next tick. The bar is absolutely positioned with a filled background, because the grid shows through an unfilled box. Its suggestion budget shrinks on short terminals. The layout test keeps a tolerance of 2 columns for Yoga's rounding of the 1 : 1 : 2 split.
 - 2026-11-03: PR #3 merged into main as a merge commit (3169402). PR 2 now targets main.
 - 2026-11-03: PR #4 opened. The bar fills with `RGBA.defaultBackground()` so light themes work. `PanelSlot` and `CommandBar` own the size arithmetic, and `settledFrame` in test/tui-helpers.ts is the shared two-pass render for tests.
+- 2026-11-03: PR #4 merged (c2f3afc). Garret's playtest follow-ups: ": commands" moves to the bottom left; the notice moves to the right, before "(?)Help"; left and right arrows cycle panel focus. These are PR 3, `village-bar-polish`. The labor-decree ask is in [[plan/mechanics/labor-phase-changes]].
