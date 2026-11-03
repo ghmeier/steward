@@ -16,7 +16,7 @@ import {
   setRoster,
   tuning,
 } from "../../test/helpers";
-import { settledFrame } from "../../test/tui-helpers";
+import { barRow, settledFrame } from "../../test/tui-helpers";
 import type { Decree } from "../core/decree";
 import { Game } from "../core/game";
 import { Job } from "../core/realm";
@@ -336,6 +336,7 @@ const granary: Decree = {
   otherwise: "sell",
 };
 const DOUBLE_BORDER = "\u2554";
+const FOCUSED_TITLE = new RegExp(`${DOUBLE_BORDER}\\W*(\\(\\w\\)\\w+)`);
 
 describe("doors", () => {
   test("enter in the Decrees panel opens the command line on the selected petition and a typed decree reaches the state", async () => {
@@ -545,16 +546,6 @@ describe("focus", () => {
     expect(repealed).toBeUndefined();
     expect(await harness.screen()).toContain("No harvest decree is in force.");
   });
-
-  test("the bar lists the palette only once it is owned", async () => {
-    const locked = await launch();
-    const owned = await launch({ game: owning(PALETTE_UNLOCK) });
-
-    expect(await locked.screen()).not.toContain(": commands");
-    expect(await owned.screen()).toContain(
-      "(?)Help (N)ew village (Q)uit : commands",
-    );
-  });
 });
 
 describe("new village", () => {
@@ -691,5 +682,86 @@ describe("notices", () => {
 
     expect(announced).toContain(`Bought ${palette?.label}.`);
     expect(later).not.toContain("Bought");
+  });
+});
+
+describe("the arrow keys", () => {
+  const press = async (harness: Harness, direction: "left" | "right") => {
+    harness.mockInput.pressArrow(direction);
+    return FOCUSED_TITLE.exec(await harness.screen())?.[1] ?? null;
+  };
+  const pressTimes = async (
+    harness: Harness,
+    direction: "left" | "right",
+    times: number,
+  ) => {
+    const visited = [];
+    for (let step = 0; step < times; step++)
+      visited.push(await press(harness, direction));
+    return visited;
+  };
+
+  test("from nothing focused, right and left step through the panels in reading order from opposite ends and wrap", async () => {
+    const forward = await launch({ game: owning(ARCHIVE_PANEL) });
+    const backward = await launch({ game: owning(ARCHIVE_PANEL) });
+
+    const rightward = await pressTimes(forward, "right", 5);
+    const leftward = await pressTimes(backward, "left", 5);
+
+    expect(rightward).toEqual([
+      "(P)easants",
+      "(A)rchive",
+      "(C)ourt",
+      "(D)ecrees",
+      "(P)easants",
+    ]);
+    expect(leftward).toEqual([
+      "(D)ecrees",
+      "(C)ourt",
+      "(A)rchive",
+      "(P)easants",
+      "(D)ecrees",
+    ]);
+  });
+
+  test("the Archive is skipped until it is owned", async () => {
+    const harness = await launch();
+
+    const visited = await pressTimes(harness, "right", 3);
+
+    expect(visited).toEqual(["(P)easants", "(C)ourt", "(D)ecrees"]);
+  });
+
+  test("a focused panel does not claim the arrows", async () => {
+    const harness = await launch();
+
+    await harness.mockInput.typeText("c");
+
+    expect(await pressTimes(harness, "right", 2)).toEqual([
+      "(D)ecrees",
+      "(P)easants",
+    ]);
+  });
+
+  test("the arrows leave focus alone while the command line is open", async () => {
+    const harness = await launch({ game: owning(PALETTE_UNLOCK) });
+    await harness.mockInput.typeText("p:");
+
+    const afterRight = await press(harness, "right");
+    const afterLeft = await press(harness, "left");
+
+    expect(afterRight).toBe("(P)easants");
+    expect(afterLeft).toBe("(P)easants");
+    expect(await harness.screen()).toContain(": _");
+  });
+});
+
+describe("the bottom bar", () => {
+  test("the commands reminder appears on the left only once the palette is owned", async () => {
+    const locked = await launch();
+    const owned = await launch({ game: owning(PALETTE_UNLOCK) });
+
+    expect(barRow(await locked.screen()).trim()).not.toContain(": commands");
+    expect(barRow(await owned.screen()).startsWith(": commands")).toBe(true);
   });
 });

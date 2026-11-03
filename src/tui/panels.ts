@@ -4,7 +4,12 @@ import {
   RGBA,
   TextRenderable,
 } from "@opentui/core";
-import { type FocusId, panelHintsText } from "./keys";
+import {
+  BAR_HINTS,
+  barCommandsText,
+  type FocusId,
+  panelHintsText,
+} from "./keys";
 import type { MenuContext, MenuRender } from "./menu";
 import type { PanelSize, Village } from "./village-panels";
 import { wrapLine } from "./wrap";
@@ -12,7 +17,6 @@ import { wrapLine } from "./wrap";
 export type PanelsFrame = {
   context: MenuContext;
   message: string | null;
-  barHints: string;
   focus: FocusId | null;
 };
 
@@ -31,6 +35,7 @@ const BORDER_COLOR = "#6b7280";
 const FOCUS_COLOR = "#f5c542";
 const BORDER = 1;
 const PADDING = 1;
+const BAR_GAP = 1;
 
 class PanelSlot {
   readonly box: BoxRenderable;
@@ -87,6 +92,53 @@ class PanelSlot {
     this.drawnSize = this.size;
     this.text.content = body(this.drawnSize);
     return this.drawnSize;
+  }
+}
+
+/**
+ * One row with the command reminder on the left and the notice followed by the help hints on the right.
+ * The notice gives way first, losing its end so its opening words survive, and the hints never move.
+ */
+class StatusBar {
+  private static readonly ELLIPSIS = "\u2026";
+  readonly box: BoxRenderable;
+  private readonly text: TextRenderable;
+
+  constructor(private readonly renderer: CliRenderer) {
+    this.box = new BoxRenderable(renderer, {
+      id: "bar",
+      height: BAR_LINES,
+      flexShrink: 0,
+    });
+    this.text = new TextRenderable(renderer, {
+      id: "bar-text",
+      content: "",
+      height: BAR_LINES,
+    });
+    this.box.add(this.text);
+  }
+
+  private static fit(notice: string, room: number): string {
+    if (notice.length <= room) return notice;
+    if (room <= 0) return "";
+    return notice.slice(0, room - 1) + StatusBar.ELLIPSIS;
+  }
+
+  private rightSide(commands: string, notice: string): string {
+    const room =
+      this.renderer.width - commands.length - BAR_HINTS.length - 2 * BAR_GAP;
+    const shown = StatusBar.fit(notice, room);
+    return shown === "" ? BAR_HINTS : `${shown} ${BAR_HINTS}`;
+  }
+
+  show(unlocks: readonly string[], notice: string) {
+    const commands = barCommandsText(unlocks);
+    const right = this.rightSide(commands, notice);
+    const padding = Math.max(
+      BAR_GAP,
+      this.renderer.width - commands.length - right.length,
+    );
+    this.text.content = commands + " ".repeat(padding) + right;
   }
 }
 
@@ -192,26 +244,7 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
   grid.add(makeRow("top-row", topRow));
   grid.add(makeRow("bottom-row", bottomRow));
 
-  const message = new TextRenderable(renderer, {
-    id: "bar-message",
-    content: "",
-    flexGrow: 1,
-    height: BAR_LINES,
-  });
-  const barHints = new TextRenderable(renderer, {
-    id: "bar-hints",
-    content: "",
-    flexShrink: 0,
-    height: BAR_LINES,
-  });
-  const bar = new BoxRenderable(renderer, {
-    id: "bar",
-    flexDirection: "row",
-    height: BAR_LINES,
-    flexShrink: 0,
-  });
-  bar.add(message);
-  bar.add(barHints);
+  const bar = new StatusBar(renderer);
 
   // Replaces the grid rather than floating over it, so the overlay never fights panel layout.
   const overlayBox = new BoxRenderable(renderer, {
@@ -230,16 +263,11 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
   const commandBar = new CommandBar(renderer);
   container.add(grid);
   container.add(overlayBox);
-  container.add(bar);
+  container.add(bar.box);
   container.add(commandBar.box);
   renderer.root.add(container);
 
-  const draw = ({
-    context,
-    message: text,
-    barHints: hints,
-    focus,
-  }: PanelsFrame) => {
+  const draw = ({ context, message: text, focus }: PanelsFrame) => {
     const { view } = context;
     const isLocked = (id: string) =>
       view.lockedPanels.some((locked) => locked === id);
@@ -256,8 +284,7 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
         ? panelHintsText(panel.id, size.width - 2)
         : undefined;
     }
-    message.content = text ?? "";
-    barHints.content = hints;
+    bar.show(view.unlocks, text ?? "");
   };
 
   return {

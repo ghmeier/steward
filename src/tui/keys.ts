@@ -15,6 +15,7 @@ export type FocusId = (typeof FOCUS_IDS)[number];
 /** What a global key asks for; the focused panel owns every other key, including peasant assignment. */
 export type KeyAction =
   | { kind: "focus"; panel: FocusId }
+  | { kind: "cycle"; delta: -1 | 1 }
   | { kind: "save" }
   | { kind: "line"; prefill: string }
   | { kind: "help" }
@@ -26,6 +27,8 @@ export type PeasantAction =
   | { kind: "move"; delta: -1 | 1 }
   | { kind: "assign"; job: Job };
 
+type FocusChange = Extract<KeyAction, { kind: "focus" | "cycle" }>;
+
 type Binding = { action: KeyAction; needs?: UnlockId };
 
 const BINDINGS: Readonly<Record<string, Binding>> = {
@@ -33,12 +36,46 @@ const BINDINGS: Readonly<Record<string, Binding>> = {
   a: { action: { kind: "focus", panel: "archive" }, needs: ARCHIVE_PANEL },
   c: { action: { kind: "focus", panel: "court" } },
   d: { action: { kind: "focus", panel: "decrees" } },
+  left: { action: { kind: "cycle", delta: -1 } },
+  right: { action: { kind: "cycle", delta: 1 } },
   ":": { action: { kind: "line", prefill: "" }, needs: PALETTE_UNLOCK },
   "?": { action: { kind: "help" } },
   n: { action: { kind: "newGame" } },
   s: { action: { kind: "save" } },
   q: { action: { kind: "quit" } },
 };
+
+/** The focusable panels in reading order, limited to the ones the player owns, as the arrow keys step through them. */
+export class FocusRing {
+  constructor(private readonly unlocks: readonly string[]) {}
+
+  private static neededBy(panel: FocusId): UnlockId | undefined {
+    return Object.values(BINDINGS).find(
+      ({ action }) => action.kind === "focus" && action.panel === panel,
+    )?.needs;
+  }
+
+  private get panels(): FocusId[] {
+    return FOCUS_IDS.filter((panel) => {
+      const needs = FocusRing.neededBy(panel);
+      return needs === undefined || this.unlocks.includes(needs);
+    });
+  }
+
+  target(action: FocusChange, from: FocusId | null): FocusId {
+    return action.kind === "focus"
+      ? action.panel
+      : this.step(from, action.delta);
+  }
+
+  /** With nothing focused, forward lands on the first panel and backward on the last. */
+  private step(from: FocusId | null, delta: -1 | 1): FocusId {
+    const { panels } = this;
+    const at =
+      from === null ? (delta === 1 ? -1 : panels.length) : panels.indexOf(from);
+    return panels[(at + delta + panels.length) % panels.length] as FocusId;
+  }
+}
 
 const PEASANT_BINDINGS: Readonly<Record<string, PeasantAction>> = {
   up: { kind: "move", delta: -1 },
@@ -153,7 +190,9 @@ export function panelHintsText(panel: FocusId, width: number): string {
 }
 
 /** The short list on the right of the bottom bar; everything else is in Help. */
-export function barHintsText(unlocks: readonly string[]): string {
-  const base = "(?)Help (N)ew village (Q)uit";
-  return unlocks.includes(PALETTE_UNLOCK) ? `${base} : commands` : base;
+export const BAR_HINTS = "(?)Help (N)ew village (Q)uit";
+
+/** Reminds the player of the palette on the left of the bottom bar, and is empty until it is owned. */
+export function barCommandsText(unlocks: readonly string[]): string {
+  return unlocks.includes(PALETTE_UNLOCK) ? ": commands" : "";
 }

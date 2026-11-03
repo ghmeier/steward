@@ -55,6 +55,7 @@ function keysLines(context: MenuContext): string[] {
     `${hint.keys.padEnd(width)}  ${hint.label}`;
   return [
     ...hints.map(row),
+    row({ keys: "\u2190/\u2192", label: "panels" }),
     "",
     "Press a panel's letter to focus it; esc leaves it. While a panel is focused its keys win:",
     ...panelHints.map(row),

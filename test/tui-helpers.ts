@@ -21,3 +21,8 @@ export async function settledFrame(setup: TestSetup): Promise<string> {
   await setup.renderOnce();
   return setup.captureCharFrame();
 }
+
+/** The captured frame ends with a newline, so the bar is the second-to-last row. */
+export function barRow(frame: string): string {
+  return frame.split("\n").at(-2) ?? "";
+}

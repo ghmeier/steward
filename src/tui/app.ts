@@ -5,7 +5,7 @@ import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
 import { type LineState, lineKey, openLine, renderLine } from "./command-line";
 import { HelpPage } from "./help-menu";
-import { actionForKey, barHintsText, type FocusId, isInterrupt } from "./keys";
+import { actionForKey, type FocusId, FocusRing, isInterrupt } from "./keys";
 import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
 import { newGameMenu } from "./new-game-menu";
 import { BAR_LINES, createPanels } from "./panels";
@@ -84,7 +84,7 @@ export function startApp(options: {
   const village = new Village();
   const panels = createPanels(renderer, village);
   let message = options.notice;
-  let bar = "";
+  let drawnMessage = message;
   village.peasants.reset(session.view());
   let focus: FocusId | null = null;
 
@@ -105,16 +105,13 @@ export function startApp(options: {
     if (help !== null) return help.render(menuContext(), helpViewport());
     return menu === null ? null : renderMenu(menu, menuContext());
   };
-  const composeBar = () =>
-    `${message ?? ""}\n${barHintsText(session.view().unlocks)}`;
   const redraw = () => {
-    bar = composeBar();
+    drawnMessage = message;
     const view = session.view();
     village.peasants.reconcile(view);
     panels.update({
       context: menuContext(),
       message,
-      barHints: barHintsText(view.unlocks),
       focus,
     });
     panels.showOverlay(currentOverlay());
@@ -202,8 +199,8 @@ export function startApp(options: {
     }
     const action = actionForKey(key, session.view().unlocks);
     if (action === null) return;
-    if (action.kind === "focus") {
-      focus = action.panel;
+    if (action.kind === "focus" || action.kind === "cycle") {
+      focus = new FocusRing(session.view().unlocks).target(action, focus);
       village.focusable[focus].enter(menuContext());
       redraw();
     } else if (action.kind === "line") {
@@ -237,7 +234,7 @@ export function startApp(options: {
       promotionAnnounced = true;
       message = "The crown has noticed you. You are promoted to steward.";
     }
-    if (result.viewChanged || composeBar() !== bar) redraw();
+    if (result.viewChanged || message !== drawnMessage) redraw();
   }
 
   // Shared by shutdown and hangUp so the two paths save at most once between them.

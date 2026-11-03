@@ -3,7 +3,7 @@ import { grantUnlocks, topicText, tuning } from "../../test/helpers";
 import { parseLine } from "../tui/command-line";
 import {
   actionForKey,
-  barHintsText,
+  barCommandsText,
   type KeyPress,
   keyHints,
 } from "../tui/keys";
@@ -48,7 +48,7 @@ function surfaces(unlocks: readonly string[]) {
     action: (name: string, modifiers: Partial<KeyPress> = {}) =>
       actionForKey(key(name, modifiers), owned),
     hints: keyHints(owned).map((hint) => `${hint.keys} ${hint.label}`),
-    barHints: barHintsText(owned),
+    barCommands: barCommandsText(owned),
     keysHelp: topicText("Keys", tuning, unlocks),
     decreesHelp: topicText("Decrees", tuning, unlocks),
     verbs: words(""),
@@ -70,7 +70,7 @@ const gated: [string, string, (s: Surfaces) => Checks][] = [
 	})],
 	["control.palette", PALETTE_UNLOCK, (s) => ({
 		colon: s.action(":")?.kind === "line", semicolon: s.action(";", { shift: true })?.kind === "line",
-		hint: s.hints.includes(": commands"), bar: s.barHints.includes(": commands"), help: /^: +commands$/m.test(s.keysHelp), assignVerb: s.verbs.includes("assign"),
+		hint: s.hints.includes(": commands"), bar: s.barCommands.includes(": commands"), help: /^: +commands$/m.test(s.keysHelp), assignVerb: s.verbs.includes("assign"),
 	})],
 	["control.savedDecrees", SAVED_DECREES_UNLOCK, (s) => ({
 		saveVerb: s.verbs.includes("save"), enactVerb: s.verbs.includes("enact"), help: s.decreesHelp.includes("save <name>"),
