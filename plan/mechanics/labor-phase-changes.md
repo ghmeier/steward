@@ -4,7 +4,7 @@ status: active
 tags: [mechanics]
 created: 2026-11-03
 updated: 2026-11-03
-next_step: Implementer running on labor-phase-changes
+next_step: Implementer adds the v8-to-v9 save upgrade, then a refactor pass opens the PR
 ---
 # Labor decrees act on phase changes, so hand assignments stick
 
@@ -44,8 +44,10 @@ From Garret's playtest of PR #4, 2026-11-03. Supersedes the archived [[plan/mech
 
 | PR | Branch | Status |
 | --- | --- | --- |
-| 1 | `labor-phase-changes` | implementer running |
+| 1 | `labor-phase-changes` | implemented (b2b271f); adding the version 8 upgrade |
 
 ## Notes and decisions
 
 - 2026-11-03: Garret approved the rule, including that a hand assignment during settling ends settling.
+- 2026-11-03: Implemented as `LaborSettling` in src/core/labor.ts (`game.labor`). The policy is stored as a string, with an empty string meaning no labor decree, because state validation and `canonicalStringify` reject null. The golden diverges first at tick 3000, where a hand assignment now sticks; only its hash changed. The reference and seasonal simulator runs match main. The naive run ends with more peasants and more famine deaths, because newborns now go straight to a job.
+- 2026-11-03: Correction: the codebase had no save migration; every version bump refused older saves. Garret chose to upgrade version 8 saves to 9 on load with one small upgrade step; older versions are still refused.
