@@ -104,7 +104,7 @@ The command line moves into the bottom bar.
 
 | PR | Branch | Status |
 | --- | --- | --- |
-| 1 | `village-layout` | PR #3 open (f3237b7), awaiting review |
+| 1 | `village-layout` | merged, PR #3 (3169402) |
 | 2 | `village-command-bar` | implemented (8bb8b41), refactor pass running |
 
 ## Notes and decisions
@@ -116,3 +116,4 @@ The command line moves into the bottom bar.
 - 2026-11-03: Garret: design for 160×45 by default, with 100×30 as the smallest supported size. Compact fallbacks (ledger line splits, bare-key hints, dropping the Time line) apply only when the space is short. PR 2's bar should follow the same rule.
 - 2026-11-03: PR #3 opened with a refactor pass. Archive descriptions now appear through an optional `detail` field on `MenuItem`. `PanelId` is `archive | ledger | peasants`, and `FocusId` stays in the TUI. Known quirk: panel sizes are estimated from the renderer, which is off by one at 100×30. PR 2 starts by reading real sizes from OpenTUI.
 - 2026-11-03: PR 2 implemented. OpenTUI reports a box's size only after its first paint, so panels draw against the terminal size first and correct themselves through `onSizeChange` on the next tick. The bar is absolutely positioned with a filled background, because the grid shows through an unfilled box. Its suggestion budget shrinks on short terminals. The layout test keeps a tolerance of 2 columns for Yoga's rounding of the 1 : 1 : 2 split.
+- 2026-11-03: PR #3 merged into main as a merge commit (3169402). PR 2 now targets main.
