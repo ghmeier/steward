@@ -2,9 +2,10 @@ import type { Decree } from "./decree";
 import type { Delegate } from "./delegates";
 import type { DeskState } from "./desk";
 import type { EconomyState } from "./economy";
+import type { LaborState } from "./labor";
 import type { RngState } from "./rng";
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 export type ResourceId = string;
 
@@ -28,6 +29,7 @@ export type PostingState = {
   delegates: Delegate[];
   nextDelegateId: number;
   decrees: Record<string, Decree>;
+  labor: LaborState;
   desk: DeskState;
 };
 

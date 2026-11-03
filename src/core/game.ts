@@ -4,6 +4,7 @@ import { DecreeEngine } from "./decree-engine";
 import { DelegateManager } from "./delegates";
 import { DeskManager, drawArrivalDelay } from "./desk";
 import { EconomyManager } from "./economy";
+import { LaborSettling, NO_LABOR_POLICY } from "./labor";
 import { ProjectionManager } from "./projection";
 import { RESOURCES } from "./realm";
 import { type RngState, seedStream } from "./rng";
@@ -26,6 +27,7 @@ export class Game {
   readonly economy: EconomyManager;
   readonly conditions: ConditionManager;
   readonly decrees: DecreeEngine;
+  readonly labor: LaborSettling;
   readonly savedDecrees: SavedDecreeManager;
   readonly unlocks: UnlockManager;
   readonly desk: DeskManager;
@@ -42,6 +44,7 @@ export class Game {
     this.economy = new EconomyManager(this);
     this.conditions = new ConditionManager(this);
     this.decrees = new DecreeEngine(this);
+    this.labor = new LaborSettling(this);
     this.savedDecrees = new SavedDecreeManager(this);
     this.unlocks = new UnlockManager(this);
     this.desk = new DeskManager(this);
@@ -81,6 +84,7 @@ export class Game {
       delegates: [],
       nextDelegateId: 1,
       decrees: {},
+      labor: { policy: NO_LABOR_POLICY, settling: false },
       desk: {
         nextDisputeId: 1,
         nextArrivalTick: drawArrivalDelay(arrivals, tuning),

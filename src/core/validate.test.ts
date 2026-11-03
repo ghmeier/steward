@@ -89,7 +89,7 @@ describe("validateState", () => {
     [
       "a wrong schemaVersion",
       { schemaVersion: 99 },
-      "$.schemaVersion: Invalid input: expected 8",
+      "$.schemaVersion: Invalid input: expected 9",
     ],
     [
       "an all-zero rng stream",

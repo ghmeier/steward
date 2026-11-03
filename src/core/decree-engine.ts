@@ -74,6 +74,13 @@ export class DecreeEngine {
         throw new Error(`decree "${other}" references "${id}"`);
       }
     }
+    this.remove(id);
+  }
+
+  // Forgetting at removal rather than on the next tick keeps a re-enactment before that tick
+  // reading as a policy change, and keeps a newborn from being placed by a repealed decree.
+  private remove(id: string): void {
+    if (this.enacted[id]?.petition === "labor") this.game.labor.forget();
     delete this.enacted[id];
   }
 
@@ -116,7 +123,7 @@ export class DecreeEngine {
       }
     }
     const ids = [...removed].sort(compareKeys);
-    for (const id of ids) delete this.enacted[id];
+    for (const id of ids) this.remove(id);
     return ids;
   }
 
@@ -130,6 +137,7 @@ export class DecreeEngine {
     }
 
     const chosen: Record<string, string> = {};
+    let laborInForce = false;
     for (const id of order.order) {
       const decree = decrees[id];
       if (!decree) continue;
@@ -154,16 +162,11 @@ export class DecreeEngine {
           throw new Error(`unknown ${decree.petition} policy "${policy}"`);
         }
       } else {
-        const allocations = this.game.tuning.economy.laborAllocations;
-        const shares = Object.hasOwn(allocations, policy)
-          ? allocations[policy]
-          : undefined;
-        if (!shares) throw new Error(`unknown labor policy "${policy}"`);
-        this.game.economy.moveLaborToward(
-          this.game.economy.laborTargets(shares),
-        );
+        laborInForce = true;
+        this.game.labor.apply(policy);
       }
     }
+    if (!laborInForce) this.game.labor.forget();
     return chosen;
   }
 

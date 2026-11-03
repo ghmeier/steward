@@ -12,6 +12,7 @@ import {
 import { dirname, join } from "node:path";
 import { isRecord } from "../core/data";
 import { errorMessage } from "../core/errors";
+import { NO_LABOR_POLICY } from "../core/labor";
 import { canonicalStringify } from "../core/serialize";
 import { type GameState, SCHEMA_VERSION } from "../core/state";
 import { assertValidState } from "../core/validate";
@@ -51,9 +52,33 @@ export function serializeSave(state: GameState, meta: SaveMeta): string {
   return canonicalStringify(save);
 }
 
+/** Each entry rewrites a save of the keyed version, in place, into the next version. */
+const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
+  // Version 8 moved labor every tick, so its first upgraded tick must read as a policy change.
+  8: (state) => {
+    if (!isRecord(state.posting)) return;
+    state.posting.labor = { policy: NO_LABOR_POLICY, settling: false };
+  },
+};
+
+function upgrade(record: Record<string, unknown>): void {
+  while (typeof record.schemaVersion === "number") {
+    const step = Object.hasOwn(UPGRADES, record.schemaVersion)
+      ? UPGRADES[record.schemaVersion]
+      : undefined;
+    if (step === undefined) return;
+    if (isRecord(record.state)) {
+      step(record.state);
+      record.state.schemaVersion = record.schemaVersion + 1;
+    }
+    record.schemaVersion += 1;
+  }
+}
+
 export function parseSave(text: string): SaveFile {
   const record: unknown = JSON.parse(text);
   if (!isRecord(record)) throw new Error("save must be a JSON object");
+  upgrade(record);
   if (record.schemaVersion !== SCHEMA_VERSION) {
     throw new SaveVersionError(record.schemaVersion);
   }
