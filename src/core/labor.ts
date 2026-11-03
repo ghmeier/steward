@@ -1,6 +1,8 @@
+import type { Game } from "./game";
+
 /**
- * Stands for "no labor decree in force". Saved state cannot hold null, so the absence of a policy
- * is a name no allocation can have.
+ * Stands for "no labor decree in force". State validation and `canonicalStringify` reject null, so
+ * the absence of a policy is stored as a name no labor allocation can have.
  */
 export const NO_LABOR_POLICY = "";
 
@@ -8,7 +10,7 @@ export type LaborState = { policy: string; settling: boolean };
 
 /** Tracks whether a labor decree is still moving peasants toward its split. */
 export class LaborSettling {
-  constructor(private game: { state: { posting: { labor: LaborState } } }) {}
+  constructor(private game: Game) {}
 
   private get state() {
     return this.game.state.posting.labor;
@@ -18,16 +20,20 @@ export class LaborSettling {
     return this.state.settling;
   }
 
-  /** The policy chosen last tick, or null when no labor decree was in force. */
-  get policy(): string | null {
-    return this.state.policy === NO_LABOR_POLICY ? null : this.state.policy;
+  /** The policy chosen last tick. */
+  get policy(): string {
+    return this.state.policy;
   }
 
-  /** Starts settling when the chosen policy differs from last tick's, which includes a first enactment. */
-  observe(policy: string): void {
-    if (policy === this.state.policy) return;
-    this.state.policy = policy;
-    this.state.settling = true;
+  /** Starts settling when the policy differs from last tick's, which includes a first enactment. */
+  apply(policy: string): void {
+    if (policy !== this.state.policy) {
+      this.state.policy = policy;
+      this.state.settling = true;
+    }
+    if (!this.state.settling) return;
+    const { economy } = this.game;
+    if (economy.moveLaborToward(economy.laborTargetFor(policy))) this.stop();
   }
 
   stop(): void {

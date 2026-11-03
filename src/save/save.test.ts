@@ -8,7 +8,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { contextFor } from "../../test/helpers";
 import { Game } from "../core/game";
+import { NO_LABOR_POLICY } from "../core/labor";
 import { type GameState, SCHEMA_VERSION } from "../core/state";
 import { loadTuning } from "./content";
 import {
@@ -50,6 +52,12 @@ function loaded(path: string): GameState {
   if (result.kind !== "loaded")
     throw new Error(`expected loaded, got ${result.kind}`);
   return result.save.state;
+}
+
+function writeSave(version: number, state: object = {}): string {
+  const text = `${JSON.stringify({ schemaVersion: version, savedAt: "x", contentHash: "y", state })}\n`;
+  writeFileSync(join(dir, "save.json"), text);
+  return text;
 }
 
 describe("saveGame and loadGame", () => {
@@ -151,58 +159,36 @@ describe("atomic write", () => {
 });
 
 describe("version 8 upgrade", () => {
-  function writeVersion8Save(): void {
+  test("a version 8 save loads as version 9 and settles a labor decree on its first tick", () => {
     const state = newState() as unknown as Record<string, unknown>;
-    const posting = { ...(state.posting as Record<string, unknown>) };
-    delete posting.labor;
-    const old = { ...state, schemaVersion: 8, posting };
-    const text = `${JSON.stringify({ schemaVersion: 8, savedAt: "x", contentHash: "y", state: old })}\n`;
-    writeFileSync(join(dir, "save.json"), text);
-  }
+    const { labor: _, ...posting } = state.posting as Record<string, unknown>;
+    writeSave(8, { ...state, schemaVersion: 8, posting });
 
-  test("a version 8 save loads as version 9 with an empty labor policy", () => {
-    writeVersion8Save();
-
-    const state = loaded(dir);
-
-    expect(state.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(state.posting.labor).toEqual({ policy: "", settling: false });
-    expect(existsSync(join(dir, "save.v8.json"))).toBe(false);
-  });
-
-  test("an upgraded save settles a labor decree on its first tick", () => {
-    writeVersion8Save();
     const game = Game.fromState(loaded(dir), loadTuning());
+
+    expect(game.state.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(game.state.posting.labor).toEqual({
+      policy: NO_LABOR_POLICY,
+      settling: false,
+    });
+    expect(existsSync(join(dir, "save.v8.json"))).toBe(false);
+
     game.decrees.enact({
       id: "workforce",
       petition: "labor",
       rules: [],
       otherwise: "farm",
     });
+    game.decrees.run(contextFor(game), { harvest: 0, wood: 0, ore: 0 });
 
-    game.decrees.run(
-      { tick: 1, maxValue: 1e300, absorbed: null },
-      {
-        harvest: 0,
-        wood: 0,
-        ore: 0,
-      },
-    );
-
-    expect(game.state.posting.labor).toMatchObject({ policy: "farm" });
+    expect(game.state.posting.labor.policy).toBe("farm");
     expect(game.delegates.jobCounts().farm).toBe(1);
   });
 });
 
 describe("version refusal", () => {
-  function writeOldSave(version: number): string {
-    const text = `${JSON.stringify({ schemaVersion: version, savedAt: "x", contentHash: "y", state: {} })}\n`;
-    writeFileSync(join(dir, "save.json"), text);
-    return text;
-  }
-
   test("refuses an older-version save by moving it to save.v<found>.json with its bytes intact", () => {
-    const text = writeOldSave(7);
+    const text = writeSave(7);
 
     const result = loadGame(dir);
 
@@ -216,9 +202,9 @@ describe("version refusal", () => {
   });
 
   test("a repeated refusal of the same version uses the next free numbered name", () => {
-    writeOldSave(7);
+    writeSave(7);
     loadGame(dir);
-    writeOldSave(7);
+    writeSave(7);
 
     const result = loadGame(dir);
 

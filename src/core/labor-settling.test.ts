@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { contextFor, setRoster, tuning } from "../../test/helpers";
 import { Game } from "./game";
+import { NO_LABOR_POLICY } from "./labor";
 import { Job } from "./realm";
 
 const flows = { harvest: 0, wood: 0, ore: 0 };
@@ -53,7 +54,7 @@ describe("settling a labor decree", () => {
     expect(game.labor.settling).toBe(false);
   });
 
-  test("a hand assignment sticks while the policy is unchanged", () => {
+  test("a hand assignment sticks while the policy is unchanged and is overridden when it changes", () => {
     const game = villageOf(4);
     enactLabor(game, "farm");
     runTicks(game, 4);
@@ -63,19 +64,12 @@ describe("settling a labor decree", () => {
 
     expect(jobOf(game, 1)).toBe(Job.FOREST);
     expect(game.delegates.jobCounts().farm).toBe(3);
-  });
-
-  test("a hand assignment is overridden when the chosen policy changes", () => {
-    const game = villageOf(4);
-    enactLabor(game, "farm");
-    runTicks(game, 4);
-    assign(game, 1, Job.FOREST);
 
     enactLabor(game, "mine");
     runTicks(game, 5);
 
-    expect(game.delegates.jobCounts().mine).toBe(4);
     expect(jobOf(game, 1)).toBe(Job.MINE);
+    expect(game.delegates.jobCounts().mine).toBe(4);
   });
 
   test("a rule switching the chosen policy settles again", () => {
@@ -109,60 +103,47 @@ describe("settling a labor decree", () => {
     expect(game.delegates.jobCounts().mine).toBe(4);
   });
 
-  test("a hand assignment during settling ends settling", () => {
-    const game = villageOf(4);
-    enactLabor(game, "farm");
-    runTicks(game, 1);
+  test("an accepted hand assignment during settling ends settling, and a rejected one does not", () => {
+    const settled = villageOf(4);
+    const rejected = villageOf(4);
+    enactLabor(settled, "farm");
+    enactLabor(rejected, "farm");
+    runTicks(settled, 1);
+    runTicks(rejected, 1);
 
-    assign(game, 4, Job.FOREST);
-    runTicks(game, 4);
+    assign(settled, 4, Job.FOREST);
+    const result = rejected.commands.apply(
+      { type: "assignPeasant", peasant: 999, job: Job.FOREST },
+      contextFor(rejected),
+    );
+    runTicks(settled, 4);
+    runTicks(rejected, 3);
 
-    expect(game.labor.settling).toBe(false);
-    expect(game.delegates.jobCounts()).toMatchObject({
+    expect(settled.labor.settling).toBe(false);
+    expect(settled.delegates.jobCounts()).toMatchObject({
       farm: 1,
       forest: 1,
       idle: 2,
     });
-  });
-
-  test("a rejected assignment leaves settling running", () => {
-    const game = villageOf(4);
-    enactLabor(game, "farm");
-    runTicks(game, 1);
-
-    const result = game.commands.apply(
-      { type: "assignPeasant", peasant: 999, job: Job.FOREST },
-      contextFor(game),
-    );
-    runTicks(game, 3);
-
     expect(result.ok).toBe(false);
-    expect(game.delegates.jobCounts().farm).toBe(4);
+    expect(rejected.delegates.jobCounts().farm).toBe(4);
   });
 
-  test("repealing and re-enacting the same decree settles again", () => {
+  test("repealing forgets the policy, so re-enacting the same decree settles again", () => {
     const game = villageOf(4);
     enactLabor(game, "farm");
     runTicks(game, 4);
     assign(game, 1, Job.FOREST);
 
     game.decrees.repeal("workforce");
+
+    expect(game.labor.policy).toBe(NO_LABOR_POLICY);
+    expect(game.labor.settling).toBe(false);
+
     enactLabor(game, "farm");
     runTicks(game, 2);
 
     expect(jobOf(game, 1)).toBe(Job.FARM);
-  });
-
-  test("running with no labor decree forgets the last policy", () => {
-    const game = villageOf(4);
-    enactLabor(game, "farm");
-    runTicks(game, 1);
-
-    game.decrees.repeal("workforce");
-    runTicks(game, 1);
-
-    expect(game.labor.policy).toBeNull();
-    expect(game.labor.settling).toBe(false);
   });
 });
 

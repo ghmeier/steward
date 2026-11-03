@@ -52,12 +52,9 @@ export function serializeSave(state: GameState, meta: SaveMeta): string {
   return canonicalStringify(save);
 }
 
-/**
- * Each entry rewrites a save of the keyed version, in place, into the next version. Version 8 had
- * no labor settling state; an empty policy makes the first tick read as a phase change, which
- * matches how those saves behaved before.
- */
+/** Each entry rewrites a save of the keyed version, in place, into the next version. */
 const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
+  // Version 8 moved labor every tick, so its first upgraded tick must read as a policy change.
   8: (state) => {
     if (!isRecord(state.posting)) return;
     state.posting.labor = { policy: NO_LABOR_POLICY, settling: false };

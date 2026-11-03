@@ -74,7 +74,12 @@ export class DecreeEngine {
         throw new Error(`decree "${other}" references "${id}"`);
       }
     }
-    // Repealing and re-enacting between two ticks must still read as a phase change.
+    this.remove(id);
+  }
+
+  // Forgetting at removal rather than on the next tick keeps a re-enactment before that tick
+  // reading as a policy change, and keeps a newborn from being placed by a repealed decree.
+  private remove(id: string): void {
     if (this.enacted[id]?.petition === "labor") this.game.labor.forget();
     delete this.enacted[id];
   }
@@ -118,10 +123,7 @@ export class DecreeEngine {
       }
     }
     const ids = [...removed].sort(compareKeys);
-    for (const id of ids) {
-      if (this.enacted[id]?.petition === "labor") this.game.labor.forget();
-      delete this.enacted[id];
-    }
+    for (const id of ids) this.remove(id);
     return ids;
   }
 
@@ -161,20 +163,11 @@ export class DecreeEngine {
         }
       } else {
         laborInForce = true;
-        this.settleLabor(policy);
+        this.game.labor.apply(policy);
       }
     }
     if (!laborInForce) this.game.labor.forget();
     return chosen;
-  }
-
-  private settleLabor(policy: string): void {
-    const { economy, labor } = this.game;
-    const target = economy.laborTargets(economy.laborShares(policy));
-    labor.observe(policy);
-    if (!labor.settling) return;
-    economy.moveLaborToward(target);
-    if (economy.isLaborSettled(target)) labor.stop();
   }
 
   // A bare "resource above N" rule means everything over N, not just this tick's production.

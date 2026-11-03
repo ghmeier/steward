@@ -1,6 +1,7 @@
 import type { ResourcePetition } from "./decree";
 import type { Delegate } from "./delegates";
 import type { Game } from "./game";
+import { NO_LABOR_POLICY } from "./labor";
 import { type AddContext, add } from "./math";
 import {
   Job,
@@ -186,17 +187,13 @@ export class EconomyManager {
     }
   }
 
-  laborShares(policy: string): Record<WorkingJob, number> {
+  laborTargetFor(policy: string): Record<Job, number> {
     const allocations = this.tuning.economy.laborAllocations;
     const shares = Object.hasOwn(allocations, policy)
       ? allocations[policy]
       : undefined;
     if (!shares) throw new Error(`unknown labor policy "${policy}"`);
-    return shares;
-  }
-
-  isLaborSettled(target: Readonly<Record<Job, number>>): boolean {
-    return this.mostShortJob(target, this.game.delegates.jobCounts()) === null;
+    return this.laborTargets(shares);
   }
 
   laborTargets(
@@ -235,13 +232,14 @@ export class EconomyManager {
     return targets;
   }
 
-  // Born into the job the decree most needs, and left idle when none is short, so nobody else moves.
   private placeNewborn(newborn: Delegate): void {
-    const policy = this.game.labor.policy;
-    if (policy === null) return;
-    const target = this.laborTargets(this.laborShares(policy));
-    const short = this.mostShortJob(target, this.game.delegates.jobCounts());
-    if (short !== null) newborn.job = short;
+    const { policy } = this.game.labor;
+    if (policy === NO_LABOR_POLICY) return;
+    // The targets sum to the population, which already counts this idle newborn, so a job is short.
+    newborn.job = this.mostShortJob(
+      this.laborTargetFor(policy),
+      this.game.delegates.jobCounts(),
+    ) as WorkingJob;
   }
 
   private mostShortJob(
@@ -260,14 +258,16 @@ export class EconomyManager {
     return short;
   }
 
-  moveLaborToward(target: Readonly<Record<Job, number>>): void {
+  /** Returns whether the split is reached after this tick's moves. */
+  moveLaborToward(target: Readonly<Record<Job, number>>): boolean {
     const { tick } = this;
     // Only working jobs are rebalanced: idle peasants are the pool that fills a shortfall, and
     // treating idle as a surplus to drain would stall the move whenever the idle ones hold grudges.
-    for (let done = 0; done < this.laborMovesPerTick; done++) {
+    for (let done = 0; ; done++) {
       const labor = this.game.delegates.jobCounts();
       const short = this.mostShortJob(target, labor);
-      if (short === null) return;
+      if (short === null) return true;
+      if (done === this.laborMovesPerTick) return false;
       let mover = this.game.delegates.firstFreeWithJob(Job.IDLE, tick);
       if (mover === undefined) {
         let source: WorkingJob | null = null;
@@ -279,10 +279,10 @@ export class EconomyManager {
             excess = over;
           }
         }
-        if (source === null) return;
+        if (source === null) return false;
         mover = this.game.delegates.firstFreeWithJob(source, tick);
       }
-      if (mover === undefined) return;
+      if (mover === undefined) return false;
       mover.job = short;
     }
   }
