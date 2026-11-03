@@ -5,7 +5,7 @@ tags: [tui]
 created: 2026-11-03
 updated: 2026-11-03
 last_pr: 3
-next_step: PR 2 implementer running; review PR #3
+next_step: Refactor pass opens PR 2 against village-layout; Garret reviews #3
 ---
 # Village UI overhaul: five focusable panels and a command bar
 
@@ -105,7 +105,7 @@ The command line moves into the bottom bar.
 | PR | Branch | Status |
 | --- | --- | --- |
 | 1 | `village-layout` | PR #3 open (f3237b7), awaiting review |
-| 2 | `village-command-bar` | implementer running, stacked on village-layout |
+| 2 | `village-command-bar` | implemented (8bb8b41), refactor pass running |
 
 ## Notes and decisions
 
@@ -115,3 +115,4 @@ The command line moves into the bottom bar.
 - PR 2 note: overlay hints now sit on the overlay box's `bottomTitle`, and the bar has a fixed hint list. The command bar should keep the line's hints with the line.
 - 2026-11-03: Garret: design for 160×45 by default, with 100×30 as the smallest supported size. Compact fallbacks (ledger line splits, bare-key hints, dropping the Time line) apply only when the space is short. PR 2's bar should follow the same rule.
 - 2026-11-03: PR #3 opened with a refactor pass. Archive descriptions now appear through an optional `detail` field on `MenuItem`. `PanelId` is `archive | ledger | peasants`, and `FocusId` stays in the TUI. Known quirk: panel sizes are estimated from the renderer, which is off by one at 100×30. PR 2 starts by reading real sizes from OpenTUI.
+- 2026-11-03: PR 2 implemented. OpenTUI reports a box's size only after its first paint, so panels draw against the terminal size first and correct themselves through `onSizeChange` on the next tick. The bar is absolutely positioned with a filled background, because the grid shows through an unfilled box. Its suggestion budget shrinks on short terminals. The layout test keeps a tolerance of 2 columns for Yoga's rounding of the 1 : 1 : 2 split.
