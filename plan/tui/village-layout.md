@@ -4,8 +4,8 @@ status: active
 tags: [tui]
 created: 2026-11-03
 updated: 2026-11-03
-last_pr: 3
-next_step: Refactor pass opens PR 2 against village-layout; Garret reviews #3
+last_pr: 4
+next_step: Garret reviews PR #4; on merge flip to completed and write the handoff
 ---
 # Village UI overhaul: five focusable panels and a command bar
 
@@ -105,7 +105,7 @@ The command line moves into the bottom bar.
 | PR | Branch | Status |
 | --- | --- | --- |
 | 1 | `village-layout` | merged, PR #3 (3169402) |
-| 2 | `village-command-bar` | implemented (8bb8b41), refactor pass running |
+| 2 | `village-command-bar` | PR #4 open (b6cbfad), awaiting review |
 
 ## Notes and decisions
 
@@ -117,3 +117,4 @@ The command line moves into the bottom bar.
 - 2026-11-03: PR #3 opened with a refactor pass. Archive descriptions now appear through an optional `detail` field on `MenuItem`. `PanelId` is `archive | ledger | peasants`, and `FocusId` stays in the TUI. Known quirk: panel sizes are estimated from the renderer, which is off by one at 100×30. PR 2 starts by reading real sizes from OpenTUI.
 - 2026-11-03: PR 2 implemented. OpenTUI reports a box's size only after its first paint, so panels draw against the terminal size first and correct themselves through `onSizeChange` on the next tick. The bar is absolutely positioned with a filled background, because the grid shows through an unfilled box. Its suggestion budget shrinks on short terminals. The layout test keeps a tolerance of 2 columns for Yoga's rounding of the 1 : 1 : 2 split.
 - 2026-11-03: PR #3 merged into main as a merge commit (3169402). PR 2 now targets main.
+- 2026-11-03: PR #4 opened. The bar fills with `RGBA.defaultBackground()` so light themes work. `PanelSlot` and `CommandBar` own the size arithmetic, and `settledFrame` in test/tui-helpers.ts is the shared two-pass render for tests.
