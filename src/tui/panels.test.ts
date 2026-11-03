@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createTestRenderer } from "@opentui/core/testing";
 import { tuning } from "../../test/helpers";
+import { settledFrame } from "../../test/tui-helpers";
 import { Job, RESOURCES } from "../core/realm";
 import type { GameView } from "../core/view";
 import { formatAmount, formatGameTime, formatRate } from "./format";
@@ -44,17 +45,9 @@ async function draw(
       village.peasants.key(pressed("j"), context);
     }
     panels.update({ context, message: null, barHints: bar, focus });
-    await settle(setup);
-    frame = setup.captureCharFrame();
+    frame = await settledFrame(setup);
   }
   return frame;
-}
-
-/** Panels learn their real size during the first paint and redraw right after it. */
-async function settle(setup: Setup) {
-  await setup.renderOnce();
-  await new Promise((resolve) => process.nextTick(resolve));
-  await setup.renderOnce();
 }
 
 function pressed(name: string) {
@@ -160,9 +153,7 @@ describe("createPanels", () => {
       barHints: "(?)Help (N)ew village (Q)uit",
       focus: null,
     });
-    await setup.renderOnce();
-
-    const last = setup.captureCharFrame().split("\n").at(-2) ?? "";
+    const last = (await settledFrame(setup)).split("\n").at(-2) ?? "";
     expect(last.startsWith("Saved.")).toBe(true);
     expect(last.trimEnd().endsWith("(Q)uit")).toBe(true);
   });
@@ -536,10 +527,7 @@ describe("the command line in the bar", () => {
     });
     return {
       panels,
-      async frame() {
-        await settle(setup);
-        return setup.captureCharFrame();
-      },
+      frame: () => settledFrame(setup),
     };
   }
   const rowsOf = (frame: string) => frame.split("\n");
@@ -565,37 +553,25 @@ describe("the command line in the bar", () => {
     expect(rowOf(open, "(C)ourt")).toBe(rowOf(idle, "(C)ourt"));
   });
 
-  test("the bar grows with the suggestions and the problem line, then collapses to one line", async () => {
+  test("the bar grows with the suggestions and the problem line under the line's hints, then collapses to the fixed hints", async () => {
     const { panels, frame } = await openBar();
 
     panels.showLine(lineWith(1));
-    const one = barRows(await frame());
+    const one = await frame();
     panels.showLine(lineWith(5));
-    const five = barRows(await frame());
+    const five = await frame();
     panels.showLine(lineWith(5, ['! "banana" is not a petition']));
-    const withProblem = barRows(await frame());
+    const withProblem = await frame();
     panels.showLine(null);
-    const closed = barRows(await frame());
-
-    expect(five - one).toBe(4);
-    expect(withProblem - five).toBe(1);
-    expect(closed).toBe(1);
-  });
-
-  test("the bar's fixed hints show only while the line is closed, and the line's own hints show only while it is open", async () => {
-    const { panels, frame } = await openBar();
-
     const closed = await frame();
-    panels.showLine(lineWith(2));
-    const open = await frame();
-    panels.showLine(null);
-    const closedAgain = await frame();
 
+    expect(barRows(five) - barRows(one)).toBe(4);
+    expect(barRows(withProblem) - barRows(five)).toBe(1);
+    expect(barRows(closed)).toBe(1);
+    expect(one).toContain("tab complete · esc close");
+    expect(one).not.toContain(BAR_HINTS);
     expect(closed).toContain(BAR_HINTS);
     expect(closed).not.toContain("tab complete");
-    expect(open).not.toContain(BAR_HINTS);
-    expect(open).toContain("tab complete · esc close");
-    expect(closedAgain).toContain(BAR_HINTS);
   });
 
   test("a shorter terminal has a smaller suggestion budget", async () => {

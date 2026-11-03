@@ -1,4 +1,9 @@
-import { BoxRenderable, type CliRenderer, TextRenderable } from "@opentui/core";
+import {
+  BoxRenderable,
+  type CliRenderer,
+  RGBA,
+  TextRenderable,
+} from "@opentui/core";
 import { type FocusId, panelHintsText } from "./keys";
 import type { MenuContext, MenuRender } from "./menu";
 import type { PanelSize, Village } from "./village-panels";
@@ -24,14 +29,113 @@ const LOCKED_BODY = "Locked.";
 export const BAR_LINES = 1;
 const BORDER_COLOR = "#6b7280";
 const FOCUS_COLOR = "#f5c542";
-const BORDER_AND_PADDING = 3;
-const BORDER_ROWS = 2;
-const LINE_Z_INDEX = 100;
-const LINE_BACKGROUND = "#000000";
-// Input row and problem row, which the grown bar always keeps room for besides the suggestions.
-const LINE_FIXED_ROWS = 2;
+const BORDER = 1;
+const PADDING = 1;
 
-type Slot = { box: BoxRenderable; text: TextRenderable };
+class PanelSlot {
+  readonly box: BoxRenderable;
+  readonly text: TextRenderable;
+  private drawnSize: PanelSize | null = null;
+
+  constructor(
+    private readonly renderer: CliRenderer,
+    id: string,
+    name: string,
+    weight: number,
+    onResize: () => void,
+  ) {
+    this.box = new BoxRenderable(renderer, {
+      id,
+      title: `(${name.charAt(0)})${name.slice(1)}`,
+      border: true,
+      borderStyle: "single",
+      borderColor: BORDER_COLOR,
+      flexGrow: weight,
+      flexBasis: 0,
+      paddingLeft: PADDING,
+    });
+    this.text = new TextRenderable(renderer, {
+      id: `${id}-text`,
+      content: "",
+    });
+    this.box.add(this.text);
+    this.box.onSizeChange = () => {
+      if (this.isStale) onResize();
+    };
+  }
+
+  /**
+   * Layout is computed natively while a frame renders, so a box reports 0 x 0 until its first paint.
+   * Until then the panel is sized to the whole terminal, which only over-estimates.
+   */
+  get size(): PanelSize {
+    if (this.box.width === 0) {
+      return { width: this.renderer.width, height: this.renderer.height };
+    }
+    return {
+      width: Math.max(1, this.box.width - 2 * BORDER - PADDING),
+      height: Math.max(1, this.box.height - 2 * BORDER),
+    };
+  }
+
+  get isStale(): boolean {
+    const { width, height } = this.size;
+    return this.drawnSize?.width !== width || this.drawnSize.height !== height;
+  }
+
+  draw(body: (size: PanelSize) => string): PanelSize {
+    this.drawnSize = this.size;
+    this.text.content = body(this.drawnSize);
+    return this.drawnSize;
+  }
+}
+
+/** The command line, drawn over the bottom of the grid so the panels never resize while it is open. */
+class CommandBar {
+  /** The bar may cover at most half the terminal, less its border and the input and problem rows. */
+  private static readonly ROWS_BESIDE_SUGGESTIONS = 2 * BORDER + 2;
+  readonly box: BoxRenderable;
+  private readonly text: TextRenderable;
+
+  constructor(private readonly renderer: CliRenderer) {
+    this.box = new BoxRenderable(renderer, {
+      id: "line",
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 100,
+      border: true,
+      // The terminal's own background, so the bar hides the grid without painting a slab on light themes.
+      backgroundColor: RGBA.defaultBackground(),
+      paddingLeft: PADDING,
+      paddingRight: PADDING,
+      visible: false,
+    });
+    this.text = new TextRenderable(renderer, { id: "line-text", content: "" });
+    this.box.add(this.text);
+  }
+
+  get suggestionBudget(): number {
+    return (
+      Math.floor(this.renderer.height / 2) - CommandBar.ROWS_BESIDE_SUGGESTIONS
+    );
+  }
+
+  private get textWidth(): number {
+    return this.renderer.width - 2 * (BORDER + PADDING);
+  }
+
+  show(line: MenuRender | null) {
+    this.box.visible = line !== null;
+    if (line === null) return;
+    const lines = line.lines.flatMap((row) => wrapLine(row, this.textWidth, 2));
+    this.box.title = line.title;
+    this.box.bottomTitle = line.hints;
+    this.box.height = lines.length + 2 * BORDER;
+    this.text.content = lines.join("\n");
+  }
+}
 
 export function createPanels(renderer: CliRenderer, village: Village): Panels {
   const container = new BoxRenderable(renderer, {
@@ -46,55 +150,23 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
     flexGrow: 1,
   });
 
-  // Layout is computed natively while a frame renders, so a box reports 0 x 0 until its first paint.
-  // The first frame is drawn against the whole terminal, which only over-estimates, and the size
-  // change that follows that paint redraws each panel at its real size.
   let lastFrame: PanelsFrame | null = null;
-  let correctionQueued = false;
-  const drawnSize = new Map<Slot, string>();
-  const sizeOf = (slot: Slot): PanelSize =>
-    slot.box.width === 0
-      ? { width: renderer.width, height: renderer.height }
-      : {
-          width: Math.max(1, slot.box.width - BORDER_AND_PADDING),
-          height: Math.max(1, slot.box.height - BORDER_ROWS),
-        };
-  const sizeKey = (slot: Slot) => JSON.stringify(sizeOf(slot));
-  const correctSizes = () => {
-    if (correctionQueued) return;
-    correctionQueued = true;
-    // Redrawing inside the render pass would be dropped, so the correction waits for the pass to end.
+  let redrawQueued = false;
+  // A panel learns its real size during a paint, and redrawing inside the render pass would be dropped,
+  // so the redraw at the measured size waits for the pass to end.
+  const redrawAtMeasuredSize = () => {
+    if (redrawQueued) return;
+    redrawQueued = true;
     process.nextTick(() => {
-      correctionQueued = false;
+      redrawQueued = false;
       if (renderer.isDestroyed || lastFrame === null) return;
       draw(lastFrame);
       renderer.requestRender();
     });
   };
-
-  const makeSlot = (id: string, name: string, weight: number): Slot => {
-    const box = new BoxRenderable(renderer, {
-      id,
-      title: `(${name.charAt(0)})${name.slice(1)}`,
-      border: true,
-      borderStyle: "single",
-      borderColor: BORDER_COLOR,
-      flexGrow: weight,
-      flexBasis: 0,
-      paddingLeft: 1,
-    });
-    const text = new TextRenderable(renderer, {
-      id: `${id}-text`,
-      content: "",
-    });
-    box.add(text);
-    const slot: Slot = { box, text };
-    box.onSizeChange = () => {
-      if (drawnSize.get(slot) !== sizeKey(slot)) correctSizes();
-    };
-    return slot;
-  };
-  const makeRow = (id: string, slots: Slot[]) => {
+  const makeSlot = (id: string, name: string, weight: number) =>
+    new PanelSlot(renderer, id, name, weight, redrawAtMeasuredSize);
+  const makeRow = (id: string, slots: PanelSlot[]) => {
     const row = new BoxRenderable(renderer, {
       id,
       flexDirection: "row",
@@ -109,7 +181,7 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
   const slotOf = (id: FocusId, weight: number) =>
     makeSlot(id, panels[id].name, weight);
   const ledger = makeSlot("ledger", ledgerPanel.name, 1);
-  const slots: Record<FocusId, Slot> = {
+  const slots: Record<FocusId, PanelSlot> = {
     peasants: slotOf("peasants", 1),
     archive: slotOf("archive", 2),
     court: slotOf("court", 1),
@@ -155,29 +227,11 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
     content: "",
   });
   overlayBox.add(overlayText);
-  // Absolute so the grown bar floats over the grid and never changes the panels' sizes.
-  const lineBox = new BoxRenderable(renderer, {
-    id: "line",
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: LINE_Z_INDEX,
-    border: true,
-    backgroundColor: LINE_BACKGROUND,
-    paddingLeft: 1,
-    paddingRight: 1,
-    visible: false,
-  });
-  const lineText = new TextRenderable(renderer, {
-    id: "line-text",
-    content: "",
-  });
-  lineBox.add(lineText);
+  const commandBar = new CommandBar(renderer);
   container.add(grid);
   container.add(overlayBox);
   container.add(bar);
-  container.add(lineBox);
+  container.add(commandBar.box);
   renderer.root.add(container);
 
   const draw = ({
@@ -189,17 +243,11 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
     const { view } = context;
     const isLocked = (id: string) =>
       view.lockedPanels.some((locked) => locked === id);
-    const render = (slot: Slot, body: (size: PanelSize) => string) => {
-      const size = sizeOf(slot);
-      drawnSize.set(slot, sizeKey(slot));
-      slot.text.content = body(size);
-      return size;
-    };
-    render(ledger, (size) => ledgerPanel.body(view, size));
+    ledger.draw((size) => ledgerPanel.body(view, size));
     for (const panel of Object.values(panels)) {
       const slot = slots[panel.id];
       const focused = focus === panel.id;
-      const size = render(slot, (fit) =>
+      const size = slot.draw((fit) =>
         isLocked(panel.id) ? LOCKED_BODY : panel.body(context, fit, focused),
       );
       slot.box.borderStyle = focused ? "double" : "single";
@@ -218,21 +266,10 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
       draw(frame);
     },
     get lineSuggestionBudget() {
-      return Math.max(
-        1,
-        Math.floor(renderer.height / 2) - BORDER_ROWS - LINE_FIXED_ROWS,
-      );
+      return commandBar.suggestionBudget;
     },
     showLine(line) {
-      lineBox.visible = line !== null;
-      if (line === null) return;
-      const lines = line.lines.flatMap((row) =>
-        wrapLine(row, renderer.width - BORDER_ROWS - 2, 2),
-      );
-      lineBox.title = line.title;
-      lineBox.bottomTitle = line.hints;
-      lineBox.height = lines.length + BORDER_ROWS;
-      lineText.content = lines.join("\n");
+      commandBar.show(line);
     },
     showOverlay(overlay) {
       grid.visible = overlay === null;

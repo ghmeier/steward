@@ -16,6 +16,7 @@ import {
   setRoster,
   tuning,
 } from "../../test/helpers";
+import { settledFrame } from "../../test/tui-helpers";
 import type { Decree } from "../core/decree";
 import { Game } from "../core/game";
 import { Job } from "../core/realm";
@@ -104,13 +105,7 @@ async function launch(
       app.frame();
       await setup.renderOnce();
     },
-    async screen() {
-      // The panels redraw at their measured size right after the first paint, so a frame needs two passes.
-      await setup.renderOnce();
-      await new Promise((resolve) => process.nextTick(resolve));
-      await setup.renderOnce();
-      return setup.captureCharFrame();
-    },
+    screen: () => settledFrame(setup),
   };
 }
 
