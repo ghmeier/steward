@@ -102,7 +102,6 @@ export function startApp(options: {
     height: Math.max(1, renderer.height - BAR_LINES - 2),
   });
   const currentOverlay = () => {
-    if (line !== null) return renderLine(line, menuContext());
     if (help !== null) return help.render(menuContext(), helpViewport());
     return menu === null ? null : renderMenu(menu, menuContext());
   };
@@ -119,6 +118,11 @@ export function startApp(options: {
       focus,
     });
     panels.showOverlay(currentOverlay());
+    panels.showLine(
+      line === null
+        ? null
+        : renderLine(line, menuContext(), panels.lineSuggestionBudget),
+    );
     renderer.requestRender();
   };
 

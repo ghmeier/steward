@@ -16,6 +16,7 @@ import {
   setRoster,
   tuning,
 } from "../../test/helpers";
+import { settledFrame } from "../../test/tui-helpers";
 import type { Decree } from "../core/decree";
 import { Game } from "../core/game";
 import { Job } from "../core/realm";
@@ -104,10 +105,7 @@ async function launch(
       app.frame();
       await setup.renderOnce();
     },
-    async screen() {
-      await setup.renderOnce();
-      return setup.captureCharFrame();
-    },
+    screen: () => settledFrame(setup),
   };
 }
 
@@ -353,7 +351,7 @@ describe("doors", () => {
     await harness.advanceStep();
 
     expect(open).toContain(": decree wood _");
-    expect(open).not.toContain("(L)edger");
+    expect(open).toContain("(L)edger");
     expect(Object.keys(harness.game.state.posting.decrees)).toEqual(["wood"]);
     expect(await harness.screen()).toContain("(L)edger");
   });

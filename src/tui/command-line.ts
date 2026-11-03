@@ -791,15 +791,21 @@ export function lineKey(
   return { state: openLine(state.text + character), commands: [] };
 }
 
-export function renderLine(state: LineState, context: MenuContext): MenuRender {
+/** `maxSuggestions` lets a short terminal show fewer than the usual six. */
+export function renderLine(
+  state: LineState,
+  context: MenuContext,
+  maxSuggestions = MAX_SUGGESTIONS_SHOWN,
+): MenuRender {
   const analysis = analyze(state.text, context);
   const { suggestions } = analysis;
   const highlight = Math.min(
     state.highlight,
     Math.max(0, suggestions.length - 1),
   );
-  const first = Math.max(0, highlight - (MAX_SUGGESTIONS_SHOWN - 1));
-  const shown = suggestions.slice(first, first + MAX_SUGGESTIONS_SHOWN);
+  const limit = Math.min(MAX_SUGGESTIONS_SHOWN, maxSuggestions);
+  const first = Math.max(0, highlight - (limit - 1));
+  const shown = suggestions.slice(first, first + limit);
   const width = Math.max(
     0,
     ...shown.map((suggestion) => suggestion.text.length),
@@ -817,9 +823,5 @@ export function renderLine(state: LineState, context: MenuContext): MenuRender {
   else if (suggestions.length === 0 && analysis.expecting !== null) {
     lines.push(`  ${analysis.expecting}`);
   }
-  lines.push("");
-  const inForce = context.view.decrees;
-  if (inForce.length === 0) lines.push("No decrees are in force.");
-  else lines.push(...inForce.map(formatDecree));
   return { title: "Command", lines, hints: LINE_HINTS };
 }

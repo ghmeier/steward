@@ -345,12 +345,20 @@ describe("renderLine", () => {
   test("shows six suggestions at most and scrolls to keep the highlight visible", () => {
     const shown = (highlight: number) => {
       const { lines } = renderLine({ text: woodRuleStart, highlight }, fresh);
-      return lines.slice(1, lines.indexOf(""));
+      return lines.slice(1);
     };
 
     expect(shown(0)).toHaveLength(6);
     expect(shown(7)).toHaveLength(6);
     expect(shown(7).at(-1)).toStartWith(">");
+  });
+
+  test("shows fewer suggestions when the caller's budget is smaller, and never more than six", () => {
+    const shown = (budget: number) =>
+      renderLine(openLine(woodRuleStart), fresh, budget).lines.length - 1;
+
+    expect(shown(2)).toBe(2);
+    expect(shown(50)).toBe(6);
   });
 
   test("shows a problem, or what a number slot expects when nothing can be suggested", () => {
@@ -362,13 +370,12 @@ describe("renderLine", () => {
     ).toContain("a number");
   });
 
-  test("lists the decrees in force, or says there are none", () => {
+  test("does not list the decrees in force, because the Decrees panel shows them", () => {
     const active = contextWith({ decrees: [granary] });
 
-    const withDecree = renderLine(openLine("decree "), active);
-    const without = renderLine(openLine("decree "), fresh);
+    const render = renderLine(openLine("decree "), active);
 
-    expect(text(withDecree)).toContain(formatDecree(granary));
-    expect(without.lines.at(-1)).toBe("No decrees are in force.");
+    expect(text(render)).not.toContain(formatDecree(granary));
+    expect(text(render)).not.toContain("No decrees are in force.");
   });
 });

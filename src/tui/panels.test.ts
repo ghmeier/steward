@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createTestRenderer } from "@opentui/core/testing";
 import { tuning } from "../../test/helpers";
+import { settledFrame } from "../../test/tui-helpers";
 import { Job, RESOURCES } from "../core/realm";
 import type { GameView } from "../core/view";
 import { formatAmount, formatGameTime, formatRate } from "./format";
@@ -44,8 +45,7 @@ async function draw(
       village.peasants.key(pressed("j"), context);
     }
     panels.update({ context, message: null, barHints: bar, focus });
-    await setup.renderOnce();
-    frame = setup.captureCharFrame();
+    frame = await settledFrame(setup);
   }
   return frame;
 }
@@ -131,13 +131,14 @@ describe("createPanels", () => {
     const lines = frame.split("\n");
     const top = lines.findIndex((line) => line.includes("(L)edger"));
     const bottom = lines.findIndex((line) => line.includes("(C)ourt"));
-    const column = (line: string, title: string) => line.indexOf(title) - 2;
-    // The renderer rounds fractional widths, so a column may land one off its exact share.
+    const offset = (line: string, title: string, origin: string) =>
+      line.indexOf(title) - line.indexOf(origin);
+    // Yoga hands the rounding remainder of a fractional split to the first panels, so a column may land up to two off its exact share.
     const near = (actual: number, expected: number) =>
       expect(Math.abs(actual - expected)).toBeLessThanOrEqual(2);
-    near(column(lines[top] ?? "", "(P)easants"), 40);
-    near(column(lines[top] ?? "", "(A)rchive"), 80);
-    near(column(lines[bottom] ?? "", "(D)ecrees"), 80);
+    near(offset(lines[top] ?? "", "(P)easants", "(L)edger"), 40);
+    near(offset(lines[top] ?? "", "(A)rchive", "(L)edger"), 80);
+    near(offset(lines[bottom] ?? "", "(D)ecrees", "(C)ourt"), 80);
   });
 
   test("the message sits on the left of the bar and the hints on the right", async () => {
@@ -152,9 +153,7 @@ describe("createPanels", () => {
       barHints: "(?)Help (N)ew village (Q)uit",
       focus: null,
     });
-    await setup.renderOnce();
-
-    const last = setup.captureCharFrame().split("\n").at(-2) ?? "";
+    const last = (await settledFrame(setup)).split("\n").at(-2) ?? "";
     expect(last.startsWith("Saved.")).toBe(true);
     expect(last.trimEnd().endsWith("(Q)uit")).toBe(true);
   });
@@ -237,6 +236,22 @@ describe("createPanels", () => {
     expect(tall).toContain("Time  ");
     expect(short).not.toContain("Time  ");
     expect(short).toContain("Next peasant");
+  });
+
+  test("the ledger keeps the time line at 100 by 30 where the real panel has room for it", async () => {
+    const view = emptyView({
+      ledger: RESOURCES.map((resource) => ({
+        resource,
+        amount: 1,
+        ratePerSecond: 0,
+      })),
+      growth: growth({ full: true }),
+    });
+
+    const frame = await draw([view], "");
+
+    expect(frame).toContain("Time  ");
+    expect(frame).toContain("Season Spring");
   });
 
   test("an update replaces the values of the last view", async () => {
@@ -484,4 +499,89 @@ describe("createPanels", () => {
       for (const gone of lacks) expect(frame).not.toContain(gone);
     },
   );
+});
+
+describe("the command line in the bar", () => {
+  const BAR_HINTS = "(?)Help (N)ew village (Q)uit";
+  const suggestion = (n: number) => `  option${n}`;
+  const lineWith = (suggestions: number, extra: string[] = []) => ({
+    title: "Command",
+    lines: [
+      ": _",
+      ...Array.from({ length: suggestions }, (_, n) => suggestion(n)),
+      ...extra,
+    ],
+    hints: "tab complete · esc close",
+  });
+
+  async function openBar() {
+    const setup = await createTestRenderer({ width: 160, height: 45 });
+    setups.push(setup);
+    const village = new Village();
+    const panels = createPanels(setup.renderer, village);
+    panels.update({
+      context: { view: emptyView(), tuning },
+      message: null,
+      barHints: BAR_HINTS,
+      focus: null,
+    });
+    return {
+      panels,
+      frame: () => settledFrame(setup),
+    };
+  }
+  const rowsOf = (frame: string) => frame.split("\n");
+  const barRows = (frame: string) => {
+    const rows = rowsOf(frame);
+    const top = rows.findIndex((row) => row.includes("Command"));
+    return top === -1 ? 1 : rows.length - 1 - top;
+  };
+
+  test("the grid keeps its panels and their size while the line is open", async () => {
+    const { panels, frame } = await openBar();
+    const idle = rowsOf(await frame());
+
+    panels.showLine(lineWith(4));
+    const open = rowsOf(await frame());
+
+    for (const title of ["(L)edger", "(P)easants", "(A)rchive", "(C)ourt"]) {
+      expect(open.join("\n")).toContain(title);
+    }
+    const rowOf = (rows: string[], title: string) =>
+      rows.findIndex((row) => row.includes(title));
+    expect(rowOf(open, "(L)edger")).toBe(rowOf(idle, "(L)edger"));
+    expect(rowOf(open, "(C)ourt")).toBe(rowOf(idle, "(C)ourt"));
+  });
+
+  test("the bar grows with the suggestions and the problem line under the line's hints, then collapses to the fixed hints", async () => {
+    const { panels, frame } = await openBar();
+
+    panels.showLine(lineWith(1));
+    const one = await frame();
+    panels.showLine(lineWith(5));
+    const five = await frame();
+    panels.showLine(lineWith(5, ['! "banana" is not a petition']));
+    const withProblem = await frame();
+    panels.showLine(null);
+    const closed = await frame();
+
+    expect(barRows(five) - barRows(one)).toBe(4);
+    expect(barRows(withProblem) - barRows(five)).toBe(1);
+    expect(barRows(closed)).toBe(1);
+    expect(one).toContain("tab complete · esc close");
+    expect(one).not.toContain(BAR_HINTS);
+    expect(closed).toContain(BAR_HINTS);
+    expect(closed).not.toContain("tab complete");
+  });
+
+  test("a shorter terminal has a smaller suggestion budget", async () => {
+    const budget = async (height: number) => {
+      const setup = await createTestRenderer({ width: 100, height });
+      setups.push(setup);
+      return createPanels(setup.renderer, new Village()).lineSuggestionBudget;
+    };
+
+    expect(await budget(45)).toBeGreaterThanOrEqual(6);
+    expect(await budget(14)).toBeLessThan(6);
+  });
 });
