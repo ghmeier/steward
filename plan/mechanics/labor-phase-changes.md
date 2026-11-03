@@ -4,7 +4,8 @@ status: active
 tags: [mechanics]
 created: 2026-11-03
 updated: 2026-11-03
-next_step: Implementer adds the v8-to-v9 save upgrade, then a refactor pass opens the PR
+last_pr: 6
+next_step: Garret reviews PR #6; on merge flip to completed
 ---
 # Labor decrees act on phase changes, so hand assignments stick
 
@@ -44,7 +45,7 @@ From Garret's playtest of PR #4, 2026-11-03. Supersedes the archived [[plan/mech
 
 | PR | Branch | Status |
 | --- | --- | --- |
-| 1 | `labor-phase-changes` | implemented (b2b271f); adding the version 8 upgrade |
+| 1 | `labor-phase-changes` | PR #6 open (f33c408), awaiting review |
 
 ## Notes and decisions
 
