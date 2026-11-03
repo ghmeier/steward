@@ -44,7 +44,13 @@ async function draw(
     for (let step = 0; step < selectedIndex; step++) {
       village.peasants.key(pressed("j"), context);
     }
-    panels.update({ context, message: null, barHints: bar, focus });
+    panels.update({
+      context,
+      message: null,
+      barCommands: "",
+      barHints: bar,
+      focus,
+    });
     frame = await settledFrame(setup);
   }
   return frame;
@@ -141,21 +147,58 @@ describe("createPanels", () => {
     near(offset(lines[bottom] ?? "", "(D)ecrees", "(C)ourt"), 80);
   });
 
-  test("the message sits on the left of the bar and the hints on the right", async () => {
-    const setup = await createTestRenderer({ width: 100, height: 30 });
-    setups.push(setup);
-    const village = new Village();
-    const panels = createPanels(setup.renderer, village);
+  describe("the bottom bar", () => {
+    const HINTS = "(?)Help (N)ew village (Q)uit";
 
-    panels.update({
-      context: { view: emptyView(), tuning },
-      message: "Saved.",
-      barHints: "(?)Help (N)ew village (Q)uit",
-      focus: null,
+    async function barRow(
+      barCommands: string,
+      message: string | null,
+      width = 100,
+    ) {
+      const setup = await createTestRenderer({ width, height: 30 });
+      setups.push(setup);
+      const village = new Village();
+      const panels = createPanels(setup.renderer, village);
+      panels.update({
+        context: { view: emptyView(), tuning },
+        message,
+        barCommands,
+        barHints: HINTS,
+        focus: null,
+      });
+      return (await settledFrame(setup)).split("\n").at(-2) ?? "";
+    }
+
+    test("the commands reminder sits alone on the left once it is given", async () => {
+      const withPalette = await barRow(": commands", null);
+      const without = await barRow("", null);
+
+      expect(withPalette.startsWith(": commands")).toBe(true);
+      expect(withPalette.trimEnd().endsWith(HINTS)).toBe(true);
+      expect(without.trim()).toBe(HINTS);
     });
-    const last = (await settledFrame(setup)).split("\n").at(-2) ?? "";
-    expect(last.startsWith("Saved.")).toBe(true);
-    expect(last.trimEnd().endsWith("(Q)uit")).toBe(true);
+
+    test("the notice comes right before the help hints, not on the left", async () => {
+      const row = await barRow(": commands", "Saved.");
+
+      expect(row.trimEnd().endsWith(`Saved. ${HINTS}`)).toBe(true);
+      expect(row.startsWith(": commands")).toBe(true);
+    });
+
+    test.each([{ width: 100 }, { width: 160 }])(
+      "a notice too long for the bar loses its start and never the hints at $width columns",
+      async ({ width }) => {
+        const notice = `${"Long notice. ".repeat(20)}the end of the notice`;
+
+        const row = await barRow(": commands", notice, width);
+
+        expect(row.trimEnd().endsWith(`the end of the notice ${HINTS}`)).toBe(
+          true,
+        );
+        expect(row.startsWith(": commands \u2026")).toBe(true);
+        expect(row.trimEnd().length).toBe(width);
+      },
+    );
   });
 
   test("the ledger shows the time, resources in shared columns, then the realm after a blank line", async () => {
@@ -522,6 +565,7 @@ describe("the command line in the bar", () => {
     panels.update({
       context: { view: emptyView(), tuning },
       message: null,
+      barCommands: "",
       barHints: BAR_HINTS,
       focus: null,
     });

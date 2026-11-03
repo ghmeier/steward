@@ -5,7 +5,14 @@ import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
 import { type LineState, lineKey, openLine, renderLine } from "./command-line";
 import { HelpPage } from "./help-menu";
-import { actionForKey, barHintsText, type FocusId, isInterrupt } from "./keys";
+import {
+  actionForKey,
+  BAR_HINTS,
+  barCommandsText,
+  type FocusId,
+  FocusRing,
+  isInterrupt,
+} from "./keys";
 import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
 import { newGameMenu } from "./new-game-menu";
 import { BAR_LINES, createPanels } from "./panels";
@@ -106,7 +113,7 @@ export function startApp(options: {
     return menu === null ? null : renderMenu(menu, menuContext());
   };
   const composeBar = () =>
-    `${message ?? ""}\n${barHintsText(session.view().unlocks)}`;
+    `${barCommandsText(session.view().unlocks)}\n${message ?? ""}`;
   const redraw = () => {
     bar = composeBar();
     const view = session.view();
@@ -114,7 +121,8 @@ export function startApp(options: {
     panels.update({
       context: menuContext(),
       message,
-      barHints: barHintsText(view.unlocks),
+      barCommands: barCommandsText(view.unlocks),
+      barHints: BAR_HINTS,
       focus,
     });
     panels.showOverlay(currentOverlay());
@@ -202,8 +210,11 @@ export function startApp(options: {
     }
     const action = actionForKey(key, session.view().unlocks);
     if (action === null) return;
-    if (action.kind === "focus") {
-      focus = action.panel;
+    if (action.kind === "focus" || action.kind === "cycle") {
+      focus =
+        action.kind === "focus"
+          ? action.panel
+          : new FocusRing(session.view().unlocks).step(focus, action.delta);
       village.focusable[focus].enter(menuContext());
       redraw();
     } else if (action.kind === "line") {

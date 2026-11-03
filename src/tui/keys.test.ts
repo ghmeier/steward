@@ -4,7 +4,7 @@ import { Job } from "../core/realm";
 import { ARCHIVE_PANEL, PALETTE_UNLOCK } from "../core/unlocks";
 import {
   actionForKey,
-  barHintsText,
+  BAR_HINTS,
   type KeyAction,
   keyHints,
   type PeasantAction,
@@ -90,5 +90,5 @@ describe("peasantActionForKey", () => {
 });
 
 test("the bottom bar hints stay short enough to share a 60-column line with a message", () => {
-  expect(barHintsText(everything).length).toBeLessThanOrEqual(40);
+  expect(BAR_HINTS.length).toBeLessThanOrEqual(40);
 });
