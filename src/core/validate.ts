@@ -211,6 +211,7 @@ const posting: z.ZodType<PostingState> = z
     delegates: z.array(delegate),
     nextDelegateId: positiveCount,
     decrees: decreeRecord(true),
+    labor: z.strictObject({ policy: z.string(), settling: z.boolean() }),
     desk,
   })
   .superRefine(rosterIssues);

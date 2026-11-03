@@ -72,6 +72,7 @@ export class CommandManager {
           return { ok: true };
         case "assignPeasant":
           this.game.delegates.assignJob(command.peasant, command.job);
+          this.game.labor.stop();
           return { ok: true };
         case "enactDecree":
           this.game.decrees.enact(command.decree);

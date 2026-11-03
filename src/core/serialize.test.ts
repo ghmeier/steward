@@ -60,6 +60,7 @@ describe("stateHash", () => {
         delegates: state.posting.delegates,
         nextDelegateId: state.posting.nextDelegateId,
         decrees: state.posting.decrees,
+        labor: state.posting.labor,
         resources: state.posting.resources,
         desk: state.posting.desk,
         rng: state.posting.rng,

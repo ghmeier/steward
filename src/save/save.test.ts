@@ -171,6 +171,14 @@ describe("version refusal", () => {
     expect(existsSync(join(dir, "save.json"))).toBe(false);
   });
 
+  test("refuses a version 8 save, which predates the labor settling state", () => {
+    writeOldSave(8);
+
+    const result = loadGame(dir);
+
+    expect(result).toMatchObject({ kind: "versionRefused", foundVersion: 8 });
+  });
+
   test("a repeated refusal of the same version uses the next free numbered name", () => {
     writeOldSave(7);
     loadGame(dir);

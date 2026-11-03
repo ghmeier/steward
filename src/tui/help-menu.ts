@@ -182,7 +182,7 @@ function harvestAndLaborLines(tuning: Tuning): string[] {
     "",
     `Labor: each tick, ${plain(moves)} ${moves === 1 ? "peasant moves" : "peasants move"} toward a split of farm, forest and mine:`,
     ...allocations.map((line) => `  ${line}`),
-    "  A labor decree overrides the jobs you assign by hand.",
+    "  A labor decree moves peasants when its policy changes, and your hand assignments stay until then.",
     "",
     "Example, a labor decree: decree labor mine when it is winter otherwise farm",
   ];
