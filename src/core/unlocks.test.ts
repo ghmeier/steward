@@ -8,12 +8,7 @@ import {
 import { stateHash } from "../save/hash";
 import type { Condition } from "./decree";
 import { Game } from "./game";
-import {
-  ARCHIVE_PANEL,
-  CHAINING_UNLOCK,
-  COMPOUND_UNLOCK,
-  CROWN_PANEL,
-} from "./unlocks";
+import { ARCHIVE_PANEL, CHAINING_UNLOCK, COMPOUND_UNLOCK } from "./unlocks";
 
 const entry = (id: string) => {
   const found = tuning.archive.entries.find((candidate) => candidate.id === id);
@@ -201,18 +196,22 @@ describe("play unlocks and need hooks", () => {
 });
 
 describe("view", () => {
+  test("the archive panel is reported locked until the Archive opens", () => {
+    const game = Game.create(1, tuning);
+    const before = game.view.compute().lockedPanels;
+    grantUnlocks(game, [ARCHIVE_PANEL]);
+
+    expect(before).toEqual(["archive"]);
+    expect(game.view.compute().lockedPanels).toEqual([]);
+  });
+
   test("archive entries follow data order with ownership, affordability and availability", () => {
     const game = richVillage(palette.cost);
     const before = game.view.compute().archive.entries;
     buy(game, palette.id);
     game.state.posting.resources.coin = savedDecrees.cost;
-    const locked = game.view.compute().lockedPanels;
-    grantUnlocks(game, [CROWN_PANEL]);
 
     const view = game.view.compute();
-    expect(locked).toEqual(["crown"]);
-    expect(view.lockedPanels).toEqual([]);
-
     expect(view.archive.open).toBe(true);
     expect(view.archive.entries.map((e) => e.id)).toEqual(
       tuning.archive.entries.map((e) => e.id),
@@ -225,8 +224,6 @@ describe("view", () => {
       affordable: true,
     });
     expect(view.archive.entries[3]).toMatchObject({ affordable: false });
-    expect(view.unlocks).toEqual(
-      [ARCHIVE_PANEL, CROWN_PANEL, palette.id].sort(),
-    );
+    expect(view.unlocks).toEqual([ARCHIVE_PANEL, palette.id].sort());
   });
 });

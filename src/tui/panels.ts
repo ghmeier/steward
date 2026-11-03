@@ -1,111 +1,29 @@
 import { BoxRenderable, type CliRenderer, TextRenderable } from "@opentui/core";
-import type { GameView, PanelId } from "../core/view";
-import { rowWindow } from "./cursor";
-import { plain } from "./decree-format";
-import { formatAmount, formatGameTime, formatRate } from "./format";
-import type { MenuRender } from "./menu";
+import { type FocusId, panelHintsText } from "./keys";
+import type { MenuContext, MenuRender } from "./menu";
+import type { PanelSize, Village } from "./village-panels";
 
-export type Panels = {
-  update(view: GameView, footer: string, selectedId: number | null): void;
-  showMenu(menu: MenuRender | null): void;
+export type PanelsFrame = {
+  context: MenuContext;
+  message: string | null;
+  barHints: string;
+  focus: FocusId | null;
 };
 
-const CROWN_PLACEHOLDER = "The crown demands nothing, for now.";
-const FOOTER_LINES = 2;
+export type Panels = {
+  update(frame: PanelsFrame): void;
+  showOverlay(overlay: MenuRender | null): void;
+};
+
 const LOCKED_BODY = "Locked.";
-const COURT_HINT = "Press c to hold court.";
-const DESK_PLACEHOLDER = "The desk is clear.";
-const EMPTY_VILLAGE = "The village is empty. Press n to found a new one.";
+export const BAR_LINES = 1;
+const BORDER_COLOR = "#6b7280";
+const FOCUS_COLOR = "#f5c542";
+const BORDER_AND_PADDING = 3;
 
-function capitalize(id: string): string {
-  return id.charAt(0).toUpperCase() + id.slice(1);
-}
+type Slot = { box: BoxRenderable; text: TextRenderable; weight: number };
 
-function promotionLine(view: GameView): string {
-  const { target, promotedAt, promotedAtSeconds } = view.promotion;
-  if (promotedAt > 0) {
-    return `Promoted to steward on ${formatGameTime(promotedAtSeconds)}`;
-  }
-  return `Promotion  ${view.realm.population} / ${target} peasants`;
-}
-
-export function nextPeasantLine(view: GameView): string | null {
-  const { stored, needed, perSecond, full } = view.growth;
-  if (full) return null;
-  const progress = `${formatAmount(stored)} / ${plain(needed)} grain`;
-  if (perSecond <= 0) return `Next peasant  ${progress}`;
-  const seconds = Math.ceil((needed - stored) / perSecond);
-  return `Next peasant  ${progress}  (~${formatGameTime(seconds)})`;
-}
-
-function deskLines(view: GameView): string[] {
-  if (view.desk.length === 0) return [];
-  return [...view.desk.map((entry) => entry.label), "", COURT_HINT];
-}
-
-function ledgerContent(view: GameView): string {
-  const rows = view.ledger.map((line) => [
-    capitalize(line.resource),
-    formatAmount(line.amount),
-    formatRate(line.ratePerSecond),
-  ]);
-  const widths = [0, 1, 2].map((column) =>
-    Math.max(0, ...rows.map((row) => row[column]?.length ?? 0)),
-  );
-  const lines = rows.map(
-    ([name = "", amount = "", rate = ""]) =>
-      `${name.padEnd(widths[0] ?? 0)}  ${amount.padStart(widths[1] ?? 0)}  ${rate.padStart(widths[2] ?? 0)}`,
-  );
-  const { realm } = view;
-  const realmLines: (string | null)[] = [
-    `Population  ${realm.population} (${realm.labor.idle} idle)`,
-    `Farm ${realm.labor.farm}  Forest ${realm.labor.forest}  Mine ${realm.labor.mine}`,
-    `Season  ${capitalize(realm.season)}`,
-    promotionLine(view),
-    nextPeasantLine(view),
-  ];
-  return [
-    `Time  ${formatGameTime(view.elapsedSeconds)}`,
-    ...lines,
-    "",
-    ...realmLines.filter((line) => line !== null),
-  ].join("\n");
-}
-
-export function peasantLines(
-  view: GameView,
-  selectedId: number | null,
-  height = Number.POSITIVE_INFINITY,
-): string[] {
-  const rows = view.delegates.map((delegate) => {
-    const cursor = delegate.id === selectedId ? ">" : " ";
-    const grudge = delegate.grudgeTicks > 0 ? " (grudge)" : "";
-    return `${cursor} ${delegate.name}  ${delegate.job}${grudge}`;
-  });
-  const selected = view.delegates.findIndex(
-    (delegate) => delegate.id === selectedId,
-  );
-  const { start, end } = rowWindow(rows.length, selected, height);
-  const lines = rows.slice(start, end);
-  if (start > 0) lines.unshift(`\u2191 ${start} more`);
-  if (end < rows.length) lines.push(`\u2193 ${rows.length - end} more`);
-  return lines;
-}
-
-function linesOrPlaceholder(lines: string[], placeholder: string): string {
-  return lines.length > 0 ? lines.join("\n") : placeholder;
-}
-
-function peasantsBody(
-  view: GameView,
-  selectedId: number | null,
-  height: number,
-): string {
-  if (view.realm.population === 0) return EMPTY_VILLAGE;
-  return peasantLines(view, selectedId, height).join("\n");
-}
-
-export function createPanels(renderer: CliRenderer): Panels {
+export function createPanels(renderer: CliRenderer, village: Village): Panels {
   const container = new BoxRenderable(renderer, {
     id: "layout",
     flexDirection: "column",
@@ -118,50 +36,73 @@ export function createPanels(renderer: CliRenderer): Panels {
     flexGrow: 1,
   });
 
-  const makePanel = (id: string, title: string) => {
+  const makeSlot = (id: string, name: string, weight: number): Slot => {
     const box = new BoxRenderable(renderer, {
       id,
-      title,
+      title: `(${name.charAt(0)})${name.slice(1)}`,
       border: true,
-      flexGrow: 1,
+      borderStyle: "single",
+      borderColor: BORDER_COLOR,
+      flexGrow: weight,
       flexBasis: 0,
       paddingLeft: 1,
-      paddingRight: 1,
     });
     const text = new TextRenderable(renderer, {
       id: `${id}-text`,
       content: "",
     });
     box.add(text);
-    return { box, text };
+    return { box, text, weight };
   };
-  const ledger = makePanel("ledger", "Ledger");
-  const crown = makePanel("crown", "Crown");
-  const desk = makePanel("desk", "Desk");
-  const peasants = makePanel("peasants", "Peasants");
-
-  const makeRow = (id: string, left: BoxRenderable, right: BoxRenderable) => {
+  const makeRow = (id: string, slots: Slot[]) => {
     const row = new BoxRenderable(renderer, {
       id,
       flexDirection: "row",
       flexGrow: 1,
       flexBasis: 0,
     });
-    row.add(left);
-    row.add(right);
+    for (const slot of slots) row.add(slot.box);
     return row;
   };
-  grid.add(makeRow("top-row", ledger.box, crown.box));
-  grid.add(makeRow("bottom-row", desk.box, peasants.box));
 
-  const footer = new TextRenderable(renderer, {
-    id: "footer",
+  const { ledger: ledgerPanel, focusable: panels } = village;
+  const slotOf = (id: FocusId, weight: number) =>
+    makeSlot(id, panels[id].name, weight);
+  const ledger = makeSlot("ledger", ledgerPanel.name, 1);
+  const slots: Record<FocusId, Slot> = {
+    peasants: slotOf("peasants", 1),
+    archive: slotOf("archive", 2),
+    court: slotOf("court", 1),
+    decrees: slotOf("decrees", 1),
+  };
+  const topRow = [ledger, slots.peasants, slots.archive];
+  const bottomRow = [slots.court, slots.decrees];
+  grid.add(makeRow("top-row", topRow));
+  grid.add(makeRow("bottom-row", bottomRow));
+
+  const message = new TextRenderable(renderer, {
+    id: "bar-message",
     content: "",
-    height: 2,
+    flexGrow: 1,
+    height: BAR_LINES,
+  });
+  const barHints = new TextRenderable(renderer, {
+    id: "bar-hints",
+    content: "",
+    flexShrink: 0,
+    height: BAR_LINES,
+  });
+  const bar = new BoxRenderable(renderer, {
+    id: "bar",
+    flexDirection: "row",
+    height: BAR_LINES,
     flexShrink: 0,
   });
-  // Replaces the grid rather than floating over it, so the menu never fights panel layout.
-  const menuBox = new BoxRenderable(renderer, {
+  bar.add(message);
+  bar.add(barHints);
+
+  // Replaces the grid rather than floating over it, so the overlay never fights panel layout.
+  const overlayBox = new BoxRenderable(renderer, {
     id: "menu",
     border: true,
     flexGrow: 1,
@@ -169,46 +110,62 @@ export function createPanels(renderer: CliRenderer): Panels {
     paddingRight: 1,
     visible: false,
   });
-  const menuText = new TextRenderable(renderer, {
+  const overlayText = new TextRenderable(renderer, {
     id: "menu-text",
     content: "",
   });
-  menuBox.add(menuText);
+  overlayBox.add(overlayText);
   container.add(grid);
-  container.add(menuBox);
-  container.add(footer);
+  container.add(overlayBox);
+  container.add(bar);
   renderer.root.add(container);
 
-  // OpenTUI computes layout lazily, so the bottom row's inner height is derived from the terminal:
-  // the two footer lines come off, the grid splits in two equal rows, and each border takes two lines.
-  const peasantRowCapacity = () =>
-    Math.max(1, Math.floor((renderer.height - FOOTER_LINES) / 2) - 2);
+  // OpenTUI computes layout lazily, so each panel's inner size is derived from the terminal: the bar
+  // comes off the height, the grid splits into two equal rows, and the row's width splits by weight.
+  const sizeOf = (slot: Slot, row: Slot[]): PanelSize => {
+    const total = row.reduce((sum, item) => sum + item.weight, 0);
+    return {
+      width: Math.max(
+        1,
+        Math.floor((renderer.width * slot.weight) / total) - BORDER_AND_PADDING,
+      ),
+      height: Math.max(1, Math.floor((renderer.height - BAR_LINES) / 2) - 2),
+    };
+  };
+  const rowOf = (slot: Slot) => (topRow.includes(slot) ? topRow : bottomRow);
 
   return {
-    update(view, footerText, selectedId) {
-      const body = (id: PanelId, content: string) =>
-        view.lockedPanels.includes(id) ? LOCKED_BODY : content;
-      ledger.text.content = body("ledger", ledgerContent(view));
-      crown.text.content = body(
-        "crown",
-        view.crown?.label ?? CROWN_PLACEHOLDER,
+    update({ context, message: text, barHints: hints, focus }) {
+      const { view } = context;
+      const isLocked = (id: string) =>
+        view.lockedPanels.some((locked) => locked === id);
+      ledger.text.content = ledgerPanel.body(
+        view,
+        sizeOf(ledger, rowOf(ledger)),
       );
-      desk.text.content = body(
-        "desk",
-        linesOrPlaceholder(deskLines(view), DESK_PLACEHOLDER),
-      );
-      peasants.text.content = body(
-        "peasants",
-        peasantsBody(view, selectedId, peasantRowCapacity()),
-      );
-      footer.content = footerText;
+      for (const panel of Object.values(panels)) {
+        const slot = slots[panel.id];
+        const focused = focus === panel.id;
+        const size = sizeOf(slot, rowOf(slot));
+        slot.text.content = isLocked(panel.id)
+          ? LOCKED_BODY
+          : panel.body(context, size, focused);
+        slot.box.borderStyle = focused ? "double" : "single";
+        slot.box.borderColor = focused ? FOCUS_COLOR : BORDER_COLOR;
+        slot.box.bottomTitle = focused
+          ? panelHintsText(panel.id, size.width - 2)
+          : undefined;
+      }
+      message.content = text ?? "";
+      barHints.content = hints;
     },
-    showMenu(menu) {
-      grid.visible = menu === null;
-      menuBox.visible = menu !== null;
-      if (menu === null) return;
-      menuBox.title = menu.title;
-      menuText.content = menu.lines.join("\n");
+    showOverlay(overlay) {
+      grid.visible = overlay === null;
+      overlayBox.visible = overlay !== null;
+      if (overlay === null) return;
+      overlayBox.title = overlay.title;
+      overlayBox.bottomTitle = overlay.hints;
+      overlayText.content = overlay.lines.join("\n");
     },
   };
 }

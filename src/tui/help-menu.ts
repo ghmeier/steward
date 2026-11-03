@@ -7,13 +7,17 @@ import {
   SAVED_DECREES_UNLOCK,
 } from "../core/unlocks";
 import { describePolicy, plain } from "./decree-format";
-import { keyHints } from "./keys";
-import type { MenuContext, Screen, ScreenBuilder } from "./menu";
-
-const BACK_ITEM = {
-  label: "Back",
-  action: { kind: "replace", pop: 1 },
-} as const;
+import { capitalize } from "./format";
+import {
+  FOCUS_IDS,
+  type KeyPress,
+  keyHints,
+  panelKeyHints,
+  plainKeyName,
+} from "./keys";
+import type { MenuContext, MenuRender } from "./menu";
+import type { PanelSize } from "./village-panels";
+import { wrapLine } from "./wrap";
 
 function perSecond(perTick: number, tuning: Tuning): string {
   return `${plain((perTick * 1000) / tuning.stepMs)}/s`;
@@ -38,17 +42,26 @@ function rulingsTouching(
 
 function keysLines(context: MenuContext): string[] {
   const hints = keyHints(context.view.unlocks);
-  const width = Math.max(...hints.map((hint) => hint.keys.length));
+  const panelHints = FOCUS_IDS.map((id) => ({
+    keys: `${capitalize(id)}:`,
+    label: panelKeyHints(id)
+      .map((hint) => `${hint.keys} ${hint.label}`)
+      .join(", "),
+  }));
+  const width = Math.max(
+    ...[...hints, ...panelHints].map((hint) => hint.keys.length),
+  );
+  const row = (hint: { keys: string; label: string }) =>
+    `${hint.keys.padEnd(width)}  ${hint.label}`;
   return [
-    ...hints.map((hint) => `${hint.keys.padEnd(width)}  ${hint.label}`),
+    ...hints.map(row),
+    "",
+    "Press a panel's letter to focus it; esc leaves it. While a panel is focused its keys win:",
+    ...panelHints.map(row),
     "",
     "In any menu: up/down to move, enter to choose, esc to go back.",
-    "f, w, m and i put the selected peasant on the farm, in the forest, in the mine or idle.",
+    "f, w, m and i put the selected peasant on the farm, in the forest, in the mine or idle, once Peasants is focused.",
   ];
-}
-
-function capitalize(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function grainLines(tuning: Tuning): string[] {
@@ -142,14 +155,14 @@ function decreeLines(context: MenuContext): string[] {
     "Rules are checked in order and the first match wins. Otherwise applies when none match.",
     '"Grain seasons" is how many seasons the stores would feed everyone.',
     "",
-    "Press d and type the decree: tab completes a word, enter issues it. A new decree replaces the one for its petition.",
+    "Press d to focus Decrees, then enter on a petition and type the decree: tab completes a word, enter issues it. A new decree replaces the one for its petition.",
     "Example, a harvest decree: decree harvest sell when grain seasons above 3, feed when grain seasons above 2 otherwise stockpile",
     "  While the stores are above 3 seasons, each tick's new surplus is sold.",
     "  Between 2 and 3 it is fed, to grow the village. Below 2 it is kept.",
     "  At 3.5 seasons both rules match, and sell wins by coming first.",
     "  Swap them and feed catches everything above 2, so nothing is ever sold.",
     "",
-    'To withdraw a decree, press d, clear the line and type "repeal" and its name.',
+    "To withdraw a decree, focus Decrees, select its petition and press x.",
     ...(owned.length === 0 ? [] : ["", ...owned]),
   ];
 }
@@ -211,23 +224,56 @@ const TOPICS: readonly {
   { label: "Promotion", lines: (c) => promotionLines(c.tuning) },
 ];
 
-function topicScreen(
-  label: string,
-  lines: (context: MenuContext) => string[],
-): ScreenBuilder {
-  return (context: MenuContext): Screen => ({
-    kind: "list",
-    title: label,
-    notes: lines(context),
-    items: [BACK_ITEM],
-  });
+export type HelpSection = { heading: string; lines: string[] };
+
+export function helpSections(context: MenuContext): HelpSection[] {
+  return TOPICS.map((topic) => ({
+    heading: topic.label,
+    lines: topic.lines(context),
+  }));
 }
 
-export const helpMenu: ScreenBuilder = () => ({
-  kind: "list",
-  title: "Help",
-  items: TOPICS.map((topic) => ({
-    label: topic.label,
-    action: { kind: "push", screen: topicScreen(topic.label, topic.lines) },
-  })),
-});
+const HELP_HINTS = "j/k scroll \u00b7 space page \u00b7 esc close";
+
+/** One scrolling page holding every topic, wrapped to the terminal so a scroll step is always one screen line. */
+export class HelpPage {
+  private offset = 0;
+
+  private pageLines(context: MenuContext, width: number): string[] {
+    return helpSections(context).flatMap((section, index) => [
+      ...(index === 0 ? [] : [""]),
+      section.heading.toUpperCase(),
+      ...section.lines.flatMap((line) => wrapLine(line, width, 2)),
+    ]);
+  }
+
+  private scrollBy(lineCount: number, viewport: PanelSize, delta: number) {
+    const last = Math.max(0, lineCount - viewport.height);
+    this.offset = Math.max(0, Math.min(last, this.offset + delta));
+  }
+
+  /** Returns false once the page asks to close. */
+  key(key: KeyPress, context: MenuContext, viewport: PanelSize): boolean {
+    const name = plainKeyName(key);
+    if (name === "escape" || name === "?") return false;
+    const lineCount = this.pageLines(context, viewport.width).length;
+    if (name === "j" || name === "down") this.scrollBy(lineCount, viewport, 1);
+    else if (name === "k" || name === "up") {
+      this.scrollBy(lineCount, viewport, -1);
+    } else if (name === "space" || (name !== null && key.sequence === " ")) {
+      this.scrollBy(lineCount, viewport, Math.max(1, viewport.height - 1));
+    }
+    return true;
+  }
+
+  render(context: MenuContext, viewport: PanelSize): MenuRender {
+    const all = this.pageLines(context, viewport.width);
+    this.scrollBy(all.length, viewport, 0);
+    const end = Math.min(all.length, this.offset + viewport.height);
+    return {
+      title: "Help",
+      lines: all.slice(this.offset, end),
+      hints: `${HELP_HINTS} \u00b7 ${end}/${all.length}`,
+    };
+  }
+}
