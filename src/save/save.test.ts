@@ -150,6 +150,50 @@ describe("atomic write", () => {
   });
 });
 
+describe("version 8 upgrade", () => {
+  function writeVersion8Save(): void {
+    const state = newState() as unknown as Record<string, unknown>;
+    const posting = { ...(state.posting as Record<string, unknown>) };
+    delete posting.labor;
+    const old = { ...state, schemaVersion: 8, posting };
+    const text = `${JSON.stringify({ schemaVersion: 8, savedAt: "x", contentHash: "y", state: old })}\n`;
+    writeFileSync(join(dir, "save.json"), text);
+  }
+
+  test("a version 8 save loads as version 9 with an empty labor policy", () => {
+    writeVersion8Save();
+
+    const state = loaded(dir);
+
+    expect(state.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(state.posting.labor).toEqual({ policy: "", settling: false });
+    expect(existsSync(join(dir, "save.v8.json"))).toBe(false);
+  });
+
+  test("an upgraded save settles a labor decree on its first tick", () => {
+    writeVersion8Save();
+    const game = Game.fromState(loaded(dir), loadTuning());
+    game.decrees.enact({
+      id: "workforce",
+      petition: "labor",
+      rules: [],
+      otherwise: "farm",
+    });
+
+    game.decrees.run(
+      { tick: 1, maxValue: 1e300, absorbed: null },
+      {
+        harvest: 0,
+        wood: 0,
+        ore: 0,
+      },
+    );
+
+    expect(game.state.posting.labor).toMatchObject({ policy: "farm" });
+    expect(game.delegates.jobCounts().farm).toBe(1);
+  });
+});
+
 describe("version refusal", () => {
   function writeOldSave(version: number): string {
     const text = `${JSON.stringify({ schemaVersion: version, savedAt: "x", contentHash: "y", state: {} })}\n`;
@@ -169,14 +213,6 @@ describe("version refusal", () => {
     });
     expect(readFileSync(join(dir, "save.v7.json"), "utf8")).toBe(text);
     expect(existsSync(join(dir, "save.json"))).toBe(false);
-  });
-
-  test("refuses a version 8 save, which predates the labor settling state", () => {
-    writeOldSave(8);
-
-    const result = loadGame(dir);
-
-    expect(result).toMatchObject({ kind: "versionRefused", foundVersion: 8 });
   });
 
   test("a repeated refusal of the same version uses the next free numbered name", () => {
