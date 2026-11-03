@@ -1,10 +1,10 @@
 ---
 title: "Labor decrees act on phase changes, so hand assignments stick"
-status: draft
+status: active
 tags: [mechanics]
 created: 2026-11-03
 updated: 2026-11-03
-next_step: Garret approves the rule, then dispatch `labor-phase-changes`
+next_step: Implementer running on labor-phase-changes
 ---
 # Labor decrees act on phase changes, so hand assignments stick
 
@@ -44,4 +44,8 @@ From Garret's playtest of PR #4, 2026-11-03. Supersedes the archived [[plan/mech
 
 | PR | Branch | Status |
 | --- | --- | --- |
-| 1 | `labor-phase-changes` | not started |
+| 1 | `labor-phase-changes` | implementer running |
+
+## Notes and decisions
+
+- 2026-11-03: Garret approved the rule, including that a hand assignment during settling ends settling.
