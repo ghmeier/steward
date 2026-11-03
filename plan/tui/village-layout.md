@@ -4,7 +4,7 @@ status: active
 tags: [tui]
 created: 2026-11-03
 updated: 2026-11-03
-next_step: PR 1 (village-layout) in progress with an implementer
+next_step: Refactor pass on village-layout opens PR 1; then dispatch PR 2
 ---
 # Village UI overhaul: five focusable panels and a command bar
 
@@ -103,10 +103,12 @@ The command line moves into the bottom bar.
 
 | PR | Branch | Status |
 | --- | --- | --- |
-| 1 | `village-layout` | not started |
+| 1 | `village-layout` | implemented (8e364f2), refactor pass running |
 | 2 | `village-command-bar` | not started |
 
 ## Notes and decisions
 
 - 2026-11-03: Tech-debt item dropped. Tests were already moved next to their sources (0a6b8d6).
 - 2026-11-03: A is the Archive. The command bar grows upward. The Ledger is a label only.
+- 2026-11-03: PR 1 implemented. Deviations accepted: OpenTUI drops a `bottomTitle` that does not fit, so panel hints fall back to bare keys at narrow widths; flexbox rounds the 1 : 1 : 2 split unevenly, so layout tests allow 2 columns of tolerance; panels have left padding only; focus uses a TUI-local `FocusId`; overlay hints go on the overlay's `bottomTitle`; the Ledger dropped its Time line to fit 12 lines in a 30-row terminal. The refactor pass also removes `desk` from `PanelId`, restores Archive descriptions, and adds wrap tests.
+- PR 2 note: overlay hints now sit on the overlay box's `bottomTitle`, and the bar has a fixed hint list. The command bar should keep the line's hints with the line.
