@@ -4,7 +4,12 @@ import {
   RGBA,
   TextRenderable,
 } from "@opentui/core";
-import { type FocusId, panelHintsText } from "./keys";
+import {
+  BAR_HINTS,
+  barCommandsText,
+  type FocusId,
+  panelHintsText,
+} from "./keys";
 import type { MenuContext, MenuRender } from "./menu";
 import type { PanelSize, Village } from "./village-panels";
 import { wrapLine } from "./wrap";
@@ -12,9 +17,6 @@ import { wrapLine } from "./wrap";
 export type PanelsFrame = {
   context: MenuContext;
   message: string | null;
-  /** Sits on the left of the bar, and is empty until there is something to remind the player of. */
-  barCommands: string;
-  barHints: string;
   focus: FocusId | null;
 };
 
@@ -95,7 +97,7 @@ class PanelSlot {
 
 /**
  * One row with the command reminder on the left and the notice followed by the help hints on the right.
- * The notice gives way first, losing its start, so the hints are always fully visible.
+ * The notice gives way first, losing its end so its opening words survive, and the hints never move.
  */
 class StatusBar {
   private static readonly ELLIPSIS = "\u2026";
@@ -119,14 +121,19 @@ class StatusBar {
   private static fit(notice: string, room: number): string {
     if (notice.length <= room) return notice;
     if (room <= 0) return "";
-    return StatusBar.ELLIPSIS + notice.slice(notice.length - (room - 1));
+    return notice.slice(0, room - 1) + StatusBar.ELLIPSIS;
   }
 
-  show(commands: string, notice: string, hints: string) {
+  private rightSide(commands: string, notice: string): string {
     const room =
-      this.renderer.width - commands.length - hints.length - 2 * BAR_GAP;
+      this.renderer.width - commands.length - BAR_HINTS.length - 2 * BAR_GAP;
     const shown = StatusBar.fit(notice, room);
-    const right = shown === "" ? hints : `${shown} ${hints}`;
+    return shown === "" ? BAR_HINTS : `${shown} ${BAR_HINTS}`;
+  }
+
+  show(unlocks: readonly string[], notice: string) {
+    const commands = barCommandsText(unlocks);
+    const right = this.rightSide(commands, notice);
     const padding = Math.max(
       BAR_GAP,
       this.renderer.width - commands.length - right.length,
@@ -260,13 +267,7 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
   container.add(commandBar.box);
   renderer.root.add(container);
 
-  const draw = ({
-    context,
-    message: text,
-    barCommands: commands,
-    barHints: hints,
-    focus,
-  }: PanelsFrame) => {
+  const draw = ({ context, message: text, focus }: PanelsFrame) => {
     const { view } = context;
     const isLocked = (id: string) =>
       view.lockedPanels.some((locked) => locked === id);
@@ -283,7 +284,7 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
         ? panelHintsText(panel.id, size.width - 2)
         : undefined;
     }
-    bar.show(commands, text ?? "", hints);
+    bar.show(view.unlocks, text ?? "");
   };
 
   return {

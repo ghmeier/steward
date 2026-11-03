@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createTestRenderer } from "@opentui/core/testing";
 import { tuning } from "../../test/helpers";
-import { settledFrame } from "../../test/tui-helpers";
+import { barRow, settledFrame } from "../../test/tui-helpers";
 import { Job, RESOURCES } from "../core/realm";
+import { PALETTE_UNLOCK, type UnlockId } from "../core/unlocks";
 import type { GameView } from "../core/view";
 import { formatAmount, formatGameTime, formatRate } from "./format";
-import type { FocusId } from "./keys";
+import { BAR_HINTS, type FocusId } from "./keys";
 import { createPanels } from "./panels";
 import { Village } from "./village-panels";
 
@@ -25,7 +26,6 @@ type DrawOptions = {
 
 async function draw(
   views: GameView[],
-  bar: string,
   {
     size = { width: 100, height: 30 },
     focus = null,
@@ -44,13 +44,7 @@ async function draw(
     for (let step = 0; step < selectedIndex; step++) {
       village.peasants.key(pressed("j"), context);
     }
-    panels.update({
-      context,
-      message: null,
-      barCommands: "",
-      barHints: bar,
-      focus,
-    });
+    panels.update({ context, message: null, focus });
     frame = await settledFrame(setup);
   }
   return frame;
@@ -112,7 +106,7 @@ describe("createPanels", () => {
   ])(
     "shows all five titles and the bar hints at $width x $height",
     async (size) => {
-      const frame = await draw([emptyView()], "(?)Help (N)ew village (Q)uit", {
+      const frame = await draw([emptyView()], {
         size,
       });
 
@@ -125,12 +119,12 @@ describe("createPanels", () => {
       ]) {
         expect(frame).toContain(title);
       }
-      expect(frame).toContain("(?)Help (N)ew village (Q)uit");
+      expect(frame).toContain(BAR_HINTS);
     },
   );
 
   test("the top row splits one to one to two and the bottom row one to one", async () => {
-    const frame = await draw([emptyView()], "", {
+    const frame = await draw([emptyView()], {
       size: { width: 160, height: 30 },
     });
 
@@ -148,55 +142,41 @@ describe("createPanels", () => {
   });
 
   describe("the bottom bar", () => {
-    const HINTS = "(?)Help (N)ew village (Q)uit";
-
-    async function barRow(
-      barCommands: string,
+    async function drawnBar(
+      unlocks: UnlockId[],
       message: string | null,
       width = 100,
     ) {
       const setup = await createTestRenderer({ width, height: 30 });
       setups.push(setup);
-      const village = new Village();
-      const panels = createPanels(setup.renderer, village);
+      const panels = createPanels(setup.renderer, new Village());
       panels.update({
-        context: { view: emptyView(), tuning },
+        context: { view: emptyView({ unlocks }), tuning },
         message,
-        barCommands,
-        barHints: HINTS,
         focus: null,
       });
-      return (await settledFrame(setup)).split("\n").at(-2) ?? "";
+      return barRow(await settledFrame(setup));
     }
 
-    test("the commands reminder sits alone on the left once it is given", async () => {
-      const withPalette = await barRow(": commands", null);
-      const without = await barRow("", null);
+    test("the commands reminder sits on the left once the palette is owned and the notice sits right before the help hints", async () => {
+      const owned = await drawnBar([PALETTE_UNLOCK], "Saved.");
+      const locked = await drawnBar([], null);
 
-      expect(withPalette.startsWith(": commands")).toBe(true);
-      expect(withPalette.trimEnd().endsWith(HINTS)).toBe(true);
-      expect(without.trim()).toBe(HINTS);
-    });
-
-    test("the notice comes right before the help hints, not on the left", async () => {
-      const row = await barRow(": commands", "Saved.");
-
-      expect(row.trimEnd().endsWith(`Saved. ${HINTS}`)).toBe(true);
-      expect(row.startsWith(": commands")).toBe(true);
+      expect(owned.startsWith(": commands")).toBe(true);
+      expect(owned.trimEnd().endsWith(`Saved. ${BAR_HINTS}`)).toBe(true);
+      expect(locked.trim()).toBe(BAR_HINTS);
     });
 
     test.each([{ width: 100 }, { width: 160 }])(
-      "a notice too long for the bar loses its start and never the hints at $width columns",
+      "a notice too long for the bar keeps its start and loses its end before the hints at $width columns",
       async ({ width }) => {
-        const notice = `${"Long notice. ".repeat(20)}the end of the notice`;
+        const notice = `Save failed: ${"the reason goes on. ".repeat(20)}`;
 
-        const row = await barRow(": commands", notice, width);
+        const row = await drawnBar([PALETTE_UNLOCK], notice, width);
 
-        expect(row.trimEnd().endsWith(`the end of the notice ${HINTS}`)).toBe(
-          true,
-        );
-        expect(row.startsWith(": commands \u2026")).toBe(true);
-        expect(row.trimEnd().length).toBe(width);
+        expect(row.startsWith(": commands Save failed:")).toBe(true);
+        expect(row.endsWith(`\u2026 ${BAR_HINTS}`)).toBe(true);
+        expect(row.length).toBe(width);
       },
     );
   });
@@ -215,7 +195,7 @@ describe("createPanels", () => {
       }),
     });
 
-    const frame = await draw([view], "", { size: { width: 160, height: 45 } });
+    const frame = await draw([view], { size: { width: 160, height: 45 } });
 
     const lines = frame.split("\n");
     const row = (text: string) => lines.findIndex((l) => l.includes(text));
@@ -244,9 +224,9 @@ describe("createPanels", () => {
     });
 
     const wide = (
-      await draw([view], "", { size: { width: 160, height: 45 } })
+      await draw([view], { size: { width: 160, height: 45 } })
     ).split("\n");
-    const narrow = (await draw([view], "")).split("\n");
+    const narrow = (await draw([view])).split("\n");
 
     const column = (lines: string[], offset: number, label: string) => {
       const ledgerWidth = (lines[0]?.length ?? 0) / 4;
@@ -273,8 +253,8 @@ describe("createPanels", () => {
       growth: growth({}),
     });
 
-    const tall = await draw([view], "", { size: { width: 160, height: 45 } });
-    const short = await draw([view], "");
+    const tall = await draw([view], { size: { width: 160, height: 45 } });
+    const short = await draw([view]);
 
     expect(tall).toContain("Time  ");
     expect(short).not.toContain("Time  ");
@@ -291,7 +271,7 @@ describe("createPanels", () => {
       growth: growth({ full: true }),
     });
 
-    const frame = await draw([view], "");
+    const frame = await draw([view]);
 
     expect(frame).toContain("Time  ");
     expect(frame).toContain("Season Spring");
@@ -301,7 +281,7 @@ describe("createPanels", () => {
     const grain = (amount: number) =>
       emptyView({ ledger: [{ resource: "grain", amount, ratePerSecond: 1 }] });
 
-    const frame = await draw([grain(111), grain(222_222)], "");
+    const frame = await draw([grain(111), grain(222_222)]);
 
     expect(frame).not.toContain(formatAmount(111));
     expect(frame).toContain(formatAmount(222_222));
@@ -322,7 +302,7 @@ describe("createPanels", () => {
   ])(
     "%s shows a placeholder when it has nothing",
     async (_name, view, words) => {
-      const frame = await draw([view], "", {
+      const frame = await draw([view], {
         size: { width: 160, height: 30 },
       });
 
@@ -333,7 +313,7 @@ describe("createPanels", () => {
   test("entries replace the placeholders", async () => {
     const view = emptyView({ desk: [dispute], delegates: [ada] });
 
-    const frame = await draw([view], "");
+    const frame = await draw([view]);
 
     for (const shown of ["A squabble", "Ada"]) {
       expect(frame).toContain(shown);
@@ -355,7 +335,7 @@ describe("createPanels", () => {
       ],
     });
 
-    const frame = await draw([view], "", { size: { width: 160, height: 30 } });
+    const frame = await draw([view], { size: { width: 160, height: 30 } });
 
     expect(frame).toMatch(/harvest {2}none/);
     expect(frame).toMatch(/wood {5}otherwise stockpile/);
@@ -390,8 +370,8 @@ describe("createPanels", () => {
       },
     });
 
-    const unfocused = await draw([view], "");
-    const focused = await draw([view], "", { focus: "archive" });
+    const unfocused = await draw([view]);
+    const focused = await draw([view], { focus: "archive" });
 
     expect(unfocused).toContain("Alpha  100 coin");
     expect(unfocused).toContain("Beta  owned");
@@ -404,7 +384,7 @@ describe("createPanels", () => {
   test("the focused panel gets a double border and its hints while the others show neither", async () => {
     const view = emptyView({ delegates: [ada] });
 
-    const frame = await draw([view], "", {
+    const frame = await draw([view], {
       focus: "peasants",
       size: { width: 200, height: 30 },
     });
@@ -419,7 +399,7 @@ describe("createPanels", () => {
   });
 
   test("a focused panel too narrow for its full hints shows the bare keys instead", async () => {
-    const frame = await draw([emptyView({ delegates: [ada] })], "", {
+    const frame = await draw([emptyView({ delegates: [ada] })], {
       focus: "peasants",
     });
 
@@ -435,8 +415,8 @@ describe("createPanels", () => {
       ],
     });
 
-    const unfocused = await draw([view], "", { selectedIndex: 1 });
-    const focused = await draw([view], "", {
+    const unfocused = await draw([view], { selectedIndex: 1 });
+    const focused = await draw([view], {
       focus: "peasants",
       selectedIndex: 1,
     });
@@ -466,7 +446,7 @@ describe("createPanels", () => {
       },
     });
 
-    const frame = await draw([view], "");
+    const frame = await draw([view]);
 
     expect(frame).toContain("(A)rchive");
     expect(frame).toContain("Locked.");
@@ -491,7 +471,7 @@ describe("createPanels", () => {
   ])("the ledger %s", async (_name, promotion, population, has, lacks) => {
     const view = emptyView({ promotion, realm: realmOf({ population }) });
 
-    const frame = await draw([view], "");
+    const frame = await draw([view]);
 
     for (const shown of has) expect(frame).toContain(shown);
     for (const gone of lacks) expect(frame).not.toContain(gone);
@@ -510,7 +490,7 @@ describe("createPanels", () => {
     ],
     ["a full village shows no line", growth({ full: true }), ["!Next peasant"]],
   ])("%s", async (_name, value, words) => {
-    const frame = await draw([emptyView({ growth: value })], "");
+    const frame = await draw([emptyView({ growth: value })]);
 
     for (const word of words) {
       if (word.startsWith("!")) expect(frame).not.toContain(word.slice(1));
@@ -533,7 +513,7 @@ describe("createPanels", () => {
         })),
       });
 
-      const frame = await draw([crowd], "", {
+      const frame = await draw([crowd], {
         focus: "peasants",
         selectedIndex,
       });
@@ -545,7 +525,6 @@ describe("createPanels", () => {
 });
 
 describe("the command line in the bar", () => {
-  const BAR_HINTS = "(?)Help (N)ew village (Q)uit";
   const suggestion = (n: number) => `  option${n}`;
   const lineWith = (suggestions: number, extra: string[] = []) => ({
     title: "Command",
@@ -565,8 +544,6 @@ describe("the command line in the bar", () => {
     panels.update({
       context: { view: emptyView(), tuning },
       message: null,
-      barCommands: "",
-      barHints: BAR_HINTS,
       focus: null,
     });
     return {

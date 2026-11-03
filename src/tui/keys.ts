@@ -27,6 +27,8 @@ export type PeasantAction =
   | { kind: "move"; delta: -1 | 1 }
   | { kind: "assign"; job: Job };
 
+type FocusChange = Extract<KeyAction, { kind: "focus" | "cycle" }>;
+
 type Binding = { action: KeyAction; needs?: UnlockId };
 
 const BINDINGS: Readonly<Record<string, Binding>> = {
@@ -53,19 +55,25 @@ export class FocusRing {
     )?.needs;
   }
 
-  get panels(): FocusId[] {
+  private get panels(): FocusId[] {
     return FOCUS_IDS.filter((panel) => {
       const needs = FocusRing.neededBy(panel);
       return needs === undefined || this.unlocks.includes(needs);
     });
   }
 
-  /** From nothing focused, forward lands on the first panel and backward on the last. */
-  step(from: FocusId | null, delta: -1 | 1): FocusId {
+  target(action: FocusChange, from: FocusId | null): FocusId {
+    return action.kind === "focus"
+      ? action.panel
+      : this.step(from, action.delta);
+  }
+
+  /** With nothing focused, forward lands on the first panel and backward on the last. */
+  private step(from: FocusId | null, delta: -1 | 1): FocusId {
     const { panels } = this;
-    const at = from === null ? -1 : panels.indexOf(from);
-    const target = at === -1 ? (delta === 1 ? 0 : -1) : at + delta;
-    return panels[(target + panels.length) % panels.length] as FocusId;
+    const at =
+      from === null ? (delta === 1 ? -1 : panels.length) : panels.indexOf(from);
+    return panels[(at + delta + panels.length) % panels.length] as FocusId;
   }
 }
 
