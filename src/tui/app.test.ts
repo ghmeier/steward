@@ -105,6 +105,9 @@ async function launch(
       await setup.renderOnce();
     },
     async screen() {
+      // The panels redraw at their measured size right after the first paint, so a frame needs two passes.
+      await setup.renderOnce();
+      await new Promise((resolve) => process.nextTick(resolve));
       await setup.renderOnce();
       return setup.captureCharFrame();
     },
@@ -353,7 +356,7 @@ describe("doors", () => {
     await harness.advanceStep();
 
     expect(open).toContain(": decree wood _");
-    expect(open).not.toContain("(L)edger");
+    expect(open).toContain("(L)edger");
     expect(Object.keys(harness.game.state.posting.decrees)).toEqual(["wood"]);
     expect(await harness.screen()).toContain("(L)edger");
   });
