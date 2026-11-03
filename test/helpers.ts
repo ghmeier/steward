@@ -7,8 +7,7 @@ import type { AddContext } from "../src/core/math";
 import { JOBS, type Job } from "../src/core/realm";
 import { parseTuning, type Tuning } from "../src/core/tuning";
 import { ARCHIVE_PANEL } from "../src/core/unlocks";
-import { helpMenu } from "../src/tui/help-menu";
-import { menuKey, openMenu, renderMenu } from "../src/tui/menu";
+import { helpSections } from "../src/tui/help-menu";
 
 export const fullTuningJson = {
   ...tuningJson,
@@ -142,7 +141,7 @@ export function setFamineDue(
   };
 }
 
-/** The text of one help topic, opened through the menu the way a player would. */
+/** The text of one help topic, as it appears under its heading on the Help page. */
 export function topicText(
   topic: string,
   using: Tuning = tuning,
@@ -151,21 +150,7 @@ export function topicText(
   const game = Game.create(1, using);
   grantUnlocks(game, unlocks);
   const context = { view: game.view.compute(), tuning: using };
-  const root = openMenu(helpMenu);
-  const index = renderMenu(root, context).lines.findIndex((line) =>
-    line.includes(topic),
-  );
-  let state = root;
-  const press = (name: string) => {
-    const step = menuKey(
-      state,
-      { name, ctrl: false, meta: false, shift: false, sequence: name },
-      context,
-    );
-    if (step.state === null) throw new Error("menu closed");
-    state = step.state;
-  };
-  for (let i = 0; i < index; i++) press("down");
-  press("return");
-  return renderMenu(state, context).lines.join("\n");
+  const section = helpSections(context).find((s) => s.heading === topic);
+  if (section === undefined) throw new Error(`no help topic ${topic}`);
+  return section.lines.join("\n");
 }

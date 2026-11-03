@@ -4,16 +4,15 @@ import { Game } from "../core/game";
 import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
 import { type LineState, lineKey, openLine, renderLine } from "./command-line";
-import { courtMenu } from "./court-menu";
-import { type Cursor, moveCursor, reconcileCursor } from "./cursor";
-import { helpMenu } from "./help-menu";
-import { actionForKey, hintsText, isInterrupt } from "./keys";
+import { HelpPage } from "./help-menu";
+import { actionForKey, barHintsText, type FocusId, isInterrupt } from "./keys";
 import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
 import { newGameMenu } from "./new-game-menu";
-import { createPanels } from "./panels";
+import { BAR_LINES, createPanels } from "./panels";
 import { Session } from "./session";
 import { starvationNotice } from "./starvation-notice";
 import { announceNewUnlocks } from "./unlock-notices";
+import { type PanelStep, Village } from "./village-panels";
 
 const FRAME_INTERVAL_MS = 50;
 const AUTOSAVE_INTERVAL_MS = 30_000;
@@ -82,34 +81,44 @@ export function startApp(options: {
   const makeSession = (game: Game): Session =>
     new Session(game, { now: options.now });
   let session = makeSession(options.game);
-  const panels = createPanels(renderer);
+  const village = new Village();
+  const panels = createPanels(renderer, village);
   let message = options.notice;
-  let footer = "";
-  let cursor: Cursor | null = reconcileCursor(session.view().delegates, null);
+  let bar = "";
+  village.peasants.reset(session.view());
+  let focus: FocusId | null = null;
 
   let menu: MenuState | null = null;
+  let help: HelpPage | null = null;
   let line: LineState | null = null;
   let promotionAnnounced = session.view().promotion.promotedAt > 0;
   let lastView = session.view();
   let knownUnlocks = new Set(lastView.unlocks);
 
   const menuContext = () => ({ view: session.view(), tuning });
+  // Help is reference text that fills the screen, so its scroll window is the whole grid area.
+  const helpViewport = () => ({
+    width: Math.max(1, renderer.width - 4),
+    height: Math.max(1, renderer.height - BAR_LINES - 2),
+  });
   const currentOverlay = () => {
     if (line !== null) return renderLine(line, menuContext());
+    if (help !== null) return help.render(menuContext(), helpViewport());
     return menu === null ? null : renderMenu(menu, menuContext());
   };
-  const composeFooter = () => {
-    const open = currentOverlay();
-    const hints =
-      open === null ? hintsText(session.view().unlocks) : open.hints;
-    return `${message ?? ""}\n${hints}`;
-  };
+  const composeBar = () =>
+    `${message ?? ""}\n${barHintsText(session.view().unlocks)}`;
   const redraw = () => {
-    footer = composeFooter();
+    bar = composeBar();
     const view = session.view();
-    cursor = reconcileCursor(view.delegates, cursor);
-    panels.update(view, footer, cursor?.id ?? null);
-    panels.showMenu(currentOverlay());
+    village.peasants.reconcile(view);
+    panels.update({
+      context: menuContext(),
+      message,
+      barHints: barHintsText(view.unlocks),
+      focus,
+    });
+    panels.showOverlay(currentOverlay());
     renderer.requestRender();
   };
 
@@ -135,7 +144,8 @@ export function startApp(options: {
     lastView = session.view();
     promotionAnnounced = lastView.promotion.promotedAt > 0;
     knownUnlocks = new Set(lastView.unlocks);
-    cursor = reconcileCursor(lastView.delegates, null);
+    village.peasants.reset(lastView);
+    focus = null;
     const error = save();
     message =
       error === null ? "A new village is founded." : `Save failed: ${error}`;
@@ -149,11 +159,24 @@ export function startApp(options: {
   const done = new Promise<AppExit>((resolve) => {
     resolveDone = resolve;
   });
+  const applyPanelStep = (result: PanelStep) => {
+    for (const command of result.commands) session.enqueue(command);
+    for (const request of result.requests) {
+      if (request.kind === "unfocus") focus = null;
+      else if (request.kind === "openLine") line = openLine(request.text);
+      else message = request.text;
+    }
+  };
   const onKeyPress = (key: KeyEvent) => {
     if (line !== null && !isInterrupt(key)) {
       const result = lineKey(line, key, menuContext());
       line = result.state;
       for (const command of result.commands) session.enqueue(command);
+      redraw();
+      return;
+    }
+    if (help !== null && !isInterrupt(key)) {
+      if (!help.key(key, menuContext(), helpViewport())) help = null;
       redraw();
       return;
     }
@@ -165,41 +188,28 @@ export function startApp(options: {
       redraw();
       return;
     }
-    const action = actionForKey(key, session.view().unlocks);
-    if (action === null) return;
-    if (action.kind === "line") {
-      line = openLine(action.prefill);
-      redraw();
-      return;
-    }
-    if (action.kind === "court") {
-      menu = openMenu(courtMenu);
-      redraw();
-      return;
-    }
-    if (action.kind === "newGame") {
-      menu = openMenu(newGameMenu);
-      redraw();
-      return;
-    }
-    if (action.kind === "help") {
-      menu = openMenu(helpMenu);
-      redraw();
-      return;
-    }
-    if (action.kind === "move") {
-      cursor = moveCursor(session.view().delegates, cursor, action.delta);
-      redraw();
-    } else if (action.kind === "assign") {
-      if (cursor === null) message = "No peasant is selected.";
-      else {
-        session.enqueue({
-          type: "assignPeasant",
-          peasant: cursor.id,
-          job: action.job,
-        });
+    if (focus !== null && !isInterrupt(key)) {
+      const result = village.panel(focus).key(key, menuContext());
+      if (result !== null) {
+        applyPanelStep(result);
+        redraw();
         return;
       }
+    }
+    const action = actionForKey(key, session.view().unlocks);
+    if (action === null) return;
+    if (action.kind === "focus") {
+      focus = action.panel;
+      village.panel(focus).enter(menuContext());
+      redraw();
+    } else if (action.kind === "line") {
+      line = openLine(action.prefill);
+      redraw();
+    } else if (action.kind === "newGame") {
+      menu = openMenu(newGameMenu);
+      redraw();
+    } else if (action.kind === "help") {
+      help = new HelpPage();
       redraw();
     } else if (action.kind === "save") saveAndAnnounce(true);
     else void shutdown();
@@ -223,7 +233,7 @@ export function startApp(options: {
       promotionAnnounced = true;
       message = "The crown has noticed you. You are promoted to steward.";
     }
-    if (result.viewChanged || composeFooter() !== footer) redraw();
+    if (result.viewChanged || composeBar() !== bar) redraw();
   }
 
   // Shared by shutdown and hangUp so the two paths save at most once between them.

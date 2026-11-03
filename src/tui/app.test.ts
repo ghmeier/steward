@@ -16,6 +16,7 @@ import {
   setRoster,
   tuning,
 } from "../../test/helpers";
+import type { Decree } from "../core/decree";
 import { Game } from "../core/game";
 import { Job } from "../core/realm";
 import { ARCHIVE_PANEL, PALETTE_UNLOCK } from "../core/unlocks";
@@ -202,7 +203,13 @@ describe("lifecycle", () => {
 
     const screen = await harness.screen();
 
-    for (const title of ["Ledger", "Crown", "Desk", "Peasants"]) {
+    for (const title of [
+      "(L)edger",
+      "(P)easants",
+      "(A)rchive",
+      "(C)ourt",
+      "(D)ecrees",
+    ]) {
       expect(screen).toContain(title);
     }
     expect(screen).toContain("Started a new game.");
@@ -211,7 +218,7 @@ describe("lifecycle", () => {
   test("assignment keys act on the peasant under the cursor, a repeat shows the rejection and s saves", async () => {
     const harness = await launch({ game: withRoster(3) });
 
-    await harness.mockInput.typeText("jmm");
+    await harness.mockInput.typeText("pjmm");
     await harness.advanceStep();
     const screen = await harness.screen();
     await harness.mockInput.typeText("s");
@@ -231,7 +238,7 @@ describe("lifecycle", () => {
     "pressing %s saves the current state and finishes the app",
     async (_name, press) => {
       const harness = await launch();
-      await harness.mockInput.typeText("f");
+      await harness.mockInput.typeText("pf");
       await harness.advanceStep();
 
       press(harness.mockInput);
@@ -245,7 +252,7 @@ describe("lifecycle", () => {
 
   test("hangUp saves the live state without touching the renderer, and later frames do nothing", async () => {
     const harness = await launch();
-    await harness.mockInput.typeText("f");
+    await harness.mockInput.typeText("pf");
     await harness.advanceStep();
 
     const exit = harness.app.hangUp();
@@ -312,28 +319,49 @@ describe("rendering", () => {
   });
 });
 
+const dispute = {
+  id: 1,
+  template: "stolen-hen",
+  parties: [1, 2] as [number, number],
+  arrivedAt: 0,
+};
+const withDispute = (): Game => {
+  const game = withRoster(2);
+  game.state.posting.desk.disputes = [dispute];
+  game.state.posting.desk.nextDisputeId = 2;
+  return game;
+};
+const granary: Decree = {
+  id: "granary",
+  petition: "harvest",
+  rules: [],
+  otherwise: "sell",
+};
+const DOUBLE_BORDER = "\u2554";
+
 describe("doors", () => {
-  test("d opens the command line in place of the panels and a typed decree reaches the state", async () => {
+  test("enter in the Decrees panel opens the command line on the selected petition and a typed decree reaches the state", async () => {
     const harness = await launch();
 
-    await harness.mockInput.typeText("d");
+    await harness.mockInput.typeText("dj");
+    harness.mockInput.pressEnter();
     const open = await harness.screen();
     await harness.mockInput.typeText(
-      "wood sell when coin above 5 otherwise stockpile",
+      "sell when coin above 5 otherwise stockpile",
     );
     harness.mockInput.pressEnter();
     await harness.advanceStep();
 
-    expect(open).toContain(": decree _");
-    expect(open).not.toContain("Ledger");
+    expect(open).toContain(": decree wood _");
+    expect(open).not.toContain("(L)edger");
     expect(Object.keys(harness.game.state.posting.decrees)).toEqual(["wood"]);
-    expect(await harness.screen()).toContain("Ledger");
+    expect(await harness.screen()).toContain("(L)edger");
   });
 
   test("with the line open game keys do not assign, but Ctrl-C still quits", async () => {
-    const harness = await launch();
+    const harness = await launch({ game: owning(PALETTE_UNLOCK) });
 
-    await harness.mockInput.typeText("df");
+    await harness.mockInput.typeText("p:f");
     await harness.advanceStep();
     harness.mockInput.pressCtrlC();
     await harness.app.done;
@@ -342,59 +370,193 @@ describe("doors", () => {
     expect(harness.destroyCalls()).toBe(1);
   });
 
-  test("c opens the court menu and settling the dispute removes it from the state", async () => {
-    const harness = await launch({ game: withRoster(2) });
-    harness.game.state.posting.desk.disputes = [
-      { id: 1, template: "stolen-hen", parties: [1, 2], arrivedAt: 0 },
-    ];
-    harness.game.state.posting.desk.nextDisputeId = 2;
-    await harness.advanceStep();
-
-    await harness.mockInput.typeText("c");
-    const open = await harness.screen();
-    harness.mockInput.pressEnter();
-    await harness.mockInput.typeText("jj");
-    harness.mockInput.pressEnter();
-    await harness.advanceStep();
-
-    expect(open).toContain("Hold court");
-    expect(open).not.toContain("Ledger");
-    expect(harness.game.state.posting.desk.disputes).toEqual([]);
-  });
-
-  test("? opens help, game keys are routed to it, and escape backs out step by step", async () => {
+  test("? opens one help page with every topic, game keys scroll it instead of acting, and escape closes it", async () => {
     const harness = await launch({ kittyKeyboard: true });
 
     await harness.mockInput.typeText("?");
     const open = await harness.screen();
-    await harness.mockInput.typeText("f");
-    harness.mockInput.pressEnter();
-    const topic = await harness.screen();
-    harness.mockInput.pressEscape();
+    await harness.mockInput.typeText("pf");
     harness.mockInput.pressEscape();
 
-    expect(open).toContain("Grain and growth");
-    expect(topic).toContain("Back");
+    expect(open).toContain("KEYS");
+    expect(open).toContain("GRAIN AND GROWTH");
     expect(everyoneIdle(harness)).toBe(true);
-    expect(await harness.screen()).toContain("Ledger");
+    expect(await harness.screen()).toContain("(L)edger");
   });
 
-  test.each([
-    ["a", ARCHIVE_PANEL, ": buy _"],
-    [":", PALETTE_UNLOCK, ": _"],
-  ])(
-    "%s opens the line once its unlock is owned and does nothing before",
-    async (pressed, unlock, line) => {
-      const locked = await launch();
-      const owned = await launch({ game: owning(unlock) });
+  test("help scrolls a line with j, a page with space, and back with k", async () => {
+    const harness = await launch();
 
-      await locked.mockInput.typeText(pressed);
-      await owned.mockInput.typeText(pressed);
+    await harness.mockInput.typeText("?");
+    const top = await harness.screen();
+    await harness.mockInput.typeText("j");
+    const oneLine = await harness.screen();
+    await harness.mockInput.typeText("k");
+    const back = await harness.screen();
+    await harness.mockInput.typeText(" ");
+    const page = await harness.screen();
 
-      expect(await locked.screen()).toContain("Ledger");
-      expect(await owned.screen()).toContain(line);
-    },
-  );
+    expect(top).toContain("KEYS");
+    expect(oneLine).not.toContain("KEYS");
+    expect(back).toContain("KEYS");
+    expect(page).not.toContain("KEYS");
+    expect(page).toContain("COIN");
+  });
+
+  test("? closes the help page it opened", async () => {
+    const harness = await launch({ kittyKeyboard: true });
+
+    await harness.mockInput.typeText("??");
+
+    expect(await harness.screen()).toContain("(L)edger");
+  });
+
+  test("a focuses the Archive once the panel is owned and does nothing before", async () => {
+    const locked = await launch();
+    const owned = await launch({ game: owning(ARCHIVE_PANEL) });
+
+    await locked.mockInput.typeText("a");
+    await owned.mockInput.typeText("a");
+
+    expect(await locked.screen()).not.toContain(DOUBLE_BORDER);
+    expect(await owned.screen()).toContain(DOUBLE_BORDER);
+  });
+
+  test("colon opens the line once the palette is owned and does nothing before", async () => {
+    const locked = await launch();
+    const owned = await launch({ game: owning(PALETTE_UNLOCK) });
+
+    await locked.mockInput.typeText(":");
+    await owned.mockInput.typeText(":");
+
+    expect(await locked.screen()).toContain("(L)edger");
+    expect(await owned.screen()).toContain(": _");
+  });
+});
+
+describe("focus", () => {
+  test("a panel letter focuses its panel, another letter moves focus and escape clears it", async () => {
+    const harness = await launch({ kittyKeyboard: true });
+
+    await harness.mockInput.typeText("p");
+    const peasants = await harness.screen();
+    await harness.mockInput.typeText("c");
+    const court = await harness.screen();
+    harness.mockInput.pressEscape();
+    const cleared = await harness.screen();
+
+    expect(peasants).toMatch(/\u2554\S*\(P\)easants/);
+    expect(court).toMatch(/\u2554\S*\(C\)ourt/);
+    expect(court).not.toMatch(/\u2554\S*\(P\)easants/);
+    expect(cleared).not.toContain(DOUBLE_BORDER);
+  });
+
+  test("l is not bound to the Ledger", async () => {
+    const harness = await launch();
+
+    await harness.mockInput.typeText("l");
+
+    expect(await harness.screen()).not.toContain(DOUBLE_BORDER);
+  });
+
+  test("panel keys do nothing while their panel is not focused", async () => {
+    const harness = await launch({ game: withDispute() });
+
+    await harness.mockInput.typeText("fjx");
+    harness.mockInput.pressEnter();
+    await harness.advanceStep();
+
+    expect(everyoneIdle(harness)).toBe(true);
+    expect(harness.game.state.posting.desk.disputes).toHaveLength(1);
+    expect(await harness.screen()).not.toContain(": decree");
+  });
+
+  test("assignment keys are ignored while another panel is focused", async () => {
+    const harness = await launch();
+
+    await harness.mockInput.typeText("cf");
+    await harness.advanceStep();
+
+    expect(everyoneIdle(harness)).toBe(true);
+  });
+
+  test("global keys still work while a panel is focused", async () => {
+    const harness = await launch({ game: owning(PALETTE_UNLOCK) });
+
+    await harness.mockInput.typeText("c:");
+
+    expect(await harness.screen()).toContain(": _");
+  });
+
+  test("settling a dispute in the Court panel enqueues the ruling while the Ledger stays visible", async () => {
+    const harness = await launch({ game: withDispute() });
+    await harness.advanceStep();
+
+    await harness.mockInput.typeText("c");
+    harness.mockInput.pressEnter();
+    await harness.mockInput.typeText("jj");
+    const settling = await harness.screen();
+    harness.mockInput.pressEnter();
+    await harness.advanceStep();
+
+    expect(settling).toContain("(L)edger");
+    expect(settling).toContain(
+      "Settle the dispute".length > 0 ? "will sulk" : "",
+    );
+    expect(harness.game.state.posting.desk.disputes).toEqual([]);
+  });
+
+  test("escape in the Court panel goes back a level before it leaves the panel", async () => {
+    const harness = await launch({ game: withDispute(), kittyKeyboard: true });
+    await harness.advanceStep();
+
+    await harness.mockInput.typeText("c");
+    harness.mockInput.pressEnter();
+    harness.mockInput.pressEscape();
+    const backAtList = await harness.screen();
+    harness.mockInput.pressEscape();
+
+    expect(backAtList).toContain(DOUBLE_BORDER);
+    expect(await harness.screen()).not.toContain(DOUBLE_BORDER);
+  });
+
+  test("buying from the Archive panel spends the coin and owns the entry", async () => {
+    const harness = await launch({ game: owning(ARCHIVE_PANEL) });
+    const palette = tuning.archive.entries.find((e) => e.id === PALETTE_UNLOCK);
+    harness.game.state.posting.resources.coin = (palette?.cost ?? 0) + 1;
+
+    await harness.mockInput.typeText("a");
+    harness.mockInput.pressEnter();
+    await harness.advanceStep();
+
+    expect(harness.game.state.career.unlocks[PALETTE_UNLOCK]).toBeDefined();
+    expect(harness.game.state.posting.resources.coin).toBeLessThan(2);
+    expect(await harness.screen()).toContain("owned");
+  });
+
+  test("x in the Decrees panel repeals the selected decree and says so when none is in force", async () => {
+    const game = Game.create(5, tuning);
+    game.decrees.enact(granary);
+    const harness = await launch({ game });
+
+    await harness.mockInput.typeText("dx");
+    await harness.advanceStep();
+    const repealed = harness.game.state.posting.decrees.granary;
+    await harness.mockInput.typeText("x");
+
+    expect(repealed).toBeUndefined();
+    expect(await harness.screen()).toContain("No harvest decree is in force.");
+  });
+
+  test("the bar lists the palette only once it is owned", async () => {
+    const locked = await launch();
+    const owned = await launch({ game: owning(PALETTE_UNLOCK) });
+
+    expect(await locked.screen()).not.toContain(": commands");
+    expect(await owned.screen()).toContain(
+      "(?)Help (N)ew village (Q)uit : commands",
+    );
+  });
 });
 
 describe("new village", () => {
@@ -407,14 +569,14 @@ describe("new village", () => {
 
     const screen = await plain.screen();
     expect(screen).toContain("Found a new village?");
-    expect(screen).not.toContain("Ledger");
+    expect(screen).not.toContain("(L)edger");
     expect(screen).not.toContain("Archive");
     expect(await withUnlocks.screen()).toContain("bought in the Archive");
   });
 
   test("choosing yes backs up the old save, saves a new game at once and runs on its own state", async () => {
     const harness = await launch();
-    await harness.mockInput.typeText("f");
+    await harness.mockInput.typeText("pf");
     await harness.advanceStep();
     saveGame(harness.saveDir, harness.game.state);
     const old = stateHash(harness.game.state);
@@ -424,7 +586,7 @@ describe("new village", () => {
     harness.mockInput.pressEnter();
     const founded = stateHash(savedState(harness));
     const backup = stateHash(savedState(harness, `${SAVE_FILE_NAME}.bak`));
-    await harness.mockInput.typeText("f");
+    await harness.mockInput.typeText("pf");
     await harness.advanceStep();
     await harness.advanceStep();
     await harness.mockInput.typeText("s");
@@ -448,7 +610,7 @@ describe("new village", () => {
 
     expect(stateHash(harness.game.state)).toBe(before);
     expect(existsSync(join(harness.saveDir, SAVE_FILE_NAME))).toBe(false);
-    expect(await harness.screen()).toContain("Ledger");
+    expect(await harness.screen()).toContain("(L)edger");
   });
 });
 
@@ -525,7 +687,7 @@ describe("notices", () => {
     const palette = tuning.archive.entries.find((e) => e.id === PALETTE_UNLOCK);
     harness.game.state.posting.resources.coin = (palette?.cost ?? 0) + 1;
 
-    await harness.mockInput.typeText("apalette");
+    await harness.mockInput.typeText("a");
     harness.mockInput.pressEnter();
     const { announced, later } = await announcedThenLater(harness);
 

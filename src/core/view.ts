@@ -4,7 +4,7 @@ import { fillNames } from "./desk";
 import type { Game } from "./game";
 import { type Job, RESOURCES, type Season } from "./realm";
 import type { ResourceId } from "./state";
-import { ARCHIVE_PANEL, CROWN_PANEL, type UnlockId } from "./unlocks";
+import { ARCHIVE_PANEL, type UnlockId } from "./unlocks";
 
 export type LedgerLine = {
   resource: ResourceId;
@@ -35,7 +35,7 @@ export type DelegateView = {
   job: Job | "idle";
   grudgeTicks: number;
 };
-export type PanelId = "crown" | "desk" | "ledger" | "peasants";
+export type PanelId = "archive" | "desk" | "ledger" | "peasants";
 export type CrownDemandView = { label: string };
 export type GameView = {
   tick: number;
@@ -138,7 +138,7 @@ export class ViewManager {
         perSecond: (growthPerTick * 1000) / this.tuning.stepMs,
         full: delegates.length >= this.tuning.economy.maxPopulation,
       },
-      lockedPanels: this.game.unlocks.enabled(CROWN_PANEL) ? [] : ["crown"],
+      lockedPanels: this.game.unlocks.enabled(ARCHIVE_PANEL) ? [] : ["archive"],
       unlocks: this.game.unlocks.purchased,
       archive: {
         open: this.game.unlocks.enabled(ARCHIVE_PANEL),

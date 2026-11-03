@@ -7,13 +7,9 @@ import {
   SAVED_DECREES_UNLOCK,
 } from "../core/unlocks";
 import { describePolicy, plain } from "./decree-format";
-import { keyHints } from "./keys";
-import type { MenuContext, Screen, ScreenBuilder } from "./menu";
-
-const BACK_ITEM = {
-  label: "Back",
-  action: { kind: "replace", pop: 1 },
-} as const;
+import { type KeyPress, keyHints, keyName, panelKeyHints } from "./keys";
+import type { MenuContext } from "./menu";
+import { wrapLine } from "./wrap";
 
 function perSecond(perTick: number, tuning: Tuning): string {
   return `${plain((perTick * 1000) / tuning.stepMs)}/s`;
@@ -36,14 +32,34 @@ function rulingsTouching(
   );
 }
 
+const PANEL_NAMES = [
+  ["peasants", "Peasants"],
+  ["archive", "Archive"],
+  ["court", "Court"],
+  ["decrees", "Decrees"],
+] as const;
+
 function keysLines(context: MenuContext): string[] {
   const hints = keyHints(context.view.unlocks);
-  const width = Math.max(...hints.map((hint) => hint.keys.length));
+  const panelHints = PANEL_NAMES.map(([id, name]) => ({
+    keys: `${name}:`,
+    label: panelKeyHints(id)
+      .map((hint) => `${hint.keys} ${hint.label}`)
+      .join(", "),
+  }));
+  const width = Math.max(
+    ...[...hints, ...panelHints].map((hint) => hint.keys.length),
+  );
+  const row = (hint: { keys: string; label: string }) =>
+    `${hint.keys.padEnd(width)}  ${hint.label}`;
   return [
-    ...hints.map((hint) => `${hint.keys.padEnd(width)}  ${hint.label}`),
+    ...hints.map(row),
+    "",
+    "Press a panel's letter to focus it; esc leaves it. While a panel is focused its keys win:",
+    ...panelHints.map(row),
     "",
     "In any menu: up/down to move, enter to choose, esc to go back.",
-    "f, w, m and i put the selected peasant on the farm, in the forest, in the mine or idle.",
+    "f, w, m and i put the selected peasant on the farm, in the forest, in the mine or idle, once Peasants is focused.",
   ];
 }
 
@@ -142,14 +158,14 @@ function decreeLines(context: MenuContext): string[] {
     "Rules are checked in order and the first match wins. Otherwise applies when none match.",
     '"Grain seasons" is how many seasons the stores would feed everyone.',
     "",
-    "Press d and type the decree: tab completes a word, enter issues it. A new decree replaces the one for its petition.",
+    "Press d to focus Decrees, then enter on a petition and type the decree: tab completes a word, enter issues it. A new decree replaces the one for its petition.",
     "Example, a harvest decree: decree harvest sell when grain seasons above 3, feed when grain seasons above 2 otherwise stockpile",
     "  While the stores are above 3 seasons, each tick's new surplus is sold.",
     "  Between 2 and 3 it is fed, to grow the village. Below 2 it is kept.",
     "  At 3.5 seasons both rules match, and sell wins by coming first.",
     "  Swap them and feed catches everything above 2, so nothing is ever sold.",
     "",
-    'To withdraw a decree, press d, clear the line and type "repeal" and its name.',
+    "To withdraw a decree, focus Decrees, select its petition and press x.",
     ...(owned.length === 0 ? [] : ["", ...owned]),
   ];
 }
@@ -211,23 +227,70 @@ const TOPICS: readonly {
   { label: "Promotion", lines: (c) => promotionLines(c.tuning) },
 ];
 
-function topicScreen(
-  label: string,
-  lines: (context: MenuContext) => string[],
-): ScreenBuilder {
-  return (context: MenuContext): Screen => ({
-    kind: "list",
-    title: label,
-    notes: lines(context),
-    items: [BACK_ITEM],
-  });
+export type HelpSection = { heading: string; lines: string[] };
+
+export function helpSections(context: MenuContext): HelpSection[] {
+  return TOPICS.map((topic) => ({
+    heading: topic.label,
+    lines: topic.lines(context),
+  }));
 }
 
-export const helpMenu: ScreenBuilder = () => ({
-  kind: "list",
-  title: "Help",
-  items: TOPICS.map((topic) => ({
-    label: topic.label,
-    action: { kind: "push", screen: topicScreen(topic.label, topic.lines) },
-  })),
-});
+const HELP_HINTS = "j/k scroll \u00b7 space page \u00b7 esc close";
+
+export type HelpRender = { title: string; lines: string[]; hints: string };
+
+/** One scrolling page holding every topic, wrapped to the terminal so a scroll step is always one screen line. */
+export class HelpPage {
+  private offset = 0;
+
+  private pageLines(context: MenuContext, width: number): string[] {
+    return helpSections(context).flatMap((section, index) => [
+      ...(index === 0 ? [] : [""]),
+      section.heading.toUpperCase(),
+      ...section.lines.flatMap((line) => wrapLine(line, width, 2)),
+    ]);
+  }
+
+  private maxOffset(context: MenuContext, viewport: Viewport): number {
+    return Math.max(
+      0,
+      this.pageLines(context, viewport.width).length - viewport.height,
+    );
+  }
+
+  /** Returns false once the page asks to close. */
+  key(key: KeyPress, context: MenuContext, viewport: Viewport): boolean {
+    if (key.ctrl || key.meta) return true;
+    const name = keyName(key);
+    if (name === "escape" || name === "?") return false;
+    const page = Math.max(1, viewport.height - 1);
+    const step =
+      name === "j" || name === "down"
+        ? 1
+        : name === "k" || name === "up"
+          ? -1
+          : name === "space" || key.sequence === " "
+            ? page
+            : 0;
+    this.offset = Math.max(
+      0,
+      Math.min(this.maxOffset(context, viewport), this.offset + step),
+    );
+    return true;
+  }
+
+  render(context: MenuContext, viewport: Viewport): HelpRender {
+    const all = this.pageLines(context, viewport.width);
+    const start = Math.min(this.offset, this.maxOffset(context, viewport));
+    const shown = all.slice(start, start + viewport.height);
+    const position = `${Math.min(all.length, start + viewport.height)}/${all.length}`;
+    return {
+      title: "Help",
+      lines: shown,
+      hints: `${HELP_HINTS} \u00b7 ${position}`,
+    };
+  }
+}
+
+export type Viewport = { width: number; height: number };
