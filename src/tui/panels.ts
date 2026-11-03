@@ -1,12 +1,7 @@
 import { BoxRenderable, type CliRenderer, TextRenderable } from "@opentui/core";
-import type { FocusId } from "./keys";
+import { type FocusId, panelHintsText } from "./keys";
 import type { MenuContext, MenuRender } from "./menu";
-import {
-  LedgerPanel,
-  type PanelSize,
-  panelTitle,
-  type Village,
-} from "./village-panels";
+import type { PanelSize, Village } from "./village-panels";
 
 export type PanelsFrame = {
   context: MenuContext;
@@ -44,7 +39,7 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
   const makeSlot = (id: string, name: string, weight: number): Slot => {
     const box = new BoxRenderable(renderer, {
       id,
-      title: panelTitle(name),
+      title: `(${name.charAt(0)})${name.slice(1)}`,
       border: true,
       borderStyle: "single",
       borderColor: BORDER_COLOR,
@@ -70,21 +65,18 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
     return row;
   };
 
-  const ledgerPanel = new LedgerPanel();
+  const { ledger: ledgerPanel, focusable: panels } = village;
+  const slotOf = (id: FocusId, weight: number) =>
+    makeSlot(id, panels[id].name, weight);
   const ledger = makeSlot("ledger", ledgerPanel.name, 1);
-  const focusable = new Map(
-    village.panels.map((panel) => [
-      panel.id,
-      makeSlot(panel.id, panel.name, panel.id === "archive" ? 2 : 1),
-    ]),
-  );
-  const slotFor = (id: FocusId): Slot => {
-    const slot = focusable.get(id);
-    if (slot === undefined) throw new Error(`no slot for ${id}`);
-    return slot;
+  const slots: Record<FocusId, Slot> = {
+    peasants: slotOf("peasants", 1),
+    archive: slotOf("archive", 2),
+    court: slotOf("court", 1),
+    decrees: slotOf("decrees", 1),
   };
-  const topRow = [ledger, slotFor("peasants"), slotFor("archive")];
-  const bottomRow = [slotFor("court"), slotFor("decrees")];
+  const topRow = [ledger, slots.peasants, slots.archive];
+  const bottomRow = [slots.court, slots.decrees];
   grid.add(makeRow("top-row", topRow));
   grid.add(makeRow("bottom-row", bottomRow));
 
@@ -151,8 +143,8 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
         view,
         sizeOf(ledger, rowOf(ledger)),
       );
-      for (const panel of village.panels) {
-        const slot = slotFor(panel.id);
+      for (const panel of Object.values(panels)) {
+        const slot = slots[panel.id];
         const focused = focus === panel.id;
         const size = sizeOf(slot, rowOf(slot));
         slot.text.content = isLocked(panel.id)
@@ -161,7 +153,7 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
         slot.box.borderStyle = focused ? "double" : "single";
         slot.box.borderColor = focused ? FOCUS_COLOR : BORDER_COLOR;
         slot.box.bottomTitle = focused
-          ? panel.hints(context, size.width - 2)
+          ? panelHintsText(panel.id, size.width - 2)
           : undefined;
       }
       message.content = text ?? "";

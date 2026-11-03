@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createTestRenderer } from "@opentui/core/testing";
 import { tuning } from "../../test/helpers";
-import { Job } from "../core/realm";
+import { Job, RESOURCES } from "../core/realm";
 import type { GameView } from "../core/view";
 import { formatAmount, formatGameTime, formatRate } from "./format";
 import type { FocusId } from "./keys";
@@ -39,6 +39,7 @@ async function draw(
   for (const view of views) {
     const context = { view, tuning };
     village.peasants.reset(view);
+    if (focus !== null) village.focusable[focus].enter(context);
     for (let step = 0; step < selectedIndex; step++) {
       village.peasants.key(pressed("j"), context);
     }
@@ -158,32 +159,13 @@ describe("createPanels", () => {
     expect(last.trimEnd().endsWith("(Q)uit")).toBe(true);
   });
 
-  test("the ledger shows the game time and each resource's name, amount and rate in shared columns", async () => {
+  test("the ledger shows the time, resources in shared columns, then the realm after a blank line", async () => {
     const view = emptyView({
       elapsedSeconds: 185,
       ledger: [
         { resource: "grain", amount: 5, ratePerSecond: 1 },
         { resource: "timber", amount: 1234567.8, ratePerSecond: -22.5 },
       ],
-    });
-
-    const frame = await draw([view], "");
-
-    const lines = frame.split("\n");
-    const grain = lines.find((l) => l.includes("Grain")) ?? "";
-    const timber = lines.find((l) => l.includes("Timber")) ?? "";
-    const endOf = (line: string, text: string) =>
-      line.indexOf(text) + text.length;
-    expect(frame).toContain(formatGameTime(185));
-    expect(endOf(grain, formatAmount(5))).toBe(
-      endOf(timber, formatAmount(1234567.8)),
-    );
-    expect(endOf(grain, formatRate(1))).toBe(endOf(timber, formatRate(-22.5)));
-  });
-
-  test("the ledger shows population, labor and season aligned under the resource names", async () => {
-    const view = emptyView({
-      ledger: [{ resource: "grain", amount: 5, ratePerSecond: 1 }],
       realm: realmOf({
         population: 12,
         labor: { farm: 4, forest: 2, mine: 1, idle: 5 },
@@ -191,32 +173,70 @@ describe("createPanels", () => {
       }),
     });
 
-    const frame = await draw([view], "");
+    const frame = await draw([view], "", { size: { width: 160, height: 45 } });
 
     const lines = frame.split("\n");
-    const column = (text: string) =>
-      (lines.find((l) => l.includes(text)) ?? "").indexOf(text);
-    expect(frame).toContain("Peasants 12 (5 idle)");
+    const row = (text: string) => lines.findIndex((l) => l.includes(text));
+    const line = (text: string) => lines[row(text)] ?? "";
+    const endOf = (text: string, part: string) =>
+      line(text).indexOf(part) + part.length;
+    expect(frame).toContain(`Time  ${formatGameTime(185)}`);
+    expect(endOf("Grain", formatAmount(5))).toBe(
+      endOf("Timber", formatAmount(1234567.8)),
+    );
+    expect(endOf("Grain", formatRate(1))).toBe(
+      endOf("Timber", formatRate(-22.5)),
+    );
+    expect(line("Peasants 12").indexOf("Peasants 12")).toBe(
+      line("Grain").indexOf("Grain"),
+    );
+    expect(row("Peasants 12 (5 idle)")).toBe(row("Timber") + 2);
     expect(frame).toContain("Farm 4 Forest 2 Mine 1");
     expect(frame).toContain("Season Summer");
-    expect(column("Peasants 12")).toBe(column("Grain"));
   });
 
-  test("the ledger splits the next peasant and promotion lines in two so a quarter-width column shows them whole", async () => {
+  test("the ledger keeps promotion and next peasant on one line when wide and splits them when narrow", async () => {
     const view = emptyView({
       realm: realmOf({ population: 14 }),
       growth: growth({}),
     });
 
-    const lines = (await draw([view], "")).split("\n");
+    const wide = (
+      await draw([view], "", { size: { width: 160, height: 45 } })
+    ).split("\n");
+    const narrow = (await draw([view], "")).split("\n");
 
-    const column = (line: string) => line.slice(1, 25).trimEnd();
-    const next = lines.findIndex((line) => line.includes("Next peasant"));
-    const promotion = lines.findIndex((line) => line.includes("Promotion"));
-    expect(column(lines[next] ?? "")).toContain("Next peasant (~26s)");
-    expect(column(lines[next + 1] ?? "")).toContain("12.4 / 25 grain");
-    expect(column(lines[promotion] ?? "")).toContain("Promotion");
-    expect(column(lines[promotion + 1] ?? "")).toContain("14 / 20 peasants");
+    const column = (lines: string[], offset: number, label: string) => {
+      const ledgerWidth = (lines[0]?.length ?? 0) / 4;
+      const line = lines[lines.findIndex((l) => l.includes(label)) + offset];
+      return (line ?? "").slice(1, ledgerWidth).trim();
+    };
+    expect(column(wide, 0, "Promotion")).toBe("Promotion  14 / 20 peasants");
+    expect(column(wide, 0, "Next peasant")).toBe(
+      "Next peasant  12.4 / 25 grain  (~26s)",
+    );
+    expect(column(narrow, 0, "Promotion")).toBe("Promotion");
+    expect(column(narrow, 1, "Promotion")).toBe("14 / 20 peasants");
+    expect(column(narrow, 0, "Next peasant")).toBe("Next peasant");
+    expect(column(narrow, 1, "Next peasant")).toContain("12.4 / 25 grain");
+  });
+
+  test("the ledger gives up the time line only when the panel is too short for everything", async () => {
+    const view = emptyView({
+      ledger: RESOURCES.map((resource) => ({
+        resource,
+        amount: 1,
+        ratePerSecond: 0,
+      })),
+      growth: growth({}),
+    });
+
+    const tall = await draw([view], "", { size: { width: 160, height: 45 } });
+    const short = await draw([view], "");
+
+    expect(tall).toContain("Time  ");
+    expect(short).not.toContain("Time  ");
+    expect(short).toContain("Next peasant");
   });
 
   test("an update replaces the values of the last view", async () => {
@@ -285,7 +305,7 @@ describe("createPanels", () => {
     expect(frame).toMatch(/labor {4}none/);
   });
 
-  test("the archive panel shows each entry with its price and owned state", async () => {
+  test("the archive panel shows each entry's price and owned state, and the selected entry's description only while focused", async () => {
     const view = emptyView({
       archive: {
         open: true,
@@ -293,7 +313,7 @@ describe("createPanels", () => {
           {
             id: "a",
             label: "Alpha",
-            description: "",
+            description: "Opens the first door.",
             cost: 100,
             owned: false,
             affordable: false,
@@ -302,7 +322,7 @@ describe("createPanels", () => {
           {
             id: "b",
             label: "Beta",
-            description: "",
+            description: "Opens the second door.",
             cost: 200,
             owned: true,
             affordable: true,
@@ -312,10 +332,15 @@ describe("createPanels", () => {
       },
     });
 
-    const frame = await draw([view], "");
+    const unfocused = await draw([view], "");
+    const focused = await draw([view], "", { focus: "archive" });
 
-    expect(frame).toContain("Alpha  100 coin");
-    expect(frame).toContain("Beta  owned");
+    expect(unfocused).toContain("Alpha  100 coin");
+    expect(unfocused).toContain("Beta  owned");
+    expect(unfocused).not.toContain("Opens the first door.");
+    expect(focused).toContain("> Alpha  100 coin");
+    expect(focused).toContain("Opens the first door.");
+    expect(focused).not.toContain("Opens the second door.");
   });
 
   test("the focused panel gets a double border and its hints while the others show neither", async () => {

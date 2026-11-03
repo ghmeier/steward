@@ -189,7 +189,7 @@ export function startApp(options: {
       return;
     }
     if (focus !== null && !isInterrupt(key)) {
-      const result = village.panel(focus).key(key, menuContext());
+      const result = village.focusable[focus].key(key, menuContext());
       if (result !== null) {
         applyPanelStep(result);
         redraw();
@@ -200,7 +200,7 @@ export function startApp(options: {
     if (action === null) return;
     if (action.kind === "focus") {
       focus = action.panel;
-      village.panel(focus).enter(menuContext());
+      village.focusable[focus].enter(menuContext());
       redraw();
     } else if (action.kind === "line") {
       line = openLine(action.prefill);

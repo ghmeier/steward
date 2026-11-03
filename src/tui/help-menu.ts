@@ -7,8 +7,16 @@ import {
   SAVED_DECREES_UNLOCK,
 } from "../core/unlocks";
 import { describePolicy, plain } from "./decree-format";
-import { type KeyPress, keyHints, keyName, panelKeyHints } from "./keys";
-import type { MenuContext } from "./menu";
+import { capitalize } from "./format";
+import {
+  FOCUS_IDS,
+  type KeyPress,
+  keyHints,
+  panelKeyHints,
+  plainKeyName,
+} from "./keys";
+import type { MenuContext, MenuRender } from "./menu";
+import type { PanelSize } from "./village-panels";
 import { wrapLine } from "./wrap";
 
 function perSecond(perTick: number, tuning: Tuning): string {
@@ -32,17 +40,10 @@ function rulingsTouching(
   );
 }
 
-const PANEL_NAMES = [
-  ["peasants", "Peasants"],
-  ["archive", "Archive"],
-  ["court", "Court"],
-  ["decrees", "Decrees"],
-] as const;
-
 function keysLines(context: MenuContext): string[] {
   const hints = keyHints(context.view.unlocks);
-  const panelHints = PANEL_NAMES.map(([id, name]) => ({
-    keys: `${name}:`,
+  const panelHints = FOCUS_IDS.map((id) => ({
+    keys: `${capitalize(id)}:`,
     label: panelKeyHints(id)
       .map((hint) => `${hint.keys} ${hint.label}`)
       .join(", "),
@@ -61,10 +62,6 @@ function keysLines(context: MenuContext): string[] {
     "In any menu: up/down to move, enter to choose, esc to go back.",
     "f, w, m and i put the selected peasant on the farm, in the forest, in the mine or idle, once Peasants is focused.",
   ];
-}
-
-function capitalize(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function grainLines(tuning: Tuning): string[] {
@@ -238,8 +235,6 @@ export function helpSections(context: MenuContext): HelpSection[] {
 
 const HELP_HINTS = "j/k scroll \u00b7 space page \u00b7 esc close";
 
-export type HelpRender = { title: string; lines: string[]; hints: string };
-
 /** One scrolling page holding every topic, wrapped to the terminal so a scroll step is always one screen line. */
 export class HelpPage {
   private offset = 0;
@@ -252,45 +247,33 @@ export class HelpPage {
     ]);
   }
 
-  private maxOffset(context: MenuContext, viewport: Viewport): number {
-    return Math.max(
-      0,
-      this.pageLines(context, viewport.width).length - viewport.height,
-    );
+  private scrollBy(lineCount: number, viewport: PanelSize, delta: number) {
+    const last = Math.max(0, lineCount - viewport.height);
+    this.offset = Math.max(0, Math.min(last, this.offset + delta));
   }
 
   /** Returns false once the page asks to close. */
-  key(key: KeyPress, context: MenuContext, viewport: Viewport): boolean {
-    if (key.ctrl || key.meta) return true;
-    const name = keyName(key);
+  key(key: KeyPress, context: MenuContext, viewport: PanelSize): boolean {
+    const name = plainKeyName(key);
     if (name === "escape" || name === "?") return false;
-    const page = Math.max(1, viewport.height - 1);
-    const step =
-      name === "j" || name === "down"
-        ? 1
-        : name === "k" || name === "up"
-          ? -1
-          : name === "space" || key.sequence === " "
-            ? page
-            : 0;
-    this.offset = Math.max(
-      0,
-      Math.min(this.maxOffset(context, viewport), this.offset + step),
-    );
+    const lineCount = this.pageLines(context, viewport.width).length;
+    if (name === "j" || name === "down") this.scrollBy(lineCount, viewport, 1);
+    else if (name === "k" || name === "up") {
+      this.scrollBy(lineCount, viewport, -1);
+    } else if (name === "space" || (name !== null && key.sequence === " ")) {
+      this.scrollBy(lineCount, viewport, Math.max(1, viewport.height - 1));
+    }
     return true;
   }
 
-  render(context: MenuContext, viewport: Viewport): HelpRender {
+  render(context: MenuContext, viewport: PanelSize): MenuRender {
     const all = this.pageLines(context, viewport.width);
-    const start = Math.min(this.offset, this.maxOffset(context, viewport));
-    const shown = all.slice(start, start + viewport.height);
-    const position = `${Math.min(all.length, start + viewport.height)}/${all.length}`;
+    this.scrollBy(all.length, viewport, 0);
+    const end = Math.min(all.length, this.offset + viewport.height);
     return {
       title: "Help",
-      lines: shown,
-      hints: `${HELP_HINTS} \u00b7 ${position}`,
+      lines: all.slice(this.offset, end),
+      hints: `${HELP_HINTS} \u00b7 ${end}/${all.length}`,
     };
   }
 }
-
-export type Viewport = { width: number; height: number };

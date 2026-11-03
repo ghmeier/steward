@@ -20,6 +20,8 @@ export type MenuItem = {
   label: string;
   action: MenuAction;
   disabled?: boolean;
+  /** Shown under the list while this item is selected. */
+  detail?: string;
 };
 
 export type Screen =
@@ -48,6 +50,17 @@ export type MenuStep = {
   requests: AppRequest[];
 };
 export type MenuRender = { title: string; lines: string[]; hints: string };
+
+/** The keys `menuKey` acts on in a list screen; it swallows every other key, so an embedding panel checks this first. */
+export const LIST_KEYS: ReadonlySet<string> = new Set([
+  "up",
+  "down",
+  "j",
+  "k",
+  "return",
+  "enter",
+  "escape",
+]);
 
 const LIST_HINTS = "up/down select · enter choose · esc back";
 const NUMBER_HINTS = "0-9 . type · backspace erase · enter accept · esc back";
@@ -202,6 +215,8 @@ export function renderMenu(state: MenuState, context: MenuContext): MenuRender {
       item.disabled === true ? `${item.label} (unavailable)` : item.label;
     lines.push(`${marker} ${label}`);
   }
+  const detail = screen.items[cursor]?.detail;
+  if (detail !== undefined) lines.push("", detail);
   const hints =
     state.frames.length === 1
       ? LIST_HINTS.replace("back", "close")

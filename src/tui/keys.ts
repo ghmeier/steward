@@ -9,7 +9,8 @@ export type KeyPress = {
   /** The text the terminal sent for this key, which is what a text field appends. */
   sequence: string;
 };
-export type FocusId = "peasants" | "archive" | "court" | "decrees";
+export const FOCUS_IDS = ["peasants", "archive", "court", "decrees"] as const;
+export type FocusId = (typeof FOCUS_IDS)[number];
 
 /** What a global key asks for; the focused panel owns every other key, including peasant assignment. */
 export type KeyAction =
@@ -25,9 +26,9 @@ export type PeasantAction =
   | { kind: "move"; delta: -1 | 1 }
   | { kind: "assign"; job: Job };
 
-type Binding<T> = { action: T; needs?: UnlockId };
+type Binding = { action: KeyAction; needs?: UnlockId };
 
-const BINDINGS: Readonly<Record<string, Binding<KeyAction>>> = {
+const BINDINGS: Readonly<Record<string, Binding>> = {
   p: { action: { kind: "focus", panel: "peasants" } },
   a: { action: { kind: "focus", panel: "archive" }, needs: ARCHIVE_PANEL },
   c: { action: { kind: "focus", panel: "court" } },
@@ -54,7 +55,9 @@ export function isInterrupt(key: KeyPress): boolean {
   return key.ctrl && !key.meta && key.name === "c";
 }
 
-export function keyName(key: KeyPress): string {
+/** Null for a key held with Ctrl or Meta, which no binding uses. */
+export function plainKeyName(key: KeyPress): string | null {
+  if (key.ctrl || key.meta) return null;
   // Kitty-protocol terminals report ? as shift plus the slash key and : as shift plus the semicolon key.
   if (key.name === "/" && key.shift) return "?";
   if (key.name === ";" && key.shift) return ":";
@@ -67,8 +70,8 @@ export function actionForKey(
 ): KeyAction | null {
   // In raw mode Ctrl-C arrives as a keypress, not SIGINT.
   if (isInterrupt(key)) return { kind: "quit" };
-  if (key.ctrl || key.meta) return null;
-  const name = keyName(key);
+  const name = plainKeyName(key);
+  if (name === null) return null;
   const binding = Object.hasOwn(BINDINGS, name) ? BINDINGS[name] : undefined;
   if (binding === undefined) return null;
   if (binding.needs !== undefined && !unlocks.includes(binding.needs)) {
@@ -79,15 +82,16 @@ export function actionForKey(
 }
 
 export function peasantActionForKey(key: KeyPress): PeasantAction | null {
-  if (key.ctrl || key.meta) return null;
-  const name = keyName(key);
+  const name = plainKeyName(key);
+  if (name === null) return null;
   const action = Object.hasOwn(PEASANT_BINDINGS, name)
     ? PEASANT_BINDINGS[name]
     : undefined;
   return action === undefined ? null : structuredClone(action);
 }
 
-type KeyHint = { keys: string; label: string; needs?: UnlockId };
+type ShownHint = { keys: string; label: string };
+type KeyHint = ShownHint & { needs?: UnlockId };
 
 const GLOBAL_HINTS: readonly KeyHint[] = [
   { keys: "p", label: "peasants" },
@@ -102,7 +106,7 @@ const GLOBAL_HINTS: readonly KeyHint[] = [
 ];
 
 /** Shown on the focused panel's bottom border and listed in Help; esc is handled by every panel. */
-const PANEL_HINTS: Readonly<Record<FocusId, readonly KeyHint[]>> = {
+const PANEL_HINTS: Readonly<Record<FocusId, readonly ShownHint[]>> = {
   peasants: [
     { keys: "j/k", label: "select" },
     { keys: "f/w/m/i", label: "assign" },
@@ -126,26 +130,21 @@ const PANEL_HINTS: Readonly<Record<FocusId, readonly KeyHint[]>> = {
   ],
 };
 
-type ShownHint = { keys: string; label: string };
-
 export function keyHints(unlocks: readonly string[]): ShownHint[] {
   return GLOBAL_HINTS.filter(
     (hint) => hint.needs === undefined || unlocks.includes(hint.needs),
   ).map(({ keys, label }) => ({ keys, label }));
 }
 
-export function panelKeyHints(panel: FocusId): ShownHint[] {
-  return PANEL_HINTS[panel].map(({ keys, label }) => ({ keys, label }));
+export function panelKeyHints(panel: FocusId): readonly ShownHint[] {
+  return PANEL_HINTS[panel];
 }
 
 /**
  * OpenTUI drops a border title that does not fit, so a narrow panel falls back to the bare keys
  * rather than losing its hints altogether.
  */
-export function panelHintsText(
-  panel: FocusId,
-  width = Number.POSITIVE_INFINITY,
-) {
+export function panelHintsText(panel: FocusId, width: number): string {
   const hints = panelKeyHints(panel);
   const full = hints
     .map((hint) => `${hint.keys} ${hint.label}`)

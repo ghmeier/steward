@@ -35,7 +35,7 @@ export type DelegateView = {
   job: Job | "idle";
   grudgeTicks: number;
 };
-export type PanelId = "archive" | "desk" | "ledger" | "peasants";
+export type PanelId = "archive" | "ledger" | "peasants";
 export type CrownDemandView = { label: string };
 export type GameView = {
   tick: number;

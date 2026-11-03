@@ -4,15 +4,15 @@ import type { ArchiveEntryView, GameView } from "../core/view";
 import { courtMenu } from "./court-menu";
 import { type Cursor, moveCursor, reconcileCursor, rowWindow } from "./cursor";
 import { formatRule, plain } from "./decree-format";
-import { formatAmount, formatGameTime, formatRate } from "./format";
+import { capitalize, formatAmount, formatGameTime, formatRate } from "./format";
 import {
   type FocusId,
   type KeyPress,
-  keyName,
-  panelHintsText,
   peasantActionForKey,
+  plainKeyName,
 } from "./keys";
 import {
+  LIST_KEYS,
   type MenuContext,
   type MenuItem,
   type MenuState,
@@ -33,38 +33,27 @@ export type PanelRequest =
 
 export type PanelStep = { commands: Command[]; requests: PanelRequest[] };
 
-export interface VillagePanel {
-  readonly id: FocusId;
-  readonly name: string;
+export abstract class VillagePanel {
+  abstract readonly id: FocusId;
+
+  get name(): string {
+    return capitalize(this.id);
+  }
+
   /** Called when the panel gains focus, so it never shows state left over from an earlier visit. */
-  enter(context: MenuContext): void;
-  body(context: MenuContext, size: PanelSize, focused: boolean): string;
-  /** `width` is the room on the border; a hint line that does not fit would be dropped by the renderer. */
-  hints(context: MenuContext, width: number): string;
+  abstract enter(context: MenuContext): void;
+  abstract body(
+    context: MenuContext,
+    size: PanelSize,
+    focused: boolean,
+  ): string;
   /** Returns null for a key the panel does not own, so it falls through to the global keys. */
-  key(key: KeyPress, context: MenuContext): PanelStep | null;
+  abstract key(key: KeyPress, context: MenuContext): PanelStep | null;
 }
 
 const UNFOCUS: PanelStep = { commands: [], requests: [{ kind: "unfocus" }] };
 const EMPTY_VILLAGE = "The village is empty. Press n to found a new one.";
 const DESK_CLEAR = "The desk is clear.";
-const MENU_KEYS = new Set([
-  "up",
-  "down",
-  "j",
-  "k",
-  "return",
-  "enter",
-  "escape",
-]);
-
-function isPlain(key: KeyPress): boolean {
-  return !key.ctrl && !key.meta;
-}
-
-function isEscape(key: KeyPress): boolean {
-  return isPlain(key) && key.name === "escape";
-}
 
 function step(
   commands: Command[] = [],
@@ -73,29 +62,8 @@ function step(
   return { commands, requests };
 }
 
-export function peasantLines(
-  view: GameView,
-  selectedId: number | null,
-  height = Number.POSITIVE_INFINITY,
-): string[] {
-  const rows = view.delegates.map((delegate) => {
-    const cursor = delegate.id === selectedId ? ">" : " ";
-    const grudge = delegate.grudgeTicks > 0 ? " (grudge)" : "";
-    return `${cursor} ${delegate.name}  ${delegate.job}${grudge}`;
-  });
-  const selected = view.delegates.findIndex(
-    (delegate) => delegate.id === selectedId,
-  );
-  const { start, end } = rowWindow(rows.length, selected, height);
-  const lines = rows.slice(start, end);
-  if (start > 0) lines.unshift(`↑ ${start} more`);
-  if (end < rows.length) lines.push(`↓ ${rows.length - end} more`);
-  return lines;
-}
-
-export class PeasantsPanel implements VillagePanel {
+export class PeasantsPanel extends VillagePanel {
   readonly id = "peasants";
-  readonly name = "Peasants";
   private cursor: Cursor | null = null;
 
   /** Keeps the selection on the same peasant as the roster changes. */
@@ -114,15 +82,23 @@ export class PeasantsPanel implements VillagePanel {
   body({ view }: MenuContext, size: PanelSize, focused: boolean): string {
     if (view.realm.population === 0) return EMPTY_VILLAGE;
     const selectedId = focused ? (this.cursor?.id ?? null) : null;
-    return peasantLines(view, selectedId, size.height).join("\n");
-  }
-
-  hints(_context: MenuContext, width: number): string {
-    return panelHintsText(this.id, width);
+    const rows = view.delegates.map((delegate) => {
+      const marker = delegate.id === selectedId ? ">" : " ";
+      const grudge = delegate.grudgeTicks > 0 ? " (grudge)" : "";
+      return `${marker} ${delegate.name}  ${delegate.job}${grudge}`;
+    });
+    const selected = view.delegates.findIndex(
+      (delegate) => delegate.id === selectedId,
+    );
+    const { start, end } = rowWindow(rows.length, selected, size.height);
+    const lines = rows.slice(start, end);
+    if (start > 0) lines.unshift(`↑ ${start} more`);
+    if (end < rows.length) lines.push(`↓ ${rows.length - end} more`);
+    return lines.join("\n");
   }
 
   key(key: KeyPress, { view }: MenuContext): PanelStep | null {
-    if (isEscape(key)) return UNFOCUS;
+    if (plainKeyName(key) === "escape") return UNFOCUS;
     const action = peasantActionForKey(key);
     if (action === null) return null;
     if (action.kind === "move") {
@@ -139,9 +115,7 @@ export class PeasantsPanel implements VillagePanel {
 }
 
 /** A panel whose focused view is a `menu.ts` screen stack rendered inside the panel. */
-abstract class MenuPanel implements VillagePanel {
-  abstract readonly id: FocusId;
-  abstract readonly name: string;
+abstract class MenuPanel extends VillagePanel {
   protected abstract readonly root: ScreenBuilder;
   private menu: MenuState | null = null;
 
@@ -162,18 +136,13 @@ abstract class MenuPanel implements VillagePanel {
       .join("\n");
   }
 
-  hints(context: MenuContext, width: number): string {
-    if (this.menu === null) return "";
-    const own = renderMenu(this.menu, context).hints;
-    return own.length <= width ? own : panelHintsText(this.id, width);
-  }
-
   key(key: KeyPress, context: MenuContext): PanelStep | null {
-    if (this.menu === null || !isPlain(key) || !MENU_KEYS.has(key.name)) {
+    const name = plainKeyName(key);
+    if (this.menu === null || name === null || !LIST_KEYS.has(name)) {
       return null;
     }
     const result = menuKey(this.menu, key, context);
-    if (isEscape(key) && result.state === null) {
+    if (name === "escape" && result.state === null) {
       this.menu = null;
       return UNFOCUS;
     }
@@ -185,7 +154,6 @@ abstract class MenuPanel implements VillagePanel {
 
 export class CourtPanel extends MenuPanel {
   readonly id = "court";
-  readonly name = "Court";
   protected readonly root = courtMenu;
 
   protected unfocusedLines({ view }: MenuContext): string[] {
@@ -205,6 +173,7 @@ const archiveScreen: ScreenBuilder = ({ view }) => ({
   items: view.archive.entries.map(
     (entry): MenuItem => ({
       label: archiveLabel(entry),
+      detail: entry.description,
       action: {
         kind: "command",
         command: { type: "buyUnlock", id: entry.id },
@@ -216,22 +185,18 @@ const archiveScreen: ScreenBuilder = ({ view }) => ({
 
 export class ArchivePanel extends MenuPanel {
   readonly id = "archive";
-  readonly name = "Archive";
   protected readonly root = archiveScreen;
-
-  // Every Archive screen is the one list, so the fixed hints say what enter does there.
-  override hints(_context: MenuContext, width: number): string {
-    return panelHintsText(this.id, width);
-  }
 
   protected unfocusedLines({ view }: MenuContext): string[] {
     return view.archive.entries.map((entry) => `  ${archiveLabel(entry)}`);
   }
 }
 
-export class DecreesPanel implements VillagePanel {
+export class DecreesPanel extends VillagePanel {
   readonly id = "decrees";
-  readonly name = "Decrees";
+  private static readonly labelWidth = Math.max(
+    ...PETITIONS.map((petition) => petition.length),
+  );
   private selected = 0;
 
   enter(): void {
@@ -247,7 +212,7 @@ export class DecreesPanel implements VillagePanel {
   }
 
   body({ view }: MenuContext, size: PanelSize, focused: boolean): string {
-    const label = Math.max(...PETITIONS.map((petition) => petition.length));
+    const label = DecreesPanel.labelWidth;
     return PETITIONS.flatMap((petition, index) => {
       const decree = DecreesPanel.decreeFor(view, petition);
       const text =
@@ -263,13 +228,8 @@ export class DecreesPanel implements VillagePanel {
     }).join("\n");
   }
 
-  hints(_context: MenuContext, width: number): string {
-    return panelHintsText(this.id, width);
-  }
-
   key(key: KeyPress, { view }: MenuContext): PanelStep | null {
-    if (!isPlain(key)) return null;
-    const name = keyName(key);
+    const name = plainKeyName(key);
     if (name === "escape") return UNFOCUS;
     if (name === "j" || name === "down") {
       this.selected = Math.min(PETITIONS.length - 1, this.selected + 1);
@@ -294,32 +254,6 @@ export class DecreesPanel implements VillagePanel {
   }
 }
 
-/** The four focusable panels, built once per app so each keeps its own selection. */
-export class Village {
-  readonly peasants = new PeasantsPanel();
-  readonly panels: readonly VillagePanel[] = [
-    this.peasants,
-    new ArchivePanel(),
-    new CourtPanel(),
-    new DecreesPanel(),
-  ];
-
-  panel(id: FocusId): VillagePanel {
-    const found = this.panels.find((candidate) => candidate.id === id);
-    if (found === undefined) throw new Error(`no panel ${id}`);
-    return found;
-  }
-}
-
-export function panelTitle(name: string): string {
-  return `(${name.charAt(0)})${name.slice(1)}`;
-}
-
-function capitalize(id: string): string {
-  return id.charAt(0).toUpperCase() + id.slice(1);
-}
-
-/** The read-only resources panel; it takes no focus, so it has no keys. */
 export class LedgerPanel {
   readonly name = "Ledger";
 
@@ -338,36 +272,69 @@ export class LedgerPanel {
     );
   }
 
-  // The panel is a quarter of the screen, so these two lines are split in two instead of cut off.
-  private promotionLines(view: GameView): string[] {
-    const { target, promotedAt, promotedAtSeconds } = view.promotion;
-    if (promotedAt > 0) {
-      return ["Promoted to steward", `on ${formatGameTime(promotedAtSeconds)}`];
-    }
-    return ["Promotion", `${view.realm.population} / ${target} peasants`];
+  /** One line when it fits the column, otherwise the label above its value, so neither is cut off. */
+  private labelled(label: string, value: string, width: number): string[] {
+    const line = `${label}  ${value}`;
+    if (line.length <= width) return [line];
+    return [label, ...wrapLine(`  ${value}`, width, 0)];
   }
 
-  private nextPeasantLines(view: GameView): string[] {
+  private promotionLines(view: GameView, width: number): string[] {
+    const { target, promotedAt, promotedAtSeconds } = view.promotion;
+    if (promotedAt > 0) {
+      return wrapLine(
+        `Promoted to steward on ${formatGameTime(promotedAtSeconds)}`,
+        width,
+        2,
+      );
+    }
+    return this.labelled(
+      "Promotion",
+      `${view.realm.population} / ${target} peasants`,
+      width,
+    );
+  }
+
+  private nextPeasantLines(view: GameView, width: number): string[] {
     const { stored, needed, perSecond, full } = view.growth;
     if (full) return [];
     const progress = `${formatAmount(stored)} / ${plain(needed)} grain`;
-    if (perSecond <= 0) return ["Next peasant", progress];
+    if (perSecond <= 0) return this.labelled("Next peasant", progress, width);
     const seconds = Math.ceil((needed - stored) / perSecond);
-    return [`Next peasant (~${formatGameTime(seconds)})`, progress];
+    return this.labelled(
+      "Next peasant",
+      `${progress}  (~${formatGameTime(seconds)})`,
+      width,
+    );
   }
 
   body(view: GameView, size: PanelSize): string {
     const { realm } = view;
-    return [
-      `Time ${formatGameTime(view.elapsedSeconds)}`,
+    const rest = [
       ...this.resourceLines(view),
-      `Peasants ${realm.population} (${realm.labor.idle} idle)`,
-      `Farm ${realm.labor.farm} Forest ${realm.labor.forest} Mine ${realm.labor.mine}`,
-      `Season ${capitalize(realm.season)}`,
-      ...this.promotionLines(view),
-      ...this.nextPeasantLines(view),
-    ]
-      .flatMap((line) => wrapLine(line, size.width, 2))
-      .join("\n");
+      "",
+      ...[
+        `Peasants ${realm.population} (${realm.labor.idle} idle)`,
+        `Farm ${realm.labor.farm} Forest ${realm.labor.forest} Mine ${realm.labor.mine}`,
+        `Season ${capitalize(realm.season)}`,
+      ].flatMap((line) => wrapLine(line, size.width, 2)),
+      ...this.promotionLines(view, size.width),
+      ...this.nextPeasantLines(view, size.width),
+    ];
+    // The clock is the least useful line, so a short panel gives it up before anything else.
+    if (rest.length >= size.height) return rest.join("\n");
+    return [`Time  ${formatGameTime(view.elapsedSeconds)}`, ...rest].join("\n");
   }
+}
+
+/** The village's panels, built once per app so each focusable one keeps its own selection. */
+export class Village {
+  readonly ledger = new LedgerPanel();
+  readonly peasants = new PeasantsPanel();
+  readonly focusable: Readonly<Record<FocusId, VillagePanel>> = {
+    peasants: this.peasants,
+    archive: new ArchivePanel(),
+    court: new CourtPanel(),
+    decrees: new DecreesPanel(),
+  };
 }
