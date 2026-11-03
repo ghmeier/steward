@@ -1,10 +1,10 @@
 ---
 title: "Village UI overhaul: five focusable panels and a command bar"
-status: draft
+status: active
 tags: [tui]
 created: 2026-11-03
 updated: 2026-11-03
-next_step: Garret approves the PR breakdown, then dispatch PR 1
+next_step: PR 1 (village-layout) in progress with an implementer
 ---
 # Village UI overhaul: five focusable panels and a command bar
 
