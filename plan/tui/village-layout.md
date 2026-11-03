@@ -4,8 +4,8 @@ status: active
 tags: [tui]
 created: 2026-11-03
 updated: 2026-11-03
-last_pr: 4
-next_step: PR 3 (bar layout and arrow keys) in progress
+last_pr: 5
+next_step: Garret reviews PR #5; on merge flip to completed and write the handoff
 ---
 # Village UI overhaul: five focusable panels and a command bar
 
@@ -106,7 +106,7 @@ The command line moves into the bottom bar.
 | --- | --- | --- |
 | 1 | `village-layout` | merged, PR #3 (3169402) |
 | 2 | `village-command-bar` | merged, PR #4 (c2f3afc) |
-| 3 | `village-bar-polish` | implementer running |
+| 3 | `village-bar-polish` | PR #5 open (7ee0a81), awaiting review |
 
 ## Notes and decisions
 
