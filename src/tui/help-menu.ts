@@ -2,11 +2,13 @@ import { policiesFor } from "../core/decree";
 import { type Resource, SEASONS } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 import {
+  type ArchiveEntry,
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
+  CROWN_CORRESPONDENCE,
   SAVED_DECREES_UNLOCK,
 } from "../core/unlocks";
-import { describePolicy, plain } from "./decree-format";
+import { describePolicy, percent, plain } from "./decree-format";
 import { capitalize } from "./format";
 import {
   FOCUS_IDS,
@@ -211,6 +213,27 @@ function promotionLines(tuning: Tuning): string[] {
   ];
 }
 
+function crownLines(tuning: Tuning): string[] {
+  const { crown } = tuning;
+  const { minTicks, maxTicks } = crown.gap;
+  // The tuning schema requires every decree gate, crown correspondence among them, to be an Archive entry.
+  const entry = tuning.archive.entries.find(
+    (candidate) => candidate.id === CROWN_CORRESPONDENCE,
+  ) as ArchiveEntry;
+  return [
+    `After promotion the crown makes one demand at a time, the first ${seconds(crown.firstDemandTicks, tuning)} later: an amount of grain, wood, ore or coin, never the same resource twice running.`,
+    `Each demand has a deadline of ${seconds(crown.deadlineTicks, tuning)}, and a new one follows ${seconds(minTicks, tuning)} to ${seconds(maxTicks, tuning)} after each is settled.`,
+    "",
+    "Press r to focus the Crown, then enter to deliver whatever the stores hold toward the demand. Partial deliveries add up.",
+    `Paying in full before the deadline earns ${percent(crown.reward)} of the amount back in coin.`,
+    "At the deadline the crown collects what is still owed from the stores. If they cannot cover it, the demand is missed.",
+    `A miss adds ${percent(crown.surcharge)} of the shortfall to the next demand, and every demand met raises later amounts by ${percent(crown.step)} of the base.`,
+    "",
+    `${entry.label} (Archive, ${plain(entry.cost)} coin) lets decrees read what is owed, as in "owed ore above 0".`,
+    "The command line also takes deliver.",
+  ];
+}
+
 const TOPICS: readonly {
   label: string;
   lines: (context: MenuContext) => string[];
@@ -223,6 +246,7 @@ const TOPICS: readonly {
   { label: "Harvest and labor", lines: (c) => harvestAndLaborLines(c.tuning) },
   { label: "Disputes", lines: (c) => disputeLines(c.tuning) },
   { label: "Promotion", lines: (c) => promotionLines(c.tuning) },
+  { label: "Crown", lines: (c) => crownLines(c.tuning) },
 ];
 
 export type HelpSection = { heading: string; lines: string[] };

@@ -4,6 +4,7 @@ import {
   DECREE_ID_PATTERN,
   type Decree,
   type DecreeRule,
+  OWED_RESOURCES,
   PETITIONS,
   type Petition,
   parseCondition,
@@ -17,6 +18,8 @@ import {
   ARCHIVE_PANEL,
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
+  CROWN_CORRESPONDENCE,
+  CROWN_PANEL,
   PALETTE_UNLOCK,
   SAVED_DECREES_UNLOCK,
   type UnlockId,
@@ -39,7 +42,13 @@ const NUMBER_HELP = "a number, such as 2 or 0.5";
 const NUMBER = /^-?\d+(\.\d+)?(e[+-]?\d+)?$/;
 const NUMBER_PREFIX = /^-?\d*\.?\d*(e[+-]?\d*)?$/;
 
-type Choice<T> = { text: string; description: string; value: T };
+type Choice<T> = {
+  text: string;
+  description: string;
+  value: T;
+  /** Set when this choice alone already ends a command, so an exact match is accepted like a final word. */
+  final?: boolean;
+};
 /** A suggestion plus the whole line that accepting it produces, so tab never has to guess where the partial word began. */
 type Option = Suggestion & { completion: string };
 
@@ -111,7 +120,7 @@ class Cursor {
       const problem = options.unmatched?.(word) ?? `"${word}" is not ${what}`;
       throw new Halt([], problem, null);
     }
-    if (rest === best.text && options.final !== true) {
+    if (rest === best.text && !options.final && !best.final) {
       throw new Halt(offer(prefixed), null, null);
     }
     const trailing = rest.slice(best.text.length);
@@ -174,6 +183,8 @@ type Verb = {
   description: string;
   /** Whether the player may use the verb now; the palette and the first word offer only these. */
   available: (context: MenuContext) => boolean;
+  /** Set for a verb that takes no arguments, so typing its word is already a whole command. */
+  bare?: true;
   /** What to tell a player who types an unavailable verb, naming where it comes from. */
   unavailableProblem: (context: MenuContext) => string;
   parse: (cursor: Cursor, context: MenuContext) => Command;
@@ -183,6 +194,7 @@ type Scope = {
   context: MenuContext;
   compound: boolean;
   chaining: boolean;
+  correspondence: boolean;
   ownId: string;
 };
 
@@ -220,6 +232,9 @@ type Subject =
 function subjects(scope: Scope): Choice<Subject>[] {
   const byText = new Map<string, Choice<Subject>>();
   for (const quantity of QUANTITIES) {
+    if (!scope.correspondence && Object.hasOwn(OWED_RESOURCES, quantity)) {
+      continue;
+    }
     byText.set(words(quantity), {
       text: words(quantity),
       description: QUANTITY_HELP[quantity],
@@ -318,10 +333,19 @@ function parseBase(
   return { kind: "chose", decree: id, policy: policy.value };
 }
 
+function expectSubject(cursor: Cursor, scope: Scope): Subject {
+  return cursor.expect("a condition", subjects(scope), {
+    unmatched: (word) =>
+      word === "owed" && !scope.correspondence
+        ? `owed quantities need "${entryLabel(scope.context, CROWN_CORRESPONDENCE)}" from the Archive`
+        : null,
+  }).value;
+}
+
 function parseAtom(cursor: Cursor, scope: Scope): Condition {
-  const first = cursor.expect("a condition", subjects(scope)).value;
+  const first = expectSubject(cursor, scope);
   if (first.kind !== "not") return parseBase(cursor, scope, first);
-  const inner = cursor.expect("a condition", subjects(scope)).value;
+  const inner = expectSubject(cursor, scope);
   if (inner.kind === "not") return cursor.fail("not cannot be repeated");
   return { kind: "not", condition: parseBase(cursor, scope, inner) };
 }
@@ -370,6 +394,7 @@ function parseDecreeVerb(
     context,
     compound: view.unlocks.includes(COMPOUND_UNLOCK),
     chaining: view.unlocks.includes(CHAINING_UNLOCK),
+    correspondence: view.unlocks.includes(CROWN_CORRESPONDENCE),
     ownId: active?.id ?? petition,
   };
   const { maxRules } = tuning.decrees;
@@ -682,6 +707,15 @@ const VERBS: readonly Verb[] = [
     ...needsUnlock(PALETTE_UNLOCK, "assign"),
     parse: parseAssignVerb,
   },
+  {
+    word: "deliver",
+    bare: true,
+    description: "hand the crown what it demands from the stores",
+    available: (context) => ownsUnlock(context, CROWN_PANEL),
+    unavailableProblem: () =>
+      "deliver needs the Crown, which opens at promotion",
+    parse: () => ({ type: "deliver" }),
+  },
 ];
 
 type Analysis = LineResult & { options: Option[]; expecting: string | null };
@@ -695,6 +729,7 @@ function analyze(text: string, context: MenuContext): Analysis {
         text: value.word,
         description: value.description,
         value,
+        final: value.bare === true,
       })),
       {
         unmatched: (word) => {

@@ -1,6 +1,11 @@
 import type { Command } from "../core/commands";
 import { PETITIONS } from "../core/decree";
-import type { ArchiveEntryView, GameView } from "../core/view";
+import type {
+  ArchiveEntryView,
+  CrownDemandView,
+  CrownView,
+  GameView,
+} from "../core/view";
 import { courtMenu } from "./court-menu";
 import { type Cursor, moveCursor, reconcileCursor, rowWindow } from "./cursor";
 import { formatRule, plain } from "./decree-format";
@@ -33,11 +38,22 @@ export type PanelRequest =
 
 export type PanelStep = { commands: Command[]; requests: PanelRequest[] };
 
+/** Marks the key that focuses a panel by wrapping its letter, as in "(L)edger". */
+export function titleWithKey(name: string, key = name.charAt(0)): string {
+  const at = name.toLowerCase().indexOf(key.toLowerCase());
+  return `${name.slice(0, at)}(${name.charAt(at)})${name.slice(at + 1)}`;
+}
+
 export abstract class VillagePanel {
   abstract readonly id: FocusId;
 
   get name(): string {
     return capitalize(this.id);
+  }
+
+  /** The border title; a panel whose key is not its first letter overrides the letter it marks. */
+  get title(): string {
+    return titleWithKey(this.name);
   }
 
   /** Called when the panel gains focus, so it never shows state left over from an earlier visit. */
@@ -254,8 +270,75 @@ export class DecreesPanel extends VillagePanel {
   }
 }
 
+export class CrownPanel extends VillagePanel {
+  readonly id = "crown";
+
+  override get title(): string {
+    return titleWithKey(this.name, "r");
+  }
+
+  enter(): void {}
+
+  private static seconds(ticks: number, tuning: MenuContext["tuning"]): number {
+    return (ticks * tuning.stepMs) / 1000;
+  }
+
+  /** Whole minutes once past one, since a countdown to the second would flicker for a demand not yet made. */
+  private static roughly(seconds: number): string {
+    return seconds < 60
+      ? formatGameTime(seconds)
+      : `${Math.round(seconds / 60)}m`;
+  }
+
+  private static demandLines(
+    demand: CrownDemandView,
+    tuning: MenuContext["tuning"],
+  ): string[] {
+    const seconds = CrownPanel.seconds(demand.ticksLeft, tuning);
+    return [
+      demand.herald,
+      `${demand.resource} ${plain(demand.delivered)} / ${plain(demand.amount)}`,
+      `due in ${formatGameTime(seconds)}`,
+    ];
+  }
+
+  private static quietLines(
+    crown: CrownView,
+    tuning: MenuContext["tuning"],
+  ): string[] {
+    const seconds = CrownPanel.seconds(crown.nextDemandTicks ?? 0, tuning);
+    return [
+      `The crown is quiet. Next demand in about ${CrownPanel.roughly(seconds)}.`,
+    ];
+  }
+
+  body({ view, tuning }: MenuContext, size: PanelSize): string {
+    const { crown } = view;
+    if (crown === null) return "";
+    const lines = [
+      ...(crown.demand === null
+        ? CrownPanel.quietLines(crown, tuning)
+        : CrownPanel.demandLines(crown.demand, tuning)),
+      "",
+      `Met ${crown.met} \u00b7 missed ${crown.missed}`,
+    ];
+    return lines
+      .flatMap((line) => wrapLine(line, size.width - 1, 2))
+      .join("\n");
+  }
+
+  key(key: KeyPress): PanelStep | null {
+    const name = plainKeyName(key);
+    if (name === "escape") return UNFOCUS;
+    if (name === "return" || name === "enter")
+      return step([{ type: "deliver" }]);
+    return null;
+  }
+}
+
 export class LedgerPanel {
   readonly name = "Ledger";
+  readonly title = titleWithKey(this.name);
 
   private resourceLines(view: GameView): string[] {
     const rows = view.ledger.map((line) => [
@@ -336,5 +419,6 @@ export class Village {
     archive: new ArchivePanel(),
     court: new CourtPanel(),
     decrees: new DecreesPanel(),
+    crown: new CrownPanel(),
   };
 }

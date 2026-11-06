@@ -45,13 +45,13 @@ class PanelSlot {
   constructor(
     private readonly renderer: CliRenderer,
     id: string,
-    name: string,
+    title: string,
     weight: number,
     onResize: () => void,
   ) {
     this.box = new BoxRenderable(renderer, {
       id,
-      title: `(${name.charAt(0)})${name.slice(1)}`,
+      title,
       border: true,
       borderStyle: "single",
       borderColor: BORDER_COLOR,
@@ -216,8 +216,8 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
       renderer.requestRender();
     });
   };
-  const makeSlot = (id: string, name: string, weight: number) =>
-    new PanelSlot(renderer, id, name, weight, redrawAtMeasuredSize);
+  const makeSlot = (id: string, title: string, weight: number) =>
+    new PanelSlot(renderer, id, title, weight, redrawAtMeasuredSize);
   const makeRow = (id: string, slots: PanelSlot[]) => {
     const row = new BoxRenderable(renderer, {
       id,
@@ -231,16 +231,17 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
 
   const { ledger: ledgerPanel, focusable: panels } = village;
   const slotOf = (id: FocusId, weight: number) =>
-    makeSlot(id, panels[id].name, weight);
-  const ledger = makeSlot("ledger", ledgerPanel.name, 1);
+    makeSlot(id, panels[id].title, weight);
+  const ledger = makeSlot("ledger", ledgerPanel.title, 1);
   const slots: Record<FocusId, PanelSlot> = {
     peasants: slotOf("peasants", 1),
     archive: slotOf("archive", 2),
     court: slotOf("court", 1),
     decrees: slotOf("decrees", 1),
+    crown: slotOf("crown", 1),
   };
   const topRow = [ledger, slots.peasants, slots.archive];
-  const bottomRow = [slots.court, slots.decrees];
+  const bottomRow = [slots.court, slots.decrees, slots.crown];
   grid.add(makeRow("top-row", topRow));
   grid.add(makeRow("bottom-row", bottomRow));
 

@@ -4,6 +4,7 @@ import { Game } from "../core/game";
 import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
 import { type LineState, lineKey, openLine, renderLine } from "./command-line";
+import { crownNotice } from "./crown-notices";
 import { HelpPage } from "./help-menu";
 import { actionForKey, type FocusId, FocusRing, isInterrupt } from "./keys";
 import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
@@ -223,6 +224,8 @@ export function startApp(options: {
     if (lastRejection !== undefined) message = lastRejection.reason;
     const starved = starvationNotice(lastView, session.view());
     if (starved !== null) message = starved;
+    const crown = crownNotice(lastView.crown, session.view().crown, tuning);
+    if (crown !== null) message = crown;
     lastView = session.view();
     const unlocked = announceNewUnlocks(
       knownUnlocks,

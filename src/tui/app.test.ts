@@ -20,7 +20,7 @@ import { barRow, settledFrame } from "../../test/tui-helpers";
 import type { Decree } from "../core/decree";
 import { Game } from "../core/game";
 import { Job } from "../core/realm";
-import { ARCHIVE_PANEL, PALETTE_UNLOCK } from "../core/unlocks";
+import { ARCHIVE_PANEL, CROWN_PANEL, PALETTE_UNLOCK } from "../core/unlocks";
 import { stateHash } from "../save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../save/save";
 import { type App, prepareStartup, type Startup, startApp } from "./app";
@@ -421,6 +421,38 @@ describe("doors", () => {
     expect(await owned.screen()).toContain(DOUBLE_BORDER);
   });
 
+  test("r focuses the Crown once the panel is owned and does nothing before", async () => {
+    const locked = await launch();
+    const owned = await launch({ game: owning(CROWN_PANEL) });
+
+    await locked.mockInput.typeText("r");
+    await owned.mockInput.typeText("r");
+
+    expect(await locked.screen()).not.toContain(DOUBLE_BORDER);
+    expect(await owned.screen()).toContain(DOUBLE_BORDER);
+  });
+
+  test("enter in the focused Crown delivers stock toward the open demand", async () => {
+    const game = owning(CROWN_PANEL);
+    const { posting } = game.state;
+    posting.crown.demand = {
+      id: 1,
+      resource: "grain",
+      amount: 1000,
+      delivered: 0,
+      issuedAt: 1,
+      dueAt: 1e6,
+    };
+    posting.resources.grain = 50;
+    const harness = await launch({ game });
+
+    await harness.mockInput.typeText("r");
+    harness.mockInput.pressEnter();
+    await harness.advanceStep();
+
+    expect(posting.crown.demand.delivered).toBeGreaterThan(0);
+  });
+
   test("colon opens the line once the palette is owned and does nothing before", async () => {
     const locked = await launch();
     const owned = await launch({ game: owning(PALETTE_UNLOCK) });
@@ -499,9 +531,7 @@ describe("focus", () => {
     await harness.advanceStep();
 
     expect(settling).toContain("(L)edger");
-    expect(settling).toContain(
-      "Settle the dispute".length > 0 ? "will sulk" : "",
-    );
+    expect(settling).toContain("sulk for a season");
     expect(harness.game.state.posting.desk.disputes).toEqual([]);
   });
 
