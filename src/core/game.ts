@@ -3,12 +3,12 @@ import { ConditionManager } from "./conditions";
 import { CrownManager, emptyCrownState } from "./crown";
 import { DecreeEngine } from "./decree-engine";
 import { DelegateManager } from "./delegates";
-import { DeskManager, drawArrivalDelay } from "./desk";
+import { DeskManager } from "./desk";
 import { EconomyManager } from "./economy";
 import { LaborSettling, NO_LABOR_POLICY } from "./labor";
 import { ProjectionManager } from "./projection";
 import { RESOURCES } from "./realm";
-import { type RngState, seedStream } from "./rng";
+import { drawDelay, type RngState, seedStream } from "./rng";
 import { SavedDecreeManager } from "./saved-decrees";
 import {
   type GameState,
@@ -90,7 +90,7 @@ export class Game {
       labor: { policy: NO_LABOR_POLICY, settling: false },
       desk: {
         nextDisputeId: 1,
-        nextArrivalTick: drawArrivalDelay(arrivals, tuning),
+        nextArrivalTick: drawDelay(arrivals, tuning.village.disputeArrival),
         disputes: [],
       },
       crown: emptyCrownState(),

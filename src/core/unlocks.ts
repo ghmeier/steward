@@ -1,5 +1,5 @@
 import { compareKeys, sortedKeys } from "./data";
-import type { Condition, Decree, Quantity } from "./decree";
+import { type Condition, type Decree, OWED_RESOURCES } from "./decree";
 import type { Game } from "./game";
 import { type AddContext, add } from "./math";
 
@@ -92,26 +92,13 @@ export class UnlockManager {
 
   /** The Archive entry a decree needs and the player has not bought, or null. */
   missingDecreeUnlock(decree: Decree): ArchiveEntry | null {
-    const needs = (matches: (node: Condition) => boolean, id: UnlockId) =>
-      !this.enabled(id) &&
-      decree.rules.some((rule) => someNode(rule.when, matches));
-    const missing: UnlockId[] = [];
-    if (
-      needs(
-        (node) => ["all", "any", "not"].includes(node.kind),
-        COMPOUND_UNLOCK,
-      )
-    ) {
-      missing.push(COMPOUND_UNLOCK);
-    }
-    if (needs((node) => node.kind === "chose", CHAINING_UNLOCK)) {
-      missing.push(CHAINING_UNLOCK);
-    }
-    if (needs(readsOwedQuantity, CROWN_CORRESPONDENCE)) {
-      missing.push(CROWN_CORRESPONDENCE);
-    }
-    const id = missing[0];
-    if (id === undefined) return null;
+    const gate = DECREE_GATES.find(
+      ({ id, matches }) =>
+        !this.enabled(id) &&
+        decree.rules.some((rule) => someNode(rule.when, matches)),
+    );
+    if (gate === undefined) return null;
+    const { id } = gate;
     const found = this.game.tuning.archive.entries.find(
       (entry) => entry.id === id,
     );
@@ -121,16 +108,22 @@ export class UnlockManager {
   }
 }
 
-const OWED_QUANTITIES: readonly Quantity[] = [
-  "owedCoin",
-  "owedGrain",
-  "owedOre",
-  "owedWood",
+/** The Archive entries that gate decree syntax, each with the condition nodes it unlocks. */
+export const DECREE_GATES: readonly {
+  id: UnlockId;
+  matches: (node: Condition) => boolean;
+}[] = [
+  {
+    id: COMPOUND_UNLOCK,
+    matches: (node) => ["all", "any", "not"].includes(node.kind),
+  },
+  { id: CHAINING_UNLOCK, matches: (node) => node.kind === "chose" },
+  {
+    id: CROWN_CORRESPONDENCE,
+    matches: (node) =>
+      node.kind === "compare" && Object.hasOwn(OWED_RESOURCES, node.quantity),
+  },
 ];
-
-function readsOwedQuantity(node: Condition): boolean {
-  return node.kind === "compare" && OWED_QUANTITIES.includes(node.quantity);
-}
 
 function someNode(
   condition: Condition,

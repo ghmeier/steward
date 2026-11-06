@@ -1,4 +1,4 @@
-import type { Condition, Quantity } from "./decree";
+import { type Condition, OWED_RESOURCES, type Quantity } from "./decree";
 import type { Game } from "./game";
 
 export class ConditionManager {
@@ -17,13 +17,10 @@ export class ConditionManager {
       case "idle":
         return this.game.delegates.jobCounts().idle;
       case "owedCoin":
-        return this.game.crown.owedIn("coin");
       case "owedGrain":
-        return this.game.crown.owedIn("grain");
       case "owedOre":
-        return this.game.crown.owedIn("ore");
       case "owedWood":
-        return this.game.crown.owedIn("wood");
+        return this.game.crown.owedIn(OWED_RESOURCES[quantity]);
       case "grainSeasons":
         return this.game.economy.grainSeasons();
     }

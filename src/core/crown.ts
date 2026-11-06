@@ -2,7 +2,7 @@ import type { CommandResult } from "./commands";
 import type { Game } from "./game";
 import { type AddContext, add } from "./math";
 import { RESOURCES, type Resource } from "./realm";
-import { intBelow, type RngState } from "./rng";
+import { drawDelay, intBelow, type RngState } from "./rng";
 import type { ResourceId } from "./state";
 
 export type Demand = {
@@ -83,28 +83,27 @@ export class CrownManager {
     return amount - delivered;
   }
 
-  /** What is still owed in `resource`, which is zero unless the open demand is for it. */
   owedIn(resource: ResourceId): number {
     return this.crown.demand.resource === resource ? this.owed : 0;
   }
 
-  /** The crown's first demand comes a fixed time after the promotion that starts them. */
   scheduleFirstDemand(): void {
     this.crown.nextDemandTick = this.tick + this.tuning.firstDemandTicks;
   }
 
-  private drawGap(): number {
-    const { minTicks, maxTicks } = this.tuning.gap;
-    return minTicks + intBelow(this.stream, maxTicks - minTicks + 1);
+  private get resources() {
+    return this.game.state.posting.resources;
+  }
+
+  private get held(): number {
+    return this.resources[this.crown.demand.resource] ?? 0;
   }
 
   private drawResource(): Resource {
     const choices = RESOURCES.filter(
       (resource) => resource !== this.crown.lastResource,
     );
-    const choice = choices[intBelow(this.stream, choices.length)];
-    if (choice === undefined) throw new Error("resource draw out of range");
-    return choice;
+    return choices[intBelow(this.stream, choices.length)] ?? RESOURCES[0];
   }
 
   private issue(): void {
@@ -127,7 +126,8 @@ export class CrownManager {
 
   private close(): void {
     this.crown.demand = { ...NO_DEMAND };
-    this.crown.nextDemandTick = this.tick + this.drawGap();
+    this.crown.nextDemandTick =
+      this.tick + drawDelay(this.stream, this.tuning.gap);
   }
 
   private meet(): void {
@@ -135,43 +135,38 @@ export class CrownManager {
     this.close();
   }
 
-  /** Takes what stock can cover at the deadline; a demand is missed only when stock falls short. */
+  /** Removes as much of what is owed as the store holds and returns the amount removed. */
+  private take(context: AddContext): number {
+    const taken = Math.min(this.owed, this.held);
+    add(this.resources, this.crown.demand.resource, -taken, context);
+    return taken;
+  }
+
+  /** A demand is missed only when the store cannot cover it at the deadline. */
   private collect(context: AddContext): void {
-    const { crown, tuning } = this;
-    const { resource } = crown.demand;
-    const held = this.game.state.posting.resources[resource] ?? 0;
-    const taken = Math.min(this.owed, held);
-    const uncovered = this.owed - taken;
-    this.game.desk.applyResources({ [resource]: -taken }, context, true);
+    const uncovered = this.owed - this.take(context);
     if (uncovered > 0) {
-      crown.surcharge = tuning.surcharge * uncovered;
-      crown.missed += 1;
+      this.crown.surcharge = this.tuning.surcharge * uncovered;
+      this.crown.missed += 1;
       this.close();
     } else {
       this.meet();
     }
   }
 
-  /** Moves stock toward the open demand; paying it in full before the deadline earns a reward. */
+  /** Paying in full before the deadline earns a reward that collection at the deadline does not. */
   deliver(context: AddContext): CommandResult {
     if (!this.isOpen)
       return { ok: false, reason: "the crown has made no demand" };
     const { demand } = this.crown;
-    const held = this.game.state.posting.resources[demand.resource] ?? 0;
-    if (held <= 0) {
+    if (this.held <= 0) {
       return { ok: false, reason: `the village holds no ${demand.resource}` };
     }
-    const paid = Math.min(this.owed, held);
-    const complete = paid >= this.owed;
-    add(this.game.state.posting.resources, demand.resource, -paid, context);
-    demand.delivered = complete ? demand.amount : demand.delivered + paid;
-    if (complete) {
-      add(
-        this.game.state.posting.resources,
-        "coin",
-        this.tuning.reward * demand.amount,
-        context,
-      );
+    const owed = this.owed;
+    const paid = this.take(context);
+    demand.delivered += paid;
+    if (paid >= owed) {
+      add(this.resources, "coin", this.tuning.reward * demand.amount, context);
       this.meet();
     }
     return { ok: true };

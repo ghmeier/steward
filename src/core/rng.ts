@@ -81,6 +81,14 @@ export function nextU32(stream: RngState): number {
   return result;
 }
 
+/** Ticks until a scheduled event, in [minTicks, maxTicks]; the caller adds the current tick. */
+export function drawDelay(
+  stream: RngState,
+  range: Readonly<{ minTicks: number; maxTicks: number }>,
+): number {
+  return range.minTicks + intBelow(stream, range.maxTicks - range.minTicks + 1);
+}
+
 /** Uniform integer in [0, n) using rejection sampling to avoid modulo bias. */
 export function intBelow(stream: RngState, n: number): number {
   if (!Number.isInteger(n) || n < 1 || n > UINT32_RANGE) {

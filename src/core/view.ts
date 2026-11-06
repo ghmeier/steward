@@ -188,13 +188,13 @@ export class ViewManager {
             resource: demand.resource,
             amount: demand.amount,
             delivered: demand.delivered,
-            ticksLeft: Math.max(0, demand.dueAt - this.tick),
+            ticksLeft: demand.dueAt - this.tick,
             herald: this.tuning.crown.lines[
               demand.resource as Resource
             ].herald.replaceAll("{amount}", String(demand.amount)),
           }
         : null,
-      nextDemandTicks: open ? null : Math.max(0, nextDemandTick - this.tick),
+      nextDemandTicks: open ? null : nextDemandTick - this.tick,
       met,
       missed,
     };

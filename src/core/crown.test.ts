@@ -6,7 +6,7 @@ import {
   setRoster,
   tuning,
 } from "../../test/helpers";
-import { NO_DEMAND, NO_DEMAND_TICK } from "./crown";
+import { type Demand, NO_DEMAND, NO_DEMAND_TICK } from "./crown";
 import type { Decree } from "./decree";
 import { Game } from "./game";
 import type { Resource } from "./realm";
@@ -15,11 +15,17 @@ import { CROWN_CORRESPONDENCE, CROWN_PANEL } from "./unlocks";
 const { crown: crownTuning } = tuning;
 const oreBase = crownTuning.baseAmounts.ore;
 
+function grownAmount(demand: Demand): number {
+  return Math.round(
+    crownTuning.baseAmounts[demand.resource as Resource] *
+      (1 + crownTuning.step),
+  );
+}
+
 function step(game: Game, count = 1): void {
   game.steps.runSteps(count, [], quietOptions);
 }
 
-/** A village that has just been promoted; the step that promotes it schedules the first demand. */
 function promotedGame(): Game {
   const game = Game.create(1, tuning);
   setRoster(game, { idle: tuning.village.promotionPopulation });
@@ -31,14 +37,14 @@ function stepUntilOpen(game: Game): void {
   while (!game.crown.isOpen) step(game);
 }
 
-function openDemand(game: Game, resource?: Resource) {
+function openDemand(game: Game, resource?: Resource): Demand {
   stepUntilOpen(game);
-  const { demand } = game.state.posting.crown;
-  if (resource !== undefined && demand.resource !== resource) {
-    const base = crownTuning.baseAmounts[resource];
-    game.state.posting.crown.demand = { ...demand, resource, amount: base };
+  const { crown } = game.state.posting;
+  if (resource !== undefined && crown.demand.resource !== resource) {
+    const amount = crownTuning.baseAmounts[resource];
+    crown.demand = { ...crown.demand, resource, amount };
   }
-  return game.state.posting.crown.demand;
+  return crown.demand;
 }
 
 function stock(game: Game, resource: string, amount: number): void {
@@ -64,29 +70,21 @@ describe("crown demands", () => {
     expect(game.state.posting.crown.nextDemandTick).toBe(NO_DEMAND_TICK);
   });
 
-  test("promotion grants the Crown panel and the first demand comes one first-demand delay later", () => {
+  test("promotion grants the Crown panel and issues the first demand one first-demand delay later, due one deadline after", () => {
     const game = promotedGame();
     const { promotedAt } = game.state.career;
 
     step(game, crownTuning.firstDemandTicks - 1);
     const early = game.crown.isOpen;
     step(game);
+    const { demand } = game.state.posting.crown;
 
     expect(Object.hasOwn(game.state.career.unlocks, CROWN_PANEL)).toBe(true);
     expect(early).toBe(false);
     expect(game.crown.isOpen).toBe(true);
-    expect(game.state.posting.crown.demand.issuedAt).toBe(
-      promotedAt + crownTuning.firstDemandTicks,
-    );
-  });
-
-  test("a demand's deadline is the deadline length after it was issued", () => {
-    const game = promotedGame();
-
-    const demand = openDemand(game);
-
-    expect(demand.dueAt - demand.issuedAt).toBe(crownTuning.deadlineTicks);
     expect(demand.id).not.toBe(NO_DEMAND.id);
+    expect(demand.issuedAt).toBe(promotedAt + crownTuning.firstDemandTicks);
+    expect(demand.dueAt - demand.issuedAt).toBe(crownTuning.deadlineTicks);
   });
 
   test("the same resource is never demanded twice in a row", () => {
@@ -98,77 +96,64 @@ describe("crown demands", () => {
       step(game, crownTuning.deadlineTicks);
     }
 
-    for (const [index, resource] of drawn.entries()) {
-      if (index > 0) expect(resource).not.toBe(drawn[index - 1]);
+    for (let i = 1; i < drawn.length; i++) {
+      expect(drawn[i]).not.toBe(drawn[i - 1]);
     }
   });
 });
 
 describe("delivery", () => {
-  test("a partial delivery hands over all the stock and leaves the rest owed", () => {
+  test("a partial delivery hands over all the stock, leaves the rest owed and earns no reward", () => {
     const game = promotedGame();
-    const demand = openDemand(game);
-    stock(game, demand.resource, demand.amount / 2);
+    const demand = openDemand(game, "grain");
+    stock(game, "grain", demand.amount / 2);
+    stock(game, "coin", 0);
 
     const result = deliver(game);
 
     expect(result.ok).toBe(true);
-    expect(held(game, demand.resource)).toBe(0);
+    expect(held(game, "grain")).toBe(0);
+    expect(held(game, "coin")).toBe(0);
     expect(game.state.posting.crown.demand.delivered).toBe(demand.amount / 2);
     expect(game.crown.owed).toBe(demand.amount / 2);
     expect(game.state.posting.crown.met).toBe(0);
   });
 
-  test("paying in full before the deadline pays the reward and resolves the demand at once", () => {
+  test("paying in full before the deadline pays the reward, resolves the demand and grows the next one", () => {
     const game = promotedGame();
     const demand = openDemand(game, "grain");
     stock(game, "grain", demand.amount + 40);
     stock(game, "coin", 0);
 
     deliver(game);
+    const { crown } = game.state.posting;
+    const wait = crown.nextDemandTick - game.state.tick;
 
     expect(held(game, "grain")).toBe(40);
     expect(held(game, "coin")).toBe(crownTuning.reward * demand.amount);
     expect(game.crown.isOpen).toBe(false);
-    expect(game.state.posting.crown.met).toBe(1);
-    expect(game.state.posting.crown.missed).toBe(0);
-    const { nextDemandTick } = game.state.posting.crown;
-    const wait = nextDemandTick - game.state.tick;
+    expect(crown.met).toBe(1);
+    expect(crown.missed).toBe(0);
     expect(wait).toBeGreaterThanOrEqual(crownTuning.gap.minTicks);
     expect(wait).toBeLessThanOrEqual(crownTuning.gap.maxTicks);
+    const next = openDemand(game);
+    expect(next.amount).toBe(grownAmount(next));
   });
 
-  test("a partial delivery earns no reward", () => {
-    const game = promotedGame();
-    const demand = openDemand(game, "grain");
-    stock(game, "grain", demand.amount - 1);
-    stock(game, "coin", 0);
-
-    deliver(game);
-
-    expect(held(game, "coin")).toBe(0);
-  });
-
-  test("is rejected when the crown has made no demand", () => {
+  test("is rejected with a reason when no demand is open or the village holds none of the resource", () => {
     const game = promotedGame();
 
-    const result = deliver(game);
-
-    expect(result.ok).toBe(false);
-    expect(result).toMatchObject({
-      reason: expect.stringContaining("no demand"),
-    });
-  });
-
-  test("is rejected when the village holds none of the resource", () => {
-    const game = promotedGame();
+    const beforeDemand = deliver(game);
     const demand = openDemand(game);
     stock(game, demand.resource, 0);
+    const emptyStore = deliver(game);
 
-    const result = deliver(game);
-
-    expect(result.ok).toBe(false);
-    expect(result).toMatchObject({
+    expect(beforeDemand).toEqual({
+      ok: false,
+      reason: expect.stringContaining("no demand"),
+    });
+    expect(emptyStore).toEqual({
+      ok: false,
       reason: expect.stringContaining(demand.resource),
     });
     expect(game.state.posting.crown.demand.delivered).toBe(0);
@@ -176,18 +161,17 @@ describe("delivery", () => {
 });
 
 describe("collection at the deadline", () => {
-  function atDeadline(held: number) {
+  function atDeadline(stocked: number) {
     const game = promotedGame();
     const demand = openDemand(game, "ore");
-    stock(game, "ore", held);
+    stock(game, "ore", stocked);
     stock(game, "coin", 0);
     step(game, demand.dueAt - game.state.tick);
     return { game, demand };
   }
 
-  test("stock that covers the demand is collected and counts as met, with no reward and no surcharge", () => {
+  test("stock that covers the demand is collected and counts as met, with no reward or surcharge, and grows the next demand", () => {
     const { game, demand } = atDeadline(oreBase * 2);
-
     const { crown } = game.state.posting;
 
     expect(held(game, "ore")).toBe(oreBase * 2 - demand.amount);
@@ -196,92 +180,46 @@ describe("collection at the deadline", () => {
     expect(crown.missed).toBe(0);
     expect(crown.surcharge).toBe(0);
     expect(game.crown.isOpen).toBe(false);
+    const next = openDemand(game);
+    expect(next.amount).toBe(grownAmount(next));
   });
 
-  test("stock that falls short is all collected, records a miss and surcharges the uncovered part", () => {
+  test("stock that falls short is all collected, records a miss and surcharges the uncovered part onto the next demand", () => {
     const { game, demand } = atDeadline(oreBase / 4);
-    const uncovered = demand.amount - oreBase / 4;
-
     const { crown } = game.state.posting;
+    const { surcharge } = crown;
 
     expect(held(game, "ore")).toBe(0);
     expect(crown.missed).toBe(1);
     expect(crown.met).toBe(0);
-    expect(crown.surcharge).toBe(crownTuning.surcharge * uncovered);
-    expect(game.crown.isOpen).toBe(false);
-  });
-
-  test("an empty store never goes negative", () => {
-    const { game } = atDeadline(0);
-
-    expect(held(game, "ore")).toBe(0);
-    expect(game.state.posting.crown.missed).toBe(1);
-  });
-
-  test("a demand collected in full raises the next amount like any met demand", () => {
-    const { game } = atDeadline(oreBase * 2);
-
-    const next = openDemand(game);
-
-    expect(next.amount).toBe(
-      Math.round(
-        crownTuning.baseAmounts[next.resource as Resource] *
-          (1 + crownTuning.step),
-      ),
+    expect(surcharge).toBe(
+      crownTuning.surcharge * (demand.amount - oreBase / 4),
     );
-  });
-
-  test("the surcharge is added to the next demand's amount and then cleared", () => {
-    const { game } = atDeadline(0);
-    const { surcharge } = game.state.posting.crown;
-
+    expect(game.crown.isOpen).toBe(false);
     const next = openDemand(game);
-
     expect(next.amount).toBe(
       Math.round(
         crownTuning.baseAmounts[next.resource as Resource] + surcharge,
       ),
     );
-    expect(game.state.posting.crown.surcharge).toBe(0);
-  });
-});
-
-describe("a met demand", () => {
-  test("raises the next demand's amount by the step", () => {
-    const game = promotedGame();
-    const first = openDemand(game, "grain");
-    stock(game, "grain", first.amount);
-    deliver(game);
-
-    const next = openDemand(game);
-
-    expect(next.amount).toBe(
-      Math.round(
-        crownTuning.baseAmounts[next.resource as Resource] *
-          (1 + crownTuning.step),
-      ),
-    );
+    expect(crown.surcharge).toBe(0);
   });
 });
 
 describe("owed quantities", () => {
-  test("an owed quantity is zero unless the open demand is for that resource", () => {
+  test("an owed quantity is the unpaid part of an open demand for its resource and zero for the others", () => {
     const game = promotedGame();
     const demand = openDemand(game, "wood");
+    const before = game.conditions.quantityOf("owedWood");
+    stock(game, "wood", 10);
 
-    expect(game.conditions.quantityOf("owedWood")).toBe(demand.amount);
+    deliver(game);
+
+    expect(before).toBe(demand.amount);
+    expect(game.conditions.quantityOf("owedWood")).toBe(demand.amount - 10);
     expect(game.conditions.quantityOf("owedOre")).toBe(0);
     expect(game.conditions.quantityOf("owedGrain")).toBe(0);
     expect(game.conditions.quantityOf("owedCoin")).toBe(0);
-  });
-
-  test("an owed quantity drops as the demand is paid", () => {
-    const game = promotedGame();
-    const demand = openDemand(game, "wood");
-    stock(game, "wood", 10);
-    deliver(game);
-
-    expect(game.conditions.quantityOf("owedWood")).toBe(demand.amount - 10);
   });
 
   test("decrees may read an owed quantity only after the Archive entry is bought", () => {
