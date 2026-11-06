@@ -1,10 +1,10 @@
 ---
 title: "Phase 6: crown quotas and a desk with more than disputes"
-status: draft
+status: active
 tags: [phase-6]
 created: 2026-11-06
 updated: 2026-11-06
-next_step: Garret approves the PR breakdown and the defaults marked "default" below
+next_step: PR 1 crown-core in progress (implementer dispatched)
 ---
 # Phase 6: crown quotas and a desk with more than disputes
 
@@ -137,3 +137,4 @@ From earlier phases, for implementers and the refactor pass:
 ## Notes and decisions
 
 - 2026-11-06: Garret chose promotion as the start, seizure plus a surcharge and a record for misses, early delivery with automatic collection, and the bottom-row Crown panel on `r`.
+- 2026-11-06: Garret approved the PR breakdown and every lead default. PR 1 dispatched.
