@@ -201,8 +201,8 @@ describe("view", () => {
     const before = game.view.compute().lockedPanels;
     grantUnlocks(game, [ARCHIVE_PANEL]);
 
-    expect(before).toEqual(["archive"]);
-    expect(game.view.compute().lockedPanels).toEqual([]);
+    expect(before).toContain("archive");
+    expect(game.view.compute().lockedPanels).not.toContain("archive");
   });
 
   test("archive entries follow data order with ownership, affordability and availability", () => {

@@ -9,9 +9,12 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { contextFor } from "../../test/helpers";
+import { emptyCrownState } from "../core/crown";
 import { Game } from "../core/game";
 import { NO_LABOR_POLICY } from "../core/labor";
+import { seedStream } from "../core/rng";
 import { type GameState, SCHEMA_VERSION } from "../core/state";
+import { CROWN_PANEL } from "../core/unlocks";
 import { loadTuning } from "./content";
 import {
   loadGame,
@@ -159,7 +162,7 @@ describe("atomic write", () => {
 });
 
 describe("version 8 upgrade", () => {
-  test("a version 8 save loads as version 9 and settles a labor decree on its first tick", () => {
+  test("a version 8 save loads as the current version and settles a labor decree on its first tick", () => {
     const state = newState() as unknown as Record<string, unknown>;
     const { labor: _, ...posting } = state.posting as Record<string, unknown>;
     writeSave(8, { ...state, schemaVersion: 8, posting });
@@ -183,6 +186,39 @@ describe("version 8 upgrade", () => {
 
     expect(game.state.posting.labor.policy).toBe("farm");
     expect(game.delegates.jobCounts().farm).toBe(1);
+  });
+});
+
+describe("version 9 upgrade", () => {
+  function version9Save(promotedAt: number): Record<string, unknown> {
+    const state = newState() as unknown as Record<string, unknown>;
+    const { crown: _, ...posting } = state.posting as Record<string, unknown>;
+    const career = { ...(state.career as object), promotedAt };
+    return { ...state, schemaVersion: 9, tick: 5000, career, posting };
+  }
+
+  test("a promoted version 9 save gains the Crown panel and a first demand one delay after the save's tick", () => {
+    writeSave(9, version9Save(4000));
+
+    const state = loaded(dir);
+
+    expect(state.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(state.career.unlocks[CROWN_PANEL]).toBe(state.tick);
+    expect(state.posting.crown.nextDemandTick).toBe(
+      state.tick + loadTuning().crown.firstDemandTicks,
+    );
+    expect(state.posting.rng.crown).toEqual(
+      seedStream(state.posting.seed, "crown"),
+    );
+  });
+
+  test("an unpromoted version 9 save gains an empty crown and no panel", () => {
+    writeSave(9, version9Save(0));
+
+    const state = loaded(dir);
+
+    expect(state.posting.crown).toEqual(emptyCrownState());
+    expect(Object.hasOwn(state.career.unlocks, CROWN_PANEL)).toBe(false);
   });
 });
 

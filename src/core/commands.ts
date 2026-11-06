@@ -25,6 +25,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     dispute: z.int(),
     option: text,
   }),
+  z.strictObject({ type: z.literal("deliver") }),
   z.strictObject({ type: z.literal("buyUnlock"), id: text }),
   z.strictObject({
     type: z.literal("saveDecree"),
@@ -86,6 +87,8 @@ export class CommandManager {
             command.option,
             context,
           );
+        case "deliver":
+          return this.game.crown.deliver(context);
         case "buyUnlock":
           this.game.unlocks.buy(command.id, context);
           return { ok: true };

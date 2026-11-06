@@ -199,6 +199,10 @@ const QUANTITY_HELP: Readonly<Record<Quantity, string>> = {
   grainSeasons: "seasons the stores would feed everyone",
   idle: "peasants with no job",
   ore: "ore in store",
+  owedCoin: "coin the crown still demands",
+  owedGrain: "grain the crown still demands",
+  owedOre: "ore the crown still demands",
+  owedWood: "wood the crown still demands",
   population: "peasants in the village",
   wood: "wood in store",
 };

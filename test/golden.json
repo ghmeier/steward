@@ -6,7 +6,8 @@
     "control.palette",
     "control.savedDecrees",
     "decree.compound",
-    "decree.chaining"
+    "decree.chaining",
+    "decree.crownCorrespondence"
   ],
-  "hash": "9b44b630c578c65366fae93b0e49ea37c7451d03e953e761766a80b9aedbc1d5"
+  "hash": "02e8d6fe02b7cd9eebcbfc102ae0434e657a3535dfc12223f907e19a2870f82d"
 }

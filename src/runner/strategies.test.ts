@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { tuning } from "../../test/helpers";
 import { Game } from "../core/game";
+import { CROWN_CORRESPONDENCE } from "../core/unlocks";
 import { runSim } from "./sim";
 import {
   createStrategyPlayer,
@@ -19,6 +20,7 @@ type Summary = {
   starved: number;
   minPopulation: number;
   rejectedCommands: unknown[];
+  crown: { met: number; missed: number };
   strategy: { name: string } & StrategyStats;
 };
 
@@ -56,6 +58,24 @@ describe("scripted strategies over ten game years", () => {
     );
     expect(summary.strategy.reactionCommands).toBe(0);
     expect(summary.strategy.longestQuietTicks).toBe(24000);
+  });
+
+  test("a strategy that never retunes after promotion misses every demand", () => {
+    const { crown } = play("reference");
+
+    expect(crown.missed).toBeGreaterThan(0);
+    expect(crown.met).toBe(0);
+  });
+
+  test("crown-aware meets most demands by reacting to what the crown asks for", () => {
+    const { crown, rejectedCommands } = play("crown-aware", [
+      "--grant",
+      CROWN_CORRESPONDENCE,
+    ]);
+
+    expect(rejectedCommands).toEqual([]);
+    expect(crown.met).toBeGreaterThan(crown.missed);
+    expect(crown.met).toBeGreaterThan(0);
   });
 
   test("none keeps its lone peasant because one peasant never starves", () => {

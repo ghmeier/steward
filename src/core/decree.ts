@@ -13,6 +13,10 @@ export const QUANTITIES = [
   "grainSeasons",
   "idle",
   "ore",
+  "owedCoin",
+  "owedGrain",
+  "owedOre",
+  "owedWood",
   "population",
   "wood",
 ] as const;

@@ -1,5 +1,6 @@
 import { CommandManager } from "./commands";
 import { ConditionManager } from "./conditions";
+import { CrownManager, emptyCrownState } from "./crown";
 import { DecreeEngine } from "./decree-engine";
 import { DelegateManager } from "./delegates";
 import { DeskManager, drawArrivalDelay } from "./desk";
@@ -31,6 +32,7 @@ export class Game {
   readonly savedDecrees: SavedDecreeManager;
   readonly unlocks: UnlockManager;
   readonly desk: DeskManager;
+  readonly crown: CrownManager;
   readonly commands: CommandManager;
   readonly projection: ProjectionManager;
   readonly steps: StepManager;
@@ -48,6 +50,7 @@ export class Game {
     this.savedDecrees = new SavedDecreeManager(this);
     this.unlocks = new UnlockManager(this);
     this.desk = new DeskManager(this);
+    this.crown = new CrownManager(this);
     this.commands = new CommandManager(this);
     this.projection = new ProjectionManager(this);
     this.steps = new StepManager(this);
@@ -90,6 +93,7 @@ export class Game {
         nextArrivalTick: drawArrivalDelay(arrivals, tuning),
         disputes: [],
       },
+      crown: emptyCrownState(),
     };
     const game = new Game(
       {

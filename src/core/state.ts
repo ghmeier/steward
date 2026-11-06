@@ -1,3 +1,4 @@
+import type { CrownState } from "./crown";
 import type { Decree } from "./decree";
 import type { Delegate } from "./delegates";
 import type { DeskState } from "./desk";
@@ -5,7 +6,7 @@ import type { EconomyState } from "./economy";
 import type { LaborState } from "./labor";
 import type { RngState } from "./rng";
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 export type ResourceId = string;
 
@@ -31,6 +32,7 @@ export type PostingState = {
   decrees: Record<string, Decree>;
   labor: LaborState;
   desk: DeskState;
+  crown: CrownState;
 };
 
 export type GameState = {
@@ -41,4 +43,4 @@ export type GameState = {
 };
 
 /** Every stream the systems draw from; each is seeded at creation so no system seeds lazily mid-run. */
-export const RNG_STREAMS = ["disputes", "names"] as const;
+export const RNG_STREAMS = ["disputes", "names", "crown"] as const;

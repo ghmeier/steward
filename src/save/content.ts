@@ -12,6 +12,7 @@ export function loadTuning(dataDir: string = DEFAULT_DATA_DIR): Tuning {
     ...(read("tuning.json") as object),
     village: read("village.json"),
     archive: read("archive.json"),
+    crown: read("crown.json"),
   });
 }
 

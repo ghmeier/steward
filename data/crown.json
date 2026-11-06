@@ -1,0 +1,31 @@
+{
+  "firstDemandTicks": 600,
+  "deadlineTicks": 1800,
+  "gap": { "minTicks": 1200, "maxTicks": 2400 },
+  "baseAmounts": { "coin": 100, "grain": 300, "ore": 80, "wood": 150 },
+  "step": 0.2,
+  "surcharge": 0.5,
+  "reward": 0.1,
+  "lines": {
+    "coin": {
+      "herald": "The crown requires {amount} coin for the treasury.",
+      "met": "The crown accepts {amount} coin and marks the debt paid.",
+      "missed": "The crown's collectors empty the strongbox for the unpaid {amount} coin."
+    },
+    "grain": {
+      "herald": "The crown requires {amount} grain for the garrison.",
+      "met": "The garrison's wagons leave full of your {amount} grain.",
+      "missed": "The garrison's wagons take what grain they find for the unpaid {amount}."
+    },
+    "ore": {
+      "herald": "The crown requires {amount} ore for the armory.",
+      "met": "The armory receives your {amount} ore and asks for nothing more.",
+      "missed": "The armory's men dig through your stores for the missing {amount} ore."
+    },
+    "wood": {
+      "herald": "The crown requires {amount} wood for the royal shipyard.",
+      "met": "The shipwrights unload your {amount} wood and nod once.",
+      "missed": "The shipwrights cut what they can for the missing {amount} wood."
+    }
+  }
+}

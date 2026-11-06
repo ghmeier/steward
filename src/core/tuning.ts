@@ -9,6 +9,7 @@ import {
   type ArchiveTuning,
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
+  CROWN_CORRESPONDENCE,
   type NeedHook,
   type PlayUnlock,
 } from "./unlocks";
@@ -23,6 +24,13 @@ const placeholderText = name.superRefine((text, ctx) => {
     if (match[1] !== "first" && match[1] !== "second") {
       addIssue(ctx, `has unknown placeholder ${match[0]}`);
     }
+  }
+});
+
+const amountText = name.superRefine((text, ctx) => {
+  for (const match of text.matchAll(/\{([^{}]*)\}/g)) {
+    if (match[1] !== "amount")
+      addIssue(ctx, `has unknown placeholder ${match[0]}`);
   }
 });
 
@@ -163,6 +171,39 @@ const village = z.strictObject({
     ),
 });
 
+const crownLines = z.strictObject({
+  herald: amountText,
+  met: amountText,
+  missed: amountText,
+});
+
+const crown = z
+  .strictObject({
+    firstDemandTicks: positiveInteger,
+    deadlineTicks: positiveInteger,
+    gap: z
+      .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
+      .superRefine((gap, ctx) => {
+        if (gap.minTicks > gap.maxTicks) {
+          addIssue(ctx, "must not exceed maxTicks", ["minTicks"]);
+        }
+      }),
+    baseAmounts: z.record(z.enum(RESOURCES), positive),
+    step: nonNegative,
+    surcharge: nonNegative,
+    reward: nonNegative,
+    lines: z.record(z.enum(RESOURCES), crownLines),
+  })
+  .superRefine((value, ctx) => {
+    for (const resource of RESOURCES) {
+      for (const key of ["baseAmounts", "lines"] as const) {
+        if (!Object.hasOwn(value[key], resource)) {
+          addIssue(ctx, "is missing", [key, resource]);
+        }
+      }
+    }
+  });
+
 const simpleCondition: z.ZodType<Condition> = conditionSchema({
   maxRules: 1,
   maxConditionNodes: 8,
@@ -192,7 +233,7 @@ const needHook: z.ZodType<NeedHook> = z.strictObject({
 
 function archiveIssues(archive: ArchiveTuning, ctx: z.RefinementCtx): void {
   const { entries, play, needs } = archive;
-  for (const id of [COMPOUND_UNLOCK, CHAINING_UNLOCK]) {
+  for (const id of [COMPOUND_UNLOCK, CHAINING_UNLOCK, CROWN_CORRESPONDENCE]) {
     if (!entries.some((entry) => entry.id === id)) {
       addIssue(ctx, `must include "${id}"`, ["entries"]);
     }
@@ -256,6 +297,7 @@ const tuningSchema = z
     economy,
     village,
     archive,
+    crown,
   })
   .superRefine((tuning, ctx) => {
     const max = tuning.economy.maxPopulation;
@@ -276,6 +318,7 @@ const tuningSchema = z
 
 export type Tuning = z.infer<typeof tuningSchema>;
 export type VillageTuning = z.infer<typeof village>;
+export type CrownTuning = z.infer<typeof crown>;
 export type DisputeTemplate = z.infer<typeof disputeTemplate>;
 export type DisputeOption = z.infer<typeof disputeOption>;
 

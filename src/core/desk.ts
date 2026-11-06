@@ -89,12 +89,12 @@ export class DeskManager {
     return null;
   }
 
-  private applyResources(
-    option: DisputeOption,
+  /** With `clampLosses`, a loss larger than the stock takes only what is held. */
+  applyResources(
+    resources: Readonly<Partial<Record<Resource, number>>>,
     context: AddContext,
     clampLosses: boolean,
   ): void {
-    const resources = option.resources ?? {};
     for (const resource of sortedKeys(resources)) {
       let delta = resources[resource as Resource] ?? 0;
       if (clampLosses) {
@@ -126,7 +126,7 @@ export class DeskManager {
     const problem = this.shortfall(option);
     if (problem !== null) return { ok: false, reason: problem };
 
-    this.applyResources(option, context, false);
+    this.applyResources(option.resources ?? {}, context, false);
     if (option.grudge !== undefined) {
       const party = dispute.parties[option.grudge === "first" ? 0 : 1];
       const peasant = this.game.delegates.findById(party);
@@ -184,7 +184,7 @@ export class DeskManager {
       const template = this.templateOf(oldest);
       const option = this.optionOf(template, template.expiry);
       if (option === undefined) throw new Error("expiry option is missing");
-      this.applyResources(option, context, true);
+      this.applyResources(option.resources ?? {}, context, true);
     }
   }
 }
