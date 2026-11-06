@@ -4,8 +4,8 @@ status: active
 tags: [phase-6]
 created: 2026-11-06
 updated: 2026-11-06
-last_pr: 7
-next_step: Garret reviews PR 7; PR 2 crown-panel and PR 3 desk-kinds in progress from crown-core
+last_pr: 8
+next_step: Garret reviews PR 7 and PR 8; PR 3 desk-kinds rebasing onto crown-panel in its refactor pass
 ---
 # Phase 6: crown quotas and a desk with more than disputes
 
@@ -91,7 +91,7 @@ The crown's demands in the core, the `deliver` command, the Archive entry and qu
 - [ ] Golden re-recorded, with the diff explained in the PR (new state fields and the crown stream; the fixture promotes before tick 10,000 only if it does today, so say which).
 - [ ] Simulator evidence in the PR: `reference.json` and `crown-aware.json`, seeds 1, 7 and 42, 36,000 ticks. Report demands met and missed for each, and the tick of each. Tune `data/crown.json` until the unchanged reference misses at least half and the crown-aware strategy meets most. If no tuning gets there, stop and report rather than forcing it.
 
-### PR 2: `crown-panel` (from `crown-core`)
+### PR 2: `crown-panel` (from `crown-core`), PR #8 opened
 
 The Crown panel, its key and notices, the `deliver` verb and Help.
 
@@ -145,3 +145,4 @@ From earlier phases, for implementers and the refactor pass:
 - 2026-11-06: Crown-aware pays its first demand about 100 ticks after issue, so demands may be too easy for a reacting player. Leave for the playtest.
 - 2026-11-06: PR #7 opened (remote 5be17ca). The refactor shared `drawDelay` in `rng.ts`, added `DECREE_GATES` and `OWED_RESOURCES`, and kept `UPGRADES[9]` reading `loadTuning()` because passing tuning through `parseSave` touches about 15 call sites. PR 2 and PR 3 dispatched in parallel from `crown-core`.
 - 2026-11-06: PR 2 implemented on `crown-panel` (1a55fd2, 882 tests). No bar helper exists, so the panel shows `ore 45 / 80` without a bar. `deliver` is a bare verb (a `bare` flag on `Verb`). Lead decisions: the missed notice names the demand's full amount, because collection at the deadline happens between views; the notice order stays rejection, starvation, crown, unlocks, promotion, so a delivery that earns the first coin shows "The Archive opens" instead of the met line. Refactor pass dispatched.
+- 2026-11-06: PR #8 opened (remote 772000a, 879 tests). PR 3 implemented on `desk-kinds` (c8f5214, 892 tests). Deviations: `data/desk.json` owns slots, arrival, grudgeTicks and the kinds; a saved `desk.lastExpired` drives the expiry notice; travellers have no `{name}` placeholder; a full village makes a traveller unaffordable. The golden fixture's tick-2300 command now admits a traveller, because the kind-first draw made entry 1 a traveller. Lead decision: rebase `desk-kinds` onto `crown-panel` so the three PRs form one stack, with `frame()` code order rejection, starvation, desk, crown, unlocks, promotion.
