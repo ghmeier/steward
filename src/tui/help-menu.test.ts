@@ -20,15 +20,26 @@ const village = (changes: Partial<Tuning["village"]>): Tuning => ({
   ...tuning,
   village: { ...tuning.village, ...changes },
 });
+const desk = (changes: Partial<Tuning["desk"]>): Tuning => ({
+  ...tuning,
+  desk: { ...tuning.desk, ...changes },
+});
 
-// Every ruling of the first dispute is stripped of its costs, then the first option gets `resources`.
+// Every desk entry is stripped but the first dispute, whose costs are removed, then its first option gets `resources`.
 function rulingsWith(resources: Record<string, number>): Tuning {
-  const [first] = tuning.village.disputes;
+  const { kinds } = tuning.desk;
+  const [first] = kinds.dispute.templates;
   if (first === undefined) throw new Error("no dispute template");
   const [head, ...rest] = first.options.map(({ id, label }) => ({ id, label }));
   if (head === undefined) throw new Error("no option");
   const options = [{ ...head, resources }, ...rest];
-  return village({ disputes: [{ ...first, options }] });
+  return desk({
+    kinds: {
+      dispute: { ...kinds.dispute, templates: [{ ...first, options }] },
+      merchant: { ...kinds.merchant, templates: [] },
+      traveller: { ...kinds.traveller, templates: [] },
+    },
+  });
 }
 
 const laborChanged = economy({
@@ -61,13 +72,14 @@ const rows: Row[] = [
 	{ name: "several labor moves per tick", topic: "Harvest and labor", using: economy({ laborMovesPerTick: 3 }), has: ["3 peasants move"] },
 	{ name: "labor allocation percentages", topic: "Harvest and labor", using: laborChanged, has: ["lumber: farm 10%, forest 80%, mine 10%", ...policiesFor("labor", laborChanged).map((name) => describePolicy("labor", name, laborChanged))] },
 	{ name: "wood rate converted with the step length", topic: "Wood and ore", using: { ...economy({ woodPerWorker: 0.03 }), stepMs: 250 }, has: ["cut wood at 0.12/s"] },
-	{ name: "dispute desk and grudge", topic: "Disputes", using: village({ deskSlots: 5, grudgeTicks: 300 }), has: ["desk of 5 slots", "for 30 s"] },
+	{ name: "desk slots and grudge", topic: "The desk", using: desk({ slots: 5, grudgeTicks: 300 }), has: ["desk of 5 slots", "for 30 s"] },
+	{ name: "every kind of entry", topic: "The desk", has: ["dispute", "merchant", "traveller"] },
 	{ name: "promotion population", topic: "Promotion", using: village({ promotionPopulation: 33 }), has: ["Reach 33 peasants"] },
 	{ name: "wood rulings", topic: "Wood and ore", using: rulingsWith({ wood: -2 }), has: ["Wood pays"], lacks: ["Wood has no use"] },
 	{ name: "no wood rulings", topic: "Wood and ore", using: rulingsWith({ coin: -2 }), has: ["Wood has no use", "Ore has no use"] },
 	{ name: "ore rulings", topic: "Wood and ore", using: rulingsWith({ ore: -1 }), has: ["Ore pays"], lacks: ["Ore has no use"] },
-	{ name: "coin rulings", topic: "Coin", using: rulingsWith({ coin: -2 }), has: ["spent on dispute rulings"], lacks: ["fines"] },
-	{ name: "coin fines", topic: "Coin", using: rulingsWith({ coin: 2 }), has: ["fines"], lacks: ["spent on dispute rulings"] },
+	{ name: "coin rulings", topic: "Coin", using: rulingsWith({ coin: -2 }), has: ["spent on rulings"], lacks: ["pay coin"] },
+	{ name: "coin fines", topic: "Coin", using: rulingsWith({ coin: 2 }), has: ["pay coin"], lacks: ["spent on rulings"] },
 	{ name: "the Archive once open", topic: "Coin", unlocks: [ARCHIVE_PANEL], has: ["Archive"] },
 	{ name: "no Archive before it opens", topic: "Coin", lacks: ["Archive"] },
 	{ name: "decrees before any unlock", topic: "Decrees", lacks: ["and, or or", "chose", "enact"] },

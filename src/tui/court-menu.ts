@@ -16,29 +16,29 @@ function costText(option: DeskOptionView): string {
 function optionLabel(entry: DeskEntryView, option: DeskOptionView): string {
   const party = option.grudge;
   const sulk =
-    party === "none"
+    party === "none" || entry.parties === null
       ? ""
       : ` (${entry.parties[party === "first" ? 0 : 1]} will sulk for a season)`;
   const fallback = option.expiry ? " (the default if ignored)" : "";
   return `${option.label}: ${costText(option)}${sulk}${fallback}`;
 }
 
-function disputeScreen(disputeId: number): ScreenBuilder {
+function entryScreen(entryId: number): ScreenBuilder {
   return (context: MenuContext): Screen => {
     const entry = context.view.desk.find(
-      (candidate) => candidate.id === disputeId,
+      (candidate) => candidate.id === entryId,
     );
     if (entry === undefined) {
       return {
         kind: "list",
-        title: "Hold court",
-        notes: ["This dispute is no longer on the desk."],
+        title: "The desk",
+        notes: ["This matter is no longer on the desk."],
         items: [],
       };
     }
     return {
       kind: "list",
-      title: "Settle the dispute",
+      title: "Decide",
       notes: [entry.label],
       items: entry.options.map(
         (option): MenuItem => ({
@@ -60,14 +60,14 @@ function disputeScreen(disputeId: number): ScreenBuilder {
 }
 
 export const courtMenu: ScreenBuilder = (context) => {
-  const disputes = context.view.desk;
+  const entries = context.view.desk;
   return {
     kind: "list",
-    title: "Hold court",
-    notes: disputes.length === 0 ? ["No disputes wait on the desk."] : [],
-    items: disputes.map((entry) => ({
+    title: "The desk",
+    notes: entries.length === 0 ? ["Nothing waits on the desk."] : [],
+    items: entries.map((entry) => ({
       label: entry.label,
-      action: { kind: "push", screen: disputeScreen(entry.id) },
+      action: { kind: "push", screen: entryScreen(entry.id) },
     })),
   };
 };

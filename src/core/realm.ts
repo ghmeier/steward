@@ -17,3 +17,7 @@ export type WorkingJob = (typeof WORKING_JOBS)[number];
 // Calendar order, not key order: a season's index is its position in the year.
 export const SEASONS = ["spring", "summer", "autumn", "winter"] as const;
 export type Season = (typeof SEASONS)[number];
+
+/** Every kind of event that can wait on the desk; a record keyed by kind is in this order. */
+export const DESK_KINDS = ["dispute", "merchant", "traveller"] as const;
+export type DeskKind = (typeof DESK_KINDS)[number];

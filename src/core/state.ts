@@ -6,7 +6,7 @@ import type { EconomyState } from "./economy";
 import type { LaborState } from "./labor";
 import type { RngState } from "./rng";
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 export type ResourceId = string;
 

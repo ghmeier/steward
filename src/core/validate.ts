@@ -78,12 +78,23 @@ const delegate = z.strictObject({
   grudgeUntil: count,
 });
 
-const dispute = z.strictObject({
+const deskEntryBase = {
   id: positiveCount,
   template: z.string().min(1),
-  parties: z.tuple([positiveCount, positiveCount]),
   arrivedAt: count,
-});
+};
+
+const deskEntry = z.discriminatedUnion("kind", [
+  z.strictObject({
+    ...deskEntryBase,
+    kind: z.literal("dispute"),
+    parties: z.tuple([positiveCount, positiveCount]),
+  }),
+  z.strictObject({
+    ...deskEntryBase,
+    kind: z.enum(["merchant", "traveller"]),
+  }),
+]);
 
 const demand = z.strictObject({
   id: count,
@@ -122,7 +133,8 @@ const desk = z
   .strictObject({
     nextDisputeId: positiveCount,
     nextArrivalTick: count,
-    disputes: z.array(dispute),
+    disputes: z.array(deskEntry),
+    lastExpired: z.strictObject({ id: count, line: z.string() }),
   })
   .superRefine((value, ctx) =>
     ascendingIdIssues(ctx, value, "disputes", "nextDisputeId"),
@@ -171,8 +183,9 @@ function rosterIssues(posting: PostingState, ctx: z.RefinementCtx): void {
   }
 
   const living = new Set(posting.delegates.map(({ id }) => id));
-  for (const [index, { parties }] of posting.desk.disputes.entries()) {
-    const [first, second] = parties;
+  for (const [index, entry] of posting.desk.disputes.entries()) {
+    if (entry.kind !== "dispute") continue;
+    const [first, second] = entry.parties;
     if (first === second || !living.has(first) || !living.has(second)) {
       addIssue(ctx, "must be two distinct peasants in the roster", [
         "desk",

@@ -182,9 +182,14 @@ export class EconomyManager {
       economy.growth >= settings.grainPerPeasant &&
       delegates.length < settings.maxPopulation
     ) {
-      this.placeNewborn(this.game.delegates.create());
+      this.admitNewcomer();
       economy.growth -= settings.grainPerPeasant;
     }
+  }
+
+  /** Adds one named peasant, placed by the labor decree's policy the same way a birth is. */
+  admitNewcomer(): void {
+    this.placeNewborn(this.game.delegates.create());
   }
 
   laborTargetFor(policy: string): Record<Job, number> {

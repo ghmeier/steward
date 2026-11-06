@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { contextFor } from "../../test/helpers";
+import { contextFor, setRoster } from "../../test/helpers";
 import { emptyCrownState } from "../core/crown";
 import { Game } from "../core/game";
 import { NO_LABOR_POLICY } from "../core/labor";
@@ -219,6 +219,61 @@ describe("version 9 upgrade", () => {
 
     expect(state.posting.crown).toEqual(emptyCrownState());
     expect(Object.hasOwn(state.career.unlocks, CROWN_PANEL)).toBe(false);
+  });
+});
+
+describe("version 10 upgrade", () => {
+  function version10Save(): Record<string, unknown> {
+    const game = Game.create(42, loadTuning());
+    setRoster(game, { idle: 2 });
+    game.state.posting.desk.nextDisputeId = 3;
+    game.state.posting.desk.disputes = [
+      {
+        id: 1,
+        kind: "dispute",
+        template: "stolen-hen",
+        parties: [1, 2],
+        arrivedAt: 0,
+      },
+      {
+        id: 2,
+        kind: "dispute",
+        template: "dowry",
+        parties: [2, 1],
+        arrivedAt: 0,
+      },
+    ];
+    const state = structuredClone(game.state) as unknown as Record<
+      string,
+      unknown
+    >;
+    const { lastExpired: _, ...desk } = (
+      state.posting as { desk: Record<string, unknown> }
+    ).desk;
+    const entries = (desk.disputes as Record<string, unknown>[]).map(
+      ({ kind: __, ...entry }) => entry,
+    );
+    return {
+      ...state,
+      schemaVersion: 10,
+      posting: {
+        ...(state.posting as object),
+        desk: { ...desk, disputes: entries },
+      },
+    };
+  }
+
+  test("a version 10 save loads with every existing desk entry marked as a dispute and nothing expired", () => {
+    writeSave(10, version10Save());
+
+    const state = loaded(dir);
+
+    expect(state.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(state.posting.desk.disputes.map((entry) => entry.kind)).toEqual([
+      "dispute",
+      "dispute",
+    ]);
+    expect(state.posting.desk.lastExpired).toEqual({ id: 0, line: "" });
   });
 });
 

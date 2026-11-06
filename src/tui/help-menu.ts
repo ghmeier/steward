@@ -1,5 +1,5 @@
 import { policiesFor } from "../core/decree";
-import { type Resource, SEASONS } from "../core/realm";
+import { DESK_KINDS, type Resource, SEASONS } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 import {
   type ArchiveEntry,
@@ -34,11 +34,13 @@ function rulingsTouching(
   resource: Resource,
   sign: "costs" | "pays",
 ): boolean {
-  return tuning.village.disputes.some((dispute) =>
-    dispute.options.some((option) => {
-      const amount = option.resources?.[resource] ?? 0;
-      return sign === "costs" ? amount < 0 : amount > 0;
-    }),
+  return DESK_KINDS.some((kind) =>
+    tuning.desk.kinds[kind].templates.some((template) =>
+      template.options.some((option) => {
+        const amount = option.resources?.[resource] ?? 0;
+        return sign === "costs" ? amount < 0 : amount > 0;
+      }),
+    ),
   );
 }
 
@@ -106,10 +108,10 @@ function coinLines(context: MenuContext): string[] {
     "Selling happens through a harvest, wood or ore decree (see Harvest and labor).",
   ];
   if (rulingsTouching(tuning, "coin", "pays")) {
-    lines.push("Some dispute fines pay a little coin as well.");
+    lines.push("Merchants and some rulings pay coin as well.");
   }
   if (rulingsTouching(tuning, "coin", "costs")) {
-    lines.push("", "Coin is spent on dispute rulings.");
+    lines.push("", "Coin is spent on rulings and on merchants' wares.");
   }
   if (context.view.archive.open) {
     lines.push("", "Coin also buys entries from the Archive (press a).");
@@ -119,7 +121,7 @@ function coinLines(context: MenuContext): string[] {
 
 function resourceUse(tuning: Tuning, resource: Resource, name: string) {
   return rulingsTouching(tuning, resource, "costs")
-    ? `${name} pays for some dispute rulings.`
+    ? `${name} pays for some rulings and merchants' wares.`
     : `${name} has no use yet.`;
 }
 
@@ -191,18 +193,20 @@ function harvestAndLaborLines(tuning: Tuning): string[] {
   ];
 }
 
-function disputeLines(tuning: Tuning): string[] {
-  const { village } = tuning;
-  const { minTicks, maxTicks } = village.disputeArrival;
+function deskLines(tuning: Tuning): string[] {
+  const { desk } = tuning;
+  const { minTicks, maxTicks } = desk.arrival;
   const range = `${seconds(minTicks, tuning)} to ${seconds(maxTicks, tuning)}`;
   return [
-    `A dispute arrives every ${range}, onto a desk of ${plain(village.deskSlots)} slots.`,
-    "When the desk overflows, the oldest dispute takes its default ruling.",
+    `Something arrives on the desk every ${range}, onto a desk of ${plain(desk.slots)} slots. It is a dispute between two peasants, a merchant with an offer, or a traveller asking to settle.`,
+    "When the desk overflows, the oldest entry takes its default answer, and the merchant or traveller moves on.",
     "",
     "A ruling can cost stores, or make one party sulk.",
-    `A sulking peasant produces nothing and refuses a job, for ${seconds(village.grudgeTicks, tuning)}.`,
+    `A sulking peasant produces nothing and refuses a job, for ${seconds(desk.grudgeTicks, tuning)}.`,
+    "A merchant trades at his own price, so check it against the market. A traveller who settles costs grain and adds one peasant, if the village has room.",
+    "A dispute is dropped if one of its parties dies. Merchants and travellers wait their turn.",
     "",
-    "Press c to hold court and settle what is waiting.",
+    "Press c to open the desk and answer what is waiting.",
   ];
 }
 
@@ -244,7 +248,7 @@ const TOPICS: readonly {
   { label: "Wood and ore", lines: (c) => woodAndOreLines(c.tuning) },
   { label: "Decrees", lines: decreeLines },
   { label: "Harvest and labor", lines: (c) => harvestAndLaborLines(c.tuning) },
-  { label: "Disputes", lines: (c) => disputeLines(c.tuning) },
+  { label: "The desk", lines: (c) => deskLines(c.tuning) },
   { label: "Promotion", lines: (c) => promotionLines(c.tuning) },
   { label: "Crown", lines: (c) => crownLines(c.tuning) },
 ];

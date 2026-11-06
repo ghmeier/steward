@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { setRoster, tuning } from "../../test/helpers";
 import { Game } from "./game";
+import { SCHEMA_VERSION } from "./state";
 import { assertValidState, validateState } from "./validate";
 
 // biome-ignore lint/suspicious/noExplicitAny: the tests patch arbitrary state paths
@@ -15,8 +16,8 @@ function patched(patches: Patches = {}): Tree {
   state.tick = 50;
   state.posting.desk.nextDisputeId = 5;
   state.posting.desk.disputes = [
-    { id: 1, template: "hen", parties: [1, 2], arrivedAt: 10 },
-    { id: 3, template: "hen", parties: [3, 4], arrivedAt: 20 },
+    { id: 1, kind: "dispute", template: "hen", parties: [1, 2], arrivedAt: 10 },
+    { id: 3, kind: "dispute", template: "hen", parties: [3, 4], arrivedAt: 20 },
   ];
   const root = state as unknown as Tree;
   for (const [path, value] of Object.entries(patches)) {
@@ -89,7 +90,7 @@ describe("validateState", () => {
     [
       "a wrong schemaVersion",
       { schemaVersion: 99 },
-      "$.schemaVersion: Invalid input: expected 10",
+      `$.schemaVersion: Invalid input: expected ${SCHEMA_VERSION}`,
     ],
     [
       "an all-zero rng stream",
@@ -162,6 +163,23 @@ describe("validateState", () => {
       "disputes[0].parties:",
     ],
     [
+      "a merchant carrying parties",
+      {
+        "posting.desk.disputes.0.kind": "merchant",
+      },
+      "disputes[0]",
+    ],
+    [
+      "a dispute with no parties",
+      { "posting.desk.disputes.0.parties": undefined },
+      "disputes[0]",
+    ],
+    [
+      "an unknown kind",
+      { "posting.desk.disputes.0.kind": "bard" },
+      "disputes[0].kind",
+    ],
+    [
       "a dispute arriving after the tick",
       { "posting.desk.disputes.0.arrivedAt": 51 },
       "disputes[0].arrivedAt:",
@@ -195,6 +213,15 @@ describe("validateState", () => {
       {
         "posting.delegates": (l: unknown[]) => l.slice(1),
         "posting.desk.disputes": [],
+      },
+    ],
+    [
+      "a merchant and a traveller with no parties",
+      {
+        "posting.desk.disputes": [
+          { id: 1, kind: "merchant", template: "ore-buyer", arrivedAt: 10 },
+          { id: 3, kind: "traveller", template: "settler", arrivedAt: 20 },
+        ],
       },
     ],
     ["a promotedAt equal to the tick", { "career.promotedAt": 50 }],

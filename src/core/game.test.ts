@@ -94,7 +94,7 @@ describe("parseTuning", () => {
   });
 
   const t = fullTuningJson;
-  const [firstDispute] = t.village.disputes;
+  const [firstDispute] = t.desk.kinds.dispute.templates;
   const expiryIndex =
     firstDispute?.options.findIndex(
       (option) => option.id === firstDispute.expiry,
@@ -110,13 +110,18 @@ describe("parseTuning", () => {
 		["fewer names than the maximum population", "village.names", t.village.names.slice(0, t.economy.maxPopulation - 1), "tuning.village.names: needs at least"],
 		["a repeated name", "village.names.5", t.village.names[2], "tuning.village.names: repeats"],
 		["a promotion population above the maximum", "village.promotionPopulation", t.economy.maxPopulation + 1, "tuning.village.promotionPopulation: must not exceed"],
-		["minTicks above maxTicks", "village.disputeArrival", { minTicks: 20, maxTicks: 10 }, "tuning.village.disputeArrival.minTicks: must not exceed"],
-		["a repeated dispute id", "village.disputes.1.id", firstDispute?.id, "tuning.village.disputes: repeats id"],
-		["a repeated option id", "village.disputes.0.options.1.id", firstDispute?.options[0]?.id, "tuning.village.disputes[0].options: repeats option id"],
-		["an expiry naming no option", "village.disputes.0.expiry", "nothing", "tuning.village.disputes[0].expiry: must name one of its options"],
-		["an unknown placeholder", "village.disputes.0.text", "{third} waits", "tuning.village.disputes[0].text: has unknown placeholder"],
-		["an expiry option that grudges", `village.disputes.0.options.${expiryIndex}.grudge`, "first", "must not grudge"],
-		["an expiry option that gains a resource", `village.disputes.0.options.${expiryIndex}.resources`, { coin: 1 }, "must not gain coin"],
+		["minTicks above maxTicks", "desk.arrival", { minTicks: 20, maxTicks: 10 }, "tuning.desk.arrival.minTicks: must not exceed"],
+		["a repeated dispute id", "desk.kinds.dispute.templates.1.id", firstDispute?.id, "tuning.desk.kinds.dispute.templates: repeats id"],
+		["a repeated option id", "desk.kinds.dispute.templates.0.options.1.id", firstDispute?.options[0]?.id, "tuning.desk.kinds.dispute.templates[0].options: repeats option id"],
+		["an expiry naming no option", "desk.kinds.dispute.templates.0.expiry", "nothing", "tuning.desk.kinds.dispute.templates[0].expiry: must name one of its options"],
+		["an unknown placeholder", "desk.kinds.dispute.templates.0.text", "{third} waits", "tuning.desk.kinds.dispute.templates[0].text: has unknown placeholder"],
+		["an expiry option that grudges", `desk.kinds.dispute.templates.0.options.${expiryIndex}.grudge`, "first", "must not grudge"],
+		["an expiry option that gains a resource", `desk.kinds.dispute.templates.0.options.${expiryIndex}.resources`, { coin: 1 }, "must not gain coin"],
+		["a merchant text with a party placeholder", "desk.kinds.merchant.templates.0.text", "{first} waits", "tuning.desk.kinds.merchant.templates[0].text: has unknown placeholder"],
+		["a merchant option that grudges", "desk.kinds.merchant.templates.0.options.0.grudge", "first", "Unrecognized key"],
+		["a dispute option that adds a peasant", "desk.kinds.dispute.templates.0.options.0.newcomer", true, "Unrecognized key"],
+		["an expiry option that adds a peasant", "desk.kinds.traveller.templates.0.options.1.newcomer", true, "must not add a peasant"],
+		["a zero arrival weight", "desk.kinds.traveller.weight", 0, "tuning.desk.kinds.traveller.weight"],
 		["no compound conditions entry", "archive.entries", without("decree.compound"), 'tuning.archive.entries: must include "decree.compound"'],
 		["no chaining entry", "archive.entries", without("decree.chaining"), 'tuning.archive.entries: must include "decree.chaining"'],
 		["a duplicate id across entries", "archive.entries.1.id", entries[0]?.id, "tuning.archive: repeats id"],

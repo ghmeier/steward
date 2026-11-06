@@ -1,22 +1,35 @@
 import { describe, expect, test } from "bun:test";
 import {
   contextFor,
+  deskDrawing,
   setRoster,
   economyTestTuning as tuning,
 } from "../../test/helpers";
-import type { Dispute } from "./desk";
+import type { DeskEntry, Dispute, Offer } from "./desk";
 import { Game } from "./game";
+import { Job } from "./realm";
 
-const { disputeArrival, grudgeTicks } = tuning.village;
+const { arrival, grudgeTicks } = tuning.desk;
+const disputesOnly = deskDrawing("dispute");
 
-function village(seed = 1, idle = 10): Game {
-  const game = Game.create(seed, tuning);
+function village(seed = 1, idle = 10, using = tuning): Game {
+  const game = Game.create(seed, using);
   setRoster(game, { idle });
   return game;
 }
 
 function dispute(id: number, template: string, parties: [number, number]) {
-  return { id, template, parties, arrivedAt: 0 } satisfies Dispute;
+  return {
+    id,
+    kind: "dispute",
+    template,
+    parties,
+    arrivedAt: 0,
+  } satisfies Dispute;
+}
+
+function offer(id: number, kind: Offer["kind"], template: string) {
+  return { id, kind, template, arrivedAt: 0 } satisfies Offer;
 }
 
 /** The nth disjoint pair of peasants, taken from the game's real roster. */
@@ -26,7 +39,7 @@ function pair(game: Game, n: number): [number, number] {
   return [first.id, second.id];
 }
 
-function holdDisputes(game: Game, ...held: Dispute[]): void {
+function holdDisputes(game: Game, ...held: DeskEntry[]): void {
   game.state.posting.desk.disputes = held;
   game.state.posting.desk.nextDisputeId = (held.at(-1)?.id ?? 0) + 1;
 }
@@ -50,7 +63,7 @@ describe("arrivals", () => {
   test.each([2, 4])(
     "with %p peasants nothing arrives early, then every arrival has two distinct living parties and a delay in range",
     (peasants) => {
-      const game = village(3, peasants);
+      const game = village(3, peasants, disputesOnly);
       const living = game.state.posting.delegates.map(
         (delegate) => delegate.id,
       );
@@ -70,24 +83,69 @@ describe("arrivals", () => {
       }
 
       for (const delay of delays) {
-        expect(delay).toBeGreaterThanOrEqual(disputeArrival.minTicks);
-        expect(delay).toBeLessThanOrEqual(disputeArrival.maxTicks);
+        expect(delay).toBeGreaterThanOrEqual(arrival.minTicks);
+        expect(delay).toBeLessThanOrEqual(arrival.maxTicks);
       }
       expect(new Set(delays).size).toBeGreaterThan(1);
     },
   );
 
-  test("with fewer than two peasants nothing arrives but the next arrival is scheduled", () => {
+  test("an arrival schedules the next one within the arrival range", () => {
     const game = village(1, 1);
     const due = game.state.posting.desk.nextArrivalTick;
 
     arriveNext(game);
 
     const delay = game.state.posting.desk.nextArrivalTick - due;
-    expect(game.state.posting.desk.disputes).toHaveLength(0);
-    expect(game.state.posting.desk.nextDisputeId).toBe(1);
-    expect(delay).toBeGreaterThanOrEqual(disputeArrival.minTicks);
-    expect(delay).toBeLessThanOrEqual(disputeArrival.maxTicks);
+    expect(delay).toBeGreaterThanOrEqual(arrival.minTicks);
+    expect(delay).toBeLessThanOrEqual(arrival.maxTicks);
+  });
+});
+
+function drawnKinds(game: Game, arrivals: number): Set<string> {
+  const kinds = new Set<string>();
+  for (let i = 0; i < arrivals; i++) {
+    arriveNext(game);
+    const latest = game.state.posting.desk.disputes.at(-1);
+    if (latest === undefined) throw new Error("nothing arrived");
+    kinds.add(latest.kind);
+  }
+  return kinds;
+}
+
+describe("kind draw", () => {
+  test("with one peasant no dispute is drawn, and the other kinds still arrive", () => {
+    const game = village(2, 1);
+
+    const kinds = drawnKinds(game, 200);
+
+    expect(kinds.has("dispute")).toBe(false);
+    expect(kinds).toEqual(new Set(["merchant", "traveller"]));
+  });
+
+  test("with two or more peasants every kind is drawn", () => {
+    const game = village(2, 10);
+
+    const kinds = drawnKinds(game, 200);
+
+    expect(kinds).toEqual(new Set(["dispute", "merchant", "traveller"]));
+  });
+
+  test("at the population cap no traveller is drawn", () => {
+    const game = village(2, tuning.economy.maxPopulation);
+
+    const kinds = drawnKinds(game, 200);
+
+    expect(kinds.has("traveller")).toBe(false);
+    expect(kinds.has("dispute")).toBe(true);
+  });
+
+  test("a kind with no weight is never drawn", () => {
+    const game = village(2, 10, deskDrawing("merchant"));
+
+    const kinds = drawnKinds(game, 50);
+
+    expect(kinds).toEqual(new Set(["merchant"]));
   });
 });
 
@@ -294,4 +352,174 @@ describe("view desk", () => {
       expect(options?.[1]?.affordable).toBe(true);
     },
   );
+});
+
+const [merchantTemplate] = tuning.desk.kinds.merchant.templates;
+const [travellerTemplate] = tuning.desk.kinds.traveller.templates;
+
+function option(
+  template: typeof merchantTemplate | typeof travellerTemplate,
+  id: string,
+) {
+  const found = template?.options.find((candidate) => candidate.id === id);
+  if (found === undefined) throw new Error(`no option ${id}`);
+  return found;
+}
+
+describe("merchants", () => {
+  function crowded() {
+    const game = village();
+    game.state.posting.resources.ore = 50;
+    game.state.posting.resources.coin = 5;
+    holdDisputes(
+      game,
+      offer(1, "merchant", "ore-buyer"),
+      offer(2, "merchant", "ore-buyer"),
+      offer(3, "merchant", "ore-buyer"),
+      offer(4, "merchant", "ore-buyer"),
+    );
+    return game;
+  }
+
+  test("an expired merchant gains and costs nothing and leaves its flavor line", () => {
+    const game = crowded();
+    const resources = { ...game.state.posting.resources };
+    game.state.tick = game.state.posting.desk.nextArrivalTick - 1;
+
+    game.desk.run(contextFor(game));
+
+    expect(game.state.posting.desk.disputes.map((entry) => entry.id)).toEqual([
+      2, 3, 4,
+    ]);
+    expect(game.state.posting.resources).toEqual(resources);
+    expect(game.state.posting.desk.lastExpired).toEqual({
+      id: 1,
+      line: merchantTemplate?.expired as string,
+    });
+  });
+
+  test("accepting an offer trades at the template's rates", () => {
+    const game = crowded();
+    const sell = option(merchantTemplate, "sell");
+
+    expect(settle(game, 1, "sell")).toEqual({ ok: true });
+
+    expect(game.state.posting.resources.ore).toBe(
+      50 + (sell.resources?.ore as number),
+    );
+    expect(game.state.posting.resources.coin).toBe(
+      5 + (sell.resources?.coin as number),
+    );
+  });
+
+  test("an offer the village cannot cover is refused and nothing changes", () => {
+    const game = crowded();
+    game.state.posting.resources.ore = 3;
+    const before = structuredClone(game.state);
+
+    const result = settle(game, 1, "sell");
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "not enough ore (need 10, have 3)",
+    });
+    expect(game.state).toEqual(before);
+  });
+
+  test("a merchant stays when a peasant leaves, while a dispute naming that peasant is dropped", () => {
+    const game = village();
+    const [departing] = pair(game, 0);
+    holdDisputes(
+      game,
+      offer(1, "merchant", "ore-buyer"),
+      dispute(2, "hen", pair(game, 0)),
+    );
+    game.delegates.remove(departing);
+    game.state.tick = game.state.posting.desk.nextArrivalTick - 1;
+
+    game.desk.run(contextFor(game));
+
+    expect(game.state.posting.desk.disputes.map((entry) => entry.id)).toEqual([
+      1,
+    ]);
+  });
+});
+
+describe("travellers", () => {
+  const flows = { harvest: 0, wood: 0, ore: 0 };
+
+  function settledVillage() {
+    const game = village();
+    game.decrees.enact({
+      id: "workforce",
+      petition: "labor",
+      rules: [],
+      otherwise: "balanced",
+    });
+    for (let i = 0; i < 10; i++) game.decrees.run(contextFor(game), flows);
+    game.state.posting.resources.grain = 100;
+    holdDisputes(game, offer(1, "traveller", "settler"));
+    return game;
+  }
+
+  test("accepting a traveller costs grain and adds one named peasant placed where the labor decree is short", () => {
+    const game = settledVillage();
+    const before = game.delegates.all.length;
+    const cost = option(travellerTemplate, "admit").resources?.grain as number;
+
+    expect(settle(game, 1, "admit")).toEqual({ ok: true });
+
+    const newcomer = game.delegates.all.at(-1);
+    expect(game.delegates.all).toHaveLength(before + 1);
+    expect(newcomer?.name).toBeTruthy();
+    expect(newcomer?.job).toBe(Job.FARM);
+    expect(game.state.posting.resources.grain).toBe(100 + cost);
+    expect(game.state.posting.desk.disputes).toEqual([]);
+  });
+
+  test("sending a traveller away adds nobody and costs nothing", () => {
+    const game = settledVillage();
+    const before = game.delegates.all.length;
+
+    expect(settle(game, 1, "turn-away")).toEqual({ ok: true });
+
+    expect(game.delegates.all).toHaveLength(before);
+    expect(game.state.posting.resources.grain).toBe(100);
+  });
+
+  test("a traveller cannot be admitted once the village is full", () => {
+    const game = village(1, tuning.economy.maxPopulation);
+    game.state.posting.resources.grain = 100;
+    holdDisputes(game, offer(1, "traveller", "settler"));
+
+    const result = settle(game, 1, "admit");
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "the village has no room for another peasant",
+    });
+    expect(game.delegates.all).toHaveLength(tuning.economy.maxPopulation);
+  });
+});
+
+describe("expiry lines", () => {
+  test("a dispute's flavor line names its parties", () => {
+    const game = village();
+    holdDisputes(
+      game,
+      dispute(1, "hen", pair(game, 0)),
+      dispute(2, "hen", pair(game, 1)),
+      dispute(3, "hen", pair(game, 2)),
+      dispute(4, "hen", pair(game, 3)),
+    );
+    game.state.posting.resources.grain = 50;
+    game.state.tick = game.state.posting.desk.nextArrivalTick - 1;
+    const [first] = pair(game, 0);
+
+    game.desk.run(contextFor(game));
+
+    expect(game.state.posting.desk.lastExpired.line).toBe(
+      `A hen was bought for ${peasant(game, first).name}.`,
+    );
+  });
 });

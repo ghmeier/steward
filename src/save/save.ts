@@ -12,6 +12,7 @@ import {
 import { dirname, join } from "node:path";
 import { emptyCrownState } from "../core/crown";
 import { isRecord } from "../core/data";
+import { NO_EXPIRY } from "../core/desk";
 import { errorMessage } from "../core/errors";
 import { NO_LABOR_POLICY } from "../core/labor";
 import { seedStream } from "../core/rng";
@@ -79,6 +80,16 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
       state.career.unlocks[CROWN_PANEL] = state.tick as number;
       crown.nextDemandTick =
         (state.tick as number) + loadTuning().crown.firstDemandTicks;
+    }
+  },
+  // Every desk entry before version 11 was a dispute. The newest expiry starts as none.
+  10: (state) => {
+    if (!isRecord(state.posting) || !isRecord(state.posting.desk)) return;
+    const { desk } = state.posting;
+    desk.lastExpired = { ...NO_EXPIRY };
+    if (!Array.isArray(desk.disputes)) return;
+    for (const entry of desk.disputes) {
+      if (isRecord(entry)) entry.kind = "dispute";
     }
   },
 };
