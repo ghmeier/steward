@@ -279,8 +279,8 @@ export class CrownPanel extends VillagePanel {
 
   enter(): void {}
 
-  private static dueIn(seconds: number): string {
-    return `due in ${formatGameTime(seconds)}`;
+  private static seconds(ticks: number, tuning: MenuContext["tuning"]): number {
+    return (ticks * tuning.stepMs) / 1000;
   }
 
   /** Whole minutes once past one, since a countdown to the second would flicker for a demand not yet made. */
@@ -294,11 +294,11 @@ export class CrownPanel extends VillagePanel {
     demand: CrownDemandView,
     tuning: MenuContext["tuning"],
   ): string[] {
-    const seconds = (demand.ticksLeft * tuning.stepMs) / 1000;
+    const seconds = CrownPanel.seconds(demand.ticksLeft, tuning);
     return [
       demand.herald,
       `${demand.resource} ${plain(demand.delivered)} / ${plain(demand.amount)}`,
-      CrownPanel.dueIn(seconds),
+      `due in ${formatGameTime(seconds)}`,
     ];
   }
 
@@ -306,7 +306,7 @@ export class CrownPanel extends VillagePanel {
     crown: CrownView,
     tuning: MenuContext["tuning"],
   ): string[] {
-    const seconds = ((crown.nextDemandTicks ?? 0) * tuning.stepMs) / 1000;
+    const seconds = CrownPanel.seconds(crown.nextDemandTicks ?? 0, tuning);
     return [
       `The crown is quiet. Next demand in about ${CrownPanel.roughly(seconds)}.`,
     ];

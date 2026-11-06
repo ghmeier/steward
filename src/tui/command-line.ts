@@ -42,7 +42,13 @@ const NUMBER_HELP = "a number, such as 2 or 0.5";
 const NUMBER = /^-?\d+(\.\d+)?(e[+-]?\d+)?$/;
 const NUMBER_PREFIX = /^-?\d*\.?\d*(e[+-]?\d*)?$/;
 
-type Choice<T> = { text: string; description: string; value: T };
+type Choice<T> = {
+  text: string;
+  description: string;
+  value: T;
+  /** Set when this choice alone already ends a command, so an exact match is accepted like a final word. */
+  final?: boolean;
+};
 /** A suggestion plus the whole line that accepting it produces, so tab never has to guess where the partial word began. */
 type Option = Suggestion & { completion: string };
 
@@ -114,7 +120,7 @@ class Cursor {
       const problem = options.unmatched?.(word) ?? `"${word}" is not ${what}`;
       throw new Halt([], problem, null);
     }
-    if (rest === best.text && options.final !== true) {
+    if (rest === best.text && !options.final && !best.final) {
       throw new Halt(offer(prefixed), null, null);
     }
     const trailing = rest.slice(best.text.length);
@@ -712,10 +718,6 @@ const VERBS: readonly Verb[] = [
   },
 ];
 
-function isCompleteBareVerb(text: string): boolean {
-  return VERBS.some((verb) => verb.bare === true && verb.word === text.trim());
-}
-
 type Analysis = LineResult & { options: Option[]; expecting: string | null };
 
 function analyze(text: string, context: MenuContext): Analysis {
@@ -727,9 +729,9 @@ function analyze(text: string, context: MenuContext): Analysis {
         text: value.word,
         description: value.description,
         value,
+        final: value.bare === true,
       })),
       {
-        final: isCompleteBareVerb(text),
         unmatched: (word) => {
           const locked = VERBS.find((value) => value.word === word);
           return locked === undefined

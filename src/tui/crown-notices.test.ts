@@ -43,21 +43,16 @@ describe("crownNotice", () => {
     ).toBeNull();
   });
 
-  test("a demand met reports the met line with the full amount", () => {
-    const open = crown({ delivered: 70, ticksLeft: 5 });
+  test("a resolved demand reports the met or missed line with the full amount asked", () => {
+    const open = crown({ delivered: 30, ticksLeft: 5 });
     const met = crown(null, { met: 1 });
+    const missed = crown(null, { missed: 1 });
 
     expect(crownNotice(open, met, tuning)).toBe(
       lines.ore.met.replaceAll("{amount}", String(demand.amount)),
     );
-  });
-
-  test("a demand missed reports the missed line with the amount still unpaid", () => {
-    const open = crown({ delivered: 30, ticksLeft: 5 });
-    const missed = crown(null, { missed: 1 });
-
     expect(crownNotice(open, missed, tuning)).toBe(
-      lines.ore.missed.replaceAll("{amount}", String(demand.amount - 30)),
+      lines.ore.missed.replaceAll("{amount}", String(demand.amount)),
     );
   });
 

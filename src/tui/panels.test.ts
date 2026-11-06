@@ -440,15 +440,18 @@ describe("createPanels", () => {
     const crownView = (crown: GameView["crown"]) =>
       emptyView({ crown, unlocks: [CROWN_PANEL] });
 
-    test("an open demand shows its herald, progress, time left and the tally", async () => {
-      const frame = await draw([
-        crownView({ demand, nextDemandTicks: null, met: 3, missed: 1 }),
-      ]);
+    test("an open demand shows its whole herald, progress, time left, tally and the deliver hint", async () => {
+      const frame = await draw(
+        [crownView({ demand, nextDemandTicks: null, met: 3, missed: 1 })],
+        { focus: "crown" },
+      );
 
       expect(frame).toContain(demand.herald.slice(0, 20));
+      expect(frame).toContain("armory.");
       expect(frame).toContain("ore 45 / 80");
       expect(frame).toContain("due in 1m 20s");
       expect(frame).toContain("Met 3 \u00b7 missed 1");
+      expect(frame).toContain("enter deliver \u00b7 esc back");
     });
 
     test("between demands the panel says the crown is quiet and when the next one comes", async () => {
@@ -464,23 +467,6 @@ describe("createPanels", () => {
       expect(frame).toContain("The crown is quiet.");
       expect(frame).toContain("about 2m");
       expect(frame).not.toContain("due in");
-    });
-
-    test("focused, it shows the deliver hint", async () => {
-      const frame = await draw(
-        [crownView({ demand, nextDemandTicks: null, met: 0, missed: 0 })],
-        { focus: "crown" },
-      );
-
-      expect(frame).toContain("enter deliver \u00b7 esc back");
-    });
-
-    test("the herald wraps inside the panel instead of being cut off at 100 columns", async () => {
-      const frame = await draw([
-        crownView({ demand, nextDemandTicks: null, met: 0, missed: 0 }),
-      ]);
-
-      expect(frame).toContain("armory.");
     });
   });
 
