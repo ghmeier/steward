@@ -4,7 +4,8 @@ status: active
 tags: [phase-6]
 created: 2026-11-06
 updated: 2026-11-06
-next_step: Refactor pass on crown-core, then PR 1 opens; PR 2 and PR 3 start from the refactored branch
+last_pr: 7
+next_step: Garret reviews PR 7; PR 2 crown-panel and PR 3 desk-kinds in progress from crown-core
 ---
 # Phase 6: crown quotas and a desk with more than disputes
 
@@ -78,7 +79,7 @@ main
      └─ desk-kinds (PR 3)
 ```
 
-### PR 1: `crown-core` (from `main`)
+### PR 1: `crown-core` (from `main`), PR #7 opened
 
 The crown's demands in the core, the `deliver` command, the Archive entry and quantities, schema 10, and runner support.
 
@@ -142,3 +143,4 @@ From earlier phases, for implementers and the refactor pass:
 - 2026-11-06: Lead decision. A demand fully collected from stock at the deadline counts as met, with no reward and no surcharge, because Garret chose automatic collection at the deadline. Only a shortfall is a miss.
 - 2026-11-06: For PR 2, the command line suggests the `owed*` quantities even before Crown correspondence is owned; gate the suggestions.
 - 2026-11-06: Crown-aware pays its first demand about 100 ticks after issue, so demands may be too easy for a reacting player. Leave for the playtest.
+- 2026-11-06: PR #7 opened (remote 5be17ca). The refactor shared `drawDelay` in `rng.ts`, added `DECREE_GATES` and `OWED_RESOURCES`, and kept `UPGRADES[9]` reading `loadTuning()` because passing tuning through `parseSave` touches about 15 call sites. PR 2 and PR 3 dispatched in parallel from `crown-core`.
