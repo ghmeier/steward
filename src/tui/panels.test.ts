@@ -59,7 +59,6 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
     tick: 0,
     elapsedSeconds: 0,
     ledger: [],
-    deskExpiry: { id: 0, line: "" },
     realm: {
       population: 10,
       labor: { farm: 0, forest: 0, mine: 0, idle: 10 },

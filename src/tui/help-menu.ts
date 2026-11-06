@@ -1,5 +1,5 @@
 import { policiesFor } from "../core/decree";
-import { DESK_KINDS, type Resource, SEASONS } from "../core/realm";
+import { type Resource, SEASONS } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 import {
   type ArchiveEntry,
@@ -34,8 +34,8 @@ function rulingsTouching(
   resource: Resource,
   sign: "costs" | "pays",
 ): boolean {
-  return DESK_KINDS.some((kind) =>
-    tuning.desk.kinds[kind].templates.some((template) =>
+  return Object.values(tuning.desk.kinds).some(({ templates }) =>
+    templates.some((template) =>
       template.options.some((option) => {
         const amount = option.resources?.[resource] ?? 0;
         return sign === "costs" ? amount < 0 : amount > 0;

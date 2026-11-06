@@ -3,9 +3,13 @@ import { sortedKeys } from "./data";
 import type { Game } from "./game";
 import type { AddContext } from "./math";
 import { add } from "./math";
-import { DESK_KINDS, type DeskKind, type Resource } from "./realm";
+import type { Resource } from "./realm";
 import { drawDelay, intBelow, type RngState } from "./rng";
 import type { DeskOption, DeskTemplate } from "./tuning";
+
+/** A record keyed by kind is in this order, so the weighted draw walks the kinds in a fixed order. */
+export const DESK_KINDS = ["dispute", "merchant", "traveller"] as const;
+export type DeskKind = (typeof DESK_KINDS)[number];
 
 type EntryBase = {
   id: number;
@@ -18,27 +22,16 @@ export type Dispute = EntryBase & {
   parties: [number, number];
 };
 
-/** An entry with no parties: a merchant or a traveller. */
-export type Offer = EntryBase & { kind: "merchant" | "traveller" };
+export type Offer = EntryBase & { kind: Exclude<DeskKind, "dispute"> };
 
 export type DeskEntry = Dispute | Offer;
 
-/** The id is 0 until something has expired, since entry ids start at 1. */
-export type Expiry = { id: number; line: string };
-
-export const NO_EXPIRY: Expiry = { id: 0, line: "" };
-
-/** Entries are oldest first. The field names predate the other kinds and are kept so saves and the command log stay valid. */
+/** Entries of every kind, oldest first; the field names predate the kinds other than disputes. */
 export type DeskState = {
   nextDisputeId: number;
   nextArrivalTick: number;
   disputes: DeskEntry[];
-  lastExpired: Expiry;
 };
-
-export function fillNames(text: string, first: string, second: string): string {
-  return text.replaceAll("{first}", first).replaceAll("{second}", second);
-}
 
 // Floored so a village holding 4.96 against a need of 5 is never described as having 5.
 function show(amount: number): string {
@@ -46,7 +39,15 @@ function show(amount: number): string {
 }
 
 export class DeskManager {
+  // Not saved: the lines only feed the TUI's notice, which reads them after each step.
+  private expiredThisStep: string[] = [];
+
   constructor(private game: Game) {}
+
+  /** The flavor lines of the entries that expired during the latest step. */
+  get expired(): readonly string[] {
+    return this.expiredThisStep;
+  }
 
   private get state() {
     return this.game.state;
@@ -89,10 +90,6 @@ export class DeskManager {
     return template.options.find((option) => option.id === optionId);
   }
 
-  private get hasRoom(): boolean {
-    return this.posting.delegates.length < this.tuning.economy.maxPopulation;
-  }
-
   private nameOf(id: number): string {
     const peasant = this.game.delegates.findById(id);
     if (peasant === undefined) {
@@ -101,16 +98,13 @@ export class DeskManager {
     return peasant.name;
   }
 
-  partyNames(entry: DeskEntry): [string, string] | null {
-    if (entry.kind !== "dispute") return null;
-    const [first, second] = entry.parties;
-    return [this.nameOf(first), this.nameOf(second)];
-  }
-
   /** Fills a template's placeholders with the names of the entry's parties; other kinds have none. */
   fill(entry: DeskEntry, text: string): string {
-    const names = this.partyNames(entry);
-    return names === null ? text : fillNames(text, names[0], names[1]);
+    if (entry.kind !== "dispute") return text;
+    const [first, second] = entry.parties;
+    return text
+      .replaceAll("{first}", this.nameOf(first))
+      .replaceAll("{second}", this.nameOf(second));
   }
 
   /** Names the first thing the village cannot cover, or null when the option is affordable. */
@@ -123,7 +117,7 @@ export class DeskManager {
         return `not enough ${resource} (need ${show(-delta)}, have ${show(held)})`;
       }
     }
-    if (option.newcomer !== undefined && !this.hasRoom) {
+    if (option.newcomer !== undefined && !this.game.economy.hasRoom) {
       return "the village has no room for another peasant";
     }
     return null;
@@ -144,9 +138,19 @@ export class DeskManager {
     }
   }
 
+  private grudgedParty(entry: DeskEntry, option: DeskOption): number | null {
+    if (option.grudge === undefined || entry.kind !== "dispute") return null;
+    return entry.parties[option.grudge === "first" ? 0 : 1];
+  }
+
+  sulker(entry: DeskEntry, option: DeskOption): string | null {
+    const party = this.grudgedParty(entry, option);
+    return party === null ? null : this.nameOf(party);
+  }
+
   private applyGrudge(entry: DeskEntry, option: DeskOption): void {
-    if (option.grudge === undefined || entry.kind !== "dispute") return;
-    const party = entry.parties[option.grudge === "first" ? 0 : 1];
+    const party = this.grudgedParty(entry, option);
+    if (party === null) return;
     const peasant = this.game.delegates.findById(party);
     if (peasant !== undefined) {
       peasant.grudgeUntil = Math.max(
@@ -190,7 +194,7 @@ export class DeskManager {
       case "dispute":
         return this.posting.delegates.length >= 2;
       case "traveller":
-        return this.hasRoom;
+        return this.game.economy.hasRoom;
       case "merchant":
         return true;
     }
@@ -249,13 +253,9 @@ export class DeskManager {
     const option = this.optionOf(template, template.expiry);
     if (option === undefined) throw new Error("expiry option is missing");
     this.applyResources(option, context, true);
-    this.posting.desk.lastExpired = {
-      id: entry.id,
-      line: this.fill(entry, template.expired),
-    };
+    this.expiredThisStep.push(this.fill(entry, template.expired));
   }
 
-  // Only a dispute depends on a peasant, so only a dispute can go stale.
   private dropStaleDisputes(): void {
     const { desk, delegates } = this.posting;
     const living = new Set(delegates.map((delegate) => delegate.id));
@@ -268,6 +268,7 @@ export class DeskManager {
 
   run(context: AddContext): void {
     const { desk } = this.posting;
+    this.expiredThisStep = [];
     for (const entry of desk.disputes) this.templateOf(entry);
     this.dropStaleDisputes();
 

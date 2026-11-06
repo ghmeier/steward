@@ -3,7 +3,7 @@ import { ConditionManager } from "./conditions";
 import { CrownManager, emptyCrownState } from "./crown";
 import { DecreeEngine } from "./decree-engine";
 import { DelegateManager } from "./delegates";
-import { DeskManager, NO_EXPIRY } from "./desk";
+import { DeskManager } from "./desk";
 import { EconomyManager } from "./economy";
 import { LaborSettling, NO_LABOR_POLICY } from "./labor";
 import { ProjectionManager } from "./projection";
@@ -92,7 +92,6 @@ export class Game {
         nextDisputeId: 1,
         nextArrivalTick: drawDelay(arrivals, tuning.desk.arrival),
         disputes: [],
-        lastExpired: { ...NO_EXPIRY },
       },
       crown: emptyCrownState(),
     };

@@ -1,13 +1,8 @@
 import { compareKeys, sortedKeys } from "./data";
 import type { Decree } from "./decree";
+import type { DeskKind } from "./desk";
 import type { Game } from "./game";
-import {
-  type DeskKind,
-  type Job,
-  RESOURCES,
-  type Resource,
-  type Season,
-} from "./realm";
+import { type Job, RESOURCES, type Resource, type Season } from "./realm";
 import type { ResourceId } from "./state";
 import { ARCHIVE_PANEL, CROWN_PANEL, type UnlockId } from "./unlocks";
 
@@ -23,19 +18,14 @@ export type DeskOptionView = {
   expiry: boolean;
   /** Resource deltas, keys sorted. */
   resources: Record<string, number>;
-  /** Which party will sulk if this option is chosen. */
-  grudge: "first" | "second" | "none";
+  sulker: string | null;
 };
 export type DeskEntryView = {
   id: number;
   kind: DeskKind;
   label: string;
-  /** Names of a dispute's two parties, so an option's grudge can be shown by name; null for other kinds. */
-  parties: [string, string] | null;
   options: DeskOptionView[];
 };
-/** The latest entry to expire and the line it left behind; the id is 0 until one has. */
-export type DeskExpiryView = { id: number; line: string };
 export type GovernorView = { id: string; name: string };
 export type DelegateView = {
   id: number;
@@ -74,7 +64,6 @@ export type GameView = {
   decrees: Decree[];
   savedDecrees: Decree[];
   desk: DeskEntryView[];
-  deskExpiry: DeskExpiryView;
   governors: GovernorView[];
   crown: CrownView | null;
   promotion: { target: number; promotedAt: number; promotedAtSeconds: number };
@@ -148,7 +137,6 @@ export class ViewManager {
         return saved === undefined ? [] : [structuredClone(saved)];
       }),
       desk: this.deskEntries(),
-      deskExpiry: { ...this.posting.desk.lastExpired },
       governors: [],
       crown: this.crownView(),
       promotion: {
@@ -160,7 +148,7 @@ export class ViewManager {
         stored: this.posting.economy.growth,
         needed: this.tuning.economy.grainPerPeasant,
         perSecond: (growthPerTick * 1000) / this.tuning.stepMs,
-        full: delegates.length >= this.tuning.economy.maxPopulation,
+        full: !this.game.economy.hasRoom,
       },
       lockedPanels: this.lockedPanels(),
       unlocks: this.game.unlocks.purchased,
@@ -218,14 +206,13 @@ export class ViewManager {
         id: entry.id,
         kind: entry.kind,
         label: desk.fill(entry, template.text),
-        parties: desk.partyNames(entry),
         options: template.options.map((option) => ({
           id: option.id,
           label: desk.fill(entry, option.label),
           affordable: desk.shortfall(option) === null,
           expiry: option.id === template.expiry,
           resources: sortedResources(option.resources ?? {}),
-          grudge: option.grudge ?? "none",
+          sulker: desk.sulker(entry, option),
         })),
       };
     });

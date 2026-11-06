@@ -2,7 +2,7 @@ import { z } from "zod";
 import { type Condition, conditionSchema, type DecreeLimits } from "./decree";
 import { addIssue, type IssuePath, parseWith } from "./errors";
 import { normalizeZero } from "./math";
-import { RESOURCES, type Resource, SEASONS, WORKING_JOBS } from "./realm";
+import { RESOURCES, SEASONS, WORKING_JOBS } from "./realm";
 import {
   ARCHIVE_PANEL,
   type ArchiveEntry,
@@ -90,33 +90,30 @@ const optionResources = z
 const PARTY_PLACEHOLDERS = ["first", "second"];
 const NO_PLACEHOLDERS: string[] = [];
 
-const disputeOption = z.strictObject({
-  id: name,
-  label: textWithPlaceholders(PARTY_PLACEHOLDERS),
-  resources: optionResources,
+function deskOption(placeholders: readonly string[]) {
+  return z.strictObject({
+    id: name,
+    label: textWithPlaceholders(placeholders),
+    resources: optionResources,
+  });
+}
+
+const disputeOption = deskOption(PARTY_PLACEHOLDERS).extend({
   grudge: z.enum(["first", "second"]).exactOptional(),
 });
 
-const merchantOption = z.strictObject({
-  id: name,
-  label: textWithPlaceholders(NO_PLACEHOLDERS),
-  resources: optionResources,
-});
+const merchantOption = deskOption(NO_PLACEHOLDERS);
 
-const travellerOption = z.strictObject({
-  id: name,
-  label: textWithPlaceholders(NO_PLACEHOLDERS),
-  resources: optionResources,
+const travellerOption = merchantOption.extend({
   newcomer: z.literal(true).exactOptional(),
 });
 
-export type DeskOption = {
-  id: string;
-  label: string;
-  resources?: Partial<Record<Resource, number>>;
-  grudge?: "first" | "second";
-  newcomer?: true;
-};
+// Every kind's option is read through this one shape, so the fields only some kinds have are optional here.
+export type DeskOption = z.infer<typeof merchantOption> &
+  Partial<
+    Pick<z.infer<typeof disputeOption>, "grudge"> &
+      Pick<z.infer<typeof travellerOption>, "newcomer">
+  >;
 
 function deskTemplate(
   option: z.ZodType<DeskOption>,
@@ -359,13 +356,7 @@ const tuningSchema = z
 export type Tuning = z.infer<typeof tuningSchema>;
 export type VillageTuning = z.infer<typeof village>;
 export type DeskTuning = z.infer<typeof desk>;
-export type DeskTemplate = {
-  id: string;
-  text: string;
-  options: DeskOption[];
-  expiry: string;
-  expired: string;
-};
+export type DeskTemplate = z.infer<ReturnType<typeof deskTemplate>>;
 
 /** Takes the merged contents of tuning.json, village.json, desk.json, archive.json and crown.json. */
 export function parseTuning(value: unknown): Tuning {

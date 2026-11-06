@@ -1,45 +1,29 @@
 import { describe, expect, test } from "bun:test";
 import { tuning } from "../../test/helpers";
 import { Game } from "../core/game";
-import type { GameView } from "../core/view";
 import { deskNotice } from "./desk-notices";
 
-function viewOf(game: Game): GameView {
-  return game.view.compute();
-}
-
-function game() {
+function game(): Game {
   const created = Game.create(1, tuning);
   created.state.posting.desk.nextDisputeId = 8;
   return created;
 }
 
 describe("desk notice", () => {
-  test("an arrival posts the entry's first line", () => {
+  test("a frame posts its expiry lines, then the first line of each arrival", () => {
     const before = game();
     const after = before.clone();
     after.state.posting.desk.disputes = [
       { id: 7, kind: "merchant", template: "smith", arrivedAt: 1 },
     ];
+    const [previous, next] = [before.view.compute(), after.view.compute()];
+    const arrival = next.desk[0]?.label as string;
 
-    const notice = deskNotice(viewOf(before), viewOf(after));
-
-    expect(notice).toBe(viewOf(after).desk[0]?.label as string);
-  });
-
-  test("an expiry posts its flavor line once", () => {
-    const before = game();
-    const after = before.clone();
-    after.state.posting.desk.lastExpired = {
-      id: 7,
-      line: "The smith moved on.",
-    };
-
-    const first = deskNotice(viewOf(before), viewOf(after));
-    const repeat = deskNotice(viewOf(after), viewOf(after));
-
-    expect(first).toBe("The smith moved on.");
-    expect(repeat).toBeNull();
+    expect(deskNotice(previous, next, [])).toBe(arrival);
+    expect(deskNotice(previous, previous, ["Gone."])).toBe("Gone.");
+    expect(deskNotice(previous, next, ["Gone.", "Moved on."])).toBe(
+      `Gone. Moved on. ${arrival}`,
+    );
   });
 
   test("an entry that is still waiting, or one the player settled, posts nothing", () => {
@@ -49,21 +33,9 @@ describe("desk notice", () => {
     ];
     const settled = before.clone();
     settled.state.posting.desk.disputes = [];
+    const waiting = before.view.compute();
 
-    expect(deskNotice(viewOf(before), viewOf(before))).toBeNull();
-    expect(deskNotice(viewOf(before), viewOf(settled))).toBeNull();
-  });
-
-  test("an expiry and an arrival in one frame post both, the expiry first", () => {
-    const before = game();
-    const after = before.clone();
-    after.state.posting.desk.lastExpired = { id: 6, line: "Gone." };
-    after.state.posting.desk.disputes = [
-      { id: 7, kind: "traveller", template: "stranger", arrivedAt: 1 },
-    ];
-
-    const notice = deskNotice(viewOf(before), viewOf(after));
-
-    expect(notice).toBe(`Gone. ${viewOf(after).desk[0]?.label}`);
+    expect(deskNotice(waiting, waiting, [])).toBeNull();
+    expect(deskNotice(waiting, settled.view.compute(), [])).toBeNull();
   });
 });

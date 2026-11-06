@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { sortedKeys } from "./data";
 import { type Decree, decreeSchema, decreeSetProblem } from "./decree";
+import { DESK_KINDS } from "./desk";
 import { addIssue, formatIssue } from "./errors";
 import { JOBS, RESOURCES } from "./realm";
 import { type GameState, type PostingState, SCHEMA_VERSION } from "./state";
@@ -92,7 +93,7 @@ const deskEntry = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     ...deskEntryBase,
-    kind: z.enum(["merchant", "traveller"]),
+    kind: z.enum(DESK_KINDS).exclude(["dispute"]),
   }),
 ]);
 
@@ -134,7 +135,6 @@ const desk = z
     nextDisputeId: positiveCount,
     nextArrivalTick: count,
     disputes: z.array(deskEntry),
-    lastExpired: z.strictObject({ id: count, line: z.string() }),
   })
   .superRefine((value, ctx) =>
     ascendingIdIssues(ctx, value, "disputes", "nextDisputeId"),

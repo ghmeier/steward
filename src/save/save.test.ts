@@ -247,11 +247,9 @@ describe("version 10 upgrade", () => {
       string,
       unknown
     >;
-    const { lastExpired: _, ...desk } = (
-      state.posting as { desk: Record<string, unknown> }
-    ).desk;
+    const { desk } = state.posting as { desk: Record<string, unknown> };
     const entries = (desk.disputes as Record<string, unknown>[]).map(
-      ({ kind: __, ...entry }) => entry,
+      ({ kind: _, ...entry }) => entry,
     );
     return {
       ...state,
@@ -263,7 +261,7 @@ describe("version 10 upgrade", () => {
     };
   }
 
-  test("a version 10 save loads with every existing desk entry marked as a dispute and nothing expired", () => {
+  test("a version 10 save loads with every existing desk entry marked as a dispute", () => {
     writeSave(10, version10Save());
 
     const state = loaded(dir);
@@ -273,7 +271,6 @@ describe("version 10 upgrade", () => {
       "dispute",
       "dispute",
     ]);
-    expect(state.posting.desk.lastExpired).toEqual({ id: 0, line: "" });
   });
 });
 

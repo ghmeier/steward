@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
   contextFor,
-  deskDrawing,
   setRoster,
   economyTestTuning as tuning,
 } from "../../test/helpers";
@@ -10,10 +9,9 @@ import { Game } from "./game";
 import { Job } from "./realm";
 
 const { arrival, grudgeTicks } = tuning.desk;
-const disputesOnly = deskDrawing("dispute");
 
-function village(seed = 1, idle = 10, using = tuning): Game {
-  const game = Game.create(seed, using);
+function village(seed = 1, idle = 10): Game {
+  const game = Game.create(seed, tuning);
   setRoster(game, { idle });
   return game;
 }
@@ -61,13 +59,14 @@ function peasant(game: Game, id: number) {
 
 describe("arrivals", () => {
   test.each([2, 4])(
-    "with %p peasants nothing arrives early, then every arrival has two distinct living parties and a delay in range",
+    "with %p peasants nothing arrives early, then every dispute has two distinct living parties and every delay is in range",
     (peasants) => {
-      const game = village(3, peasants, disputesOnly);
+      const game = village(3, peasants);
       const living = game.state.posting.delegates.map(
         (delegate) => delegate.id,
       );
       const delays = [game.state.posting.desk.nextArrivalTick];
+      const disputes: Dispute[] = [];
 
       game.state.tick = (delays[0] as number) - 1;
       game.desk.run(contextFor(game));
@@ -75,13 +74,17 @@ describe("arrivals", () => {
       for (let i = 0; i < 100; i++) {
         arriveNext(game);
         delays.push(game.state.posting.desk.nextArrivalTick - game.state.tick);
-        const latest = game.state.posting.desk.disputes.at(-1) as Dispute;
+        const latest = game.state.posting.desk.disputes.at(-1) as DeskEntry;
         expect(latest.arrivedAt).toBe(game.state.tick);
-        expect(latest.parties[0]).not.toBe(latest.parties[1]);
-        expect(living).toContain(latest.parties[0]);
-        expect(living).toContain(latest.parties[1]);
+        if (latest.kind === "dispute") disputes.push(latest);
       }
 
+      expect(disputes.length).toBeGreaterThan(0);
+      for (const { parties } of disputes) {
+        expect(parties[0]).not.toBe(parties[1]);
+        expect(living).toContain(parties[0]);
+        expect(living).toContain(parties[1]);
+      }
       for (const delay of delays) {
         expect(delay).toBeGreaterThanOrEqual(arrival.minTicks);
         expect(delay).toBeLessThanOrEqual(arrival.maxTicks);
@@ -114,38 +117,24 @@ function drawnKinds(game: Game, arrivals: number): Set<string> {
 }
 
 describe("kind draw", () => {
-  test("with one peasant no dispute is drawn, and the other kinds still arrive", () => {
-    const game = village(2, 1);
+  test.each([
+    ["one peasant draws no dispute", 1, ["merchant", "traveller"]],
+    [
+      "two or more peasants draw every kind",
+      10,
+      ["dispute", "merchant", "traveller"],
+    ],
+    [
+      "a full village draws no traveller",
+      tuning.economy.maxPopulation,
+      ["dispute", "merchant"],
+    ],
+  ])("%s", (_name, peasants, expected) => {
+    const game = village(2, peasants);
 
     const kinds = drawnKinds(game, 200);
 
-    expect(kinds.has("dispute")).toBe(false);
-    expect(kinds).toEqual(new Set(["merchant", "traveller"]));
-  });
-
-  test("with two or more peasants every kind is drawn", () => {
-    const game = village(2, 10);
-
-    const kinds = drawnKinds(game, 200);
-
-    expect(kinds).toEqual(new Set(["dispute", "merchant", "traveller"]));
-  });
-
-  test("at the population cap no traveller is drawn", () => {
-    const game = village(2, tuning.economy.maxPopulation);
-
-    const kinds = drawnKinds(game, 200);
-
-    expect(kinds.has("traveller")).toBe(false);
-    expect(kinds.has("dispute")).toBe(true);
-  });
-
-  test("a kind with no weight is never drawn", () => {
-    const game = village(2, 10, deskDrawing("merchant"));
-
-    const kinds = drawnKinds(game, 50);
-
-    expect(kinds).toEqual(new Set(["merchant"]));
+    expect(kinds).toEqual(new Set(expected));
   });
 });
 
@@ -298,7 +287,7 @@ describe("settleDispute", () => {
 });
 
 describe("view desk", () => {
-  test("entries keep desk order and carry names, resources, grudge and expiry for each option", () => {
+  test("entries keep desk order and carry names, resources, the sulking party and expiry for each option", () => {
     const game = village();
     const [a, b, c] = game.delegates.all;
     if (!a || !b || !c) throw new Error("expected three peasants");
@@ -312,7 +301,6 @@ describe("view desk", () => {
     const desk = game.view.compute().desk;
 
     expect(desk.map((entry) => entry.id)).toEqual([1, 2]);
-    expect(desk[0]?.parties).toEqual([first, second]);
     expect(desk[0]?.label).toContain(`${first} accuses ${second}`);
     const byId = Object.fromEntries(
       (desk[0]?.options ?? []).map((option) => [option.id, option]),
@@ -320,19 +308,19 @@ describe("view desk", () => {
     expect(byId.pay).toMatchObject({
       label: "Pay the surveyor",
       resources: { coin: -10 },
-      grudge: "none",
+      sulker: null,
       expiry: true,
     });
     expect(byId["for-first"]).toMatchObject({
       label: `Rule for ${first}`,
       resources: { grain: 5 },
-      grudge: "second",
+      sulker: second,
       expiry: false,
     });
     expect(byId["for-second"]).toMatchObject({
       label: `Rule for ${second}`,
       resources: {},
-      grudge: "first",
+      sulker: first,
     });
   });
 
@@ -381,21 +369,21 @@ describe("merchants", () => {
     return game;
   }
 
-  test("an expired merchant gains and costs nothing and leaves its flavor line", () => {
+  test("an expired merchant gains and costs nothing and leaves its flavor line for that step only", () => {
     const game = crowded();
     const resources = { ...game.state.posting.resources };
     game.state.tick = game.state.posting.desk.nextArrivalTick - 1;
 
+    game.desk.run(contextFor(game));
+    const expired = [...game.desk.expired];
     game.desk.run(contextFor(game));
 
     expect(game.state.posting.desk.disputes.map((entry) => entry.id)).toEqual([
       2, 3, 4,
     ]);
     expect(game.state.posting.resources).toEqual(resources);
-    expect(game.state.posting.desk.lastExpired).toEqual({
-      id: 1,
-      line: merchantTemplate?.expired as string,
-    });
+    expect(expired).toEqual([merchantTemplate?.expired as string]);
+    expect(game.desk.expired).toEqual([]);
   });
 
   test("accepting an offer trades at the template's rates", () => {
@@ -518,8 +506,8 @@ describe("expiry lines", () => {
 
     game.desk.run(contextFor(game));
 
-    expect(game.state.posting.desk.lastExpired.line).toBe(
+    expect(game.desk.expired).toEqual([
       `A hen was bought for ${peasant(game, first).name}.`,
-    );
+    ]);
   });
 });

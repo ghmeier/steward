@@ -225,7 +225,7 @@ export function startApp(options: {
     if (lastRejection !== undefined) message = lastRejection.reason;
     const starved = starvationNotice(lastView, session.view());
     if (starved !== null) message = starved;
-    const deskChange = deskNotice(lastView, session.view());
+    const deskChange = deskNotice(lastView, session.view(), result.expired);
     if (deskChange !== null) message = deskChange;
     const crown = crownNotice(lastView.crown, session.view().crown, tuning);
     if (crown !== null) message = crown;

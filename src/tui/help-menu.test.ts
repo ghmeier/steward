@@ -25,19 +25,27 @@ const desk = (changes: Partial<Tuning["desk"]>): Tuning => ({
   desk: { ...tuning.desk, ...changes },
 });
 
-// Every desk entry is stripped but the first dispute, whose costs are removed, then its first option gets `resources`.
 function rulingsWith(resources: Record<string, number>): Tuning {
+  const free = ({ templates }: Tuning["desk"]["kinds"]["merchant"]) =>
+    templates.map((template) => ({
+      ...template,
+      options: template.options.map(({ id, label }) => ({ id, label })),
+    }));
   const { kinds } = tuning.desk;
-  const [first] = kinds.dispute.templates;
-  if (first === undefined) throw new Error("no dispute template");
-  const [head, ...rest] = first.options.map(({ id, label }) => ({ id, label }));
-  if (head === undefined) throw new Error("no option");
+  const [first, ...others] = free(kinds.dispute);
+  const [head, ...rest] = first?.options ?? [];
+  if (first === undefined || head === undefined) {
+    throw new Error("no dispute option");
+  }
   const options = [{ ...head, resources }, ...rest];
   return desk({
     kinds: {
-      dispute: { ...kinds.dispute, templates: [{ ...first, options }] },
-      merchant: { ...kinds.merchant, templates: [] },
-      traveller: { ...kinds.traveller, templates: [] },
+      dispute: {
+        ...kinds.dispute,
+        templates: [{ ...first, options }, ...others],
+      },
+      merchant: { ...kinds.merchant, templates: free(kinds.merchant) },
+      traveller: { ...kinds.traveller, templates: free(kinds.traveller) },
     },
   });
 }

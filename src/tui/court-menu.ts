@@ -1,4 +1,4 @@
-import type { DeskEntryView, DeskOptionView } from "../core/view";
+import type { DeskOptionView } from "../core/view";
 import type { MenuContext, MenuItem, Screen, ScreenBuilder } from "./menu";
 
 function amountText(resource: string, amount: number): string {
@@ -13,12 +13,9 @@ function costText(option: DeskOptionView): string {
   return parts.length === 0 ? "free" : parts.join(", ");
 }
 
-function optionLabel(entry: DeskEntryView, option: DeskOptionView): string {
-  const party = option.grudge;
+function optionLabel(option: DeskOptionView): string {
   const sulk =
-    party === "none" || entry.parties === null
-      ? ""
-      : ` (${entry.parties[party === "first" ? 0 : 1]} will sulk for a season)`;
+    option.sulker === null ? "" : ` (${option.sulker} will sulk for a season)`;
   const fallback = option.expiry ? " (the default if ignored)" : "";
   return `${option.label}: ${costText(option)}${sulk}${fallback}`;
 }
@@ -42,7 +39,7 @@ function entryScreen(entryId: number): ScreenBuilder {
       notes: [entry.label],
       items: entry.options.map(
         (option): MenuItem => ({
-          label: optionLabel(entry, option),
+          label: optionLabel(option),
           disabled: !option.affordable,
           action: {
             kind: "command",

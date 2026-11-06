@@ -6,7 +6,7 @@ import villageJson from "../data/village.json";
 import type { Delegate } from "../src/core/delegates";
 import { Game } from "../src/core/game";
 import type { AddContext } from "../src/core/math";
-import { type DeskKind, JOBS, type Job } from "../src/core/realm";
+import { JOBS, type Job } from "../src/core/realm";
 import { parseTuning, type Tuning } from "../src/core/tuning";
 import { ARCHIVE_PANEL } from "../src/core/unlocks";
 import { helpSections } from "../src/tui/help-menu";
@@ -210,23 +210,4 @@ export function topicText(
   const section = helpSections(context).find((s) => s.heading === topic);
   if (section === undefined) throw new Error(`no help topic ${topic}`);
   return section.lines.join("\n");
-}
-
-/** The desk tuning with every kind but the named ones given no chance of arriving. */
-export function deskDrawing(...kinds: DeskKind[]): Tuning {
-  const weighted = (kind: DeskKind) => ({
-    ...economyTestTuning.desk.kinds[kind],
-    weight: kinds.includes(kind) ? 1 : 0,
-  });
-  return {
-    ...economyTestTuning,
-    desk: {
-      ...economyTestTuning.desk,
-      kinds: {
-        dispute: weighted("dispute"),
-        merchant: weighted("merchant"),
-        traveller: weighted("traveller"),
-      },
-    },
-  };
 }
