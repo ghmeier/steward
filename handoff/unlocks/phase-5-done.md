@@ -1,10 +1,10 @@
 ---
 title: "Phase 5 merged: command line, unlocks and the Archive"
-status: open
+status: picked-up
 tags: [phase-5]
 branch: main
 created: 2026-11-01
-updated: 2026-11-01
+updated: 2026-11-06
 ---
 # Phase 5 merged: command line, unlocks and the Archive
 
