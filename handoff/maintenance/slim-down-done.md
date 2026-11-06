@@ -1,10 +1,10 @@
 ---
 title: "Slim-down merged: schema module, test suite cut by 38%"
-status: open
+status: closed
 tags: [maintenance]
 branch: main
 created: 2026-11-01
-updated: 2026-11-01
+updated: 2026-11-06
 ---
 # Slim-down merged: schema module, test suite cut by 38%
 

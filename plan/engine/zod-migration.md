@@ -1,11 +1,10 @@
 ---
 title: Replace the in-house schema module with Zod
-status: active
+status: completed
 tags: [engine, validation]
 created: 2026-11-01
-updated: 2026-11-02
+updated: 2026-11-06
 last_pr: 2
-next_step: Review and merge PR #2; then flip to completed and write the handoff
 ---
 # Replace the in-house schema module with Zod
 
