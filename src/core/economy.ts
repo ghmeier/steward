@@ -1,5 +1,4 @@
 import type { ResourcePetition } from "./decree";
-import type { Delegate } from "./delegates";
 import type { Game } from "./game";
 import { NO_LABOR_POLICY } from "./labor";
 import { type AddContext, add } from "./math";
@@ -172,19 +171,32 @@ export class EconomyManager {
   }
 
   feedGrain(amount: number, context: AddContext): void {
-    const settings = this.tuning.economy;
-    const { economy, delegates } = this.posting;
-    if (delegates.length >= settings.maxPopulation) return;
+    const { grainPerPeasant } = this.tuning.economy;
+    const { economy } = this.posting;
+    if (!this.hasRoom) return;
 
     add(this.posting.resources, "grain", -amount, context);
     economy.growth += amount;
-    while (
-      economy.growth >= settings.grainPerPeasant &&
-      delegates.length < settings.maxPopulation
-    ) {
-      this.placeNewborn(this.game.delegates.create());
-      economy.growth -= settings.grainPerPeasant;
+    while (economy.growth >= grainPerPeasant && this.hasRoom) {
+      this.admitNewcomer();
+      economy.growth -= grainPerPeasant;
     }
+  }
+
+  get hasRoom(): boolean {
+    return this.posting.delegates.length < this.tuning.economy.maxPopulation;
+  }
+
+  /** Births and admitted travellers both arrive here, so the labor decree places every newcomer. */
+  admitNewcomer(): void {
+    const newcomer = this.game.delegates.create();
+    const { policy } = this.game.labor;
+    if (policy === NO_LABOR_POLICY) return;
+    // The targets sum to the population, which already counts this idle newcomer, so a job is short.
+    newcomer.job = this.mostShortJob(
+      this.laborTargetFor(policy),
+      this.game.delegates.jobCounts(),
+    ) as WorkingJob;
   }
 
   laborTargetFor(policy: string): Record<Job, number> {
@@ -230,16 +242,6 @@ export class EconomyManager {
       remainders[best] = -1;
     }
     return targets;
-  }
-
-  private placeNewborn(newborn: Delegate): void {
-    const { policy } = this.game.labor;
-    if (policy === NO_LABOR_POLICY) return;
-    // The targets sum to the population, which already counts this idle newborn, so a job is short.
-    newborn.job = this.mostShortJob(
-      this.laborTargetFor(policy),
-      this.game.delegates.jobCounts(),
-    ) as WorkingJob;
   }
 
   private mostShortJob(

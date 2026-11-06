@@ -7,6 +7,8 @@ export type Rejection = { tick: number; command: Command; reason: string };
 export type FrameResult = {
   steps: number;
   rejections: Rejection[];
+  /** The flavor lines of desk entries that expired, in the order they expired. */
+  expired: string[];
   viewChanged: boolean;
 };
 
@@ -43,6 +45,7 @@ export class Session {
   frame(): FrameResult {
     const steps = this.clock.frame();
     const rejections: Rejection[] = [];
+    const expired: string[] = [];
     for (let i = 0; i < steps; i++) {
       const commands = this.queued;
       this.queued = [];
@@ -55,13 +58,14 @@ export class Session {
           rejections.push({ tick, command, reason: result.reason });
         }
       }
+      expired.push(...this.game.desk.expired);
     }
-    if (steps === 0) return { steps, rejections, viewChanged: false };
+    if (steps === 0) return { steps, rejections, expired, viewChanged: false };
     this.currentView = this.game.view.compute();
     const json = JSON.stringify(this.currentView);
     const viewChanged = json !== this.currentViewJson;
     this.currentViewJson = json;
-    return { steps, rejections, viewChanged };
+    return { steps, rejections, expired, viewChanged };
   }
 
   view(): GameView {

@@ -1,6 +1,6 @@
 import { compareKeys, sortedKeys } from "./data";
 import type { Decree } from "./decree";
-import { fillNames } from "./desk";
+import type { DeskKind } from "./desk";
 import type { Game } from "./game";
 import { type Job, RESOURCES, type Resource, type Season } from "./realm";
 import type { ResourceId } from "./state";
@@ -18,14 +18,12 @@ export type DeskOptionView = {
   expiry: boolean;
   /** Resource deltas, keys sorted. */
   resources: Record<string, number>;
-  /** Which party will sulk if this option is chosen. */
-  grudge: "first" | "second" | "none";
+  sulker: string | null;
 };
 export type DeskEntryView = {
   id: number;
+  kind: DeskKind;
   label: string;
-  /** Names of the two parties, so an option's grudge can be shown by name. */
-  parties: [string, string];
   options: DeskOptionView[];
 };
 export type GovernorView = { id: string; name: string };
@@ -150,7 +148,7 @@ export class ViewManager {
         stored: this.posting.economy.growth,
         needed: this.tuning.economy.grainPerPeasant,
         perSecond: (growthPerTick * 1000) / this.tuning.stepMs,
-        full: delegates.length >= this.tuning.economy.maxPopulation,
+        full: !this.game.economy.hasRoom,
       },
       lockedPanels: this.lockedPanels(),
       unlocks: this.game.unlocks.purchased,
@@ -201,28 +199,20 @@ export class ViewManager {
   }
 
   private deskEntries(): DeskEntryView[] {
-    const { delegates, desk } = this.posting;
-    const nameOf = (id: number) => {
-      const found = delegates.find((delegate) => delegate.id === id);
-      if (found === undefined)
-        throw new Error(`dispute party ${id} is not in the roster`);
-      return found.name;
-    };
-    return desk.disputes.map((dispute) => {
-      const template = this.game.desk.templateOf(dispute);
-      const first = nameOf(dispute.parties[0]);
-      const second = nameOf(dispute.parties[1]);
+    const { desk } = this.game;
+    return this.posting.desk.disputes.map((entry) => {
+      const template = desk.templateOf(entry);
       return {
-        id: dispute.id,
-        label: fillNames(template.text, first, second),
-        parties: [first, second],
+        id: entry.id,
+        kind: entry.kind,
+        label: desk.fill(entry, template.text),
         options: template.options.map((option) => ({
           id: option.id,
-          label: fillNames(option.label, first, second),
-          affordable: this.game.desk.shortfall(option) === null,
+          label: desk.fill(entry, option.label),
+          affordable: desk.shortfall(option) === null,
           expiry: option.id === template.expiry,
           resources: sortedResources(option.resources ?? {}),
-          grudge: option.grudge ?? "none",
+          sulker: desk.sulker(entry, option),
         })),
       };
     });

@@ -27,7 +27,6 @@ function textWithPlaceholders(allowed: readonly string[]) {
   });
 }
 
-const placeholderText = textWithPlaceholders(["first", "second"]);
 const amountText = textWithPlaceholders(["amount"]);
 
 const decreeLimits: z.ZodType<DecreeLimits> = z.strictObject({
@@ -79,52 +78,105 @@ const economy = z
 
 const amount = z.number().transform(normalizeZero).exactOptional();
 
-const disputeOption = z.strictObject({
-  id: name,
-  label: placeholderText,
-  resources: z
-    .strictObject({
-      coin: amount,
-      grain: amount,
-      ore: amount,
-      wood: amount,
-    })
-    .exactOptional(),
+const optionResources = z
+  .strictObject({
+    coin: amount,
+    grain: amount,
+    ore: amount,
+    wood: amount,
+  })
+  .exactOptional();
+
+const PARTY_PLACEHOLDERS = ["first", "second"];
+const NO_PLACEHOLDERS: string[] = [];
+
+function deskOption(placeholders: readonly string[]) {
+  return z.strictObject({
+    id: name,
+    label: textWithPlaceholders(placeholders),
+    resources: optionResources,
+  });
+}
+
+const disputeOption = deskOption(PARTY_PLACEHOLDERS).extend({
   grudge: z.enum(["first", "second"]).exactOptional(),
 });
 
-const disputeTemplate = z
-  .strictObject({
-    id: name,
-    text: placeholderText,
-    options: z.array(disputeOption).min(2),
-    expiry: z.string(),
-  })
-  .superRefine((template, ctx) => {
-    repeatIssues(
-      template.options.map((option) => option.id),
-      "option id",
-      ctx,
-      ["options"],
-    );
-    const expiry = template.options.find(
-      (option) => option.id === template.expiry,
-    );
-    if (expiry === undefined) {
-      addIssue(ctx, "must name one of its options", ["expiry"]);
-      return;
-    }
-    if (expiry.grudge !== undefined) {
-      addIssue(ctx, `option "${expiry.id}" must not grudge`, ["expiry"]);
-    }
-    for (const resource of RESOURCES) {
-      if ((expiry.resources?.[resource] ?? 0) > 0) {
-        addIssue(ctx, `option "${expiry.id}" must not gain ${resource}`, [
+const merchantOption = deskOption(NO_PLACEHOLDERS);
+
+const travellerOption = merchantOption.extend({
+  newcomer: z.literal(true).exactOptional(),
+});
+
+// Every kind's option is read through this one shape, so the fields only some kinds have are optional here.
+export type DeskOption = z.infer<typeof merchantOption> &
+  Partial<
+    Pick<z.infer<typeof disputeOption>, "grudge"> &
+      Pick<z.infer<typeof travellerOption>, "newcomer">
+  >;
+
+function deskTemplate(
+  option: z.ZodType<DeskOption>,
+  placeholders: readonly string[],
+) {
+  return z
+    .strictObject({
+      id: name,
+      text: textWithPlaceholders(placeholders),
+      options: z.array(option).min(2),
+      expiry: z.string(),
+      expired: textWithPlaceholders(placeholders),
+    })
+    .superRefine((template, ctx) => {
+      repeatIssues(
+        template.options.map((candidate) => candidate.id),
+        "option id",
+        ctx,
+        ["options"],
+      );
+      const expiry = template.options.find(
+        (candidate) => candidate.id === template.expiry,
+      );
+      if (expiry === undefined) {
+        addIssue(ctx, "must name one of its options", ["expiry"]);
+        return;
+      }
+      if (expiry.grudge !== undefined) {
+        addIssue(ctx, `option "${expiry.id}" must not grudge`, ["expiry"]);
+      }
+      if (expiry.newcomer !== undefined) {
+        addIssue(ctx, `option "${expiry.id}" must not add a peasant`, [
           "expiry",
         ]);
       }
-    }
+      for (const resource of RESOURCES) {
+        if ((expiry.resources?.[resource] ?? 0) > 0) {
+          addIssue(ctx, `option "${expiry.id}" must not gain ${resource}`, [
+            "expiry",
+          ]);
+        }
+      }
+    });
+}
+
+function deskKind(
+  option: z.ZodType<DeskOption>,
+  placeholders: readonly string[],
+) {
+  return z.strictObject({
+    weight: positiveInteger,
+    templates: z
+      .array(deskTemplate(option, placeholders))
+      .min(1)
+      .superRefine((templates, ctx) =>
+        repeatIssues(
+          templates.map((template) => template.id),
+          "id",
+          ctx,
+        ),
+      ),
   });
+}
 
 function repeatIssues(
   items: readonly string[],
@@ -145,9 +197,12 @@ const village = z.strictObject({
   names: z
     .array(name)
     .superRefine((names, ctx) => repeatIssues(names, "name", ctx)),
-  deskSlots: positiveInteger,
   promotionPopulation: positiveInteger,
-  disputeArrival: z
+});
+
+const desk = z.strictObject({
+  slots: positiveInteger,
+  arrival: z
     .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
     .superRefine((arrival, ctx) => {
       if (arrival.minTicks > arrival.maxTicks) {
@@ -155,16 +210,11 @@ const village = z.strictObject({
       }
     }),
   grudgeTicks: positiveInteger,
-  disputes: z
-    .array(disputeTemplate)
-    .min(1)
-    .superRefine((templates, ctx) =>
-      repeatIssues(
-        templates.map((template) => template.id),
-        "id",
-        ctx,
-      ),
-    ),
+  kinds: z.strictObject({
+    dispute: deskKind(disputeOption, PARTY_PLACEHOLDERS),
+    merchant: deskKind(merchantOption, NO_PLACEHOLDERS),
+    traveller: deskKind(travellerOption, NO_PLACEHOLDERS),
+  }),
 });
 
 const crownLines = z.strictObject({
@@ -282,6 +332,7 @@ const tuningSchema = z
     decrees: decreeLimits,
     economy,
     village,
+    desk,
     archive,
     crown,
   })
@@ -304,10 +355,10 @@ const tuningSchema = z
 
 export type Tuning = z.infer<typeof tuningSchema>;
 export type VillageTuning = z.infer<typeof village>;
-export type DisputeTemplate = z.infer<typeof disputeTemplate>;
-export type DisputeOption = z.infer<typeof disputeOption>;
+export type DeskTuning = z.infer<typeof desk>;
+export type DeskTemplate = z.infer<ReturnType<typeof deskTemplate>>;
 
-/** Takes the merged contents of tuning.json, village.json and archive.json. */
+/** Takes the merged contents of tuning.json, village.json, desk.json, archive.json and crown.json. */
 export function parseTuning(value: unknown): Tuning {
   return parseWith(tuningSchema, value, "tuning");
 }

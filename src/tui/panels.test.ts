@@ -83,6 +83,7 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
 const ada = { id: 3, name: "Ada", job: Job.FARM, grudgeTicks: 0 };
 const dispute = {
   id: 1,
+  kind: "dispute" as const,
   label: "A squabble",
   parties: ["Ada", "Bram"] as [string, string],
   options: [],
@@ -323,6 +324,22 @@ describe("createPanels", () => {
     for (const gone of ["is clear", "village is empty"]) {
       expect(frame).not.toContain(gone);
     }
+  });
+
+  test("an entry without parties shows its label like any other", async () => {
+    const merchant = {
+      id: 2,
+      kind: "merchant" as const,
+      label: "A smith wants ore",
+      parties: null,
+      options: [],
+    };
+    const view = emptyView({ desk: [merchant] });
+
+    const frame = await draw([view]);
+
+    expect(frame).toContain("A smith wants ore");
+    expect(frame).not.toContain("is clear");
   });
 
   test("the decrees panel lists every petition with its decree or none", async () => {

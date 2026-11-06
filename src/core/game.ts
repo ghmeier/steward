@@ -90,7 +90,7 @@ export class Game {
       labor: { policy: NO_LABOR_POLICY, settling: false },
       desk: {
         nextDisputeId: 1,
-        nextArrivalTick: drawDelay(arrivals, tuning.village.disputeArrival),
+        nextArrivalTick: drawDelay(arrivals, tuning.desk.arrival),
         disputes: [],
       },
       crown: emptyCrownState(),

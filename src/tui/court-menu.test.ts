@@ -18,6 +18,7 @@ function villageWith(templates: string[], coin = 100): Game {
   posting.resources.coin = coin;
   posting.desk.disputes = templates.map((template, index) => ({
     id: index + 1,
+    kind: "dispute" as const,
     template,
     parties: [1, 2],
     arrivedAt: 0,
@@ -54,7 +55,7 @@ class Walker {
 }
 
 describe("court menu", () => {
-  test("the root lists the waiting disputes in desk order, and with none opens nothing", () => {
+  test("the root lists the waiting entries in desk order, and with none opens nothing", () => {
     const game = villageWith(["hen", "boundary"]);
     const view = game.view.compute();
 
@@ -79,6 +80,27 @@ describe("court menu", () => {
       { type: "settleDispute", dispute: 2, option: "for-first" },
     ]);
     expect(walk.state?.frames).toHaveLength(1);
+  });
+
+  test("a merchant's offer lists its trade, names nobody and settles by the same command", () => {
+    const game = villageWith([]);
+    game.state.posting.resources.ore = 20;
+    game.state.posting.desk.nextDisputeId = 2;
+    game.state.posting.desk.disputes = [
+      { id: 1, kind: "merchant", template: "ore-buyer", arrivedAt: 0 },
+    ];
+    const walk = new Walker(game);
+
+    walk.key("return");
+    const [sell, decline] = walk.lines().slice(1);
+    walk.key("return");
+
+    expect(sell).toContain("+20 coin, −10 ore");
+    expect(sell).not.toContain("sulk");
+    expect(decline).toContain("free");
+    expect(walk.commands).toEqual([
+      { type: "settleDispute", dispute: 1, option: "sell" },
+    ]);
   });
 
   test("options show their cost or gain, the default marker and the name of the party who will sulk", () => {

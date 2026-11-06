@@ -81,6 +81,15 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
         (state.tick as number) + loadTuning().crown.firstDemandTicks;
     }
   },
+  // Every desk entry before version 11 was a dispute.
+  10: (state) => {
+    if (!isRecord(state.posting) || !isRecord(state.posting.desk)) return;
+    const { disputes } = state.posting.desk;
+    if (!Array.isArray(disputes)) return;
+    for (const entry of disputes) {
+      if (isRecord(entry)) entry.kind = "dispute";
+    }
+  },
 };
 
 function upgrade(record: Record<string, unknown>): void {

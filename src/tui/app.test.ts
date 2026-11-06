@@ -319,6 +319,7 @@ describe("rendering", () => {
 
 const dispute = {
   id: 1,
+  kind: "dispute" as const,
   template: "stolen-hen",
   parties: [1, 2] as [number, number],
   arrivedAt: 0,
@@ -699,6 +700,44 @@ describe("notices", () => {
     expect(announced).toContain(ARCHIVE_OPENS);
     expect(later).not.toContain(ARCHIVE_OPENS);
     expect(await restarted.screen()).not.toContain(ARCHIVE_OPENS);
+  });
+
+  test("an entry pushed off a full desk posts its flavor line in the footer", async () => {
+    const harness = await launch();
+    const smith = (id: number) => ({
+      id,
+      kind: "merchant" as const,
+      template: "smith",
+      arrivedAt: 0,
+    });
+    harness.game.state.posting.desk.disputes = [1, 2, 3, 4].map(smith);
+    harness.game.state.posting.desk.nextDisputeId = 5;
+
+    await harness.advanceStep();
+
+    expect(barRow(await harness.screen())).toContain("The smith waited");
+  });
+
+  test("a crown notice outranks a desk notice that arrives in the same frame", async () => {
+    const game = withRoster(2);
+    grantUnlocks(game, [CROWN_PANEL]);
+    const harness = await launch({ game });
+    const { posting } = game.state;
+
+    posting.desk.disputes = [dispute];
+    posting.crown.demand = {
+      id: 1,
+      resource: "grain",
+      amount: 1000,
+      delivered: 0,
+      issuedAt: 1,
+      dueAt: 1e6,
+    };
+    await harness.advanceStep();
+    const bar = barRow(await harness.screen());
+
+    expect(bar).toContain("The crown requires 1000 grain");
+    expect(bar).not.toContain("accuses");
   });
 
   test("a purchase is announced once", async () => {

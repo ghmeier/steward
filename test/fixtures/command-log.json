@@ -42,7 +42,7 @@
     "command": {
       "type": "settleDispute",
       "dispute": 1,
-      "option": "for-second"
+      "option": "admit"
     }
   },
   {

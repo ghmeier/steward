@@ -1,5 +1,6 @@
 import archiveJson from "../data/archive.json";
 import crownJson from "../data/crown.json";
+import deskJson from "../data/desk.json";
 import tuningJson from "../data/tuning.json";
 import villageJson from "../data/village.json";
 import type { Delegate } from "../src/core/delegates";
@@ -13,6 +14,7 @@ import { helpSections } from "../src/tui/help-menu";
 export const fullTuningJson = {
   ...tuningJson,
   village: villageJson,
+  desk: deskJson,
   archive: archiveJson,
   crown: crownJson,
 };
@@ -46,40 +48,92 @@ export const economyTestTuning: Tuning = {
   },
   village: {
     names: villageJson.names,
-    deskSlots: 3,
     promotionPopulation: 12,
-    disputeArrival: { minTicks: 900, maxTicks: 1800 },
+  },
+  desk: {
+    slots: 3,
+    arrival: { minTicks: 900, maxTicks: 1800 },
     grudgeTicks: 600,
-    disputes: [
-      {
-        id: "boundary",
-        text: "{first} accuses {second} of moving a stone.",
-        options: [
-          { id: "pay", label: "Pay the surveyor", resources: { coin: -10 } },
+    kinds: {
+      dispute: {
+        weight: 1,
+        templates: [
           {
-            id: "for-first",
-            label: "Rule for {first}",
-            resources: { grain: 5 },
-            grudge: "second",
+            id: "boundary",
+            text: "{first} accuses {second} of moving a stone.",
+            options: [
+              {
+                id: "pay",
+                label: "Pay the surveyor",
+                resources: { coin: -10 },
+              },
+              {
+                id: "for-first",
+                label: "Rule for {first}",
+                resources: { grain: 5 },
+                grudge: "second",
+              },
+              {
+                id: "for-second",
+                label: "Rule for {second}",
+                grudge: "first",
+              },
+            ],
+            expiry: "pay",
+            expired: "The surveyor charged {first} and {second} alike.",
           },
           {
-            id: "for-second",
-            label: "Rule for {second}",
-            grudge: "first",
+            id: "hen",
+            text: "{second} kept {first}'s hen.",
+            options: [
+              { id: "buy", label: "Buy a hen", resources: { grain: -10 } },
+              { id: "dismiss", label: "Dismiss it" },
+            ],
+            expiry: "buy",
+            expired: "A hen was bought for {first}.",
           },
         ],
-        expiry: "pay",
       },
-      {
-        id: "hen",
-        text: "{second} kept {first}'s hen.",
-        options: [
-          { id: "buy", label: "Buy a hen", resources: { grain: -10 } },
-          { id: "dismiss", label: "Dismiss it" },
+      merchant: {
+        weight: 1,
+        templates: [
+          {
+            id: "ore-buyer",
+            text: "A smith wants ore at twice the market price.",
+            options: [
+              {
+                id: "sell",
+                label: "Sell ten ore",
+                resources: { ore: -10, coin: 20 },
+              },
+              { id: "decline", label: "Send him on" },
+            ],
+            expiry: "decline",
+            expired: "The smith moved on.",
+          },
         ],
-        expiry: "buy",
       },
-    ],
+      traveller: {
+        weight: 1,
+        templates: [
+          {
+            id: "settler",
+            text: "A traveller asks to settle.",
+            options: [
+              {
+                id: "admit",
+                label: "Let them settle",
+                resources: { grain: -30 },
+                newcomer: true,
+              },
+              { id: "turn-away", label: "Send them on" },
+            ],
+            expiry: "turn-away",
+            expired: "The traveller walked on.",
+          },
+        ],
+      },
+    },
   },
   archive: tuning.archive,
   crown: tuning.crown,

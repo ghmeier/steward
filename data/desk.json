@@ -1,0 +1,321 @@
+{
+  "slots": 3,
+  "arrival": {
+    "minTicks": 900,
+    "maxTicks": 1800
+  },
+  "grudgeTicks": 600,
+  "kinds": {
+    "dispute": {
+      "weight": 3,
+      "templates": [
+        {
+          "id": "boundary-stone",
+          "text": "{first} says {second} moved the boundary stone a furrow's width. {second} says it was always there.",
+          "options": [
+            {
+              "id": "survey",
+              "label": "Hire a surveyor and split the difference",
+              "resources": {
+                "coin": -8
+              }
+            },
+            {
+              "id": "for-first",
+              "label": "Rule for {first} and cover the surveyor's fee",
+              "resources": {
+                "coin": -3
+              },
+              "grudge": "second"
+            },
+            {
+              "id": "for-second",
+              "label": "Rule for {second} and waive the field's tithe",
+              "resources": {
+                "grain": -4
+              },
+              "grudge": "first"
+            }
+          ],
+          "expiry": "survey",
+          "expired": "The surveyor came, measured twice and charged for both. {first} and {second} agree only that it cost too much."
+        },
+        {
+          "id": "borrowed-plough",
+          "text": "{first} lent {second} a plough in spring. It came back with one handle.",
+          "options": [
+            {
+              "id": "replace",
+              "label": "Pay for a new handle",
+              "resources": {
+                "wood": -4,
+                "coin": -3
+              }
+            },
+            {
+              "id": "for-first",
+              "label": "Make {second} pay {first} for it",
+              "grudge": "second"
+            },
+            {
+              "id": "for-second",
+              "label": "Call it fair wear",
+              "grudge": "first"
+            }
+          ],
+          "expiry": "replace",
+          "expired": "The handle was replaced at the steward's expense, and {first} and {second} are no friendlier for it."
+        },
+        {
+          "id": "stolen-hen",
+          "text": "{first} accuses {second} of stealing a hen. {second} has a hen, and a great deal to say about it.",
+          "options": [
+            {
+              "id": "compensate",
+              "label": "Buy {first} a new hen",
+              "resources": {
+                "grain": -6
+              }
+            },
+            {
+              "id": "fine-second",
+              "label": "Fine {second} for the steward's trouble",
+              "resources": {
+                "coin": 6
+              },
+              "grudge": "second"
+            },
+            {
+              "id": "dismiss",
+              "label": "Dismiss the charge",
+              "grudge": "first"
+            }
+          ],
+          "expiry": "compensate",
+          "expired": "A hen was bought, and both {first} and {second} are certain it was the wrong one."
+        },
+        {
+          "id": "dowry",
+          "text": "{first} promised a dowry to {second}'s family and now disputes the count of the sheaves.",
+          "options": [
+            {
+              "id": "top-up",
+              "label": "Make up the shortfall from the stores",
+              "resources": {
+                "grain": -12
+              }
+            },
+            {
+              "id": "hold-first",
+              "label": "Hold {first} to the full count",
+              "grudge": "first"
+            },
+            {
+              "id": "hold-second",
+              "label": "Tell {second} to accept less, with a gift to ease the sting",
+              "resources": {
+                "coin": -4
+              },
+              "grudge": "second"
+            }
+          ],
+          "expiry": "top-up",
+          "expired": "The stores covered the shortfall. {first} and {second} now disagree about who owes the steward thanks."
+        },
+        {
+          "id": "mill-rights",
+          "text": "{first} and {second} both claim the first grinding of the day at the mill.",
+          "options": [
+            {
+              "id": "rota",
+              "label": "Draw up a rota and a fee",
+              "resources": {
+                "coin": -5
+              }
+            },
+            {
+              "id": "for-first",
+              "label": "Give {first} the mornings, fee waived",
+              "resources": {
+                "coin": -3
+              },
+              "grudge": "second"
+            },
+            {
+              "id": "for-second",
+              "label": "Give {second} the mornings and a sack of flour on the house",
+              "resources": {
+                "grain": -3
+              },
+              "grudge": "first"
+            }
+          ],
+          "expiry": "rota",
+          "expired": "A rota went up on the mill door. {first} and {second} have each already found a fault in it."
+        },
+        {
+          "id": "fence-pigs",
+          "text": "{second}'s pigs have eaten through {first}'s fence and, by report, most of {first}'s cabbages.",
+          "options": [
+            {
+              "id": "mend",
+              "label": "Pay to mend the fence",
+              "resources": {
+                "wood": -6
+              }
+            },
+            {
+              "id": "for-first",
+              "label": "Order {second} to pay {first}, less a fee for the paperwork",
+              "resources": {
+                "coin": 3
+              },
+              "grudge": "second"
+            },
+            {
+              "id": "pigs",
+              "label": "Say pigs will be pigs",
+              "grudge": "first"
+            }
+          ],
+          "expiry": "mend",
+          "expired": "The fence was mended. {second}'s pigs have already noted the weak point."
+        }
+      ]
+    },
+    "merchant": {
+      "weight": 2,
+      "templates": [
+        {
+          "id": "smith",
+          "text": "A travelling smith offers two coin an ore, which is twice the market price, and would like it before he thinks better of it.",
+          "options": [
+            {
+              "id": "sell-all",
+              "label": "Sell him ten ore",
+              "resources": {
+                "coin": 20,
+                "ore": -10
+              }
+            },
+            {
+              "id": "sell-some",
+              "label": "Sell him four ore",
+              "resources": {
+                "coin": 8,
+                "ore": -4
+              }
+            },
+            {
+              "id": "decline",
+              "label": "Send him on"
+            }
+          ],
+          "expiry": "decline",
+          "expired": "The smith waited for a steward, then for a reason to stay, and took his money to the next village."
+        },
+        {
+          "id": "timber-factor",
+          "text": "A timber factor wants wood for a bridge that someone else will be asked to pay for. He offers nine-tenths of a coin each.",
+          "options": [
+            {
+              "id": "sell-load",
+              "label": "Sell thirty wood",
+              "resources": {
+                "coin": 27,
+                "wood": -30
+              }
+            },
+            {
+              "id": "sell-cord",
+              "label": "Sell ten wood",
+              "resources": {
+                "coin": 9,
+                "wood": -10
+              }
+            },
+            {
+              "id": "decline",
+              "label": "Decline the contract"
+            }
+          ],
+          "expiry": "decline",
+          "expired": "The factor left unpaid and unbothered, muttering about rural procurement."
+        },
+        {
+          "id": "grain-factor",
+          "text": "A grain factor with a full cart and a short temper will sell below the market price, if you take it today.",
+          "options": [
+            {
+              "id": "buy-cart",
+              "label": "Buy the whole cart: forty grain",
+              "resources": {
+                "coin": -12,
+                "grain": 40
+              }
+            },
+            {
+              "id": "buy-half",
+              "label": "Buy half a cart: twenty grain",
+              "resources": {
+                "coin": -6,
+                "grain": 20
+              }
+            },
+            {
+              "id": "decline",
+              "label": "Let the cart go"
+            }
+          ],
+          "expiry": "decline",
+          "expired": "The cart rolled on. Somewhere down the road, a steward is being very pleasant to a grain factor."
+        }
+      ]
+    },
+    "traveller": {
+      "weight": 1,
+      "templates": [
+        {
+          "id": "stranger",
+          "text": "A stranger with a bedroll and no references asks to settle. She says she is good with her hands, and has not said which hands.",
+          "options": [
+            {
+              "id": "admit",
+              "label": "Let her settle, and feed her first",
+              "resources": {
+                "grain": -25
+              },
+              "newcomer": true
+            },
+            {
+              "id": "turn-away",
+              "label": "Send her on her way"
+            }
+          ],
+          "expiry": "turn-away",
+          "expired": "The stranger walked on, still unreferenced, still good with her hands."
+        },
+        {
+          "id": "cartwright",
+          "text": "A cartwright says the last village was full, loudly and with some bitterness. He will farm for his keep if the first meal is on you.",
+          "options": [
+            {
+              "id": "admit",
+              "label": "Admit him and cover the first meal",
+              "resources": {
+                "grain": -30
+              },
+              "newcomer": true
+            },
+            {
+              "id": "turn-away",
+              "label": "Wish him luck at the next village"
+            }
+          ],
+          "expiry": "turn-away",
+          "expired": "The cartwright shouldered his tools and went to find a village that was not full."
+        }
+      ]
+    }
+  }
+}

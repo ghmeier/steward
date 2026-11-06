@@ -5,25 +5,33 @@ import type { AddContext } from "./math";
 import { add } from "./math";
 import type { Resource } from "./realm";
 import { drawDelay, intBelow, type RngState } from "./rng";
-import type { DisputeOption, DisputeTemplate } from "./tuning";
+import type { DeskOption, DeskTemplate } from "./tuning";
 
-export type Dispute = {
+/** A record keyed by kind is in this order, so the weighted draw walks the kinds in a fixed order. */
+export const DESK_KINDS = ["dispute", "merchant", "traveller"] as const;
+export type DeskKind = (typeof DESK_KINDS)[number];
+
+type EntryBase = {
   id: number;
   template: string;
-  parties: [number, number];
   arrivedAt: number;
 };
 
-/** Disputes are oldest first. */
+export type Dispute = EntryBase & {
+  kind: "dispute";
+  parties: [number, number];
+};
+
+export type Offer = EntryBase & { kind: Exclude<DeskKind, "dispute"> };
+
+export type DeskEntry = Dispute | Offer;
+
+/** Entries of every kind, oldest first; the field names predate the kinds other than disputes. */
 export type DeskState = {
   nextDisputeId: number;
   nextArrivalTick: number;
-  disputes: Dispute[];
+  disputes: DeskEntry[];
 };
-
-export function fillNames(text: string, first: string, second: string): string {
-  return text.replaceAll("{first}", first).replaceAll("{second}", second);
-}
 
 // Floored so a village holding 4.96 against a need of 5 is never described as having 5.
 function show(amount: number): string {
@@ -31,7 +39,15 @@ function show(amount: number): string {
 }
 
 export class DeskManager {
+  // Not saved: the lines only feed the TUI's notice, which reads them after each step.
+  private expiredThisStep: string[] = [];
+
   constructor(private game: Game) {}
+
+  /** The flavor lines of the entries that expired during the latest step. */
+  get expired(): readonly string[] {
+    return this.expiredThisStep;
+  }
 
   private get state() {
     return this.game.state;
@@ -51,27 +67,48 @@ export class DeskManager {
     return stream;
   }
 
-  templateOf(dispute: Dispute): DisputeTemplate {
-    const template = this.tuning.village.disputes.find(
-      (candidate) => candidate.id === dispute.template,
+  templatesOf(kind: DeskKind): readonly DeskTemplate[] {
+    return this.tuning.desk.kinds[kind].templates;
+  }
+
+  templateOf(entry: DeskEntry): DeskTemplate {
+    const template = this.templatesOf(entry.kind).find(
+      (candidate) => candidate.id === entry.template,
     );
     if (template === undefined) {
       throw new Error(
-        `dispute ${dispute.id} uses unknown template "${dispute.template}"; the village content changed under this save`,
+        `desk entry ${entry.id} uses unknown ${entry.kind} template "${entry.template}"; the desk content changed under this save`,
       );
     }
     return template;
   }
 
   private optionOf(
-    template: DisputeTemplate,
+    template: DeskTemplate,
     optionId: string,
-  ): DisputeOption | undefined {
+  ): DeskOption | undefined {
     return template.options.find((option) => option.id === optionId);
   }
 
-  /** Names the first resource the village cannot cover, or null when the option is affordable. */
-  shortfall(option: DisputeOption): string | null {
+  private nameOf(id: number): string {
+    const peasant = this.game.delegates.findById(id);
+    if (peasant === undefined) {
+      throw new Error(`dispute party ${id} is not in the roster`);
+    }
+    return peasant.name;
+  }
+
+  /** Fills a template's placeholders with the names of the entry's parties; other kinds have none. */
+  fill(entry: DeskEntry, text: string): string {
+    if (entry.kind !== "dispute") return text;
+    const [first, second] = entry.parties;
+    return text
+      .replaceAll("{first}", this.nameOf(first))
+      .replaceAll("{second}", this.nameOf(second));
+  }
+
+  /** Names the first thing the village cannot cover, or null when the option is affordable. */
+  shortfall(option: DeskOption): string | null {
     const resources = option.resources ?? {};
     for (const resource of sortedKeys(resources)) {
       const delta = resources[resource as Resource] ?? 0;
@@ -80,11 +117,14 @@ export class DeskManager {
         return `not enough ${resource} (need ${show(-delta)}, have ${show(held)})`;
       }
     }
+    if (option.newcomer !== undefined && !this.game.economy.hasRoom) {
+      return "the village has no room for another peasant";
+    }
     return null;
   }
 
   private applyResources(
-    option: DisputeOption,
+    option: DeskOption,
     context: AddContext,
     clampLosses: boolean,
   ): void {
@@ -98,88 +138,150 @@ export class DeskManager {
     }
   }
 
+  private grudgedParty(entry: DeskEntry, option: DeskOption): number | null {
+    if (option.grudge === undefined || entry.kind !== "dispute") return null;
+    return entry.parties[option.grudge === "first" ? 0 : 1];
+  }
+
+  sulker(entry: DeskEntry, option: DeskOption): string | null {
+    const party = this.grudgedParty(entry, option);
+    return party === null ? null : this.nameOf(party);
+  }
+
+  private applyGrudge(entry: DeskEntry, option: DeskOption): void {
+    const party = this.grudgedParty(entry, option);
+    if (party === null) return;
+    const peasant = this.game.delegates.findById(party);
+    if (peasant !== undefined) {
+      peasant.grudgeUntil = Math.max(
+        peasant.grudgeUntil,
+        this.state.tick + this.tuning.desk.grudgeTicks,
+      );
+    }
+  }
+
   settle(
-    disputeId: number,
+    entryId: number,
     optionId: string,
     context: AddContext,
   ): CommandResult {
-    const disputes = this.posting.desk.disputes;
-    const index = disputes.findIndex((candidate) => candidate.id === disputeId);
-    const dispute = disputes[index];
-    if (dispute === undefined) {
-      return { ok: false, reason: `no dispute ${disputeId}` };
+    const entries = this.posting.desk.disputes;
+    const index = entries.findIndex((candidate) => candidate.id === entryId);
+    const entry = entries[index];
+    if (entry === undefined) {
+      return { ok: false, reason: `no dispute ${entryId}` };
     }
-    const template = this.templateOf(dispute);
+    const template = this.templateOf(entry);
     const option = this.optionOf(template, optionId);
     if (option === undefined) {
       return {
         ok: false,
-        reason: `dispute ${disputeId} has no option "${optionId}"`,
+        reason: `dispute ${entryId} has no option "${optionId}"`,
       };
     }
     const problem = this.shortfall(option);
     if (problem !== null) return { ok: false, reason: problem };
 
     this.applyResources(option, context, false);
-    if (option.grudge !== undefined) {
-      const party = dispute.parties[option.grudge === "first" ? 0 : 1];
-      const peasant = this.game.delegates.findById(party);
-      if (peasant !== undefined) {
-        peasant.grudgeUntil = Math.max(
-          peasant.grudgeUntil,
-          this.state.tick + this.tuning.village.grudgeTicks,
-        );
-      }
-    }
-    disputes.splice(index, 1);
+    this.applyGrudge(entry, option);
+    if (option.newcomer !== undefined) this.game.economy.admitNewcomer();
+    entries.splice(index, 1);
     return { ok: true };
   }
 
-  private drawDispute(): void {
-    const { desk, delegates } = this.posting;
-    const stream = this.stream;
-    const templates = this.tuning.village.disputes;
-    const template = templates[intBelow(stream, templates.length)];
-    const firstIndex = intBelow(stream, delegates.length);
-    const drawn = intBelow(stream, delegates.length - 1);
+  private isEligible(kind: DeskKind): boolean {
+    switch (kind) {
+      case "dispute":
+        return this.posting.delegates.length >= 2;
+      case "traveller":
+        return this.game.economy.hasRoom;
+      case "merchant":
+        return true;
+    }
+  }
+
+  private drawKind(): DeskKind {
+    const eligible = DESK_KINDS.filter((kind) => this.isEligible(kind));
+    const weight = (kind: DeskKind) => this.tuning.desk.kinds[kind].weight;
+    let roll = intBelow(
+      this.stream,
+      eligible.reduce((total, kind) => total + weight(kind), 0),
+    );
+    for (const kind of eligible) {
+      roll -= weight(kind);
+      if (roll < 0) return kind;
+    }
+    throw new Error("desk kind draw landed outside its range");
+  }
+
+  private drawParties(): [number, number] {
+    const { delegates } = this.posting;
+    const firstIndex = intBelow(this.stream, delegates.length);
+    const drawn = intBelow(this.stream, delegates.length - 1);
     const secondIndex = drawn >= firstIndex ? drawn + 1 : drawn;
     const first = delegates[firstIndex];
     const second = delegates[secondIndex];
-    if (template === undefined || first === undefined || second === undefined) {
-      throw new Error("dispute draw landed outside its range");
+    if (first === undefined || second === undefined) {
+      throw new Error("dispute party draw landed outside its range");
     }
-    desk.disputes.push({
+    return [first.id, second.id];
+  }
+
+  private arrive(): void {
+    const { desk } = this.posting;
+    const kind = this.drawKind();
+    const templates = this.templatesOf(kind);
+    const template = templates[intBelow(this.stream, templates.length)];
+    if (template === undefined) {
+      throw new Error("desk template draw landed outside its range");
+    }
+    const base = {
       id: desk.nextDisputeId,
       template: template.id,
-      parties: [first.id, second.id],
       arrivedAt: this.state.tick,
-    });
+    };
+    desk.disputes.push(
+      kind === "dispute"
+        ? { ...base, kind, parties: this.drawParties() }
+        : { ...base, kind },
+    );
     desk.nextDisputeId += 1;
   }
 
-  run(context: AddContext): void {
-    const { desk, delegates } = this.posting;
-    for (const dispute of desk.disputes) this.templateOf(dispute);
+  private expire(entry: DeskEntry, context: AddContext): void {
+    const template = this.templateOf(entry);
+    const option = this.optionOf(template, template.expiry);
+    if (option === undefined) throw new Error("expiry option is missing");
+    this.applyResources(option, context, true);
+    this.expiredThisStep.push(this.fill(entry, template.expired));
+  }
 
+  private dropStaleDisputes(): void {
+    const { desk, delegates } = this.posting;
     const living = new Set(delegates.map((delegate) => delegate.id));
-    desk.disputes = desk.disputes.filter((dispute) =>
-      dispute.parties.every((party) => living.has(party)),
+    desk.disputes = desk.disputes.filter(
+      (entry) =>
+        entry.kind !== "dispute" ||
+        entry.parties.every((party) => living.has(party)),
     );
+  }
+
+  run(context: AddContext): void {
+    const { desk } = this.posting;
+    this.expiredThisStep = [];
+    for (const entry of desk.disputes) this.templateOf(entry);
+    this.dropStaleDisputes();
 
     if (this.state.tick >= desk.nextArrivalTick) {
-      if (delegates.length >= 2) this.drawDispute();
+      this.arrive();
       desk.nextArrivalTick =
-        this.state.tick +
-        drawDelay(this.stream, this.tuning.village.disputeArrival);
+        this.state.tick + drawDelay(this.stream, this.tuning.desk.arrival);
     }
 
-    while (desk.disputes.length > this.tuning.village.deskSlots) {
+    while (desk.disputes.length > this.tuning.desk.slots) {
       const oldest = desk.disputes.shift();
       if (oldest === undefined) break;
-      const template = this.templateOf(oldest);
-      const option = this.optionOf(template, template.expiry);
-      if (option === undefined) throw new Error("expiry option is missing");
-      this.applyResources(option, context, true);
+      this.expire(oldest, context);
     }
   }
 }
