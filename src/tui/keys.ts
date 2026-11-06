@@ -1,5 +1,10 @@
 import { Job } from "../core/realm";
-import { ARCHIVE_PANEL, PALETTE_UNLOCK, type UnlockId } from "../core/unlocks";
+import {
+  ARCHIVE_PANEL,
+  CROWN_PANEL,
+  PALETTE_UNLOCK,
+  type UnlockId,
+} from "../core/unlocks";
 
 export type KeyPress = {
   name: string;
@@ -9,7 +14,13 @@ export type KeyPress = {
   /** The text the terminal sent for this key, which is what a text field appends. */
   sequence: string;
 };
-export const FOCUS_IDS = ["peasants", "archive", "court", "decrees"] as const;
+export const FOCUS_IDS = [
+  "peasants",
+  "archive",
+  "court",
+  "decrees",
+  "crown",
+] as const;
 export type FocusId = (typeof FOCUS_IDS)[number];
 
 /** What a global key asks for; the focused panel owns every other key, including peasant assignment. */
@@ -36,6 +47,7 @@ const BINDINGS: Readonly<Record<string, Binding>> = {
   a: { action: { kind: "focus", panel: "archive" }, needs: ARCHIVE_PANEL },
   c: { action: { kind: "focus", panel: "court" } },
   d: { action: { kind: "focus", panel: "decrees" } },
+  r: { action: { kind: "focus", panel: "crown" }, needs: CROWN_PANEL },
   left: { action: { kind: "cycle", delta: -1 } },
   right: { action: { kind: "cycle", delta: 1 } },
   ":": { action: { kind: "line", prefill: "" }, needs: PALETTE_UNLOCK },
@@ -135,6 +147,7 @@ const GLOBAL_HINTS: readonly KeyHint[] = [
   { keys: "a", label: "archive", needs: ARCHIVE_PANEL },
   { keys: "c", label: "court" },
   { keys: "d", label: "decrees" },
+  { keys: "r", label: "crown", needs: CROWN_PANEL },
   { keys: ":", label: "commands", needs: PALETTE_UNLOCK },
   { keys: "s", label: "save" },
   { keys: "n", label: "new village" },
@@ -163,6 +176,10 @@ const PANEL_HINTS: Readonly<Record<FocusId, readonly ShownHint[]>> = {
     { keys: "j/k", label: "select" },
     { keys: "enter", label: "write" },
     { keys: "x", label: "repeal" },
+    { keys: "esc", label: "back" },
+  ],
+  crown: [
+    { keys: "enter", label: "deliver" },
     { keys: "esc", label: "back" },
   ],
 };

@@ -9,6 +9,8 @@ import {
   ARCHIVE_PANEL,
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
+  CROWN_CORRESPONDENCE,
+  CROWN_PANEL,
   PALETTE_UNLOCK,
   SAVED_DECREES_UNLOCK,
 } from "../core/unlocks";
@@ -51,6 +53,8 @@ function contextWith(setup: Setup = {}): MenuContext {
 const compound: Setup = { unlocks: [COMPOUND_UNLOCK] };
 const chained: Setup = { unlocks: [CHAINING_UNLOCK], decrees: [harvest] };
 const archive: Setup = { unlocks: [ARCHIVE_PANEL] };
+const crowned: Setup = { unlocks: [CROWN_PANEL] };
+const corresponding: Setup = { unlocks: [CROWN_CORRESPONDENCE] };
 const saving: Setup = { saved: { name: "plan", decree: granary } };
 const palette: Setup = { unlocks: [PALETTE_UNLOCK], idle: 3 };
 const everyVerb: Setup = {
@@ -130,6 +134,10 @@ const parseRows: [string, Setup, Outcome | null][] = [
 	["forget plan", { unlocks: [SAVED_DECREES_UNLOCK] }, bad("no saved decrees")],
 	[`assign ${second?.name} mine`, palette, ok({ type: "assignPeasant", peasant: second?.id, job: Job.MINE })],
 	["assign x idle", {}, bad("assign needs")],
+	["deliver", crowned, ok({ type: "deliver" })],
+	["deliver", {}, bad("deliver needs the Crown")],
+	[`${woodRuleStart}owed ore above 0 otherwise stockpile`, {}, bad(entry(CROWN_CORRESPONDENCE).label)],
+	[`${woodRuleStart}owed ore above 0 otherwise stockpile`, corresponding, enact({ rules: [{ when: { kind: "compare", quantity: "owedOre" } }] })],
 	...PETITIONS.flatMap((petition) =>
 		policiesFor(petition, tuning).map((policy): [string, Setup, Outcome] => [
 			`decree ${petition} otherwise ${policy}`,
@@ -207,6 +215,10 @@ const presenceRows: [string, Setup, string[]][] = [
 	[andRoom(maxNodes - 1), compound, ["!and"]],
 	[woodRuleStart, { decrees: [harvest] }, ["!harvest"]],
 	[woodRuleStart, chained, ["harvest"]],
+	[harvestRuleStart, {}, ["!owed ore", "!owed wood", "!owed grain", "!owed coin"]],
+	[harvestRuleStart, corresponding, ["owed ore", "owed wood", "owed grain", "owed coin"]],
+	["", crowned, ["deliver"]],
+	["", {}, ["!deliver"]],
 	["buy ", archive, ["palette", "!saved-decrees"]],
 	["buy ", { unlocks: [ARCHIVE_PANEL, PALETTE_UNLOCK] }, ["saved-decrees"]],
 	["buy ", { unlocks: [ARCHIVE_PANEL, COMPOUND_UNLOCK] }, ["chaining", "!compound"]],

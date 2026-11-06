@@ -3,7 +3,7 @@ import { createTestRenderer } from "@opentui/core/testing";
 import { tuning } from "../../test/helpers";
 import { barRow, settledFrame } from "../../test/tui-helpers";
 import { Job, RESOURCES } from "../core/realm";
-import { PALETTE_UNLOCK, type UnlockId } from "../core/unlocks";
+import { CROWN_PANEL, PALETTE_UNLOCK, type UnlockId } from "../core/unlocks";
 import type { GameView } from "../core/view";
 import { formatAmount, formatGameTime, formatRate } from "./format";
 import { BAR_HINTS, type FocusId } from "./keys";
@@ -104,7 +104,7 @@ describe("createPanels", () => {
     { width: 100, height: 30 },
     { width: 80, height: 24 },
   ])(
-    "shows all five titles and the bar hints at $width x $height",
+    "shows all six titles and the bar hints at $width x $height",
     async (size) => {
       const frame = await draw([emptyView()], {
         size,
@@ -116,6 +116,7 @@ describe("createPanels", () => {
         "(A)rchive",
         "(C)ourt",
         "(D)ecrees",
+        "C(r)own",
       ]) {
         expect(frame).toContain(title);
       }
@@ -123,7 +124,7 @@ describe("createPanels", () => {
     },
   );
 
-  test("the top row splits one to one to two and the bottom row one to one", async () => {
+  test("the top row splits one to one to two and the bottom row into thirds", async () => {
     const frame = await draw([emptyView()], {
       size: { width: 160, height: 30 },
     });
@@ -138,7 +139,8 @@ describe("createPanels", () => {
       expect(Math.abs(actual - expected)).toBeLessThanOrEqual(2);
     near(offset(lines[top] ?? "", "(P)easants", "(L)edger"), 40);
     near(offset(lines[top] ?? "", "(A)rchive", "(L)edger"), 80);
-    near(offset(lines[bottom] ?? "", "(D)ecrees", "(C)ourt"), 80);
+    near(offset(lines[bottom] ?? "", "(D)ecrees", "(C)ourt"), 160 / 3);
+    near(offset(lines[bottom] ?? "", "C(r)own", "(C)ourt"), (2 * 160) / 3);
   });
 
   describe("the bottom bar", () => {
@@ -425,6 +427,61 @@ describe("createPanels", () => {
     expect(focused).toMatch(/ {2}Ada {2}farm/);
     expect(focused).toMatch(/> Bram {2}idle \(grudge\)/);
     expect(focused).not.toMatch(/> Ada/);
+  });
+
+  describe("the Crown panel", () => {
+    const demand = {
+      resource: "ore" as const,
+      amount: 80,
+      delivered: 45,
+      ticksLeft: 80 * (1000 / tuning.stepMs),
+      herald: "The crown requires 80 ore for the armory.",
+    };
+    const crownView = (crown: GameView["crown"]) =>
+      emptyView({ crown, unlocks: [CROWN_PANEL] });
+
+    test("an open demand shows its herald, progress, time left and the tally", async () => {
+      const frame = await draw([
+        crownView({ demand, nextDemandTicks: null, met: 3, missed: 1 }),
+      ]);
+
+      expect(frame).toContain(demand.herald.slice(0, 20));
+      expect(frame).toContain("ore 45 / 80");
+      expect(frame).toContain("due in 1m 20s");
+      expect(frame).toContain("Met 3 \u00b7 missed 1");
+    });
+
+    test("between demands the panel says the crown is quiet and when the next one comes", async () => {
+      const frame = await draw([
+        crownView({
+          demand: null,
+          nextDemandTicks: 120 * (1000 / tuning.stepMs),
+          met: 0,
+          missed: 0,
+        }),
+      ]);
+
+      expect(frame).toContain("The crown is quiet.");
+      expect(frame).toContain("about 2m");
+      expect(frame).not.toContain("due in");
+    });
+
+    test("focused, it shows the deliver hint", async () => {
+      const frame = await draw(
+        [crownView({ demand, nextDemandTicks: null, met: 0, missed: 0 })],
+        { focus: "crown" },
+      );
+
+      expect(frame).toContain("enter deliver \u00b7 esc back");
+    });
+
+    test("the herald wraps inside the panel instead of being cut off at 100 columns", async () => {
+      const frame = await draw([
+        crownView({ demand, nextDemandTicks: null, met: 0, missed: 0 }),
+      ]);
+
+      expect(frame).toContain("armory.");
+    });
   });
 
   test("a locked panel keeps its title but hides its content", async () => {
