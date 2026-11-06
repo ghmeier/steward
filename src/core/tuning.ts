@@ -7,8 +7,7 @@ import {
   ARCHIVE_PANEL,
   type ArchiveEntry,
   type ArchiveTuning,
-  CHAINING_UNLOCK,
-  COMPOUND_UNLOCK,
+  DECREE_GATES,
   type NeedHook,
   type PlayUnlock,
 } from "./unlocks";
@@ -18,13 +17,18 @@ const positive = z.number().gt(0).transform(normalizeZero);
 const positiveInteger = z.int().min(1);
 const name = z.string().min(1);
 
-const placeholderText = name.superRefine((text, ctx) => {
-  for (const match of text.matchAll(/\{([^{}]*)\}/g)) {
-    if (match[1] !== "first" && match[1] !== "second") {
-      addIssue(ctx, `has unknown placeholder ${match[0]}`);
+function textWithPlaceholders(allowed: readonly string[]) {
+  return name.superRefine((text, ctx) => {
+    for (const match of text.matchAll(/\{([^{}]*)\}/g)) {
+      if (!allowed.includes(match[1] ?? "")) {
+        addIssue(ctx, `has unknown placeholder ${match[0]}`);
+      }
     }
-  }
-});
+  });
+}
+
+const placeholderText = textWithPlaceholders(["first", "second"]);
+const amountText = textWithPlaceholders(["amount"]);
 
 const decreeLimits: z.ZodType<DecreeLimits> = z.strictObject({
   maxRules: positiveInteger,
@@ -163,6 +167,29 @@ const village = z.strictObject({
     ),
 });
 
+const crownLines = z.strictObject({
+  herald: amountText,
+  met: amountText,
+  missed: amountText,
+});
+
+const crown = z.strictObject({
+  firstDemandTicks: positiveInteger,
+  deadlineTicks: positiveInteger,
+  gap: z
+    .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
+    .superRefine((gap, ctx) => {
+      if (gap.minTicks > gap.maxTicks) {
+        addIssue(ctx, "must not exceed maxTicks", ["minTicks"]);
+      }
+    }),
+  baseAmounts: z.record(z.enum(RESOURCES), positive),
+  step: nonNegative,
+  surcharge: nonNegative,
+  reward: nonNegative,
+  lines: z.record(z.enum(RESOURCES), crownLines),
+});
+
 const simpleCondition: z.ZodType<Condition> = conditionSchema({
   maxRules: 1,
   maxConditionNodes: 8,
@@ -192,7 +219,7 @@ const needHook: z.ZodType<NeedHook> = z.strictObject({
 
 function archiveIssues(archive: ArchiveTuning, ctx: z.RefinementCtx): void {
   const { entries, play, needs } = archive;
-  for (const id of [COMPOUND_UNLOCK, CHAINING_UNLOCK]) {
+  for (const { id } of DECREE_GATES) {
     if (!entries.some((entry) => entry.id === id)) {
       addIssue(ctx, `must include "${id}"`, ["entries"]);
     }
@@ -256,6 +283,7 @@ const tuningSchema = z
     economy,
     village,
     archive,
+    crown,
   })
   .superRefine((tuning, ctx) => {
     const max = tuning.economy.maxPopulation;

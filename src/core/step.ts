@@ -1,6 +1,7 @@
 import type { Command, CommandLogEntry, CommandResult } from "./commands";
 import type { Game } from "./game";
 import type { AbsorbedAdditionLog, AddContext } from "./math";
+import { CROWN_PANEL } from "./unlocks";
 import { validateState } from "./validate";
 
 export type StepOptions = {
@@ -30,6 +31,8 @@ export class StepManager {
     if (state.career.promotedAt !== 0) return;
     if (state.posting.delegates.length >= tuning.village.promotionPopulation) {
       state.career.promotedAt = state.tick;
+      state.career.unlocks[CROWN_PANEL] = state.tick;
+      this.game.crown.scheduleFirstDemand();
     }
   }
 
@@ -46,6 +49,7 @@ export class StepManager {
     );
     this.runFlows(context);
     this.game.desk.run(context);
+    this.game.crown.run(context);
     this.checkPromotion();
     this.game.unlocks.run();
 

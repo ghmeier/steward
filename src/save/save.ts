@@ -10,13 +10,16 @@ import {
   writeSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { emptyCrownState } from "../core/crown";
 import { isRecord } from "../core/data";
 import { errorMessage } from "../core/errors";
 import { NO_LABOR_POLICY } from "../core/labor";
+import { seedStream } from "../core/rng";
 import { canonicalStringify } from "../core/serialize";
 import { type GameState, SCHEMA_VERSION } from "../core/state";
+import { CROWN_PANEL } from "../core/unlocks";
 import { assertValidState } from "../core/validate";
-import { contentHash } from "./content";
+import { contentHash, loadTuning } from "./content";
 
 export const SAVE_FILE_NAME = "save.json";
 
@@ -58,6 +61,25 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
   8: (state) => {
     if (!isRecord(state.posting)) return;
     state.posting.labor = { policy: NO_LABOR_POLICY, settling: false };
+  },
+  // A save that already passed promotion would never reach the promotion check again, so it is
+  // given the Crown panel and its first demand here.
+  9: (state) => {
+    if (!isRecord(state.posting) || !isRecord(state.career)) return;
+    const crown = emptyCrownState();
+    state.posting.crown = crown;
+    if (isRecord(state.posting.rng)) {
+      state.posting.rng.crown = seedStream(Number(state.posting.seed), "crown");
+    }
+    if (
+      typeof state.career.promotedAt === "number" &&
+      state.career.promotedAt !== 0 &&
+      isRecord(state.career.unlocks)
+    ) {
+      state.career.unlocks[CROWN_PANEL] = state.tick as number;
+      crown.nextDemandTick =
+        (state.tick as number) + loadTuning().crown.firstDemandTicks;
+    }
   },
 };
 

@@ -4,8 +4,8 @@ import type { Game } from "./game";
 import type { AddContext } from "./math";
 import { add } from "./math";
 import type { Resource } from "./realm";
-import { intBelow, type RngState } from "./rng";
-import type { DisputeOption, DisputeTemplate, Tuning } from "./tuning";
+import { drawDelay, intBelow, type RngState } from "./rng";
+import type { DisputeOption, DisputeTemplate } from "./tuning";
 
 export type Dispute = {
   id: number;
@@ -20,12 +20,6 @@ export type DeskState = {
   nextArrivalTick: number;
   disputes: Dispute[];
 };
-
-/** Ticks until the next arrival, in [minTicks, maxTicks]; the caller adds the current tick. */
-export function drawArrivalDelay(stream: RngState, tuning: Tuning): number {
-  const { minTicks, maxTicks } = tuning.village.disputeArrival;
-  return minTicks + intBelow(stream, maxTicks - minTicks + 1);
-}
 
 export function fillNames(text: string, first: string, second: string): string {
   return text.replaceAll("{first}", first).replaceAll("{second}", second);
@@ -175,7 +169,8 @@ export class DeskManager {
     if (this.state.tick >= desk.nextArrivalTick) {
       if (delegates.length >= 2) this.drawDispute();
       desk.nextArrivalTick =
-        this.state.tick + drawArrivalDelay(this.stream, this.tuning);
+        this.state.tick +
+        drawDelay(this.stream, this.tuning.village.disputeArrival);
     }
 
     while (desk.disputes.length > this.tuning.village.deskSlots) {

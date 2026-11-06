@@ -191,6 +191,9 @@ export function runSim(
   const rejectedCommands: { tick: number; type: string; reason: string }[] = [];
   const issued: CommandLogEntry[] = [];
   let minPopulation = game.state.posting.delegates.length;
+  const crownOutcomes: { tick: number; outcome: "met" | "missed" }[] = [];
+  let crownMet = state.posting.crown.met;
+  let crownMissed = state.posting.crown.missed;
   let stepsDone = 0;
   const commandSource = player === null ? undefined : player.next;
   try {
@@ -211,6 +214,12 @@ export function runSim(
         if (options.record !== null) {
           for (const command of commands) issued.push({ tick, command });
         }
+        const { met, missed } = state.posting.crown;
+        if (met > crownMet) crownOutcomes.push({ tick, outcome: "met" });
+        if (missed > crownMissed)
+          crownOutcomes.push({ tick, outcome: "missed" });
+        crownMet = met;
+        crownMissed = missed;
         player?.observe(game);
         minPopulation = Math.min(
           minPopulation,
@@ -249,6 +258,12 @@ export function runSim(
       population: state.posting.delegates.length,
       starved: state.posting.economy.starved,
       minPopulation,
+      promotedAt: state.career.promotedAt,
+      crown: {
+        met: state.posting.crown.met,
+        missed: state.posting.crown.missed,
+        outcomes: crownOutcomes,
+      },
       ...(player
         ? { strategy: { name: strategyName, ...player.stats() } }
         : {}),

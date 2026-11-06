@@ -2,9 +2,9 @@ import { compareKeys, sortedKeys } from "./data";
 import type { Decree } from "./decree";
 import { fillNames } from "./desk";
 import type { Game } from "./game";
-import { type Job, RESOURCES, type Season } from "./realm";
+import { type Job, RESOURCES, type Resource, type Season } from "./realm";
 import type { ResourceId } from "./state";
-import { ARCHIVE_PANEL, type UnlockId } from "./unlocks";
+import { ARCHIVE_PANEL, CROWN_PANEL, type UnlockId } from "./unlocks";
 
 export type LedgerLine = {
   resource: ResourceId;
@@ -35,8 +35,22 @@ export type DelegateView = {
   job: Job | "idle";
   grudgeTicks: number;
 };
-export type PanelId = "archive" | "ledger" | "peasants";
-export type CrownDemandView = { label: string };
+export type PanelId = "archive" | "crown" | "ledger" | "peasants";
+export type CrownDemandView = {
+  resource: ResourceId;
+  amount: number;
+  delivered: number;
+  ticksLeft: number;
+  herald: string;
+};
+/** What the Crown panel shows; null before promotion, when the crown has made no demands. */
+export type CrownView = {
+  demand: CrownDemandView | null;
+  /** Ticks until the next demand while none is open; null while one is open. */
+  nextDemandTicks: number | null;
+  met: number;
+  missed: number;
+};
 export type GameView = {
   tick: number;
   elapsedSeconds: number;
@@ -53,7 +67,7 @@ export type GameView = {
   savedDecrees: Decree[];
   desk: DeskEntryView[];
   governors: GovernorView[];
-  crown: CrownDemandView | null;
+  crown: CrownView | null;
   promotion: { target: number; promotedAt: number; promotedAtSeconds: number };
   growth: { stored: number; needed: number; perSecond: number; full: boolean };
   lockedPanels: PanelId[];
@@ -126,7 +140,7 @@ export class ViewManager {
       }),
       desk: this.deskEntries(),
       governors: [],
-      crown: null,
+      crown: this.crownView(),
       promotion: {
         target: this.tuning.village.promotionPopulation,
         promotedAt: this.career.promotedAt,
@@ -138,7 +152,7 @@ export class ViewManager {
         perSecond: (growthPerTick * 1000) / this.tuning.stepMs,
         full: delegates.length >= this.tuning.economy.maxPopulation,
       },
-      lockedPanels: this.game.unlocks.enabled(ARCHIVE_PANEL) ? [] : ["archive"],
+      lockedPanels: this.lockedPanels(),
       unlocks: this.game.unlocks.purchased,
       archive: {
         open: this.game.unlocks.enabled(ARCHIVE_PANEL),
@@ -154,6 +168,35 @@ export class ViewManager {
           ),
         })),
       },
+    };
+  }
+
+  private lockedPanels(): PanelId[] {
+    const locked: PanelId[] = [];
+    if (!this.game.unlocks.enabled(ARCHIVE_PANEL)) locked.push("archive");
+    if (!this.game.unlocks.enabled(CROWN_PANEL)) locked.push("crown");
+    return locked;
+  }
+
+  private crownView(): CrownView | null {
+    if (!this.game.unlocks.enabled(CROWN_PANEL)) return null;
+    const { demand, nextDemandTick, met, missed } = this.posting.crown;
+    const open = this.game.crown.isOpen;
+    return {
+      demand: open
+        ? {
+            resource: demand.resource,
+            amount: demand.amount,
+            delivered: demand.delivered,
+            ticksLeft: demand.dueAt - this.tick,
+            herald: this.tuning.crown.lines[
+              demand.resource as Resource
+            ].herald.replaceAll("{amount}", String(demand.amount)),
+          }
+        : null,
+      nextDemandTicks: open ? null : nextDemandTick - this.tick,
+      met,
+      missed,
     };
   }
 

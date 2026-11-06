@@ -28,6 +28,13 @@
       "description": "Let one decree react to the policy another decree chose.",
       "cost": 800,
       "requires": []
+    },
+    {
+      "id": "decree.crownCorrespondence",
+      "label": "Crown correspondence",
+      "description": "Let decrees read what the crown still demands, as owedOre, owedWood, owedGrain and owedCoin.",
+      "cost": 300,
+      "requires": []
     }
   ],
   "play": [

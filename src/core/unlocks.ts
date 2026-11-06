@@ -1,5 +1,5 @@
 import { compareKeys, sortedKeys } from "./data";
-import type { Condition, Decree } from "./decree";
+import { type Condition, type Decree, OWED_RESOURCES } from "./decree";
 import type { Game } from "./game";
 import { type AddContext, add } from "./math";
 
@@ -24,6 +24,7 @@ export const ARCHIVE_PANEL: UnlockId = "panel.archive";
 export const CROWN_PANEL: UnlockId = "panel.crown";
 export const COMPOUND_UNLOCK: UnlockId = "decree.compound";
 export const CHAINING_UNLOCK: UnlockId = "decree.chaining";
+export const CROWN_CORRESPONDENCE: UnlockId = "decree.crownCorrespondence";
 export const PALETTE_UNLOCK: UnlockId = "control.palette";
 export const SAVED_DECREES_UNLOCK: UnlockId = "control.savedDecrees";
 
@@ -91,16 +92,13 @@ export class UnlockManager {
 
   /** The Archive entry a decree needs and the player has not bought, or null. */
   missingDecreeUnlock(decree: Decree): ArchiveEntry | null {
-    const needs = (kinds: readonly string[], id: UnlockId) =>
-      !this.enabled(id) &&
-      decree.rules.some((rule) => usesKind(rule.when, kinds));
-    const missing: UnlockId[] = [];
-    if (needs(["all", "any", "not"], COMPOUND_UNLOCK)) {
-      missing.push(COMPOUND_UNLOCK);
-    }
-    if (needs(["chose"], CHAINING_UNLOCK)) missing.push(CHAINING_UNLOCK);
-    const id = missing[0];
-    if (id === undefined) return null;
+    const gate = DECREE_GATES.find(
+      ({ id, matches }) =>
+        !this.enabled(id) &&
+        decree.rules.some((rule) => someNode(rule.when, matches)),
+    );
+    if (gate === undefined) return null;
+    const { id } = gate;
     const found = this.game.tuning.archive.entries.find(
       (entry) => entry.id === id,
     );
@@ -110,14 +108,34 @@ export class UnlockManager {
   }
 }
 
-function usesKind(condition: Condition, kinds: readonly string[]): boolean {
-  if (kinds.includes(condition.kind)) return true;
+/** The Archive entries that gate decree syntax, each with the condition nodes it unlocks. */
+export const DECREE_GATES: readonly {
+  id: UnlockId;
+  matches: (node: Condition) => boolean;
+}[] = [
+  {
+    id: COMPOUND_UNLOCK,
+    matches: (node) => ["all", "any", "not"].includes(node.kind),
+  },
+  { id: CHAINING_UNLOCK, matches: (node) => node.kind === "chose" },
+  {
+    id: CROWN_CORRESPONDENCE,
+    matches: (node) =>
+      node.kind === "compare" && Object.hasOwn(OWED_RESOURCES, node.quantity),
+  },
+];
+
+function someNode(
+  condition: Condition,
+  matches: (node: Condition) => boolean,
+): boolean {
+  if (matches(condition)) return true;
   switch (condition.kind) {
     case "all":
     case "any":
-      return condition.conditions.some((child) => usesKind(child, kinds));
+      return condition.conditions.some((child) => someNode(child, matches));
     case "not":
-      return usesKind(condition.condition, kinds);
+      return someNode(condition.condition, matches);
     default:
       return false;
   }

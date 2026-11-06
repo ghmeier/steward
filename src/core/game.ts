@@ -1,13 +1,14 @@
 import { CommandManager } from "./commands";
 import { ConditionManager } from "./conditions";
+import { CrownManager, emptyCrownState } from "./crown";
 import { DecreeEngine } from "./decree-engine";
 import { DelegateManager } from "./delegates";
-import { DeskManager, drawArrivalDelay } from "./desk";
+import { DeskManager } from "./desk";
 import { EconomyManager } from "./economy";
 import { LaborSettling, NO_LABOR_POLICY } from "./labor";
 import { ProjectionManager } from "./projection";
 import { RESOURCES } from "./realm";
-import { type RngState, seedStream } from "./rng";
+import { drawDelay, type RngState, seedStream } from "./rng";
 import { SavedDecreeManager } from "./saved-decrees";
 import {
   type GameState,
@@ -31,6 +32,7 @@ export class Game {
   readonly savedDecrees: SavedDecreeManager;
   readonly unlocks: UnlockManager;
   readonly desk: DeskManager;
+  readonly crown: CrownManager;
   readonly commands: CommandManager;
   readonly projection: ProjectionManager;
   readonly steps: StepManager;
@@ -48,6 +50,7 @@ export class Game {
     this.savedDecrees = new SavedDecreeManager(this);
     this.unlocks = new UnlockManager(this);
     this.desk = new DeskManager(this);
+    this.crown = new CrownManager(this);
     this.commands = new CommandManager(this);
     this.projection = new ProjectionManager(this);
     this.steps = new StepManager(this);
@@ -87,9 +90,10 @@ export class Game {
       labor: { policy: NO_LABOR_POLICY, settling: false },
       desk: {
         nextDisputeId: 1,
-        nextArrivalTick: drawArrivalDelay(arrivals, tuning),
+        nextArrivalTick: drawDelay(arrivals, tuning.village.disputeArrival),
         disputes: [],
       },
+      crown: emptyCrownState(),
     };
     const game = new Game(
       {

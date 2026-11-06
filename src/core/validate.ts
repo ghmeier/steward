@@ -85,6 +85,24 @@ const dispute = z.strictObject({
   arrivedAt: count,
 });
 
+const demand = z.strictObject({
+  id: count,
+  resource: z.string(),
+  amount: z.number().min(0),
+  delivered: z.number().min(0),
+  issuedAt: count,
+  dueAt: count,
+});
+
+const crown = z.strictObject({
+  demand,
+  nextDemandTick: count,
+  met: count,
+  missed: count,
+  surcharge: z.number().min(0),
+  lastResource: z.string(),
+});
+
 function ascendingIdIssues<List extends string, Next extends string>(
   ctx: z.RefinementCtx,
   parent: Record<List, readonly { id: number }[]> & Record<Next, number>,
@@ -170,6 +188,14 @@ function tickBoundIssues(state: GameState, ctx: z.RefinementCtx): void {
   if (state.career.promotedAt > state.tick) {
     addIssue(ctx, "must not exceed tick", ["career", "promotedAt"]);
   }
+  if (state.posting.crown.demand.issuedAt > state.tick) {
+    addIssue(ctx, "must be no later than the tick", [
+      "posting",
+      "crown",
+      "demand",
+      "issuedAt",
+    ]);
+  }
   for (const [index, { arrivedAt }] of state.posting.desk.disputes.entries()) {
     if (arrivedAt > state.tick) {
       addIssue(ctx, "must be no later than the tick", [
@@ -213,6 +239,7 @@ const posting: z.ZodType<PostingState> = z
     decrees: decreeRecord(true),
     labor: z.strictObject({ policy: z.string(), settling: z.boolean() }),
     desk,
+    crown,
   })
   .superRefine(rosterIssues);
 

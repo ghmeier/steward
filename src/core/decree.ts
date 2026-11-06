@@ -2,7 +2,7 @@ import { z } from "zod";
 import { compareKeys, isRecord, sortedKeys } from "./data";
 import { addIssue, type IssuePath, parseWith } from "./errors";
 import { normalizeZero } from "./math";
-import { SEASONS, type Season } from "./realm";
+import { type Resource, SEASONS, type Season } from "./realm";
 import type { Tuning } from "./tuning";
 
 export const PETITIONS = ["harvest", "wood", "ore", "labor"] as const;
@@ -13,10 +13,20 @@ export const QUANTITIES = [
   "grainSeasons",
   "idle",
   "ore",
+  "owedCoin",
+  "owedGrain",
+  "owedOre",
+  "owedWood",
   "population",
   "wood",
 ] as const;
 export type Quantity = (typeof QUANTITIES)[number];
+export const OWED_RESOURCES = {
+  owedCoin: "coin",
+  owedGrain: "grain",
+  owedOre: "ore",
+  owedWood: "wood",
+} as const satisfies Partial<Record<Quantity, Resource>>;
 export type Condition =
   | {
       kind: "compare";
