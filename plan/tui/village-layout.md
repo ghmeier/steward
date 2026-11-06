@@ -1,11 +1,10 @@
 ---
 title: "Village UI overhaul: five focusable panels and a command bar"
-status: active
+status: completed
 tags: [tui]
 created: 2026-11-03
-updated: 2026-11-03
+updated: 2026-11-06
 last_pr: 5
-next_step: Garret reviews PR #5; on merge flip to completed and write the handoff
 ---
 # Village UI overhaul: five focusable panels and a command bar
 

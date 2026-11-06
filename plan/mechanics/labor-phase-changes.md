@@ -1,11 +1,10 @@
 ---
 title: "Labor decrees act on phase changes, so hand assignments stick"
-status: active
+status: completed
 tags: [mechanics]
 created: 2026-11-03
-updated: 2026-11-03
+updated: 2026-11-06
 last_pr: 6
-next_step: Garret reviews PR #6; on merge flip to completed
 ---
 # Labor decrees act on phase changes, so hand assignments stick
 
