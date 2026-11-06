@@ -175,38 +175,64 @@ describe("delivery", () => {
   });
 });
 
-describe("a missed deadline", () => {
-  function missedGame(held: number) {
+describe("collection at the deadline", () => {
+  function atDeadline(held: number) {
     const game = promotedGame();
     const demand = openDemand(game, "ore");
     stock(game, "ore", held);
+    stock(game, "coin", 0);
     step(game, demand.dueAt - game.state.tick);
     return { game, demand };
   }
 
-  test("seizes the stock toward what is owed, records the miss and surcharges the next demand", () => {
-    const { game, demand } = missedGame(oreBase / 4);
-    const seized = demand.amount / 4;
-    const shortfall = demand.amount - seized;
+  test("stock that covers the demand is collected and counts as met, with no reward and no surcharge", () => {
+    const { game, demand } = atDeadline(oreBase * 2);
+
+    const { crown } = game.state.posting;
+
+    expect(held(game, "ore")).toBe(oreBase * 2 - demand.amount);
+    expect(held(game, "coin")).toBe(0);
+    expect(crown.met).toBe(1);
+    expect(crown.missed).toBe(0);
+    expect(crown.surcharge).toBe(0);
+    expect(game.crown.isOpen).toBe(false);
+  });
+
+  test("stock that falls short is all collected, records a miss and surcharges the uncovered part", () => {
+    const { game, demand } = atDeadline(oreBase / 4);
+    const uncovered = demand.amount - oreBase / 4;
 
     const { crown } = game.state.posting;
 
     expect(held(game, "ore")).toBe(0);
     expect(crown.missed).toBe(1);
     expect(crown.met).toBe(0);
+    expect(crown.surcharge).toBe(crownTuning.surcharge * uncovered);
     expect(game.crown.isOpen).toBe(false);
-    expect(crown.surcharge).toBe(crownTuning.surcharge * shortfall);
   });
 
-  test("never takes more than the village holds", () => {
-    const { game } = missedGame(0);
+  test("an empty store never goes negative", () => {
+    const { game } = atDeadline(0);
 
     expect(held(game, "ore")).toBe(0);
     expect(game.state.posting.crown.missed).toBe(1);
   });
 
-  test("adds the surcharge to the next demand's amount and then clears it", () => {
-    const { game } = missedGame(0);
+  test("a demand collected in full raises the next amount like any met demand", () => {
+    const { game } = atDeadline(oreBase * 2);
+
+    const next = openDemand(game);
+
+    expect(next.amount).toBe(
+      Math.round(
+        crownTuning.baseAmounts[next.resource as Resource] *
+          (1 + crownTuning.step),
+      ),
+    );
+  });
+
+  test("the surcharge is added to the next demand's amount and then cleared", () => {
+    const { game } = atDeadline(0);
     const { surcharge } = game.state.posting.crown;
 
     const next = openDemand(game);
@@ -216,14 +242,6 @@ describe("a missed deadline", () => {
         crownTuning.baseAmounts[next.resource as Resource] + surcharge,
       ),
     );
-    expect(game.state.posting.crown.surcharge).toBe(0);
-  });
-
-  test("a demand covered by seizure alone is still recorded as missed with no surcharge", () => {
-    const { game, demand } = missedGame(oreBase * 2);
-
-    expect(held(game, "ore")).toBe(oreBase * 2 - demand.amount);
-    expect(game.state.posting.crown.missed).toBe(1);
     expect(game.state.posting.crown.surcharge).toBe(0);
   });
 });

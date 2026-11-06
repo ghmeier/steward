@@ -135,15 +135,21 @@ export class CrownManager {
     this.close();
   }
 
-  private seize(context: AddContext): void {
+  /** Takes what stock can cover at the deadline; a demand is missed only when stock falls short. */
+  private collect(context: AddContext): void {
     const { crown, tuning } = this;
     const { resource } = crown.demand;
     const held = this.game.state.posting.resources[resource] ?? 0;
     const taken = Math.min(this.owed, held);
+    const uncovered = this.owed - taken;
     this.game.desk.applyResources({ [resource]: -taken }, context, true);
-    crown.surcharge = tuning.surcharge * (this.owed - taken);
-    crown.missed += 1;
-    this.close();
+    if (uncovered > 0) {
+      crown.surcharge = tuning.surcharge * uncovered;
+      crown.missed += 1;
+      this.close();
+    } else {
+      this.meet();
+    }
   }
 
   /** Moves stock toward the open demand; paying it in full before the deadline earns a reward. */
@@ -174,7 +180,7 @@ export class CrownManager {
   /** A demand is issued or resolved in a step, never both, so a deadline is always at least a step away. */
   run(context: AddContext): void {
     if (this.isOpen) {
-      if (this.tick >= this.crown.demand.dueAt) this.seize(context);
+      if (this.tick >= this.crown.demand.dueAt) this.collect(context);
     } else if (
       this.crown.nextDemandTick !== NO_DEMAND_TICK &&
       this.tick >= this.crown.nextDemandTick

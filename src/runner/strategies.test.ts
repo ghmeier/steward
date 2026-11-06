@@ -60,11 +60,10 @@ describe("scripted strategies over ten game years", () => {
     expect(summary.strategy.longestQuietTicks).toBe(24000);
   });
 
-  test("a strategy that never retunes after promotion misses every demand", () => {
+  test("a strategy that never retunes after promotion misses most demands", () => {
     const { crown } = play("reference");
 
-    expect(crown.missed).toBeGreaterThan(0);
-    expect(crown.met).toBe(0);
+    expect(crown.missed).toBeGreaterThan(crown.met);
   });
 
   test("crown-aware meets most demands by reacting to what the crown asks for", () => {
