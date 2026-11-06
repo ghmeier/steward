@@ -4,8 +4,8 @@ status: active
 tags: [phase-6]
 created: 2026-11-06
 updated: 2026-11-06
-last_pr: 8
-next_step: Garret reviews PR 7 and PR 8; PR 3 desk-kinds rebasing onto crown-panel in its refactor pass
+last_pr: 9
+next_step: Garret reviews and merges PR 7, 8, 9 in order, then the exit playtest (four demands from a fresh village)
 ---
 # Phase 6: crown quotas and a desk with more than disputes
 
@@ -102,7 +102,7 @@ The Crown panel, its key and notices, the `deliver` verb and Help.
 - [ ] Tests in `app.test.ts` and the panel's test file: `r` does nothing before promotion; enter in the focused Crown enqueues `deliver`; the bottom row splits in thirds within the layout test's 2-column tolerance; each notice fires once from a view pair.
 - [ ] A tmux check at 100×30 and 160×45 on a scratch save (`STEWARD_SAVE_DIR`) promoted with the simulator, with screenshots or captured panes in the PR.
 
-### PR 3: `desk-kinds` (from `crown-core`)
+### PR 3: `desk-kinds` (rebased onto `crown-panel`), PR #9 opened
 
 The desk generalized to kinds, merchants and travellers, expiry flavor and desk notices. It includes its Court panel changes, so the new kinds are playable when it lands.
 
@@ -146,3 +146,4 @@ From earlier phases, for implementers and the refactor pass:
 - 2026-11-06: PR #7 opened (remote 5be17ca). The refactor shared `drawDelay` in `rng.ts`, added `DECREE_GATES` and `OWED_RESOURCES`, and kept `UPGRADES[9]` reading `loadTuning()` because passing tuning through `parseSave` touches about 15 call sites. PR 2 and PR 3 dispatched in parallel from `crown-core`.
 - 2026-11-06: PR 2 implemented on `crown-panel` (1a55fd2, 882 tests). No bar helper exists, so the panel shows `ore 45 / 80` without a bar. `deliver` is a bare verb (a `bare` flag on `Verb`). Lead decisions: the missed notice names the demand's full amount, because collection at the deadline happens between views; the notice order stays rejection, starvation, crown, unlocks, promotion, so a delivery that earns the first coin shows "The Archive opens" instead of the met line. Refactor pass dispatched.
 - 2026-11-06: PR #8 opened (remote 772000a, 879 tests). PR 3 implemented on `desk-kinds` (c8f5214, 892 tests). Deviations: `data/desk.json` owns slots, arrival, grudgeTicks and the kinds; a saved `desk.lastExpired` drives the expiry notice; travellers have no `{name}` placeholder; a full village makes a traveller unaffordable. The golden fixture's tick-2300 command now admits a traveller, because the kind-first draw made entry 1 a traveller. Lead decision: rebase `desk-kinds` onto `crown-panel` so the three PRs form one stack, with `frame()` code order rejection, starvation, desk, crown, unlocks, promotion.
+- 2026-11-06: PR #9 opened against `crown-panel` (remote 2c38624, 907 tests). The refactor removed the saved `desk.lastExpired`: the desk keeps the step's expiry lines in memory, cleared each step, and `Session.frame()` collects them into `FrameResult.expired` like rejected commands. Two expiries in one frame now both show. `hasRoom` replaces four copies of the population-cap check. CI: #7 and #8 pass, #9 pending at the time of writing.
