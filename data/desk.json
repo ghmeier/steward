@@ -316,6 +316,40 @@
           "expired": "The cartwright shouldered his tools and went to find a village that was not full."
         }
       ]
+    },
+    "audit": {
+      "templates": [
+        {
+          "id": "ledger-inspection",
+          "text": "Two auditors from the crown have arrived with their own ledger and a great deal of patience. They would like the stores to match the books.",
+          "options": [
+            {
+              "id": "back",
+              "label": "Open the stores and cover the books in full"
+            },
+            {
+              "id": "deepen",
+              "label": "Pay them to find the books in order, and keep the difference on paper"
+            }
+          ],
+          "expired": "The auditors counted what was there, wrote down what was not, and left with the first and a note about the second."
+        },
+        {
+          "id": "sealed-chests",
+          "text": "A royal examiner has sealed the granary door and asks, courteously, to see what the books say is behind it.",
+          "options": [
+            {
+              "id": "back",
+              "label": "Break the seal and make the stores match the books"
+            },
+            {
+              "id": "deepen",
+              "label": "Pay the examiner's fee and hope he stops counting"
+            }
+          ],
+          "expired": "The examiner broke the seal himself, took what was behind it, and was not pleased by the rest."
+        }
+      ]
     }
   }
 }

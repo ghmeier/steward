@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { sortedKeys } from "./data";
 import { type Decree, decreeSchema, decreeSetProblem } from "./decree";
-import { DESK_KINDS } from "./desk";
+import { DRAWN_KINDS } from "./desk";
 import { addIssue, formatIssue } from "./errors";
+import { NO_AUDIT_TICK } from "./illusion";
 import { JOBS, RESOURCES } from "./realm";
 import { type GameState, type PostingState, SCHEMA_VERSION } from "./state";
 
@@ -93,8 +94,9 @@ const deskEntry = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     ...deskEntryBase,
-    kind: z.enum(DESK_KINDS).exclude(["dispute"]),
+    kind: z.enum(DRAWN_KINDS).exclude(["dispute"]),
   }),
+  z.strictObject({ ...deskEntryBase, kind: z.literal("audit"), dueAt: count }),
 ]);
 
 const demand = z.strictObject({
@@ -200,6 +202,11 @@ function rosterIssues(posting: PostingState, ctx: z.RefinementCtx): void {
     names.add(name);
   }
 
+  const audits = posting.desk.disputes.filter(({ kind }) => kind === "audit");
+  if (audits.length > 1) {
+    addIssue(ctx, "must hold at most one audit", ["desk", "disputes"]);
+  }
+
   const living = new Set(posting.delegates.map(({ id }) => id));
   for (const [index, entry] of posting.desk.disputes.entries()) {
     if (entry.kind !== "dispute") continue;
@@ -234,14 +241,27 @@ function tickBoundIssues(state: GameState, ctx: z.RefinementCtx): void {
       "debtSince",
     ]);
   }
-  for (const [index, { arrivedAt }] of state.posting.desk.disputes.entries()) {
-    if (arrivedAt > state.tick) {
+  const { auditAt } = state.posting.illusion;
+  if (auditAt !== NO_AUDIT_TICK && auditAt <= state.tick) {
+    addIssue(ctx, "must be after the tick", ["posting", "illusion", "auditAt"]);
+  }
+  for (const [index, entry] of state.posting.desk.disputes.entries()) {
+    if (entry.arrivedAt > state.tick) {
       addIssue(ctx, "must be no later than the tick", [
         "posting",
         "desk",
         "disputes",
         index,
         "arrivedAt",
+      ]);
+    }
+    if (entry.kind === "audit" && entry.dueAt <= state.tick) {
+      addIssue(ctx, "must be after the tick", [
+        "posting",
+        "desk",
+        "disputes",
+        index,
+        "dueAt",
       ]);
     }
   }

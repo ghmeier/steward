@@ -220,6 +220,45 @@ describe("validateState", () => {
     expect(problems.join("\n")).toContain(expected);
   });
 
+  describe("audits", () => {
+    const audit = (id: number, dueAt: number) => ({
+      id,
+      kind: "audit",
+      template: "ledger-inspection",
+      arrivedAt: 40,
+      dueAt,
+    });
+    const withAudits =
+      (...audits: object[]) =>
+      (entries: object[]) => [...entries, ...audits];
+
+    test("one audit with a future deadline and a future arrival validates", () => {
+      const state = patched({
+        "posting.desk.disputes": withAudits(audit(4, 90)),
+        "posting.desk.nextDisputeId": 6,
+        "posting.illusion.auditAt": 60,
+      });
+
+      expect(validateState(state)).toEqual([]);
+    });
+
+    test("a second audit, a lapsed deadline and a past arrival are each rejected", () => {
+      const two = patched({
+        "posting.desk.disputes": withAudits(audit(4, 90), audit(5, 90)),
+        "posting.desk.nextDisputeId": 6,
+      });
+      const lapsed = patched({
+        "posting.desk.disputes": withAudits(audit(4, 50)),
+        "posting.desk.nextDisputeId": 6,
+      });
+      const past = patched({ "posting.illusion.auditAt": 50 });
+
+      expect(validateState(two).join("\n")).toContain("at most one audit");
+      expect(validateState(lapsed).join("\n")).toContain("disputes[2].dueAt");
+      expect(validateState(past).join("\n")).toContain("illusion.auditAt");
+    });
+  });
+
   test("a decree under the wrong key hides the set check of a cycle beside it", () => {
     const state = patched({
       "posting.decrees": {

@@ -270,6 +270,7 @@ export function runSim(
         conjured: game.illusion.conjuredValue,
         debt: game.illusion.debtValue,
         peakDebt,
+        audits: state.posting.illusion.audits,
       },
       ...(player
         ? { strategy: { name: strategyName, ...player.stats() } }

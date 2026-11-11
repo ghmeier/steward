@@ -8,8 +8,11 @@ import { drawDelay, intBelow, type RngState } from "./rng";
 import type { DeskOption, DeskTemplate } from "./tuning";
 
 /** A record keyed by kind is in this order, so the weighted draw walks the kinds in a fixed order. */
-export const DESK_KINDS = ["dispute", "merchant", "traveller"] as const;
-export type DeskKind = (typeof DESK_KINDS)[number];
+export const DRAWN_KINDS = ["dispute", "merchant", "traveller"] as const;
+export type DrawnKind = (typeof DRAWN_KINDS)[number];
+
+/** Audits are placed by the illusion manager rather than drawn, so they are not among the drawn kinds. */
+export type DeskKind = DrawnKind | "audit";
 
 type EntryBase = {
   id: number;
@@ -22,9 +25,11 @@ export type Dispute = EntryBase & {
   parties: [number, number];
 };
 
-export type Offer = EntryBase & { kind: Exclude<DeskKind, "dispute"> };
+export type Offer = EntryBase & { kind: Exclude<DrawnKind, "dispute"> };
 
-export type DeskEntry = Dispute | Offer;
+export type Audit = EntryBase & { kind: "audit"; dueAt: number };
+
+export type DeskEntry = Dispute | Offer | Audit;
 
 /** Entries of every kind, oldest first; the field names predate the kinds other than disputes. */
 export type DeskState = {
@@ -107,14 +112,35 @@ export class DeskManager {
       .replaceAll("{second}", this.nameOf(second));
   }
 
+  /** What choosing the option adds and removes; an audit's is worked out from the books, not the template. */
+  deltasOf(entry: DeskEntry, option: DeskOption): Record<string, number> {
+    return entry.kind === "audit"
+      ? this.game.illusion.auditCost(option.id)
+      : (option.resources ?? {});
+  }
+
+  get hasAudit(): boolean {
+    return this.posting.desk.disputes.some((entry) => entry.kind === "audit");
+  }
+
+  removeAudit(): void {
+    this.posting.desk.disputes = this.posting.desk.disputes.filter(
+      (entry) => entry.kind !== "audit",
+    );
+  }
+
   /** Names the first thing the village cannot cover, or null when the option is affordable. */
-  shortfall(option: DeskOption): string | null {
-    const resources = option.resources ?? {};
-    for (const resource of sortedKeys(resources)) {
-      const delta = resources[resource as Resource] ?? 0;
-      const held = this.game.illusion.apparent(resource);
+  shortfall(entry: DeskEntry, option: DeskOption): string | null {
+    // Auditors accept only real stock, so apparent stock does not count for them.
+    const isAudit = entry.kind === "audit";
+    const deltas = this.deltasOf(entry, option);
+    for (const resource of sortedKeys(deltas)) {
+      const delta = deltas[resource] ?? 0;
+      const held = isAudit
+        ? (this.posting.resources[resource] ?? 0)
+        : this.game.illusion.apparent(resource);
       if (held + delta < 0) {
-        return `not enough ${resource} (need ${show(-delta)}, have ${show(held)})`;
+        return `not enough ${isAudit ? "real " : ""}${resource} (need ${show(-delta)}, have ${show(held)})`;
       }
     }
     if (option.newcomer !== undefined && !this.game.economy.hasRoom) {
@@ -183,17 +209,21 @@ export class DeskManager {
         reason: `dispute ${entryId} has no option "${optionId}"`,
       };
     }
-    const problem = this.shortfall(option);
+    const problem = this.shortfall(entry, option);
     if (problem !== null) return { ok: false, reason: problem };
 
-    this.applyResources(option, context, false);
+    if (entry.kind === "audit") {
+      this.game.illusion.settleAudit(option.id, context);
+    } else {
+      this.applyResources(option, context, false);
+    }
     this.applyGrudge(entry, option);
     if (option.newcomer !== undefined) this.game.economy.admitNewcomer();
     entries.splice(index, 1);
     return { ok: true };
   }
 
-  private isEligible(kind: DeskKind): boolean {
+  private isEligible(kind: DrawnKind): boolean {
     switch (kind) {
       case "dispute":
         return this.posting.delegates.length >= 2;
@@ -204,9 +234,9 @@ export class DeskManager {
     }
   }
 
-  private drawKind(): DeskKind {
-    const eligible = DESK_KINDS.filter((kind) => this.isEligible(kind));
-    const weight = (kind: DeskKind) => this.tuning.desk.kinds[kind].weight;
+  private drawKind(): DrawnKind {
+    const eligible = DRAWN_KINDS.filter((kind) => this.isEligible(kind));
+    const weight = (kind: DrawnKind) => this.tuning.desk.kinds[kind].weight;
     let roll = intBelow(
       this.stream,
       eligible.reduce((total, kind) => total + weight(kind), 0),
@@ -252,11 +282,36 @@ export class DeskManager {
     desk.nextDisputeId += 1;
   }
 
+  /**
+   * Places the auditors on the desk. The template is picked from the entry id rather than drawn, so
+   * an audit consumes nothing from the desk's random stream and never shifts the arrivals after it.
+   */
+  placeAudit(dueAt: number): void {
+    const { desk } = this.posting;
+    const templates = this.templatesOf("audit");
+    const template = templates[desk.nextDisputeId % templates.length];
+    if (template === undefined) {
+      throw new Error("audit template pick landed outside its range");
+    }
+    desk.disputes.push({
+      id: desk.nextDisputeId,
+      template: template.id,
+      arrivedAt: this.state.tick,
+      kind: "audit",
+      dueAt,
+    });
+    desk.nextDisputeId += 1;
+  }
+
   private expire(entry: DeskEntry, context: AddContext): void {
     const template = this.templateOf(entry);
-    const option = this.optionOf(template, template.expiry);
-    if (option === undefined) throw new Error("expiry option is missing");
-    this.applyResources(option, context, true);
+    if (entry.kind === "audit") {
+      this.game.illusion.failAudit(context);
+    } else {
+      const option = this.optionOf(template, template.expiry ?? "");
+      if (option === undefined) throw new Error("expiry option is missing");
+      this.applyResources(option, context, true);
+    }
     this.expiredThisStep.push(this.fill(entry, template.expired));
   }
 
@@ -282,8 +337,21 @@ export class DeskManager {
         this.state.tick + drawDelay(this.stream, this.tuning.desk.arrival);
     }
 
+    // An audit whose debt was repaid is passed by the illusion manager later in this step, so it must not lapse first.
+    const lapsed = desk.disputes.filter(
+      (entry) =>
+        entry.kind === "audit" &&
+        this.state.tick >= entry.dueAt &&
+        this.game.illusion.hasDebt,
+    );
+    desk.disputes = desk.disputes.filter((entry) => !lapsed.includes(entry));
+    for (const entry of lapsed) this.expire(entry, context);
+
+    // Auditors wait out their own deadline, so overflow pushes out the oldest entry that is not one.
     while (desk.disputes.length > this.tuning.desk.slots) {
-      const oldest = desk.disputes.shift();
+      const index = desk.disputes.findIndex((entry) => entry.kind !== "audit");
+      if (index < 0) break;
+      const [oldest] = desk.disputes.splice(index, 1);
       if (oldest === undefined) break;
       this.expire(oldest, context);
     }

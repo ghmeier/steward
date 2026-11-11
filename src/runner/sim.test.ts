@@ -70,7 +70,12 @@ describe("runSim illusion commands", () => {
     expect(
       summary.rejectedCommands.map((c: { type: string }) => c.type),
     ).toEqual(["conjure", "forge", "back"]);
-    expect(summary.illusion).toEqual({ conjured: 0, debt: 0, peakDebt: 0 });
+    expect(summary.illusion).toEqual({
+      conjured: 0,
+      debt: 0,
+      peakDebt: 0,
+      audits: { backed: 0, deepened: 0, failed: 0 },
+    });
   });
 });
 

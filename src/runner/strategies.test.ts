@@ -21,6 +21,7 @@ type Summary = {
   minPopulation: number;
   rejectedCommands: unknown[];
   crown: { met: number; missed: number };
+  illusion: { audits: { backed: number; deepened: number; failed: number } };
   strategy: { name: string } & StrategyStats;
 };
 
@@ -123,6 +124,48 @@ describe("scripted strategies over ten game years", () => {
     expect(readFileSync(record, "utf8")).toContain("enactDecree");
     expect(replayed.hash).toBe(played.hash);
   });
+});
+
+describe("repaying illusion over fifteen game years", () => {
+  const SEEDS = [1, 7, 42];
+  // Two fifteen-year simulations take about five seconds, the default test timeout.
+  const SIMULATION_TIMEOUT_MS = 30_000;
+
+  function playSeed(name: string, seed: number): Summary {
+    return run([
+      "--seed",
+      String(seed),
+      "--steps",
+      "36000",
+      "--strategy",
+      `strategies/${name}.json`,
+      "--grant",
+      CROWN_CORRESPONDENCE,
+    ]);
+  }
+
+  test.each(SEEDS)(
+    "seed %i: a conjurer that never repays fails audits and misses more demands than crown-aware",
+    (seed) => {
+      const conjurer = playSeed("conjurer", seed);
+      const careful = playSeed("crown-aware", seed);
+
+      expect(conjurer.illusion.audits.failed).toBeGreaterThanOrEqual(1);
+      expect(conjurer.crown.missed).toBeGreaterThan(careful.crown.missed);
+    },
+    SIMULATION_TIMEOUT_MS,
+  );
+
+  test.each(SEEDS)(
+    "seed %i: a borrower that backs its debt from real stock fails no audit",
+    (seed) => {
+      const borrower = playSeed("borrower", seed);
+
+      expect(borrower.illusion.audits.failed).toBe(0);
+      expect(borrower.crown.missed).toBe(0);
+    },
+    SIMULATION_TIMEOUT_MS,
+  );
 });
 
 describe("promotion under the reference strategy", () => {

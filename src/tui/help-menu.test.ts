@@ -51,6 +51,7 @@ function rulingsWith(resources: Record<string, number>): Tuning {
       },
       merchant: { ...kinds.merchant, templates: free(kinds.merchant) },
       traveller: { ...kinds.traveller, templates: free(kinds.traveller) },
+      audit: kinds.audit,
     },
   });
 }

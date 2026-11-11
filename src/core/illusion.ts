@@ -73,7 +73,7 @@ export class IllusionManager {
     return (this.resources[resource] ?? 0) + this.conjuredOf(resource);
   }
 
-  private get hasDebt(): boolean {
+  get hasDebt(): boolean {
     return this.illusion.debtSince !== NO_DEBT_TICK;
   }
 
@@ -178,6 +178,18 @@ export class IllusionManager {
     return { ok: true };
   }
 
+  private repay(
+    resource: ResourceId,
+    amount: number,
+    context: AddContext,
+  ): void {
+    add(this.resources, resource, -amount, context);
+    this.illusion.debt[resource] = this.debtOf(resource) - amount;
+    if (!RESOURCES.some((id) => this.debtOf(id) > 0)) {
+      this.illusion.debtSince = NO_DEBT_TICK;
+    }
+  }
+
   /** Repays debt from real stock alone, as far as the stock reaches. */
   back(resource: Resource, context: AddContext): CommandResult {
     if (!this.isUnlocked) {
@@ -194,13 +206,92 @@ export class IllusionManager {
         reason: `the village holds no ${resource} to back it`,
       };
     }
-    const repaid = Math.min(owed, held);
-    add(this.resources, resource, -repaid, context);
-    this.illusion.debt[resource] = owed - repaid;
-    if (!RESOURCES.some((id) => this.debtOf(id) > 0)) {
-      this.illusion.debtSince = NO_DEBT_TICK;
-    }
+    this.repay(resource, Math.min(owed, held), context);
     return { ok: true };
+  }
+
+  /** Ticks until announced auditors reach the desk; null when none are on the road. */
+  get auditInTicks(): number | null {
+    const { auditAt } = this.illusion;
+    return auditAt === NO_AUDIT_TICK ? null : auditAt - this.game.state.tick;
+  }
+
+  private get deepenCost(): number {
+    return this.tuning.audit.deepenCost * this.debtValue;
+  }
+
+  /** The cost of an audit option as negative deltas, worked out from the debt as it stands. */
+  auditCost(optionId: string): Record<string, number> {
+    if (optionId === "deepen") return { coin: -this.deepenCost };
+    const cost: Record<string, number> = {};
+    for (const resource of RESOURCES) {
+      if (this.debtOf(resource) > 0) cost[resource] = -this.debtOf(resource);
+    }
+    return cost;
+  }
+
+  /** Pays an audit option's cost from real stock and applies its effect; the caller checked it is affordable. */
+  settleAudit(optionId: string, context: AddContext): void {
+    if (optionId === "deepen") {
+      add(this.resources, "coin", -this.deepenCost, context);
+      for (const resource of RESOURCES) {
+        this.illusion.debt[resource] =
+          this.debtOf(resource) * this.tuning.audit.deepenGrowth;
+      }
+      this.illusion.debtSince = this.game.state.tick;
+      this.illusion.audits.deepened += 1;
+    } else {
+      for (const resource of RESOURCES) {
+        this.repay(resource, this.debtOf(resource), context);
+      }
+      this.illusion.audits.backed += 1;
+    }
+  }
+
+  failAudit(context: AddContext): void {
+    let uncovered = 0;
+    for (const resource of RESOURCES) {
+      const owed = this.debtOf(resource);
+      const seized = Math.min(owed, this.resources[resource] ?? 0);
+      this.repay(resource, seized, context);
+      uncovered += (owed - seized) * this.game.economy.priceOf(resource);
+    }
+    for (const resource of RESOURCES) this.illusion.debt[resource] = 0;
+    this.illusion.debtSince = NO_DEBT_TICK;
+    this.illusion.audits.failed += 1;
+    if (uncovered > 0) this.game.crown.recordMiss(uncovered);
+  }
+
+  private get isAuditDue(): boolean {
+    if (!this.hasDebt) return false;
+    const { debtShare, ageTicks } = this.tuning.audit;
+    return (
+      this.debtValue >= debtShare * this.ceiling ||
+      this.game.state.tick - this.illusion.debtSince >= ageTicks
+    );
+  }
+
+  private runAudit(): void {
+    if (!this.hasDebt && this.game.desk.hasAudit) {
+      this.game.desk.removeAudit();
+      this.illusion.audits.backed += 1;
+    }
+    const { tick } = this.game.state;
+    const { warningTicks, deadlineTicks } = this.tuning.audit;
+    if (
+      this.illusion.auditAt !== NO_AUDIT_TICK &&
+      tick >= this.illusion.auditAt
+    ) {
+      this.illusion.auditAt = NO_AUDIT_TICK;
+      if (this.hasDebt) this.game.desk.placeAudit(tick + deadlineTicks);
+    }
+    if (
+      this.illusion.auditAt === NO_AUDIT_TICK &&
+      !this.game.desk.hasAudit &&
+      this.isAuditDue
+    ) {
+      this.illusion.auditAt = tick + warningTicks;
+    }
   }
 
   /** Plain multiplication, so fading and interest draw nothing from a random stream. */
@@ -214,5 +305,6 @@ export class IllusionManager {
     for (const resource of RESOURCES) {
       debt[resource] = this.debtOf(resource) * grow;
     }
+    this.runAudit();
   }
 }
