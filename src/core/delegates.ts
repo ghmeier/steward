@@ -75,15 +75,14 @@ export class DelegateManager {
       mine: 0,
       idle: 0,
     };
-    for (const delegate of this.all) {
-      const workers =
-        delegate.kind === "governor"
-          ? this.game.governors.workersOf(delegate)
-          : 1;
-      if (tick >= delegate.grudgeUntil) {
-        counts[delegate.job] += workers;
+    for (const peasant of this.peasants) {
+      counts[tick >= peasant.grudgeUntil ? peasant.job : Job.IDLE] += 1;
+    }
+    for (const governor of this.governors) {
+      if (tick >= governor.grudgeUntil) {
+        counts[governor.job] += this.game.governors.workersOf(governor);
       } else {
-        counts.idle += delegate.kind === "governor" ? delegate.village : 1;
+        counts.idle += governor.village;
       }
     }
     return counts;

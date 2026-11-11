@@ -386,51 +386,40 @@ describe("failed audits", () => {
     ]);
   });
 
-  test("dismiss the newest governor when no one exaggerates", () => {
+  test("dismiss the newest governor when no one exaggerates, and no one when there are none", () => {
     const game = posted(
       3,
       governorOf({ traits: ["diligent"] }),
       governorOf({ traits: ["hoarder"] }),
     );
     const [, newest] = governorsOf(game);
+    const empty = posted(3);
 
     game.illusion.failAudit(contextFor(game));
+    empty.illusion.failAudit(contextFor(empty));
 
     expect(governorsOf(game)).toHaveLength(1);
     expect(game.state.posting.formerStaff[0]?.name).toBe(
       newest?.name as string,
     );
-  });
-
-  test("dismiss no one when the village has no governors", () => {
-    const game = posted(3);
-
-    game.illusion.failAudit(contextFor(game));
-
-    expect(game.state.posting.formerStaff).toEqual([]);
+    expect(empty.state.posting.formerStaff).toEqual([]);
   });
 });
 
 describe("candidates", () => {
-  test("may not be offered before promotion, and may after", () => {
+  test("may be offered only after promotion and while governors and waiting candidates leave room under the cap", () => {
     const game = posted(3);
-    const before = game.governors.canOffer;
-
+    const beforePromotion = game.governors.canOffer;
     game.state.career.promotedAt = 1;
-
-    expect(before).toBe(false);
-    expect(game.governors.canOffer).toBe(true);
-  });
-
-  test("may not be offered once governors and waiting candidates fill the cap", () => {
-    const game = posted(3);
-    game.state.career.promotedAt = 1;
-    const room = tuning.governors.cap;
-    addGovernors(game, ...Array.from({ length: room - 1 }, () => governorOf()));
+    addGovernors(
+      game,
+      ...Array.from({ length: tuning.governors.cap - 1 }, () => governorOf()),
+    );
     const withOneSpare = game.governors.canOffer;
 
     candidateOf(game);
 
+    expect(beforePromotion).toBe(false);
     expect(withOneSpare).toBe(true);
     expect(game.governors.canOffer).toBe(false);
   });

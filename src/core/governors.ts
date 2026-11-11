@@ -11,6 +11,7 @@ import {
   WORKING_JOBS,
 } from "./realm";
 import { chance, drawDelay, intBelow, type RngState } from "./rng";
+import type { GovernorTuning } from "./tuning";
 
 export type DepartureReason = "retired" | "died" | "dismissed";
 
@@ -32,6 +33,33 @@ export type CandidateDetails = {
   /** Ticks the governor serves once hired. */
   term: number;
 };
+
+/** The traits one governor holds; each factor is the product over those traits, so no caller recomputes it. */
+class TraitSet {
+  constructor(
+    private traits: readonly Trait[],
+    private table: GovernorTuning["traits"],
+  ) {}
+
+  private product(key: "output" | "report"): number {
+    return this.traits.reduce(
+      (factor, trait) => factor * this.table[trait][key],
+      1,
+    );
+  }
+
+  get output(): number {
+    return this.product("output");
+  }
+
+  get report(): number {
+    return this.product("report");
+  }
+
+  has(trait: Trait): boolean {
+    return this.traits.includes(trait);
+  }
+}
 
 export class GovernorManager {
   constructor(private game: Game) {}
@@ -63,21 +91,18 @@ export class GovernorManager {
     );
   }
 
-  private factorOf(governor: Governor, key: "output" | "report"): number {
-    let factor = 1;
-    for (const trait of governor.traits)
-      factor *= this.tuning.traits[trait][key];
-    return factor;
+  private traitsOf(governor: Governor): TraitSet {
+    return new TraitSet(governor.traits, this.tuning.traits);
   }
 
   /** Workers the governor actually puts to work: the village scaled by trait output. */
   workersOf(governor: Governor): number {
-    return governor.village * this.factorOf(governor, "output");
+    return governor.village * this.traitsOf(governor).output;
   }
 
   /** Workers the governor claims, which exceeds the real figure for a skimmer, braggart or empire-builder. */
   reportedWorkersOf(governor: Governor): number {
-    return this.workersOf(governor) * this.factorOf(governor, "report");
+    return this.workersOf(governor) * this.traitsOf(governor).report;
   }
 
   private isWorking(governor: Governor, tick: number): boolean {
@@ -121,21 +146,19 @@ export class GovernorManager {
     const pool = [...TRAITS];
     const picked: Trait[] = [];
     for (let count = 1 + intBelow(this.stream, 2); count > 0; count--) {
-      const [trait] = pool.splice(intBelow(this.stream, pool.length), 1);
-      if (trait === undefined)
-        throw new Error("trait draw landed outside its range");
-      picked.push(trait);
+      picked.push(...pool.splice(intBelow(this.stream, pool.length), 1));
     }
     return picked.sort();
   }
 
+  private pick<Item>(items: readonly Item[]): Item {
+    return items[intBelow(this.stream, items.length)] as Item;
+  }
+
   drawCandidate(): CandidateDetails {
-    const name = this.game.delegates.findName();
-    const job = WORKING_JOBS[intBelow(this.stream, WORKING_JOBS.length)];
-    if (job === undefined) throw new Error("job draw landed outside its range");
     return {
-      name,
-      job,
+      name: this.game.delegates.findName(),
+      job: this.pick(WORKING_JOBS),
       village: this.between(this.tuning.village),
       traits: this.drawTraits(),
       price: this.between(this.tuning.price),
@@ -180,26 +203,19 @@ export class GovernorManager {
 
   /** Blames whoever inflated their reports the most, or the newest hire when every report was honest. */
   dismissAfterFailedAudit(context: AddContext): void {
-    const roster = this.roster;
-    let worst: Governor | undefined;
-    for (const governor of roster) {
-      if (
-        worst === undefined ||
-        this.exaggerationOf(governor) > this.exaggerationOf(worst)
-      ) {
-        worst = governor;
-      }
-    }
+    const [worst] = [...this.roster].sort(
+      (a, b) => this.exaggerationOf(b) - this.exaggerationOf(a),
+    );
     const blamed =
       worst !== undefined && this.exaggerationOf(worst) > 0
         ? worst
-        : roster.at(-1);
+        : this.roster.at(-1);
     if (blamed !== undefined) this.depart(blamed, "dismissed", context);
   }
 
   // A hoarder keeps the share of the village's work their trait takes off the output, valued in coin.
   private keepBack(governor: Governor, tick: number): void {
-    if (!governor.traits.includes("hoarder")) return;
+    if (!this.traitsOf(governor).has("hoarder")) return;
     const yielded = this.yieldOf(governor, tick);
     if (yielded === null) return;
     const hoarderOutput = this.tuning.traits.hoarder.output;
@@ -221,7 +237,7 @@ export class GovernorManager {
         this.depart(governor, "died", context);
       } else if (
         seasonEnds &&
-        governor.traits.includes("empire-builder") &&
+        this.traitsOf(governor).has("empire-builder") &&
         governor.village < this.tuning.empireBuilderLimit
       ) {
         governor.village += 1;

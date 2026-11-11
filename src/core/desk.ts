@@ -42,10 +42,10 @@ export type Audit = EntryBase & { kind: "audit"; dueAt: number };
 
 export type DeskEntry = Dispute | Offer | Candidate | Audit;
 
-/** Entries of every kind, oldest first; the field names predate the kinds other than disputes. */
 /** The option that hires a candidate; the template schema requires it. */
 export const HIRE = "hire";
 
+/** Entries of every kind, oldest first; the field names predate the kinds other than disputes. */
 export type DeskState = {
   nextDisputeId: number;
   nextArrivalTick: number;
