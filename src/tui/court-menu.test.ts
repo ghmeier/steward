@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { setRoster, economyTestTuning as tuning } from "../../test/helpers";
 import type { Command } from "../core/commands";
 import { Game } from "../core/game";
-import { courtMenu } from "./court-menu";
+import { courtEntryLabel, courtMenu } from "./court-menu";
+import { formatTicks } from "./format";
 import {
   type MenuContext,
   type MenuState,
@@ -129,5 +130,21 @@ describe("court menu", () => {
 
     expect(walk.commands).toEqual([]);
     expect(walk.state?.frames).toHaveLength(2);
+  });
+});
+
+describe("courtEntryLabel", () => {
+  test("an entry with its own deadline shows the time left and one without shows its bare label", () => {
+    const [entry] = villageWith(["hen"]).view.compute().desk;
+    if (entry === undefined) throw new Error("no entry on the desk");
+    const ticksLeft = 80 * (1000 / tuning.stepMs);
+
+    const timed = courtEntryLabel({ ...entry, ticksLeft }, tuning);
+    const untimed = courtEntryLabel({ ...entry, ticksLeft: null }, tuning);
+
+    expect(timed).toBe(
+      `(due in ${formatTicks(ticksLeft, tuning.stepMs)}) ${entry.label}`,
+    );
+    expect(untimed).toBe(entry.label);
   });
 });

@@ -28,8 +28,12 @@ export function moveCursor(
 ): Cursor | null {
   const current = reconcileCursor(rows, cursor);
   if (current === null) return null;
-  const index = Math.max(0, Math.min(rows.length - 1, current.index + delta));
-  return rowCursor(rows, index);
+  return rowCursor(rows, stepIndex(rows.length, current.index, delta));
+}
+
+/** Moves a row index by one, stopping at the first and last rows. */
+export function stepIndex(total: number, index: number, delta: -1 | 1): number {
+  return Math.max(0, Math.min(total - 1, index + delta));
 }
 
 export type RowWindow = { start: number; end: number };

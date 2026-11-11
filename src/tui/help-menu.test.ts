@@ -6,6 +6,7 @@ import {
   ARCHIVE_PANEL,
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
+  CONJURING,
   PALETTE_UNLOCK,
   SAVED_DECREES_UNLOCK,
 } from "../core/unlocks";
@@ -19,6 +20,10 @@ const economy = (changes: Partial<Tuning["economy"]>): Tuning => ({
 const village = (changes: Partial<Tuning["village"]>): Tuning => ({
   ...tuning,
   village: { ...tuning.village, ...changes },
+});
+const illusion = (changes: Partial<Tuning["illusion"]>): Tuning => ({
+  ...tuning,
+  illusion: { ...tuning.illusion, ...changes },
 });
 const desk = (changes: Partial<Tuning["desk"]>): Tuning => ({
   ...tuning,
@@ -93,6 +98,9 @@ const rows: Row[] = [
 	{ name: "decrees before any unlock", topic: "Decrees", lacks: ["and, or or", "chose", "enact"] },
 	{ name: "compound conditions once owned", topic: "Decrees", unlocks: [COMPOUND_UNLOCK], has: ["and, or or", "not"] },
 	{ name: "chaining once owned", topic: "Decrees", unlocks: [CHAINING_UNLOCK], has: ["chose"] },
+	{ name: "the lot, the ceiling and the fade read from tuning", topic: "Illusion", using: illusion({ lot: 40, ceilingPerPeasant: 12, fadePerTick: 0.00115 }), has: ["40 at a time", "12 coin per peasant", "50% a season"] },
+	{ name: "the audit timings and the deeper illusion read from tuning", topic: "Illusion", using: illusion({ audit: { ...tuning.illusion.audit, debtShare: 0.4, ageTicks: 1200, warningTicks: 300, deadlineTicks: 600, deepenCost: 0.25, deepenGrowth: 2 } }), has: ["40% of the ceiling", "2 seasons old", "30 s after the warning", "60 s on the desk", "25% of the debt", "multiplies it by 2"] },
+	{ name: "who accepts it, how to repay and the failure", topic: "Illusion", has: ["Peasants cannot eat it", "press b", "forge", "missed demand"] },
 	{ name: "saved decrees once owned", topic: "Decrees", unlocks: [SAVED_DECREES_UNLOCK], has: ["save", "enact", "forget"] },
 ];
 
@@ -108,7 +116,7 @@ describe("help topics", () => {
   );
 
   test("the keys topic lists every key hint the player owns", () => {
-    const owned = [ARCHIVE_PANEL, PALETTE_UNLOCK];
+    const owned = [ARCHIVE_PANEL, PALETTE_UNLOCK, CONJURING];
 
     const lines = topicText("Keys", tuning, owned).split("\n");
 

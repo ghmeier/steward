@@ -20,7 +20,12 @@ import { barRow, settledFrame } from "../../test/tui-helpers";
 import type { Decree } from "../core/decree";
 import { Game } from "../core/game";
 import { Job } from "../core/realm";
-import { ARCHIVE_PANEL, CROWN_PANEL, PALETTE_UNLOCK } from "../core/unlocks";
+import {
+  ARCHIVE_PANEL,
+  CONJURING,
+  CROWN_PANEL,
+  PALETTE_UNLOCK,
+} from "../core/unlocks";
 import { stateHash } from "../save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../save/save";
 import { type App, prepareStartup, type Startup, startApp } from "./app";
@@ -452,6 +457,94 @@ describe("doors", () => {
     await harness.advanceStep();
 
     expect(posting.crown.demand.delivered).toBeGreaterThan(0);
+  });
+
+  test("f in the focused Crown forges a report and does nothing while the Crown is not focused", async () => {
+    const game = owning(CROWN_PANEL, CONJURING);
+    const { posting } = game.state;
+    const demand = {
+      id: 1,
+      resource: "grain" as const,
+      amount: 10,
+      delivered: 0,
+      issuedAt: 1,
+      dueAt: 1e6,
+    };
+    posting.crown.demand = { ...demand };
+    const harness = await launch({ game });
+
+    await harness.mockInput.typeText("f");
+    await harness.advanceStep();
+    const unfocused = posting.crown.demand.delivered;
+    await harness.mockInput.typeText("r");
+    await harness.mockInput.typeText("f");
+    await harness.advanceStep();
+
+    expect(unfocused).toBe(0);
+    expect(posting.illusion.debt.grain).toBeCloseTo(demand.amount, 0);
+    expect(posting.crown.met).toBe(1);
+  });
+
+  describe("the Ledger", () => {
+    const { lot } = tuning.illusion;
+    const resourceAt = (game: Game, resource: string) =>
+      game.view
+        .compute()
+        .ledger.findIndex((line) => line.resource === resource);
+    const selecting = async (harness: Harness, resource: string) => {
+      await harness.mockInput.typeText("l");
+      for (let step = 0; step < resourceAt(harness.game, resource); step++) {
+        await harness.mockInput.typeText("j");
+      }
+    };
+
+    test("l focuses it once conjuring is owned and does nothing before", async () => {
+      const locked = await launch();
+      const owned = await launch({ game: owning(CONJURING) });
+
+      await locked.mockInput.typeText("l");
+      await owned.mockInput.typeText("l");
+
+      expect(await locked.screen()).not.toContain(DOUBLE_BORDER);
+      expect(await owned.screen()).toContain(DOUBLE_BORDER);
+    });
+
+    test("enter conjures a lot of the selected resource and ore is refused with the core's reason", async () => {
+      const game = owning(CONJURING);
+      const { illusion } = game.state.posting;
+      const harness = await launch({ game });
+
+      await selecting(harness, "grain");
+      harness.mockInput.pressEnter();
+      await harness.advanceStep();
+      const conjured = illusion.conjured.grain;
+      await harness.mockInput.typeText("k");
+      await selecting(harness, "ore");
+      harness.mockInput.pressEnter();
+      await harness.advanceStep();
+
+      expect(conjured).toBeGreaterThan(0);
+      expect(conjured).toBeLessThanOrEqual(lot);
+      expect(Object.keys(illusion.conjured)).not.toContain("ore");
+      expect(barRow(await harness.screen())).toContain("ore");
+    });
+
+    test("b backs the selected resource's debt from real stock", async () => {
+      const game = owning(CONJURING);
+      const { posting } = game.state;
+      posting.resources.grain = 100;
+      posting.illusion.debt.grain = 40;
+      posting.illusion.debtSince = 1;
+      posting.illusion.debt.coin = 40;
+      const harness = await launch({ game });
+
+      await selecting(harness, "grain");
+      await harness.mockInput.typeText("b");
+      await harness.advanceStep();
+
+      expect(posting.illusion.debt.grain).toBeLessThan(40);
+      expect(posting.illusion.debt.coin).toBeCloseTo(40, 0);
+    });
   });
 
   test("colon opens the line once the palette is owned and does nothing before", async () => {

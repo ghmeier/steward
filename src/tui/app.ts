@@ -3,6 +3,7 @@ import { errorMessage } from "../core/errors";
 import { Game } from "../core/game";
 import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
+import { auditNotice } from "./audit-notices";
 import { type LineState, lineKey, openLine, renderLine } from "./command-line";
 import { crownNotice } from "./crown-notices";
 import { deskNotice } from "./desk-notices";
@@ -229,6 +230,12 @@ export function startApp(options: {
     if (deskChange !== null) message = deskChange;
     const crown = crownNotice(lastView.crown, session.view().crown, tuning);
     if (crown !== null) message = crown;
+    const audit = auditNotice(
+      lastView.illusion,
+      session.view().illusion,
+      tuning,
+    );
+    if (audit !== null) message = audit;
     lastView = session.view();
     const unlocked = announceNewUnlocks(
       knownUnlocks,

@@ -238,6 +238,31 @@ function crownLines(tuning: Tuning): string[] {
   ];
 }
 
+function illusionLines(tuning: Tuning): string[] {
+  const { illusion, economy } = tuning;
+  const { audit, books } = illusion;
+  const season = economy.ticksPerSeason;
+  const perSeason = (rate: number, sign: 1 | -1) =>
+    `${Math.round(Math.abs((1 + sign * rate) ** season - 1) * 100)}%`;
+  return [
+    `The crown's first demand teaches conjuring: stock the Ledger counts and the stores do not hold. Only grain and coin can be conjured, ${plain(illusion.lot)} at a time.`,
+    "",
+    "Press l to focus the Ledger, then enter to conjure a lot of the selected resource. The command line takes conjure <grain or coin> <amount>.",
+    "Only outsiders accept it: the crown, merchants and the Archive. Peasants cannot eat it and decrees cannot sell it. A payment uses conjured stock first, then real stock.",
+    `It fades, by about ${perSeason(illusion.fadePerTick, -1)} a season.`,
+    "",
+    `Whatever is passed off to an outsider becomes debt, and debt grows by about ${perSeason(illusion.interestPerTick, 1)} a season. Press f in the Crown panel to forge a report: it marks what is still owed as delivered, in any resource, and the forged amount becomes debt. The command line takes forge.`,
+    `Illusion and debt together may not pass ${plain(illusion.ceilingPerPeasant)} coin per peasant, counting grain and wood at ${plain(economy.grainPrice)} coin, ore and coin at ${plain(economy.orePrice)}.`,
+    `The Ledger shows the state of the books in one word: clean with nothing outstanding, thin, strained from ${percent(books.strained)} of the ceiling and rotten from ${percent(books.rotten)}.`,
+    "",
+    "To repay, select a resource in the Ledger and press b, or type back <resource>. Debt is repaid from real stock, at any time.",
+    "",
+    `Auditors are sent when debt reaches ${percent(audit.debtShare)} of the ceiling, or when any debt is ${plain(audit.ageTicks / season)} seasons old. They arrive ${seconds(audit.warningTicks, tuning)} after the warning and wait ${seconds(audit.deadlineTicks, tuning)} on the desk.`,
+    `The desk offers three outcomes: back the debt from real stock, a deeper illusion that costs real coin worth ${percent(audit.deepenCost)} of the debt and multiplies it by ${plain(audit.deepenGrowth)}, or let the deadline pass.`,
+    "If the deadline passes, the auditors seize real stock toward the debt and the debt is cleared. If the stores cannot cover it, the crown counts a missed demand.",
+  ];
+}
+
 const TOPICS: readonly {
   label: string;
   lines: (context: MenuContext) => string[];
@@ -251,6 +276,7 @@ const TOPICS: readonly {
   { label: "The desk", lines: (c) => deskLines(c.tuning) },
   { label: "Promotion", lines: (c) => promotionLines(c.tuning) },
   { label: "Crown", lines: (c) => crownLines(c.tuning) },
+  { label: "Illusion", lines: (c) => illusionLines(c.tuning) },
 ];
 
 export type HelpSection = { heading: string; lines: string[] };
