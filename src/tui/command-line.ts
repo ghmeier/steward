@@ -1,4 +1,5 @@
 import type { Command } from "../core/commands";
+import { copy } from "../core/copy";
 import {
   type Condition,
   DECREE_ID_PATTERN,
@@ -39,8 +40,6 @@ export type LineResult = {
 };
 
 const MAX_SUGGESTIONS_SHOWN = 6;
-const LINE_HINTS = "type · tab complete · enter issue · esc close";
-const NUMBER_HELP = "a number, such as 2 or 0.5";
 const NUMBER = /^-?\d+(\.\d+)?(e[+-]?\d+)?$/;
 const NUMBER_PREFIX = /^-?\d*\.?\d*(e[+-]?\d*)?$/;
 
@@ -93,7 +92,7 @@ class Cursor {
   }
 
   expect<T>(
-    what: string,
+    expected: string,
     choices: readonly Choice<T>[],
     options: ExpectOptions = {},
   ): Choice<T> {
@@ -119,7 +118,9 @@ class Cursor {
     if (best === undefined) {
       if (prefixed.length > 0) throw new Halt(offer(prefixed), null, null);
       const word = rest.split(" ")[0] ?? rest;
-      const problem = options.unmatched?.(word) ?? `"${word}" is not ${what}`;
+      const problem =
+        options.unmatched?.(word) ??
+        copy.commandLine.notExpected({ word, expected });
       throw new Halt([], problem, null);
     }
     if (rest === best.text && !options.final && !best.final) {
@@ -137,15 +138,22 @@ class Cursor {
   /** The last word of a command may be a finished number as it stands, since enter will not wait for more digits. */
   number(final = false): number {
     const rest = this.skipSpaces();
-    if (rest === "") throw new Halt([], null, NUMBER_HELP);
+    if (rest === "") throw new Halt([], null, copy.commandLine.numberHelp);
     const word = rest.split(" ")[0] ?? rest;
     const typing = word.length === rest.length;
     if (typing && !(final && NUMBER.test(word)) && NUMBER_PREFIX.test(word)) {
-      throw new Halt([], null, NUMBER_HELP);
+      throw new Halt([], null, copy.commandLine.numberHelp);
     }
     const value = Number(word);
     if (!NUMBER.test(word) || !Number.isFinite(value)) {
-      throw new Halt([], `"${word}" is not a number`, null);
+      throw new Halt(
+        [],
+        copy.commandLine.notExpected({
+          word,
+          expected: copy.commandLine.expected.number,
+        }),
+        null,
+      );
     }
     this.position += word.length;
     return value === 0 ? 0 : value;
@@ -159,11 +167,7 @@ class Cursor {
     const typing = word.length === rest.length;
     if (typing && DECREE_ID_PATTERN.test(word)) throw new Halt([], null, help);
     if (!DECREE_ID_PATTERN.test(word)) {
-      throw new Halt(
-        [],
-        `"${word}" is not a valid name: use lowercase letters, digits and dashes, starting with a letter`,
-        null,
-      );
+      throw new Halt([], copy.commandLine.invalidName({ word }), null);
     }
     this.position += word.length;
     return word;
@@ -176,7 +180,7 @@ class Cursor {
   finish(): void {
     const rest = this.skipSpaces();
     if (rest !== "") {
-      this.fail(`"${rest}" does not belong after a complete command`);
+      this.fail(copy.commandLine.doesNotBelong({ rest }));
     }
   }
 }
@@ -201,31 +205,17 @@ type Scope = {
   ownId: string;
 };
 
-const PETITION_HELP: Readonly<Record<Petition, string>> = {
-  harvest: "what to do with the grain surplus",
-  wood: "what to do with the wood",
-  ore: "what to do with the ore",
-  labor: "where the peasants work",
-};
-
-const QUANTITY_HELP: Readonly<Record<Quantity, string>> = {
-  coin: "coin in the treasury",
-  debt: "coin value of the illusion passed off as real",
-  grain: "grain in store",
-  grainSeasons: "seasons the stores would feed everyone",
-  idle: "peasants with no job",
-  ore: "ore in store",
-  owedCoin: "coin the crown still demands",
-  owedGrain: "grain the crown still demands",
-  owedOre: "ore the crown still demands",
-  owedWood: "wood the crown still demands",
-  population: "peasants in the village",
-  wood: "wood in store",
-};
-
 const COMPARISONS: readonly Choice<"above" | "below">[] = [
-  { text: "above", description: "more than a number", value: "above" },
-  { text: "below", description: "less than a number", value: "below" },
+  {
+    text: "above",
+    description: copy.commandLine.keywordHelp.above,
+    value: "above",
+  },
+  {
+    text: "below",
+    description: copy.commandLine.keywordHelp.below,
+    value: "below",
+  },
 ];
 
 type Subject =
@@ -241,19 +231,19 @@ function subjects(scope: Scope): Choice<Subject>[] {
     }
     byText.set(words(quantity), {
       text: words(quantity),
-      description: QUANTITY_HELP[quantity],
+      description: copy.commandLine.quantityHelp[quantity],
       value: { kind: "named", quantity, id: null },
     });
   }
   byText.set("it is", {
     text: "it is",
-    description: "the season",
+    description: copy.commandLine.keywordHelp.itIs,
     value: { kind: "season" },
   });
   if (scope.compound) {
     byText.set("not", {
       text: "not",
-      description: "the condition that follows is false",
+      description: copy.commandLine.keywordHelp.not,
       value: { kind: "not" },
     });
   }
@@ -261,7 +251,9 @@ function subjects(scope: Scope): Choice<Subject>[] {
     for (const decree of scope.context.view.decrees) {
       if (decree.id === scope.ownId) continue;
       const existing = byText.get(decree.id);
-      const description = `what the ${decree.petition} decree chose`;
+      const description = copy.commandLine.namedDecreeHelp({
+        petition: decree.petition,
+      });
       if (existing === undefined) {
         byText.set(decree.id, {
           text: decree.id,
@@ -297,7 +289,7 @@ function parseBase(
 ): Condition {
   if (subject.kind === "season") {
     const season = cursor.expect(
-      "a season",
+      copy.commandLine.expected.season,
       SEASONS.map((value) => ({ text: value, description: "", value })),
     ).value;
     return { kind: "season", season };
@@ -314,11 +306,14 @@ function parseBase(
   if (subject.id !== null) {
     verbs.push({
       text: "chose",
-      description: "the policy that decree picked this tick",
+      description: copy.commandLine.keywordHelp.chose,
       value: "chose",
     });
   }
-  const next = cursor.expect("above, below or chose", verbs);
+  const next = cursor.expect(
+    copy.commandLine.expected.comparisonOrChose,
+    verbs,
+  );
   if (next.value === "compare" && subject.quantity !== null) {
     return {
       kind: "compare",
@@ -333,15 +328,20 @@ function parseBase(
     target === undefined
       ? []
       : policyChoices(target.petition, scope.context.tuning);
-  const policy = cursor.expect("a policy that decree can choose", policies);
+  const policy = cursor.expect(
+    copy.commandLine.expected.policyThatDecreeCanChoose,
+    policies,
+  );
   return { kind: "chose", decree: id, policy: policy.value };
 }
 
 function expectSubject(cursor: Cursor, scope: Scope): Subject {
-  return cursor.expect("a condition", subjects(scope), {
+  return cursor.expect(copy.commandLine.expected.condition, subjects(scope), {
     unmatched: (word) =>
       word === "owed" && !scope.correspondence
-        ? `owed quantities need "${entryLabel(scope.context, CROWN_CORRESPONDENCE)}" from the Archive`
+        ? copy.commandLine.owedNeedsEntry({
+            label: entryLabel(scope.context, CROWN_CORRESPONDENCE),
+          })
         : null,
   }).value;
 }
@@ -350,7 +350,7 @@ function parseAtom(cursor: Cursor, scope: Scope): Condition {
   const first = expectSubject(cursor, scope);
   if (first.kind !== "not") return parseBase(cursor, scope, first);
   const inner = expectSubject(cursor, scope);
-  if (inner.kind === "not") return cursor.fail("not cannot be repeated");
+  if (inner.kind === "not") return cursor.fail(copy.commandLine.notRepeated);
   return { kind: "not", condition: parseBase(cursor, scope, inner) };
 }
 
@@ -366,7 +366,7 @@ function startChoices(
 ): Choice<RuleNext>[] {
   const otherwise: Choice<RuleNext> = {
     text: "otherwise",
-    description: "the policy when no rule applies",
+    description: copy.commandLine.keywordHelp.otherwise,
     value: { kind: "otherwise" },
   };
   if (rulesSoFar >= context.tuning.decrees.maxRules) return [otherwise];
@@ -386,10 +386,10 @@ function parseDecreeVerb(
 ): Command {
   const { view, tuning } = context;
   const petition = cursor.expect(
-    "a petition",
+    copy.commandLine.expected.petition,
     PETITIONS.map((value) => ({
       text: value,
-      description: PETITION_HELP[value],
+      description: copy.commandLine.petitionHelp[value],
       value,
     })),
   ).value;
@@ -404,23 +404,23 @@ function parseDecreeVerb(
   const { maxRules } = tuning.decrees;
   const tooMany = (rulesSoFar: number) => (word: string) =>
     rulesSoFar >= maxRules && policiesFor(petition, tuning).includes(word)
-      ? `a decree holds at most ${String(maxRules)} rules`
+      ? copy.commandLine.tooManyRules({ maxRules: String(maxRules) })
       : null;
   const when: Choice<null> = {
     text: "when",
-    description: "the condition for this rule",
+    description: copy.commandLine.keywordHelp.when,
     value: null,
   };
 
   const rules: DecreeRule[] = [];
   let head = cursor.expect(
-    "a policy or otherwise",
+    copy.commandLine.expected.policyOrOtherwise,
     startChoices(petition, 0, context),
     { unmatched: tooMany(0) },
   ).value;
   while (head.kind === "policy") {
     const { policy } = head;
-    cursor.expect("when", [when]);
+    cursor.expect(copy.commandLine.expected.when, [when]);
     const atoms: Condition[] = [];
     let join: "and" | "or" | null = null;
     let next: RuleNext;
@@ -440,22 +440,22 @@ function parseDecreeVerb(
             text: word,
             description:
               word === "and"
-                ? "every condition must hold"
-                : "any condition may hold",
+                ? copy.commandLine.keywordHelp.and
+                : copy.commandLine.keywordHelp.or,
             value: { kind: "join", join: word },
           });
         }
       }
       const taken: "and" | "or" | null = join;
       next = cursor.expect(
-        "and, or, a policy or otherwise",
+        copy.commandLine.expected.joinPolicyOrOtherwise,
         [...joins, ...startChoices(petition, rules.length + 1, context)],
         {
           unmatched: (word) => {
             if (scope.compound && (word === "and" || word === "or")) {
               if (!roomForAnother) return conditionLimitProblem(tuning);
               if (taken !== null) {
-                return "a rule joins its conditions with and, or or, not both";
+                return copy.commandLine.mixedJoins;
               }
             }
             return tooMany(rules.length + 1)(word);
@@ -478,9 +478,11 @@ function parseDecreeVerb(
     head = next;
   }
 
-  const otherwise = cursor.expect("a policy", policyChoices(petition, tuning), {
-    final: true,
-  }).value;
+  const otherwise = cursor.expect(
+    copy.commandLine.expected.policy,
+    policyChoices(petition, tuning),
+    { final: true },
+  ).value;
   const decree: Decree = { id: scope.ownId, petition, rules, otherwise };
   try {
     parseDecree(decree, tuning.decrees);
@@ -491,7 +493,9 @@ function parseDecreeVerb(
 }
 
 function conditionLimitProblem(tuning: MenuContext["tuning"]): string {
-  return `a rule holds at most ${String(tuning.decrees.maxConditionNodes)} condition parts, and a not counts as two`;
+  return copy.commandLine.tooManyConditionParts({
+    maxParts: String(tuning.decrees.maxConditionNodes),
+  });
 }
 
 function nodeCount(condition: Condition): number {
@@ -523,9 +527,9 @@ function combine(atoms: Condition[], join: "and" | "or" | null): Condition {
 
 function parseRepealVerb(cursor: Cursor, context: MenuContext): Command {
   const decrees = context.view.decrees;
-  if (decrees.length === 0) cursor.fail("no decrees are in force");
+  if (decrees.length === 0) cursor.fail(copy.commandLine.noDecreesInForce);
   const id = cursor.expect(
-    "a decree in force",
+    copy.commandLine.expected.decreeInForce,
     decrees.map((decree) => ({
       text: decree.id,
       description: formatDecree(decree),
@@ -551,8 +555,11 @@ function needsUnlock(id: UnlockId, verb: string) {
     available: (context: MenuContext) => ownsUnlock(context, id),
     unavailableProblem: (context: MenuContext) =>
       id === ARCHIVE_PANEL
-        ? `${verb} needs the Archive, which opens when the treasury first holds coin`
-        : `${verb} needs "${entryLabel(context, id)}" from the Archive`,
+        ? copy.commandLine.needsArchive({ verb })
+        : copy.commandLine.needsEntry({
+            verb,
+            label: entryLabel(context, id),
+          }),
   };
 }
 
@@ -578,19 +585,25 @@ function parseBuyVerb(cursor: Cursor, context: MenuContext): Command {
   const coin = coinHeld(context);
   const offered = entries.filter((entry) => !entry.owned && entry.available);
   if (entries.every((entry) => entry.owned)) {
-    cursor.fail("you own everything in the Archive");
+    cursor.fail(copy.commandLine.ownEverything);
   }
-  if (offered.length === 0)
-    cursor.fail("nothing in the Archive can be bought yet");
+  if (offered.length === 0) cursor.fail(copy.commandLine.nothingToBuyYet);
   const id = cursor.expect(
-    "an Archive entry you can buy",
+    copy.commandLine.expected.archiveEntryToBuy,
     offered.map((entry) => ({
       text: slugOf(entry.id),
-      description: `${entry.label}, ${String(entry.cost)} coin: ${entry.description}${
-        entry.affordable
-          ? ""
-          : ` (need ${String(Math.ceil(entry.cost - coin))} coin)`
-      }`,
+      description: entry.affordable
+        ? copy.commandLine.archiveEntryHelp({
+            label: entry.label,
+            cost: String(entry.cost),
+            description: entry.description,
+          })
+        : copy.commandLine.archiveEntryShortHelp({
+            label: entry.label,
+            cost: String(entry.cost),
+            description: entry.description,
+            shortfall: String(Math.ceil(entry.cost - coin)),
+          }),
       value: entry.id,
     })),
     {
@@ -598,12 +611,16 @@ function parseBuyVerb(cursor: Cursor, context: MenuContext): Command {
       unmatched: (word) => {
         const known = entries.find((entry) => slugOf(entry.id) === word);
         if (known === undefined) return null;
-        if (known.owned) return `you already own ${known.label}`;
+        if (known.owned)
+          return copy.commandLine.alreadyOwn({ label: known.label });
         const missing = context.tuning.archive.entries
           .find((entry) => entry.id === known.id)
           ?.requires.filter((id) => !ownsUnlock(context, id))
           .map((id) => entryLabel(context, id));
-        return `${known.label} needs ${(missing ?? []).join(" and ")} first`;
+        return copy.commandLine.needsFirst({
+          label: known.label,
+          missing: (missing ?? []).join(" and "),
+        });
       },
     },
   ).value;
@@ -611,9 +628,13 @@ function parseBuyVerb(cursor: Cursor, context: MenuContext): Command {
 }
 
 function parseSaveVerb(cursor: Cursor, context: MenuContext): Command {
-  const name = cursor.name("a name for the decree, such as harvest-plan");
-  cursor.expect("decree", [
-    { text: "decree", description: "the decree to keep", value: null },
+  const name = cursor.name(copy.commandLine.nameHelp);
+  cursor.expect(copy.commandLine.expected.decree, [
+    {
+      text: "decree",
+      description: copy.commandLine.keywordHelp.decree,
+      value: null,
+    },
   ]);
   return parseDecreeVerb(cursor, context, (decree) => ({
     type: "saveDecree",
@@ -633,68 +654,70 @@ function savedChoices(context: MenuContext): Choice<string>[] {
 function parseSavedVerb(type: "enactSaved" | "forgetSaved") {
   return (cursor: Cursor, context: MenuContext): Command => {
     if (context.view.savedDecrees.length === 0) {
-      cursor.fail("no decrees are saved");
+      cursor.fail(copy.commandLine.noDecreesSaved);
     }
-    const name = cursor.expect("a saved decree", savedChoices(context), {
-      final: true,
-    }).value;
+    const name = cursor.expect(
+      copy.commandLine.expected.savedDecree,
+      savedChoices(context),
+      { final: true },
+    ).value;
     return { type, name };
   };
 }
 
 const JOBS: readonly Choice<Job>[] = [
-  { text: "farm", description: "grow grain", value: Job.FARM },
-  { text: "forest", description: "cut wood", value: Job.FOREST },
-  { text: "mine", description: "dig ore", value: Job.MINE },
-  { text: "idle", description: "no work", value: Job.IDLE },
+  { text: "farm", description: copy.commandLine.jobHelp.farm, value: Job.FARM },
+  {
+    text: "forest",
+    description: copy.commandLine.jobHelp.forest,
+    value: Job.FOREST,
+  },
+  { text: "mine", description: copy.commandLine.jobHelp.mine, value: Job.MINE },
+  { text: "idle", description: copy.commandLine.jobHelp.idle, value: Job.IDLE },
 ];
 
 function parseAssignVerb(cursor: Cursor, context: MenuContext): Command {
   const peasant = cursor.expect(
-    "a peasant",
+    copy.commandLine.expected.peasant,
     context.view.delegates.map((delegate) => ({
       text: delegate.name,
       description: delegate.job,
       value: delegate.id,
     })),
   ).value;
-  const job = cursor.expect("a job", JOBS, { final: true }).value;
+  const job = cursor.expect(copy.commandLine.expected.job, JOBS, {
+    final: true,
+  }).value;
   return { type: "assignPeasant", peasant, job };
 }
-
-const RESOURCE_HELP: Readonly<Record<Resource, string>> = {
-  coin: "the treasury",
-  grain: "the granary",
-  ore: "the mine's output",
-  wood: "the forest's output",
-};
 
 function resourceChoices(resources: readonly Resource[]): Choice<Resource>[] {
   return resources.map((resource) => ({
     text: resource,
-    description: RESOURCE_HELP[resource],
+    description: copy.commandLine.resourceHelp[resource],
     value: resource,
   }));
 }
 
 const conjuringVerb = (verb: string) => ({
   available: (context: MenuContext) => ownsUnlock(context, CONJURING),
-  unavailableProblem: () =>
-    `${verb} needs conjuring, which the crown teaches you with its first demand`,
+  unavailableProblem: () => copy.commandLine.needsConjuring({ verb }),
 });
 
 function parseConjureVerb(cursor: Cursor): Command {
   const resource = cursor.expect(
-    "a resource that can be conjured",
+    copy.commandLine.expected.resourceToConjure,
     resourceChoices(CONJURABLE),
   ).value;
   return { type: "conjure", resource, amount: cursor.number(true) };
 }
 
 function parseBackVerb(cursor: Cursor): Command {
-  const resource = cursor.expect("a resource", resourceChoices(RESOURCES), {
-    final: true,
-  }).value;
+  const resource = cursor.expect(
+    copy.commandLine.expected.resource,
+    resourceChoices(RESOURCES),
+    { final: true },
+  ).value;
   return { type: "back", resource };
 }
 
@@ -702,7 +725,7 @@ function parseBackVerb(cursor: Cursor): Command {
 const VERBS: readonly Verb[] = [
   {
     word: "decree",
-    description: "set how a petition is answered",
+    description: copy.commandLine.verbHelp.decree,
     ...always,
     parse: (cursor, context) =>
       parseDecreeVerb(cursor, context, (decree) => ({
@@ -712,66 +735,65 @@ const VERBS: readonly Verb[] = [
   },
   {
     word: "repeal",
-    description: "withdraw a decree in force",
+    description: copy.commandLine.verbHelp.repeal,
     ...always,
     parse: parseRepealVerb,
   },
   {
     word: "buy",
-    description: "buy an entry from the Archive",
+    description: copy.commandLine.verbHelp.buy,
     ...needsUnlock(ARCHIVE_PANEL, "buy"),
     parse: parseBuyVerb,
   },
   {
     word: "save",
-    description: "keep a decree under a name",
+    description: copy.commandLine.verbHelp.save,
     ...needsUnlock(SAVED_DECREES_UNLOCK, "save"),
     parse: parseSaveVerb,
   },
   {
     word: "enact",
-    description: "enact a saved decree",
+    description: copy.commandLine.verbHelp.enact,
     ...needsUnlock(SAVED_DECREES_UNLOCK, "enact"),
     parse: parseSavedVerb("enactSaved"),
   },
   {
     word: "forget",
-    description: "delete a saved decree",
+    description: copy.commandLine.verbHelp.forget,
     available: (context) => context.view.savedDecrees.length > 0,
-    unavailableProblem: () => "there are no saved decrees to forget",
+    unavailableProblem: () => copy.commandLine.noSavedDecreesToForget,
     parse: parseSavedVerb("forgetSaved"),
   },
   {
     word: "assign",
-    description: "give a peasant a job",
+    description: copy.commandLine.verbHelp.assign,
     ...needsUnlock(PALETTE_UNLOCK, "assign"),
     parse: parseAssignVerb,
   },
   {
     word: "deliver",
     bare: true,
-    description: "hand the crown what it demands from the stores",
+    description: copy.commandLine.verbHelp.deliver,
     available: (context) => ownsUnlock(context, CROWN_PANEL),
-    unavailableProblem: () =>
-      "deliver needs the Crown, which opens at promotion",
+    unavailableProblem: () => copy.commandLine.needsCrown,
     parse: () => ({ type: "deliver" }),
   },
   {
     word: "conjure",
-    description: "add stock that does not exist, grain or coin only",
+    description: copy.commandLine.verbHelp.conjure,
     ...conjuringVerb("conjure"),
     parse: parseConjureVerb,
   },
   {
     word: "forge",
     bare: true,
-    description: "report the open crown demand as delivered, on paper",
+    description: copy.commandLine.verbHelp.forge,
     ...conjuringVerb("forge"),
     parse: () => ({ type: "forge" }),
   },
   {
     word: "back",
-    description: "repay one resource's debt from real stock",
+    description: copy.commandLine.verbHelp.back,
     ...conjuringVerb("back"),
     parse: parseBackVerb,
   },
@@ -783,7 +805,7 @@ function analyze(text: string, context: MenuContext): Analysis {
   const cursor = new Cursor(text);
   try {
     const verb = cursor.expect(
-      "a command",
+      copy.commandLine.expected.command,
       VERBS.filter((value) => value.available(context)).map((value) => ({
         text: value.word,
         description: value.description,
@@ -921,5 +943,9 @@ export function renderLine(
   else if (suggestions.length === 0 && analysis.expecting !== null) {
     lines.push(`  ${analysis.expecting}`);
   }
-  return { title: "Command", lines, hints: LINE_HINTS };
+  return {
+    title: copy.commandLine.title,
+    lines,
+    hints: copy.commandLine.hints,
+  };
 }

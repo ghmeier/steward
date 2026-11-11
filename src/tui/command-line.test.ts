@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { grantUnlocks, rosterOf, setRoster, tuning } from "../../test/helpers";
 import { key } from "../../test/tui-helpers";
+import { copy } from "../core/copy";
 import { type Decree, PETITIONS, policiesFor } from "../core/decree";
 import { Game } from "../core/game";
 import { Job } from "../core/realm";
@@ -81,7 +82,11 @@ const onlyDependent: Tuning = {
 };
 
 const ok = (command: object) => ({ command });
-const bad = (problem: string) => ({ problem });
+// A bare `bad()` only requires that some problem is reported.
+const bad = (problem: string | true = true) => ({ problem });
+const line = copy.commandLine;
+const expected = line.expected;
+const label = (id: string) => entry(id).label;
 const enact = (decree: object) => ok({ type: "enactDecree", decree });
 const woodRuleStart = "decree wood sell when ";
 const harvestRuleStart = "decree harvest sell when ";
@@ -97,7 +102,7 @@ const savedHarvest = {
   otherwise: "stockpile",
 };
 
-type Outcome = { command?: object; problem?: string };
+type Outcome = { command?: object; problem?: string | true };
 // biome-ignore format: one row per line keeps the table scannable
 const parseRows: [string, Setup, Outcome | null][] = [
 	["decree harvest otherwise sell", {}, enact({ id: "harvest", rules: [] })],
@@ -105,48 +110,48 @@ const parseRows: [string, Setup, Outcome | null][] = [
 	[`${harvestRuleStart}grain seasons above 2 otherwise feed`, {}, enact({ rules: [{ when: { quantity: "grainSeasons" } }] })],
 	[`${harvestRuleStart}coin above 0.5 otherwise feed`, {}, enact({ rules: [{ when: { value: 0.5 } }] })],
 	[`decree harvest ${repeated(maxRules, "sell when coin above 1", ", ")} otherwise feed`, {}, enact({})],
-	[`decree harvest ${repeated(maxRules + 1, "sell when coin above 1", ", ")} otherwise feed`, {}, bad(String(maxRules))],
+	[`decree harvest ${repeated(maxRules + 1, "sell when coin above 1", ", ")} otherwise feed`, {}, bad(line.tooManyRules({ maxRules: String(maxRules) }))],
 	[`${harvestRuleStart}coin above `, {}, null],
-	["decree harvest otherwise sell now", {}, bad("does not belong")],
-	["decree harvest banana", {}, bad("banana")],
+	["decree harvest otherwise sell now", {}, bad(line.doesNotBelong({ rest: "now" }))],
+	["decree harvest banana", {}, bad(line.notExpected({ word: "banana", expected: expected.policyOrOtherwise }))],
 	[`${woodRuleStart}coin above 1 and idle above 2 otherwise stockpile`, compound, enact({ rules: [{ when: { kind: "all" } }] })],
 	[`${woodRuleStart}coin above 1 or not idle above 2 otherwise stockpile`, compound, enact({ rules: [{ when: coinOrNotIdle }] })],
-	[`${woodRuleStart}coin above 1 and idle above 2 or ore above 3 otherwise stockpile`, compound, bad("not both")],
-	[`${woodRuleStart}${repeated(maxNodes, "coin above 1", " and ")} otherwise stockpile`, compound, bad("at most")],
-	[`${woodRuleStart}not not `, compound, bad("repeated")],
-	[`${woodRuleStart}not coin above 1 otherwise stockpile`, {}, bad('"not"')],
-	[`${woodRuleStart}harvest chose sell otherwise stockpile`, { decrees: [harvest] }, bad('"harvest"')],
+	[`${woodRuleStart}coin above 1 and idle above 2 or ore above 3 otherwise stockpile`, compound, bad(line.mixedJoins)],
+	[`${woodRuleStart}${repeated(maxNodes, "coin above 1", " and ")} otherwise stockpile`, compound, bad(line.tooManyConditionParts({ maxParts: String(maxNodes) }))],
+	[`${woodRuleStart}not not `, compound, bad(line.notRepeated)],
+	[`${woodRuleStart}not coin above 1 otherwise stockpile`, {}, bad(line.notExpected({ word: "not", expected: expected.condition }))],
+	[`${woodRuleStart}harvest chose sell otherwise stockpile`, { decrees: [harvest] }, bad(line.notExpected({ word: "harvest", expected: expected.condition }))],
 	["decree harvest feed when wood chose sell otherwise stockpile", { ...chained, decrees: [woodDecree] }, enact({ rules: [{ when: woodChoseSell }] })],
 	["decree harvest feed when wood above 3 otherwise stockpile", { ...chained, decrees: [woodDecree] }, enact({ rules: [{ when: { kind: "compare", quantity: "wood" } }] })],
 	["repeal granary", { decrees: [granary] }, ok({ type: "repealDecree", id: "granary" })],
-	["repeal harvest ", { decrees: [granary] }, bad('"harvest"')],
-	["repeal ", {}, bad("no decrees")],
-	["save plan decree harvest otherwise sell", {}, bad(`"${entry(SAVED_DECREES_UNLOCK).label}" from the Archive`)],
-	["buy palette", {}, bad("Archive")],
+	["repeal harvest ", { decrees: [granary] }, bad(line.notExpected({ word: "harvest", expected: expected.decreeInForce }))],
+	["repeal ", {}, bad(line.noDecreesInForce)],
+	["save plan decree harvest otherwise sell", {}, bad(line.needsEntry({ verb: "save", label: label(SAVED_DECREES_UNLOCK) }))],
+	["buy palette", {}, bad(line.needsArchive({ verb: "buy" }))],
 	["buy compound", archive, ok({ type: "buyUnlock", id: COMPOUND_UNLOCK })],
-	["buy saved-decrees", archive, bad(entry(PALETTE_UNLOCK).label)],
-	["buy compound", { unlocks: [ARCHIVE_PANEL, COMPOUND_UNLOCK] }, bad("already own")],
-	["buy ", { unlocks: [ARCHIVE_PANEL, ...tuning.archive.entries.map((e) => e.id)] }, bad("own everything")],
-	["buy ", { ...archive, tuning: onlyDependent }, bad("nothing in the Archive can be bought yet")],
+	["buy saved-decrees", archive, bad(line.needsFirst({ label: label(SAVED_DECREES_UNLOCK), missing: label(PALETTE_UNLOCK) }))],
+	["buy compound", { unlocks: [ARCHIVE_PANEL, COMPOUND_UNLOCK] }, bad(line.alreadyOwn({ label: label(COMPOUND_UNLOCK) }))],
+	["buy ", { unlocks: [ARCHIVE_PANEL, ...tuning.archive.entries.map((e) => e.id)] }, bad(line.ownEverything)],
+	["buy ", { ...archive, tuning: onlyDependent }, bad(line.nothingToBuyYet)],
 	["save plan decree harvest sell when grain above 5 otherwise stockpile", everyVerb, ok({ type: "saveDecree", name: "plan", decree: savedHarvest })],
-	["save Plan! decree", everyVerb, bad("not a valid name")],
+	["save Plan! decree", everyVerb, bad(line.invalidName({ word: "Plan!" }))],
 	["enact plan", saving, ok({ type: "enactSaved", name: "plan" })],
 	["forget plan", saving, ok({ type: "forgetSaved", name: "plan" })],
-	["enact ", { unlocks: [SAVED_DECREES_UNLOCK] }, bad("no decrees are saved")],
-	["forget plan", { unlocks: [SAVED_DECREES_UNLOCK] }, bad("no saved decrees")],
+	["enact ", { unlocks: [SAVED_DECREES_UNLOCK] }, bad(line.noDecreesSaved)],
+	["forget plan", { unlocks: [SAVED_DECREES_UNLOCK] }, bad(line.noSavedDecreesToForget)],
 	[`assign ${second?.name} mine`, palette, ok({ type: "assignPeasant", peasant: second?.id, job: Job.MINE })],
-	["assign x idle", {}, bad("assign needs")],
+	["assign x idle", {}, bad(line.needsEntry({ verb: "assign", label: label(PALETTE_UNLOCK) }))],
 	["deliver", crowned, ok({ type: "deliver" })],
-	["deliver", {}, bad("deliver needs the Crown")],
+	["deliver", {}, bad(line.needsCrown)],
 	["conjure grain 25", conjuring, ok({ type: "conjure", resource: "grain", amount: 25 })],
 	["conjure coin 5", conjuring, ok({ type: "conjure", resource: "coin", amount: 5 })],
-	["conjure ore 5", conjuring, bad('"ore" is not a resource that can be conjured')],
-	["conjure grain 25", {}, bad("conjure needs conjuring")],
+	["conjure ore 5", conjuring, bad(line.notExpected({ word: "ore", expected: expected.resourceToConjure }))],
+	["conjure grain 25", {}, bad(line.needsConjuring({ verb: "conjure" }))],
 	["forge", conjuring, ok({ type: "forge" })],
-	["forge", {}, bad("forge needs conjuring")],
+	["forge", {}, bad(line.needsConjuring({ verb: "forge" }))],
 	["back ore", conjuring, ok({ type: "back", resource: "ore" })],
-	["back ore", {}, bad("back needs conjuring")],
-	[`${woodRuleStart}owed ore above 0 otherwise stockpile`, {}, bad(entry(CROWN_CORRESPONDENCE).label)],
+	["back ore", {}, bad(line.needsConjuring({ verb: "back" }))],
+	[`${woodRuleStart}owed ore above 0 otherwise stockpile`, {}, bad(line.owedNeedsEntry({ label: label(CROWN_CORRESPONDENCE) }))],
 	[`${woodRuleStart}owed ore above 0 otherwise stockpile`, corresponding, enact({ rules: [{ when: { kind: "compare", quantity: "owedOre" } }] })],
 	...PETITIONS.flatMap((petition) =>
 		policiesFor(petition, tuning).map((policy): [string, Setup, Outcome] => [
@@ -165,7 +170,8 @@ describe("parseLine", () => {
     else expect(result.command).toMatchObject(outcome.command);
     if (outcome?.problem === undefined) expect(result.problem).toBeNull();
     else {
-      expect(result.problem).toContain(outcome.problem);
+      if (outcome.problem === true) expect(result.problem).not.toBeNull();
+      else expect(result.problem).toBe(outcome.problem);
       expect(result.problem).not.toMatch(/\w\[\d+\]/);
       expect(result.suggestions).toEqual([]);
     }
@@ -264,29 +270,33 @@ describe("suggestions", () => {
     },
   );
 
-  const cost = entry(PALETTE_UNLOCK).cost;
-  test.each<[string, Setup, string, string[]]>([
-    ["decree wood ", {}, "sell", [describePolicy("wood", "sell", tuning)]],
+  const paletteEntry = entry(PALETTE_UNLOCK);
+  const paletteHelp = {
+    label: paletteEntry.label,
+    cost: String(paletteEntry.cost),
+    description: paletteEntry.description,
+  };
+  test.each<[string, Setup, string, string]>([
+    ["decree wood ", {}, "sell", describePolicy("wood", "sell", tuning)],
     [
       "buy ",
-      archive,
+      { ...archive, coin: paletteEntry.cost },
       "palette",
-      [
-        entry(PALETTE_UNLOCK).label,
-        String(cost),
-        entry(PALETTE_UNLOCK).description,
-        `need ${cost} coin`,
-      ],
+      line.archiveEntryHelp(paletteHelp),
     ],
-    ["buy ", { ...archive, coin: cost - 30 }, "palette", ["need 30 coin"]],
-    ["enact ", saving, "plan", [formatDecree({ ...granary, id: "plan" })]],
-  ])("%s describes the suggestion %#", (text, setup, word, fragments) => {
+    [
+      "buy ",
+      { ...archive, coin: paletteEntry.cost - 30 },
+      "palette",
+      line.archiveEntryShortHelp({ ...paletteHelp, shortfall: "30" }),
+    ],
+    ["enact ", saving, "plan", formatDecree({ ...granary, id: "plan" })],
+  ])("%s describes the suggestion %#", (text, setup, word, description) => {
     const found = parseLine(text, contextWith(setup)).suggestions.find(
       (s) => s.text === word,
     );
 
-    for (const fragment of fragments)
-      expect(found?.description).toContain(fragment);
+    expect(found?.description).toBe(description);
   });
 });
 
@@ -361,11 +371,11 @@ describe("renderLine", () => {
   test("shows the text with a cursor and marks the highlighted suggestion", () => {
     const render = renderLine(openLine("decree "), fresh);
 
-    expect(render.title).toBe("Command");
+    expect(render.title).toBe(line.title);
     expect(render.lines[0]).toBe(": decree _");
     expect(render.lines[1]).toStartWith("> harvest");
     expect(render.lines[2]).toStartWith("  wood");
-    expect(render.hints).toContain("esc");
+    expect(render.hints).toBe(line.hints);
   });
 
   test("shows six suggestions at most and scrolls to keep the highlight visible", () => {
@@ -388,12 +398,15 @@ describe("renderLine", () => {
   });
 
   test("shows a problem, or what a number slot expects when nothing can be suggested", () => {
-    expect(text(renderLine(openLine("decree banana"), fresh))).toContain(
-      '! "banana"',
+    const problem = parseLine("decree banana", fresh).problem;
+
+    expect(problem).not.toBeNull();
+    expect(renderLine(openLine("decree banana"), fresh).lines).toContain(
+      `! ${problem}`,
     );
     expect(
-      text(renderLine(openLine(`${harvestRuleStart}coin above `), fresh)),
-    ).toContain("a number");
+      renderLine(openLine(`${harvestRuleStart}coin above `), fresh).lines,
+    ).toContain(`  ${line.numberHelp}`);
   });
 
   test("does not list the decrees in force, because the Decrees panel shows them", () => {
@@ -402,6 +415,5 @@ describe("renderLine", () => {
     const render = renderLine(openLine("decree "), active);
 
     expect(text(render)).not.toContain(formatDecree(granary));
-    expect(text(render)).not.toContain("No decrees are in force.");
   });
 });
