@@ -200,7 +200,7 @@ export function runSim(
   const absorbed: AbsorbedAdditionLog = {};
   const rejectedCommands: { tick: number; type: string; reason: string }[] = [];
   const issued: CommandLogEntry[] = [];
-  let minPopulation = game.state.posting.delegates.length;
+  let minPopulation = game.delegates.population;
   const crownOutcomes: { tick: number; outcome: "met" | "missed" }[] = [];
   let crownMet = state.posting.crown.met;
   let crownMissed = state.posting.crown.missed;
@@ -235,10 +235,7 @@ export function runSim(
         crownMet = met;
         crownMissed = missed;
         player?.observe(game);
-        minPopulation = Math.min(
-          minPopulation,
-          game.state.posting.delegates.length,
-        );
+        minPopulation = Math.min(minPopulation, game.delegates.population);
         stepsDone += 1;
         if (options.trace !== null && stepsDone % options.trace === 0) {
           io.stdout(
@@ -247,7 +244,7 @@ export function runSim(
               tick,
               hash: stateHash(state),
               resources: sortedRecord(state.posting.resources),
-              population: state.posting.delegates.length,
+              population: game.delegates.population,
               starved: state.posting.economy.starved,
             }),
           );
@@ -273,7 +270,7 @@ export function runSim(
       tick: state.tick,
       hash: stateHash(state),
       resources: sortedRecord(state.posting.resources),
-      population: state.posting.delegates.length,
+      population: game.delegates.population,
       starved: state.posting.economy.starved,
       minPopulation,
       promotedAt: state.career.promotedAt,

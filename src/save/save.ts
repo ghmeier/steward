@@ -109,6 +109,21 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
     if (!isRecord(state.posting) || !isRecord(state.posting.crown)) return;
     state.posting.crown.favor = 0;
   },
+  // Governors arrive after promotion, so a save has none; it gains an empty record of former staff and its own random stream.
+  13: (state) => {
+    if (!isRecord(state.posting)) return;
+    state.posting.formerStaff = [];
+    if (isRecord(state.posting.rng)) {
+      state.posting.rng.governors = seedStream(
+        Number(state.posting.seed),
+        "governors",
+      );
+    }
+    if (!Array.isArray(state.posting.delegates)) return;
+    for (const delegate of state.posting.delegates) {
+      if (isRecord(delegate)) delegate.kind ??= "peasant";
+    }
+  },
 };
 
 function upgrade(record: Record<string, unknown>): void {

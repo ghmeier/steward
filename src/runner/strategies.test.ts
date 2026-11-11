@@ -220,3 +220,27 @@ describe("promotion under the reference strategy", () => {
     expect(unpromotedAfter).toBe(false);
   });
 });
+
+describe("governing over ten game years", () => {
+  test.each([1, 7, 42])(
+    "seed %i: a strategy that hires every candidate ends with a larger population than crown-aware and starves no more",
+    (seed) => {
+      const options = [
+        "--seed",
+        String(seed),
+        "--steps",
+        STEPS,
+        "--grant",
+        CROWN_CORRESPONDENCE,
+        "--strategy",
+      ];
+
+      const governing = run([...options, "strategies/governor.json"]);
+      const careful = run([...options, "strategies/crown-aware.json"]);
+
+      expect(governing.rejectedCommands).toEqual([]);
+      expect(governing.population).toBeGreaterThan(careful.population);
+      expect(governing.starved).toBeLessThanOrEqual(careful.starved);
+    },
+  );
+});

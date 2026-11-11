@@ -4,7 +4,13 @@ import type { Decree } from "./decree";
 import type { DeskKind } from "./desk";
 import type { Game } from "./game";
 import type { Books } from "./illusion";
-import { type Job, RESOURCES, type Resource, type Season } from "./realm";
+import {
+  type Job,
+  RESOURCES,
+  type Resource,
+  type Season,
+  type Trait,
+} from "./realm";
 import type { ResourceId } from "./state";
 import {
   ARCHIVE_PANEL,
@@ -38,7 +44,15 @@ export type DeskEntryView = {
   ticksLeft: number | null;
   options: DeskOptionView[];
 };
-export type GovernorView = { id: string; name: string };
+export type GovernorView = {
+  id: number;
+  name: string;
+  job: Job;
+  village: number;
+  traits: Trait[];
+  /** What the governor claims to bring in each second of their job's resource; real output scaled by their report factor. */
+  reportedPerSecond: number;
+};
 export type DelegateView = {
   id: number;
   name: string;
@@ -129,25 +143,28 @@ export class ViewManager {
   // differ from the underlying truth without touching any renderer.
   compute(): GameView {
     const { rates, growthPerTick } = this.game.projection.flows();
+    // The projection runs the next tick, so the gap is read at that tick too.
+    const gap = this.game.governors.reportGap(this.tick + 1);
     const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
       resource,
       amount: this.game.illusion.apparent(resource),
       conjured: this.game.illusion.conjuredOf(resource),
-      ratePerSecond: (rates[resource] * 1000) / this.tuning.stepMs,
+      ratePerSecond:
+        ((rates[resource] + gap[resource]) * 1000) / this.tuning.stepMs,
     }));
-    const { delegates, decrees } = this.posting;
+    const { decrees } = this.posting;
     const labor = this.game.delegates.jobCounts();
     return {
       tick: this.tick,
       elapsedSeconds: (this.tick * this.tuning.stepMs) / 1000,
       ledger,
       realm: {
-        population: delegates.length,
+        population: this.game.delegates.population,
         labor,
         season: this.game.economy.seasonAt(this.tick),
         starved: this.posting.economy.starved,
       },
-      delegates: delegates.map((delegate) => ({
+      delegates: this.game.delegates.peasants.map((delegate) => ({
         id: delegate.id,
         name: delegate.name,
         job: delegate.job,
@@ -161,7 +178,7 @@ export class ViewManager {
         return saved === undefined ? [] : [structuredClone(saved)];
       }),
       desk: this.deskEntries(),
-      governors: [],
+      governors: this.governorViews(),
       crown: this.crownView(),
       illusion: this.illusionView(),
       promotion: {
@@ -192,6 +209,19 @@ export class ViewManager {
         })),
       },
     };
+  }
+
+  private governorViews(): GovernorView[] {
+    return this.game.delegates.governors.map((governor) => ({
+      id: governor.id,
+      name: governor.name,
+      job: governor.job,
+      village: governor.village,
+      traits: [...governor.traits],
+      reportedPerSecond:
+        (this.game.governors.reportedOutput(governor, this.tick + 1) * 1000) /
+        this.tuning.stepMs,
+    }));
   }
 
   private lockedPanels(): PanelId[] {

@@ -1,0 +1,231 @@
+import type { Governor } from "./delegates";
+import type { Candidate } from "./desk";
+import type { Game } from "./game";
+import { type AddContext, add } from "./math";
+import {
+  Job,
+  RESOURCES,
+  type Resource,
+  TRAITS,
+  type Trait,
+  WORKING_JOBS,
+} from "./realm";
+import { chance, drawDelay, intBelow, type RngState } from "./rng";
+
+export type DepartureReason = "retired" | "died" | "dismissed";
+
+export type FormerGovernor = {
+  name: string;
+  traits: Trait[];
+  hiredAt: number;
+  leftAt: number;
+  reason: DepartureReason;
+};
+
+/** What a candidate on the desk offers, drawn when they arrive so the player sees it before choosing. */
+export type CandidateDetails = {
+  name: string;
+  job: Job;
+  village: number;
+  traits: Trait[];
+  price: number;
+  /** Ticks the governor serves once hired. */
+  term: number;
+};
+
+export class GovernorManager {
+  constructor(private game: Game) {}
+
+  private get tuning() {
+    return this.game.tuning.governors;
+  }
+
+  private get roster(): Governor[] {
+    return this.game.delegates.governors;
+  }
+
+  private get stream(): RngState {
+    const stream = this.game.state.posting.rng.governors;
+    if (stream === undefined)
+      throw new Error("the governors stream is missing");
+    return stream;
+  }
+
+  get hasRoom(): boolean {
+    return this.roster.length < this.tuning.cap;
+  }
+
+  /** Candidates arrive only after promotion, and only while hiring them all would stay within the cap. */
+  get canOffer(): boolean {
+    return (
+      this.game.state.career.promotedAt !== 0 &&
+      this.roster.length + this.game.desk.candidates.length < this.tuning.cap
+    );
+  }
+
+  private factorOf(governor: Governor, key: "output" | "report"): number {
+    let factor = 1;
+    for (const trait of governor.traits)
+      factor *= this.tuning.traits[trait][key];
+    return factor;
+  }
+
+  /** Workers the governor actually puts to work: the village scaled by trait output. */
+  workersOf(governor: Governor): number {
+    return governor.village * this.factorOf(governor, "output");
+  }
+
+  /** Workers the governor claims, which exceeds the real figure for a skimmer, braggart or empire-builder. */
+  reportedWorkersOf(governor: Governor): number {
+    return this.workersOf(governor) * this.factorOf(governor, "report");
+  }
+
+  private isWorking(governor: Governor, tick: number): boolean {
+    return tick >= governor.grudgeUntil && governor.job !== Job.IDLE;
+  }
+
+  /** The resource the governor's job yields per worker per tick; null when idle. */
+  private yieldOf(governor: Governor, tick: number) {
+    return this.isWorking(governor, tick)
+      ? this.game.economy.yieldPerWorker(governor.job, tick)
+      : null;
+  }
+
+  /** What the governor claims to bring in per tick of their job's resource. */
+  reportedOutput(governor: Governor, tick: number): number {
+    const yielded = this.yieldOf(governor, tick);
+    return yielded === null
+      ? 0
+      : this.reportedWorkersOf(governor) * yielded.amount;
+  }
+
+  /** Reported minus real output per tick for each resource, which the ledger adds to its displayed rates. */
+  reportGap(tick: number): Record<Resource, number> {
+    const gap = {} as Record<Resource, number>;
+    for (const resource of RESOURCES) gap[resource] = 0;
+    for (const governor of this.roster) {
+      const yielded = this.yieldOf(governor, tick);
+      if (yielded === null) continue;
+      gap[yielded.resource] +=
+        (this.reportedWorkersOf(governor) - this.workersOf(governor)) *
+        yielded.amount;
+    }
+    return gap;
+  }
+
+  private between(range: { min: number; max: number }): number {
+    return range.min + intBelow(this.stream, range.max - range.min + 1);
+  }
+
+  private drawTraits(): Trait[] {
+    const pool = [...TRAITS];
+    const picked: Trait[] = [];
+    for (let count = 1 + intBelow(this.stream, 2); count > 0; count--) {
+      const [trait] = pool.splice(intBelow(this.stream, pool.length), 1);
+      if (trait === undefined)
+        throw new Error("trait draw landed outside its range");
+      picked.push(trait);
+    }
+    return picked.sort();
+  }
+
+  drawCandidate(): CandidateDetails {
+    const name = this.game.delegates.findName();
+    const job = WORKING_JOBS[intBelow(this.stream, WORKING_JOBS.length)];
+    if (job === undefined) throw new Error("job draw landed outside its range");
+    return {
+      name,
+      job,
+      village: this.between(this.tuning.village),
+      traits: this.drawTraits(),
+      price: this.between(this.tuning.price),
+      term: drawDelay(this.stream, this.tuning.term),
+    };
+  }
+
+  hire(candidate: Candidate, context: AddContext): void {
+    this.game.illusion.spend("coin", candidate.price, context);
+    const { tick } = this.game.state;
+    this.game.delegates.createGovernor({
+      name: candidate.name,
+      job: candidate.job,
+      village: candidate.village,
+      traits: [...candidate.traits],
+      hiredAt: tick,
+      termEndsAt: tick + candidate.term,
+      hoard: 0,
+    });
+  }
+
+  private depart(
+    governor: Governor,
+    reason: DepartureReason,
+    context: AddContext,
+  ): void {
+    const { posting, tick } = this.game.state;
+    add(posting.resources, "coin", governor.hoard, context);
+    posting.formerStaff.push({
+      name: governor.name,
+      traits: [...governor.traits],
+      hiredAt: governor.hiredAt,
+      leftAt: tick,
+      reason,
+    });
+    this.game.delegates.remove(governor.id);
+  }
+
+  private exaggerationOf(governor: Governor): number {
+    return this.reportedWorkersOf(governor) - this.workersOf(governor);
+  }
+
+  /** Blames whoever inflated their reports the most, or the newest hire when every report was honest. */
+  dismissAfterFailedAudit(context: AddContext): void {
+    const roster = this.roster;
+    let worst: Governor | undefined;
+    for (const governor of roster) {
+      if (
+        worst === undefined ||
+        this.exaggerationOf(governor) > this.exaggerationOf(worst)
+      ) {
+        worst = governor;
+      }
+    }
+    const blamed =
+      worst !== undefined && this.exaggerationOf(worst) > 0
+        ? worst
+        : roster.at(-1);
+    if (blamed !== undefined) this.depart(blamed, "dismissed", context);
+  }
+
+  // A hoarder keeps the share of the village's work their trait takes off the output, valued in coin.
+  private keepBack(governor: Governor, tick: number): void {
+    if (!governor.traits.includes("hoarder")) return;
+    const yielded = this.yieldOf(governor, tick);
+    if (yielded === null) return;
+    const hoarderOutput = this.tuning.traits.hoarder.output;
+    const workersBeforeCut = this.workersOf(governor) / hoarderOutput;
+    const kept = Math.max(0, workersBeforeCut * (1 - hoarderOutput));
+    governor.hoard +=
+      kept * yielded.amount * this.game.economy.priceOf(yielded.resource);
+  }
+
+  /** Ends terms, rolls each season's chance of death and grows empire-builders' villages. */
+  run(context: AddContext): void {
+    const { tick } = this.game.state;
+    const seasonEnds = tick % this.game.tuning.economy.ticksPerSeason === 0;
+    for (const governor of this.roster) {
+      this.keepBack(governor, tick);
+      if (tick >= governor.termEndsAt) {
+        this.depart(governor, "retired", context);
+      } else if (seasonEnds && chance(this.stream, this.tuning.deathPerMille)) {
+        this.depart(governor, "died", context);
+      } else if (
+        seasonEnds &&
+        governor.traits.includes("empire-builder") &&
+        governor.village < this.tuning.empireBuilderLimit
+      ) {
+        governor.village += 1;
+      }
+    }
+  }
+}

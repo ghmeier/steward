@@ -17,3 +17,13 @@ export type WorkingJob = (typeof WORKING_JOBS)[number];
 // Calendar order, not key order: a season's index is its position in the year.
 export const SEASONS = ["spring", "summer", "autumn", "winter"] as const;
 export type Season = (typeof SEASONS)[number];
+
+/** In sorted order, so a record keyed by trait is walked in a fixed order. */
+export const TRAITS = [
+  "braggart",
+  "diligent",
+  "empire-builder",
+  "hoarder",
+  "skimmer",
+] as const;
+export type Trait = (typeof TRAITS)[number];
