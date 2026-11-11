@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { tuning } from "../../test/helpers";
 import { key } from "../../test/tui-helpers";
+import { copy } from "../core/copy";
 import { Game } from "../core/game";
 import {
   type MenuContext,
@@ -139,6 +140,35 @@ describe("menu navigation", () => {
     const step = menuKey(openMenu(disabled), key("return"), context);
 
     expect(step.state).not.toBeNull();
+  });
+});
+
+describe("menu rendering", () => {
+  test("the hints offer close on the root screen and back on a nested one", () => {
+    const rootHints = renderMenu(openMenu(root), context).hints;
+    const nestedHints = renderMenu(
+      press(openMenu(root), "return"),
+      context,
+    ).hints;
+
+    expect(rootHints).toBe(copy.menus.listHintsClose);
+    expect(nestedHints).toBe(copy.menus.listHintsBack);
+  });
+
+  test("a disabled item is marked unavailable and an enabled one is not", () => {
+    const mixed: ScreenBuilder = () => ({
+      kind: "list",
+      title: "Mixed",
+      items: [
+        { label: "no", disabled: true, action: { kind: "close" } },
+        { label: "yes", action: { kind: "close" } },
+      ],
+    });
+
+    const lines = renderMenu(openMenu(mixed), context).lines;
+
+    expect(lines[0]).toBe(`> ${copy.menus.unavailable({ label: "no" })}`);
+    expect(lines[1]).toBe("  yes");
   });
 });
 

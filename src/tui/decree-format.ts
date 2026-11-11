@@ -1,3 +1,4 @@
+import { copy } from "../core/copy";
 import type {
   Condition,
   Decree,
@@ -22,9 +23,13 @@ export function formatCondition(condition: Condition): string {
     case "chose":
       return `${condition.decree} chose ${condition.policy}`;
     case "all":
-      return `all of (${condition.conditions.map(formatCondition).join(", ")})`;
+      return copy.decrees.allOf({
+        conditions: condition.conditions.map(formatCondition).join(", "),
+      });
     case "any":
-      return `any of (${condition.conditions.map(formatCondition).join(", ")})`;
+      return copy.decrees.anyOf({
+        conditions: condition.conditions.map(formatCondition).join(", "),
+      });
     case "not":
       return `not (${formatCondition(condition.condition)})`;
   }
@@ -50,24 +55,16 @@ export function percent(share: number): string {
 
 const HARVEST_DESCRIPTIONS: Readonly<
   Record<(typeof HARVEST_POLICIES)[number], string>
-> = {
-  feed: "the surplus grows the village",
-  sell: "the surplus is sold for coin",
-  stockpile: "the surplus is stored",
-};
+> = copy.decrees.harvestPolicies;
 
 const STORE_DESCRIPTIONS: Readonly<
   Record<(typeof STORE_POLICIES)[number], (resource: string) => string>
 > = {
-  sell: (resource) => `the ${resource} is sold for coin`,
-  stockpile: (resource) => `the ${resource} is stored`,
+  sell: (resource) => copy.decrees.storePolicies.sell({ resource }),
+  stockpile: (resource) => copy.decrees.storePolicies.stockpile({ resource }),
 };
 
-const EVERYONE: Readonly<Record<WorkingJob, string>> = {
-  farm: "everyone farms",
-  forest: "everyone works the forest",
-  mine: "everyone mines",
-};
+const EVERYONE: Readonly<Record<WorkingJob, string>> = copy.decrees.everyone;
 
 export function describePolicy(
   petition: Petition,

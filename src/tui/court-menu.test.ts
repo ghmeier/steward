@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { setRoster, economyTestTuning as tuning } from "../../test/helpers";
 import type { Command } from "../core/commands";
+import { copy } from "../core/copy";
 import { Game } from "../core/game";
 import { courtEntryLabel, courtMenu } from "./court-menu";
 import { formatTicks } from "./format";
@@ -96,9 +97,9 @@ describe("court menu", () => {
     const [sell, decline] = walk.lines().slice(1);
     walk.key("return");
 
-    expect(sell).toContain("+20 coin, −10 ore");
-    expect(sell).not.toContain("sulk");
-    expect(decline).toContain("free");
+    const [sellOption] = game.view.compute().desk[0]?.options ?? [];
+    expect(sell?.slice(2)).toBe(`${sellOption?.label}: +20 coin, −10 ore`);
+    expect(decline).toContain(copy.court.free);
     expect(walk.commands).toEqual([
       { type: "settleDispute", dispute: 1, option: "sell" },
     ]);
@@ -112,13 +113,14 @@ describe("court menu", () => {
     walk.key("return");
 
     const [pay, forFirst, forSecond] = walk.lines().slice(1);
+    const sulks = copy.court.sulks({ sulker: second });
     expect(pay).toContain("−10 coin");
-    expect(pay).toContain("default");
-    expect(pay).not.toContain(second);
+    expect(pay).toContain(copy.court.defaultIfIgnored);
+    expect(pay).not.toContain(sulks);
     expect(forFirst).toContain("+5 grain");
-    expect(forFirst).toContain(second);
-    expect(forFirst).not.toContain("default");
-    expect(forSecond).toContain("free");
+    expect(forFirst).toContain(sulks);
+    expect(forFirst).not.toContain(copy.court.defaultIfIgnored);
+    expect(forSecond).toContain(copy.court.free);
   });
 
   test("a fractional cost is shown rounded up to one decimal and a whole cost without a decimal", () => {
@@ -154,10 +156,13 @@ describe("court menu", () => {
   });
 
   test("an option the village cannot afford is disabled and emits nothing", () => {
+    const affordable = new Walker(villageWith(["boundary"]));
+    affordable.key("return");
+    const label = (affordable.lines()[1] ?? "").slice(2);
     const walk = new Walker(villageWith(["boundary"], 0));
     walk.key("return");
 
-    expect(walk.lines()[1]).toContain("unavailable");
+    expect(walk.lines()[1]).toBe(`> ${copy.menus.unavailable({ label })}`);
     walk.key("return");
 
     expect(walk.commands).toEqual([]);
@@ -175,7 +180,10 @@ describe("courtEntryLabel", () => {
     const untimed = courtEntryLabel({ ...entry, ticksLeft: null }, tuning);
 
     expect(timed).toBe(
-      `(due in ${formatTicks(ticksLeft, tuning.stepMs)}) ${entry.label}`,
+      copy.court.dueIn({
+        wait: formatTicks(ticksLeft, tuning.stepMs),
+        label: entry.label,
+      }),
     );
     expect(untimed).toBe(entry.label);
   });
