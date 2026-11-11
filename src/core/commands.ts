@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DESK_KINDS } from "./desk";
 import { addIssue, parseWith } from "./errors";
 import type { Game } from "./game";
 import type { AddContext } from "./math";
@@ -25,7 +26,11 @@ export const commandSchema = z.discriminatedUnion("type", [
     dispute: z.int(),
     option: text,
   }),
-  z.strictObject({ type: z.literal("settle"), kind: text, option: text }),
+  z.strictObject({
+    type: z.literal("settle"),
+    kind: z.enum(DESK_KINDS),
+    option: text,
+  }),
   z.strictObject({ type: z.literal("deliver") }),
   z.strictObject({
     type: z.literal("conjure"),

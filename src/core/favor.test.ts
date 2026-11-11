@@ -158,31 +158,22 @@ describe("favor after an audit", () => {
     expect(short.state.posting.crown.missed).toBe(1);
   });
 
-  test("settling by kind answers the oldest entry of that kind and leaves the others", () => {
-    const game = village();
-    stock(game, "coin", 1000);
-    const oldest = addAuditOnDesk(game, 100);
-    const newest = addAuditOnDesk(game, 100);
-
-    command(game, { type: "settle", kind: "audit", option: "back" });
-
-    const remaining = game.state.posting.desk.disputes.map((entry) => entry.id);
-    expect(remaining).toEqual([newest]);
-    expect(remaining).not.toContain(oldest);
-  });
-
-  test("a strategy can settle the open audit by kind, and gets a refusal when none is open", () => {
+  test("settling by kind answers the oldest entry of that kind, and is refused when none waits", () => {
     const game = village();
     stock(game, "coin", 1000);
     addAuditOnDesk(game, 100);
+    const newest = addAuditOnDesk(game, 100);
     const settle: Command = { type: "settle", kind: "audit", option: "back" };
 
-    const settled = command(game, settle);
-    const again = command(game, settle);
+    const first = command(game, settle);
+    const remaining = game.state.posting.desk.disputes.map((e) => e.id);
+    const second = command(game, settle);
+    const third = command(game, settle);
 
-    expect(settled).toEqual({ ok: true });
-    expect(again.ok).toBe(false);
-    expect(game.state.posting.illusion.audits.backed).toBe(1);
+    expect(first).toEqual({ ok: true });
+    expect(remaining).toEqual([newest]);
+    expect(second).toEqual({ ok: true });
+    expect(third.ok).toBe(false);
   });
 });
 

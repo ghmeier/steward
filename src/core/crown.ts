@@ -86,6 +86,26 @@ export class CrownManager {
     return this.crown.favor > warmAbove ? "warm" : "neutral";
   }
 
+  get stepFactor(): number {
+    return this.band === "cold" ? this.tuning.favor.cold.stepFactor : 1;
+  }
+
+  get debtShareFactor(): number {
+    return this.band === "cold" ? this.tuning.favor.cold.debtShareFactor : 1;
+  }
+
+  get warningFactor(): number {
+    return this.band === "cold" ? this.tuning.favor.cold.warningFactor : 1;
+  }
+
+  get ceilingFactor(): number {
+    return this.band === "warm" ? this.tuning.favor.warm.ceilingFactor : 1;
+  }
+
+  get rewardFactor(): number {
+    return this.band === "warm" ? this.tuning.favor.warm.rewardFactor : 1;
+  }
+
   private shiftFavor(delta: number): void {
     const { limit } = this.tuning.favor;
     this.crown.favor = Math.min(
@@ -136,10 +156,7 @@ export class CrownManager {
     const { crown, tuning } = this;
     const resource = this.drawResource();
     const base = tuning.baseAmounts[resource];
-    const step =
-      this.band === "cold"
-        ? tuning.step * tuning.favor.cold.stepFactor
-        : tuning.step;
+    const step = tuning.step * this.stepFactor;
     crown.demand = {
       id: crown.met + crown.missed + 1,
       resource,
@@ -230,9 +247,8 @@ export class CrownManager {
     const completes = paid >= this.owed;
     demand.delivered += paid;
     if (completes) {
-      const { reward, favor } = this.tuning;
-      const factor = this.band === "warm" ? favor.warm.rewardFactor : 1;
-      add(this.resources, "coin", reward * factor * demand.amount, context);
+      const payout = this.tuning.reward * this.rewardFactor * demand.amount;
+      add(this.resources, "coin", payout, context);
       this.meet(true);
     }
   }

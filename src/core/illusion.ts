@@ -101,12 +101,9 @@ export class IllusionManager {
   }
 
   get ceiling(): number {
-    const { favor } = this.game.tuning.crown;
-    const factor =
-      this.game.crown.band === "warm" ? favor.warm.ceilingFactor : 1;
     return (
       this.tuning.ceilingPerPeasant *
-      factor *
+      this.game.crown.ceilingFactor *
       this.game.state.posting.delegates.length
     );
   }
@@ -276,20 +273,15 @@ export class IllusionManager {
   }
 
   private get warningTicks(): number {
-    const { warningTicks } = this.tuning.audit;
-    if (this.game.crown.band !== "cold") return warningTicks;
     return Math.round(
-      warningTicks * this.game.tuning.crown.favor.cold.warningFactor,
+      this.tuning.audit.warningTicks * this.game.crown.warningFactor,
     );
   }
 
   private get isAuditDue(): boolean {
     if (!this.hasDebt) return false;
     const { debtShare, ageTicks } = this.tuning.audit;
-    const cold = this.game.crown.band === "cold";
-    const share = cold
-      ? debtShare * this.game.tuning.crown.favor.cold.debtShareFactor
-      : debtShare;
+    const share = debtShare * this.game.crown.debtShareFactor;
     return (
       this.debtValue >= share * this.ceiling ||
       this.game.state.tick - this.illusion.debtSince >= ageTicks

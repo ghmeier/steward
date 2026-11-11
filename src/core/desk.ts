@@ -13,7 +13,8 @@ export const DRAWN_KINDS = ["dispute", "merchant", "traveller"] as const;
 export type DrawnKind = (typeof DRAWN_KINDS)[number];
 
 /** Audits are placed by the illusion manager rather than drawn, so they are not among the drawn kinds. */
-export type DeskKind = DrawnKind | "audit";
+export const DESK_KINDS = [...DRAWN_KINDS, "audit"] as const;
+export type DeskKind = (typeof DESK_KINDS)[number];
 
 type EntryBase = {
   id: number;
@@ -197,20 +198,16 @@ export class DeskManager {
 
   /**
    * Answers the oldest waiting entry of a kind, for callers such as strategies that cannot know an
-   * entry's id. Ids rise with arrival, so the lowest id is the oldest.
+   * entry's id. Entries are stored oldest first.
    */
   settleOldest(
-    kind: string,
+    kind: DeskKind,
     optionId: string,
     context: AddContext,
   ): CommandResult {
-    const oldest = this.posting.desk.disputes
-      .filter((entry) => entry.kind === kind)
-      .reduce<DeskEntry | undefined>(
-        (first, entry) =>
-          first === undefined || entry.id < first.id ? entry : first,
-        undefined,
-      );
+    const oldest = this.posting.desk.disputes.find(
+      (entry) => entry.kind === kind,
+    );
     if (oldest === undefined) {
       return { ok: false, reason: copy.desk.noEntryOfKind({ kind }) };
     }
