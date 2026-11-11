@@ -18,7 +18,6 @@ export type CareerState = {
   /** The first tick each control was needed, keyed by control; the tutorial reads it. */
   needed: Record<string, number>;
   followers: string[];
-  formerStaff: string[];
   /** 0 until promotion; a promotion can only happen at tick 1 or later. */
   promotedAt: number;
 };

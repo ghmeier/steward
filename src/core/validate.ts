@@ -353,7 +353,6 @@ const career = z.strictObject({
   savedDecrees: decreeRecord(false),
   needed: z.record(z.string(), count),
   followers: z.array(z.string()),
-  formerStaff: z.array(z.string()),
   promotedAt: count,
 });
 

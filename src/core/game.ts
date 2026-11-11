@@ -112,7 +112,6 @@ export class Game {
           savedDecrees: {},
           needed: {},
           followers: [],
-          formerStaff: [],
           promotedAt: 0,
         },
         posting,

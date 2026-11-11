@@ -110,7 +110,9 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
     state.posting.crown.favor = 0;
   },
   // Governors arrive after promotion, so a save has none; it gains an empty record of former staff and its own random stream.
+  // The career's list of former staff was never read, so it is dropped in favor of the posting's record.
   13: (state) => {
+    if (isRecord(state.career)) delete state.career.formerStaff;
     if (!isRecord(state.posting)) return;
     state.posting.formerStaff = [];
     if (isRecord(state.posting.rng)) {
