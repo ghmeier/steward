@@ -1,11 +1,11 @@
 ---
 title: "Phase 7: conjuring, illusion debt and audits"
-status: draft
+status: active
 tags: [phase-7]
 created: 2026-11-11
 updated: 2026-11-11
 last_pr: 10
-next_step: Garret approves the PR breakdown and lead defaults, then PR 1 (illusion-core) is dispatched
+next_step: PR 1 (illusion-core) is being implemented; refactor pass and PR follow, then PR 2 and PR 3 in parallel
 ---
 # Phase 7: conjuring, illusion debt and audits
 
@@ -29,7 +29,7 @@ Garret, 2026-11-11:
 - **Limit.** Conjuring is free. Outstanding illusion plus debt cannot pass a ceiling that scales with population.
 - **Crown panel.** Not drawn until it is unlocked. Shipped separately as PR #10 (see "Before phase 7").
 
-Lead defaults, for Garret to confirm with this plan:
+Lead defaults, approved by Garret with the plan on 2026-11-11:
 
 - **Unlock.** Conjuring (`control.conjuring`) is granted through play when the crown issues its first demand, with a notice. It is not sold in the Archive.
 - **Order of spending.** A payment to an outsider uses conjured stock first, then real stock. Illusions fade, so the player always wants them spent first.
@@ -185,3 +185,4 @@ Carried from phase 6:
 
 - 2026-11-11: Garret asked for the Crown panel to be hidden until unlocked. Implemented on `hide-locked-crown`, refactor pass done, PR #10 opened.
 - 2026-11-11: Garret chose outsiders-only spending, reports as forged deliveries, seizure plus a missed-demand mark for a failed audit, and a debt ceiling as the limit.
+- 2026-11-11: Garret approved the PR breakdown and every lead default. PR 1 dispatched on `illusion-core`. The phase 6 playtest question is still unanswered.
