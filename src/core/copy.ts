@@ -105,6 +105,140 @@ export const copy = {
   menus: {},
   help: {},
   keys: {},
-  commandLine: {},
+  commandLine: {
+    title: "Command",
+    hints: "type · tab complete · enter issue · esc close",
+    numberHelp: "a number, such as 2 or 0.5",
+    nameHelp: "a name for the decree, such as harvest-plan",
+    expected: {
+      command: "a command",
+      petition: "a petition",
+      policyOrOtherwise: "a policy or otherwise",
+      when: "when",
+      condition: "a condition",
+      season: "a season",
+      comparisonOrChose: "above, below or chose",
+      policyThatDecreeCanChoose: "a policy that decree can choose",
+      joinPolicyOrOtherwise: "and, or, a policy or otherwise",
+      policy: "a policy",
+      number: "a number",
+      decree: "decree",
+      decreeInForce: "a decree in force",
+      archiveEntryToBuy: "an Archive entry you can buy",
+      savedDecree: "a saved decree",
+      peasant: "a peasant",
+      job: "a job",
+      resourceToConjure: "a resource that can be conjured",
+      resource: "a resource",
+    },
+    notExpected: ({ word, expected }: { word: string; expected: string }) =>
+      `"${word}" is not ${expected}`,
+    invalidName: ({ word }: { word: string }) =>
+      `"${word}" is not a valid name: use lowercase letters, digits and dashes, starting with a letter`,
+    doesNotBelong: ({ rest }: { rest: string }) =>
+      `"${rest}" does not belong after a complete command`,
+    owedNeedsEntry: ({ label }: { label: string }) =>
+      `owed quantities need "${label}" from the Archive`,
+    notRepeated: "not cannot be repeated",
+    tooManyRules: ({ maxRules }: { maxRules: string }) =>
+      `a decree holds at most ${maxRules} rules`,
+    tooManyConditionParts: ({ maxParts }: { maxParts: string }) =>
+      `a rule holds at most ${maxParts} condition parts, and a not counts as two`,
+    mixedJoins: "a rule joins its conditions with and, or or, not both",
+    noDecreesInForce: "no decrees are in force",
+    noDecreesSaved: "no decrees are saved",
+    noSavedDecreesToForget: "there are no saved decrees to forget",
+    ownEverything: "you own everything in the Archive",
+    nothingToBuyYet: "nothing in the Archive can be bought yet",
+    alreadyOwn: ({ label }: { label: string }) => `you already own ${label}`,
+    needsFirst: ({ label, missing }: { label: string; missing: string }) =>
+      `${label} needs ${missing} first`,
+    needsArchive: ({ verb }: { verb: string }) =>
+      `${verb} needs the Archive, which opens when the treasury first holds coin`,
+    needsEntry: ({ verb, label }: { verb: string; label: string }) =>
+      `${verb} needs "${label}" from the Archive`,
+    needsConjuring: ({ verb }: { verb: string }) =>
+      `${verb} needs conjuring, which the crown teaches you with its first demand`,
+    needsCrown: "deliver needs the Crown, which opens at promotion",
+    archiveEntryHelp: ({
+      label,
+      cost,
+      description,
+    }: {
+      label: string;
+      cost: string;
+      description: string;
+    }) => `${label}, ${cost} coin: ${description}`,
+    archiveEntryShortHelp: ({
+      label,
+      cost,
+      description,
+      shortfall,
+    }: {
+      label: string;
+      cost: string;
+      description: string;
+      shortfall: string;
+    }) => `${label}, ${cost} coin: ${description} (need ${shortfall} coin)`,
+    namedDecreeHelp: ({ petition }: { petition: string }) =>
+      `what the ${petition} decree chose`,
+    verbHelp: {
+      decree: "set how a petition is answered",
+      repeal: "withdraw a decree in force",
+      buy: "buy an entry from the Archive",
+      save: "keep a decree under a name",
+      enact: "enact a saved decree",
+      forget: "delete a saved decree",
+      assign: "give a peasant a job",
+      deliver: "hand the crown what it demands from the stores",
+      conjure: "add stock that does not exist, grain or coin only",
+      forge: "report the open crown demand as delivered, on paper",
+      back: "repay one resource's debt from real stock",
+    },
+    keywordHelp: {
+      above: "more than a number",
+      below: "less than a number",
+      chose: "the policy that decree picked this tick",
+      otherwise: "the policy when no rule applies",
+      when: "the condition for this rule",
+      and: "every condition must hold",
+      or: "any condition may hold",
+      not: "the condition that follows is false",
+      itIs: "the season",
+      decree: "the decree to keep",
+    },
+    petitionHelp: {
+      harvest: "what to do with the grain surplus",
+      wood: "what to do with the wood",
+      ore: "what to do with the ore",
+      labor: "where the peasants work",
+    },
+    quantityHelp: {
+      coin: "coin in the treasury",
+      debt: "coin value of the illusion passed off as real",
+      grain: "grain in store",
+      grainSeasons: "seasons the stores would feed everyone",
+      idle: "peasants with no job",
+      ore: "ore in store",
+      owedCoin: "coin the crown still demands",
+      owedGrain: "grain the crown still demands",
+      owedOre: "ore the crown still demands",
+      owedWood: "wood the crown still demands",
+      population: "peasants in the village",
+      wood: "wood in store",
+    },
+    jobHelp: {
+      farm: "grow grain",
+      forest: "cut wood",
+      mine: "dig ore",
+      idle: "no work",
+    },
+    resourceHelp: {
+      coin: "the treasury",
+      grain: "the granary",
+      ore: "the mine's output",
+      wood: "the forest's output",
+    },
+  },
   decrees: {},
 } as const;
