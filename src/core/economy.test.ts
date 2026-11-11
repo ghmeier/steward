@@ -235,6 +235,37 @@ describe("laborTargets", () => {
   });
 });
 
+describe("laborTargetFor a custom split", () => {
+  function targetsOf(policy: string, population: number) {
+    const game = Game.create(1, tuning);
+    setRoster(game, { idle: population });
+    return game.economy.laborTargetFor(policy);
+  }
+
+  test.each([
+    ["farm 60 forest 30 mine 10", 10, { farm: 6, forest: 3, mine: 1 }],
+    ["farm 2 mine 1", 10, { farm: 7, forest: 0, mine: 3 }],
+    ["farm 1 forest 1 mine 1", 4, { farm: 2, forest: 1, mine: 1 }],
+    ["forest 5", 3, { farm: 0, forest: 3, mine: 0 }],
+  ])(
+    "%j for %p peasants gives %j, with leftovers going to the largest remainders",
+    (policy, population, expected) => {
+      expect(targetsOf(policy, population)).toEqual({ ...expected, idle: 0 });
+    },
+  );
+
+  test.each([
+    ["balanced", "farm 50 forest 30 mine 20"],
+    ["farming", "farm 70 forest 20 mine 10"],
+  ])("preset %s and the split %j give identical targets", (preset, split) => {
+    for (const population of [0, 1, 3, 7, 10, 23]) {
+      expect(targetsOf(split, population)).toEqual(
+        targetsOf(preset, population),
+      );
+    }
+  });
+});
+
 describe("grainSeasons", () => {
   // Upkeep is 10 * 0.01 * 600 = 60 per season.
   test.each([

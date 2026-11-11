@@ -16,7 +16,7 @@ import {
   rowWindow,
   stepIndex,
 } from "./cursor";
-import { formatRule, plain } from "./decree-format";
+import { formatPolicy, formatRule, plain } from "./decree-format";
 import {
   capitalize,
   formatAmount,
@@ -257,7 +257,7 @@ export class DecreesPanel extends VillagePanel {
           ? copy.decrees.none
           : [
               ...decree.rules.map(formatRule),
-              `otherwise ${decree.otherwise}`,
+              `otherwise ${formatPolicy(decree.otherwise)}`,
             ].join("; ");
       const marker = focused && index === this.selected ? ">" : " ";
       const row = `${marker} ${petition.padEnd(label)}  ${text}`;

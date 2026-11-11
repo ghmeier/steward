@@ -242,6 +242,86 @@ const presenceRows: [string, Setup, string[]][] = [
 	["buy ", { unlocks: [ARCHIVE_PANEL, COMPOUND_UNLOCK] }, ["chaining", "!compound"]],
 ];
 
+describe("labor splits", () => {
+  const labor = (rest: string) => `decree labor ${rest}`;
+  const rulePrefix = labor("farm 60 forest 30 mine 10 when it is winter ");
+
+  test.each<[string, object[]]>([
+    [labor("otherwise farm 60 forest 30 mine 10"), []],
+    [labor("otherwise mine 1 farm 2"), []],
+    [
+      `${rulePrefix}otherwise balanced`,
+      [{ policy: "farm 60 forest 30 mine 10" }],
+    ],
+    [
+      `${rulePrefix}farm 1 when it is spring otherwise forest 3 mine 1`,
+      [{ policy: "farm 60 forest 30 mine 10" }, { policy: "farm 1" }],
+    ],
+  ])("%s enacts the split as written", (text, rules) => {
+    const result = parseLine(text, contextWith());
+
+    expect(result.problem).toBeNull();
+    expect(result.command).toMatchObject({
+      type: "enactDecree",
+      decree: { petition: "labor", rules },
+    });
+  });
+
+  test("a split in otherwise is stored in a fixed job order", () => {
+    const result = parseLine(labor("otherwise mine 1 farm 2"), contextWith());
+
+    expect(result.command).toMatchObject({
+      decree: { otherwise: "farm 2 mine 1" },
+    });
+  });
+
+  test("a preset word alone is still a preset, and a split works with conditions and chaining", () => {
+    const preset = parseLine(labor("otherwise farm"), contextWith());
+    const chainedSplit = parseLine(
+      labor("farm 1 mine 1 when harvest chose sell otherwise farm"),
+      contextWith({ ...chained, unlocks: [CHAINING_UNLOCK, COMPOUND_UNLOCK] }),
+    );
+
+    expect(preset.command).toMatchObject({ decree: { otherwise: "farm" } });
+    expect(chainedSplit.command).toMatchObject({
+      decree: { rules: [{ policy: "farm 1 mine 1" }] },
+    });
+  });
+
+  test.each([
+    ["otherwise farm 0 mine 0", copy.laborSplit.allZero],
+    ["otherwise farm 1 farm 2", copy.laborSplit.duplicateJob({ job: "farm" })],
+    [
+      "otherwise farm -1 mine 2",
+      copy.laborSplit.badWeight({ job: "farm", text: "-1" }),
+    ],
+  ])("%s is refused with a reason", (rest, problem) => {
+    expect(parseLine(labor(rest), contextWith())).toMatchObject({
+      command: null,
+      problem,
+    });
+  });
+
+  test("after a share, the unused jobs are offered alongside the next keyword", () => {
+    const texts = (text: string) =>
+      parseLine(text, contextWith()).suggestions.map((s) => s.text);
+
+    expect(texts(labor("farm 60 "))).toEqual(
+      expect.arrayContaining(["forest", "mine", "when"]),
+    );
+    expect(texts(labor("farm 60 "))).not.toContain("farm");
+    expect(texts(labor("otherwise farm 60 forest 30 "))).toEqual([]);
+    expect(texts(labor("farm 60 fo"))).toEqual(["forest"]);
+  });
+
+  test("a number is expected after the job, and typing it offers no suggestions", () => {
+    const result = parseLine(labor("farm 6"), contextWith());
+
+    expect(result.suggestions).toEqual([]);
+    expect(result.command).toBeNull();
+  });
+});
+
 describe("suggestions", () => {
   test.each(exactRows)(
     "%s offers exactly the expected words",

@@ -15,7 +15,15 @@ import {
   type Quantity,
 } from "../core/decree";
 import { CONJURABLE } from "../core/illusion";
-import { Job, RESOURCES, type Resource, SEASONS } from "../core/realm";
+import { LaborSplit } from "../core/labor-split";
+import {
+  Job,
+  RESOURCES,
+  type Resource,
+  SEASONS,
+  WORKING_JOBS,
+  type WorkingJob,
+} from "../core/realm";
 import {
   ARCHIVE_PANEL,
   CHAINING_UNLOCK,
@@ -69,6 +77,10 @@ type ExpectOptions = {
   final?: boolean;
   unmatched?: (word: string) => string | null;
 };
+
+function isWorkingJob(word: string): word is WorkingJob {
+  return (WORKING_JOBS as readonly string[]).includes(word);
+}
 
 class Cursor {
   private position = 0;
@@ -157,6 +169,46 @@ class Cursor {
     }
     this.position += word.length;
     return value === 0 ? 0 : value;
+  }
+
+  /**
+   * A labor split such as `farm 60 forest 30`, or null when the text is not one. A job followed by a
+   * number starts a split, so a preset word alone, like `farm`, stays a preset. The last word of a
+   * command may be a finished number as it stands, as with `number`.
+   */
+  laborSplit(final: boolean): string | null {
+    const [first = "", second = ""] = this.skipSpaces().split(/ +/);
+    if (!isWorkingJob(first) || !/^[-\d.]/.test(second)) return null;
+
+    const entries: [string, number][] = [];
+    for (;;) {
+      const job = this.skipSpaces().split(" ")[0] ?? "";
+      this.position += job.length;
+      entries.push([job, this.number(final)]);
+
+      const rest = this.skipSpaces();
+      const word = rest.split(" ")[0] ?? "";
+      const unused = WORKING_JOBS.filter(
+        (name) => !entries.some(([taken]) => taken === name),
+      );
+      const choices = unused.map((name) =>
+        this.optionFor(name, copy.commandLine.jobHelp[name]),
+      );
+      if (rest === "") {
+        this.alternatives = choices;
+        break;
+      }
+      const typing = word.length === rest.length;
+      const partial = choices.filter(
+        (choice) => choice.text.startsWith(word) && choice.text !== word,
+      );
+      if (typing && partial.length > 0) throw new Halt(partial, null, null);
+      if (!isWorkingJob(word)) break;
+    }
+
+    const split = LaborSplit.fromEntries(entries);
+    if (!split.ok) return this.fail(split.problem);
+    return split.split.format();
   }
 
   /** A free-text name; the text typed so far is accepted while it could still become a valid name. */
@@ -413,11 +465,21 @@ function parseDecreeVerb(
   };
 
   const rules: DecreeRule[] = [];
-  let head = cursor.expect(
+  const expectRuleStart = (
+    expected: string,
+    choices: Choice<RuleNext>[],
+    options: ExpectOptions,
+  ): RuleNext => {
+    const split = petition === "labor" ? cursor.laborSplit(false) : null;
+    return split === null
+      ? cursor.expect(expected, choices, options).value
+      : { kind: "policy", policy: split };
+  };
+  let head = expectRuleStart(
     copy.commandLine.expected.policyOrOtherwise,
     startChoices(petition, 0, context),
     { unmatched: tooMany(0) },
-  ).value;
+  );
   while (head.kind === "policy") {
     const { policy } = head;
     cursor.expect(copy.commandLine.expected.when, [when]);
@@ -447,7 +509,7 @@ function parseDecreeVerb(
         }
       }
       const taken: "and" | "or" | null = join;
-      next = cursor.expect(
+      next = expectRuleStart(
         copy.commandLine.expected.joinPolicyOrOtherwise,
         [...joins, ...startChoices(petition, rules.length + 1, context)],
         {
@@ -461,7 +523,7 @@ function parseDecreeVerb(
             return tooMany(rules.length + 1)(word);
           },
         },
-      ).value;
+      );
       if (next.kind !== "join") break;
       join = next.join;
     }
@@ -478,11 +540,13 @@ function parseDecreeVerb(
     head = next;
   }
 
-  const otherwise = cursor.expect(
-    copy.commandLine.expected.policy,
-    policyChoices(petition, tuning),
-    { final: true },
-  ).value;
+  const otherwise =
+    (petition === "labor" ? cursor.laborSplit(true) : null) ??
+    cursor.expect(
+      copy.commandLine.expected.policy,
+      policyChoices(petition, tuning),
+      { final: true },
+    ).value;
   const decree: Decree = { id: scope.ownId, petition, rules, otherwise };
   try {
     parseDecree(decree, tuning.decrees);
