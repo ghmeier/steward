@@ -152,8 +152,12 @@ Carried from phases 6 and 7:
 ## Progress
 
 - PR 0 `archive-hidden-and-food-eaten`: #20 open at 4e68a1c, `bun run check` 999 pass.
-- PR 1 `crown-favor` and PR 2 `governors-core`: dispatched 2026-11-11 after approval.
+- PR 1 `crown-favor`: first commit 548ae74, `bun run check` 1013 pass; reworking for harder demands.
+- PR 2 `governors-core`: in progress; rebases onto `crown-favor` for its strategy.
 
 ## Notes and decisions
 
 - 2026-11-11: Garret chose governors as big delegates, crown favor only, and precision for debt and governor truth. Garret's two additions (hide the locked Archive, show grain eaten per second) ship as their own PR ahead of phase 8.
+- 2026-11-11: Labor decrees and famine act on peasants only (Garret, option A on both).
+- 2026-11-11: The first crown-favor run showed crown-aware meeting all 8 demands early and capping favor at 100, so illusion had nothing to pay off and the conjurer stayed warm. Garret chose harder demands: demand growth rises until honest play misses some, favor amounts shrink to about met +5 and early +2, and the strict gate stays. `ceilingPerPeasant` went from 15 to 20 instead of raising the audit debt share. A new `auditors` decree quantity lets strategies react to an open audit. The generic desk command is `settle {kind, option}`.
+- Risk to watch: demands do not scale with population, so governors may make them easy again after promotion. Check this once both PRs are in.
