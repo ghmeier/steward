@@ -275,6 +275,8 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
     ledger.draw((size) => ledgerPanel.body(view, size));
     for (const panel of Object.values(panels)) {
       const slot = slots[panel.id];
+      slot.box.visible = !(panel.hiddenWhileLocked && isLocked(panel.id));
+      if (!slot.box.visible) continue;
       const focused = focus === panel.id;
       const size = slot.draw((fit) =>
         isLocked(panel.id) ? LOCKED_BODY : panel.body(context, fit, focused),

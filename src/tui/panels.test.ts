@@ -144,6 +144,64 @@ describe("createPanels", () => {
     near(offset(lines[bottom] ?? "", "C(r)own", "(C)ourt"), (2 * 160) / 3);
   });
 
+  describe("a locked Crown", () => {
+    const bottomTitleRow = (frame: string) =>
+      frame.split("\n").find((line) => line.includes("(C)ourt")) ?? "";
+    const width = 160;
+
+    test("is not drawn and leaves the bottom row to Court and Decrees", async () => {
+      const frame = await draw([emptyView({ lockedPanels: ["crown"] })], {
+        size: { width, height: 30 },
+      });
+
+      const row = bottomTitleRow(frame);
+      expect(frame).not.toContain("C(r)own");
+      expect(row.match(/\u250c/g)).toHaveLength(2);
+      expect(row.indexOf("(D)ecrees") - row.indexOf("(C)ourt")).toBeCloseTo(
+        width / 2,
+        -1,
+      );
+      expect(row.trimEnd().endsWith("\u2510")).toBe(true);
+      expect(row.trimEnd()).toHaveLength(width);
+    });
+
+    test("appears as the third column once the panel is owned", async () => {
+      const frame = await draw(
+        [
+          emptyView({ lockedPanels: ["crown"] }),
+          emptyView({ unlocks: [CROWN_PANEL] }),
+        ],
+        { size: { width, height: 30 } },
+      );
+
+      const row = bottomTitleRow(frame);
+      expect(row.match(/\u250c/g)).toHaveLength(3);
+      expect(row.indexOf("C(r)own") - row.indexOf("(C)ourt")).toBeGreaterThan(
+        (width * 2) / 3 - 3,
+      );
+    });
+
+    test("makes the Court body re-wrap to the narrower column when it appears", async () => {
+      const label = "A squabble over the miller's grain share";
+      const desk = [{ ...dispute, label }];
+      const size = { width: 100, height: 30 };
+
+      const hidden = await draw(
+        [emptyView({ lockedPanels: ["crown"], desk })],
+        {
+          size,
+        },
+      );
+      const appeared = await draw(
+        [emptyView({ lockedPanels: ["crown"], desk }), emptyView({ desk })],
+        { size },
+      );
+
+      expect(hidden).toContain(label);
+      expect(appeared).not.toContain(label);
+    });
+  });
+
   describe("the bottom bar", () => {
     async function drawnBar(
       unlocks: UnlockId[],
