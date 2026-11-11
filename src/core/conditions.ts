@@ -23,6 +23,8 @@ export class ConditionManager {
         return this.game.crown.owedIn(OWED_RESOURCES[quantity]);
       case "auditors":
         return this.game.desk.hasAudit ? 1 : 0;
+      case "demandTicks":
+        return this.game.crown.ticksLeft;
       case "debt":
         return this.game.illusion.debtValue;
       case "grainSeasons":

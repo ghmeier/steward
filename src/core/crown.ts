@@ -104,6 +104,11 @@ export class CrownManager {
     return amount - delivered;
   }
 
+  /** Ticks until the open demand is collected; zero when none is open. */
+  get ticksLeft(): number {
+    return this.isOpen ? Math.max(0, this.crown.demand.dueAt - this.tick) : 0;
+  }
+
   owedIn(resource: ResourceId): number {
     return this.crown.demand.resource === resource ? this.owed : 0;
   }

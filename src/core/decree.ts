@@ -11,6 +11,7 @@ export const QUANTITIES = [
   "auditors",
   "coin",
   "debt",
+  "demandTicks",
   "grain",
   "grainSeasons",
   "idle",

@@ -604,6 +604,8 @@ export const copy = {
       auditors: "1 while auditors wait at the desk, otherwise 0",
       coin: "coin in the treasury",
       debt: "coin value of the illusion passed off as real",
+      demandTicks:
+        "ticks until the open crown demand is collected, 0 when none is open",
       grain: "grain in store",
       grainSeasons: "seasons the stores would feed everyone",
       idle: "peasants with no job",

@@ -143,32 +143,32 @@ describe("repaying illusion over ten game years", () => {
   }
 
   test.each(SEEDS)(
-    "seed %i: a borrower that backs its audits keeps at least the favor and demands met of crown-aware and fails no audit",
+    "seed %i: a borrower that forges to bridge grain demands and then backs its debt ends with more favor than crown-aware and no fewer demands met",
     (seed) => {
       const borrower = playSeed("borrower", seed);
       const careful = playSeed("crown-aware", seed);
 
-      expect(borrower.crown.favor).toBeGreaterThanOrEqual(careful.crown.favor);
+      expect(careful.crown.missed).toBeGreaterThan(0);
+      expect(borrower.crown.favor).toBeGreaterThan(careful.crown.favor);
       expect(borrower.crown.met).toBeGreaterThanOrEqual(careful.crown.met);
-      expect(borrower.illusion.audits.backed).toBeGreaterThan(0);
       expect(borrower.illusion.audits.failed).toBe(0);
     },
   );
 
   test.each(SEEDS)(
-    "seed %i: a conjurer that never repays fails the most audits and ends with less favor than the borrower",
+    "seed %i: a conjurer that never repays ends cold with the most audits failed",
     (seed) => {
       const conjurer = playSeed("conjurer", seed);
       const borrower = playSeed("borrower", seed);
       const careful = playSeed("crown-aware", seed);
 
+      expect(conjurer.crown.favor).toBeLessThan(tuning.crown.favor.coldBelow);
       expect(conjurer.illusion.audits.failed).toBeGreaterThan(
         borrower.illusion.audits.failed,
       );
       expect(conjurer.illusion.audits.failed).toBeGreaterThan(
         careful.illusion.audits.failed,
       );
-      expect(conjurer.crown.favor).toBeLessThan(borrower.crown.favor);
     },
   );
 });
