@@ -5,7 +5,7 @@ tags: [phase-7]
 created: 2026-11-11
 updated: 2026-11-11
 last_pr: 13
-next_step: Garret reviews and merges PR #12 (illusion-tui) and PR #13 (illusion-audits), then runs the exit playtest; the handoff follows
+next_step: Two follow-up branches are in flight (sim-validate-interval, court-cost-rounding); then Garret runs the exit playtest and the handoff follows
 ---
 # Phase 7: conjuring, illusion debt and audits
 
@@ -194,3 +194,6 @@ Carried from phase 6:
 - 2026-11-11: PR #12 opened for `illusion-tui` after the refactor pass (c88cbe1, 972 tests, CI green). The Ledger shares cursor stepping with the peasants panel.
 - 2026-11-11: PR #13 opened for `illusion-audits` after the fix and refactor pass (ebdd004, 957 tests, CI green). A repaid audit now passes and leaves the desk, and an audit lapses only while debt remains, because the desk runs before the illusion manager in a step. `IllusionManager.repay` is shared by `back`, backing an audit and seizure. `CrownManager.recordMiss` adds to the surcharge rather than replacing it, so an audit miss during an open demand survives that demand's collection. The gate numbers are unchanged. The new strategy tests take about 5 seconds each and carry a 30 second timeout; `bun run check` now takes about 33 seconds, up from 10.
 - 2026-11-11: Both branches merged together in a scratch worktree pass `bun run check` with 988 tests. Not yet verified end to end in the real game: an audit arriving, its time left in Court, and its arrival and failure notices, since each branch could only test its half. Help's desk topic does not mention audits; the Illusion topic does.
+- 2026-11-11: Garret merged PR #12 and PR #13 (`main` at eab6317). All three phase 7 PRs are on `main`.
+- 2026-11-11: End-to-end check in the real game (tmux, scratch save with 80 ore of forged debt and auditors 150 ticks out). The audit arrived in Court with "(due in 1m 10s)" and its arrival line in the bar, backing was shown unavailable without real ore, and at the deadline the expiry line showed, the Books line returned to "clean" and the Crown tally read "Met 1 · missed 1". A save loaded with auditors already on the road shows no warning notice, which is the intended no-replay rule. Bug found: Court printed audit costs unrounded ("−84.83786272732429 ore"). Fix dispatched on `court-cost-rounding`.
+- 2026-11-11: Garret asked for the tests to stop spending so long stepping. Measured: `runSim` validates the whole state with Zod after every step, which is 96% of a run (2,640 ms against 114 ms for 36,000 conjurer steps, same results). Dispatched `sim-validate-interval`: validate once per season and at the end, with `--validate-every` to restore per-step checks.
