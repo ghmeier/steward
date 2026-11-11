@@ -145,6 +145,20 @@ export class CrownManager {
     return this.game.illusion.apparent(this.crown.demand.resource);
   }
 
+  /**
+   * What the crown may take of the open demand's resource. Grain keeps a reserve of seasons of
+   * upkeep so that a demand larger than the stores cannot empty the granary and starve the village.
+   * Only real grain is protected; conjured grain is not food, so it can always be handed over.
+   */
+  private get available(): number {
+    if (this.crown.demand.resource !== "grain") return this.held;
+    const reserve =
+      this.tuning.grainReserveSeasons *
+      this.game.economy.grainUpkeepPerSeason();
+    const real = this.resources.grain ?? 0;
+    return this.held - Math.min(real, reserve);
+  }
+
   private drawResource(): Resource {
     const choices = RESOURCES.filter(
       (resource) => resource !== this.crown.lastResource,
@@ -184,9 +198,9 @@ export class CrownManager {
     this.close();
   }
 
-  /** Removes as much of what is owed as the store appears to hold and returns the amount removed. */
+  /** Removes as much of what is owed as the store appears to hold beyond any reserve and returns the amount removed. */
   private take(context: AddContext): number {
-    const taken = Math.min(this.owed, this.held);
+    const taken = Math.min(this.owed, this.available);
     this.game.illusion.spend(this.crown.demand.resource, taken, context);
     return taken;
   }
@@ -229,7 +243,7 @@ export class CrownManager {
   /** Paying in full before the deadline earns a reward that collection at the deadline does not. */
   deliver(context: AddContext): CommandResult {
     if (!this.isOpen) return { ok: false, reason: copy.crown.noDemand };
-    if (this.held <= 0) {
+    if (this.available <= 0) {
       return {
         ok: false,
         reason: copy.crown.villageHoldsNone({

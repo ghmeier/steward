@@ -7,11 +7,12 @@
   },
   "baseAmounts": {
     "coin": 100,
-    "grain": 700,
+    "grain": 625,
     "ore": 80,
     "wood": 150
   },
   "step": 0.3,
+  "grainReserveSeasons": 1,
   "surcharge": 0.5,
   "reward": 0.1,
   "favor": {

@@ -56,6 +56,14 @@ function held(game: Game, resource: string): number {
   return game.state.posting.resources[resource] ?? 0;
 }
 
+function grainEatenPerTick(game: Game): number {
+  return game.economy.grainUpkeepPerSeason() / tuning.economy.ticksPerSeason;
+}
+
+function grainReserve(game: Game): number {
+  return crownTuning.grainReserveSeasons * game.economy.grainUpkeepPerSeason();
+}
+
 function deliver(game: Game) {
   return game.commands.apply({ type: "deliver" }, contextFor(game));
 }
@@ -107,13 +115,13 @@ describe("delivery", () => {
   test("a partial delivery hands over all the stock, leaves the rest owed and earns no reward", () => {
     const game = promotedGame();
     const demand = openDemand(game, "grain");
-    stock(game, "grain", demand.amount / 2);
+    stock(game, "grain", grainReserve(game) + demand.amount / 2);
     stock(game, "coin", 0);
 
     const result = deliver(game);
 
     expect(result.ok).toBe(true);
-    expect(held(game, "grain")).toBe(0);
+    expect(held(game, "grain")).toBe(grainReserve(game));
     expect(held(game, "coin")).toBe(0);
     expect(game.state.posting.crown.demand.delivered).toBe(demand.amount / 2);
     expect(game.crown.owed).toBe(demand.amount / 2);
@@ -123,14 +131,14 @@ describe("delivery", () => {
   test("paying in full before the deadline pays the reward, resolves the demand and grows the next one", () => {
     const game = promotedGame();
     const demand = openDemand(game, "grain");
-    stock(game, "grain", demand.amount + 40);
+    stock(game, "grain", grainReserve(game) + demand.amount + 40);
     stock(game, "coin", 0);
 
     deliver(game);
     const { crown } = game.state.posting;
     const wait = crown.nextDemandTick - game.state.tick;
 
-    expect(held(game, "grain")).toBe(40);
+    expect(held(game, "grain")).toBe(grainReserve(game) + 40);
     expect(held(game, "coin")).toBe(crownTuning.reward * demand.amount);
     expect(game.crown.isOpen).toBe(false);
     expect(crown.met).toBe(1);
@@ -155,6 +163,71 @@ describe("delivery", () => {
       reason: copy.crown.villageHoldsNone({ resource: demand.resource }),
     });
     expect(game.state.posting.crown.demand.delivered).toBe(0);
+  });
+});
+
+describe("the grain reserve", () => {
+  function grainAtDeadline(surplusOverReserve: number) {
+    const game = promotedGame();
+    const demand = openDemand(game, "grain");
+    step(game, demand.dueAt - game.state.tick - 1);
+    stock(game, "grain", grainReserve(game) + surplusOverReserve);
+    step(game);
+    return { game, demand };
+  }
+
+  test("collection takes grain above the reserve and leaves the reserve with the village", () => {
+    const { game, demand } = grainAtDeadline(oreBase * 10);
+
+    expect(
+      Math.abs(
+        held(game, "grain") -
+          (grainReserve(game) + oreBase * 10 - demand.amount),
+      ),
+    ).toBeLessThanOrEqual(grainEatenPerTick(game) + 1e-6);
+    expect(game.state.posting.crown.met).toBe(1);
+  });
+
+  test("collection never dips into the reserve and counts the uncovered grain as a miss", () => {
+    const surplus = 100;
+    const { game, demand } = grainAtDeadline(surplus);
+    const { crown } = game.state.posting;
+
+    expect(
+      Math.abs(held(game, "grain") - grainReserve(game)),
+    ).toBeLessThanOrEqual(grainEatenPerTick(game) + 1e-6);
+    expect(crown.missed).toBe(1);
+    expect(crown.met).toBe(0);
+    expect(crown.surcharge).toBeCloseTo(
+      crownTuning.surcharge * (demand.amount - surplus),
+      0,
+    );
+  });
+
+  test("delivery is refused when the village holds only its reserve, and leaves the reserve when it holds more", () => {
+    const game = promotedGame();
+    const demand = openDemand(game, "grain");
+    stock(game, "grain", grainReserve(game));
+
+    const atReserve = deliver(game);
+    stock(game, "grain", grainReserve(game) + 50);
+    const aboveReserve = deliver(game);
+
+    expect(atReserve.ok).toBe(false);
+    expect(aboveReserve.ok).toBe(true);
+    expect(held(game, "grain")).toBe(grainReserve(game));
+    expect(game.state.posting.crown.demand.delivered).toBe(50);
+    expect(game.crown.owed).toBe(demand.amount - 50);
+  });
+
+  test("a resource other than grain has no reserve", () => {
+    const game = promotedGame();
+    const demand = openDemand(game, "ore");
+    stock(game, "ore", demand.amount);
+
+    deliver(game);
+
+    expect(held(game, "ore")).toBe(0);
   });
 });
 

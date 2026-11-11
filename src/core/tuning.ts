@@ -293,6 +293,7 @@ const crown = z.strictObject({
     }),
   baseAmounts: z.record(z.enum(RESOURCES), positive),
   step: nonNegative,
+  grainReserveSeasons: nonNegative,
   surcharge: nonNegative,
   reward: nonNegative,
   favor,

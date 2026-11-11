@@ -76,10 +76,14 @@ export class EconomyManager {
     return SEASONS[index] ?? "spring";
   }
 
+  /** Grain the whole village eats in one season at the current population. */
+  grainUpkeepPerSeason(): number {
+    return this.population * this.grainPerPerson * this.ticksPerSeason;
+  }
+
   grainSeasons(): number {
     const grain = this.posting.resources.grain ?? 0;
-    const upkeepPerSeason =
-      this.population * this.grainPerPerson * this.ticksPerSeason;
+    const upkeepPerSeason = this.grainUpkeepPerSeason();
     if (upkeepPerSeason === 0)
       return grain === 0 ? 0 : this.tuning.maxResourceValue;
     return grain / upkeepPerSeason;
