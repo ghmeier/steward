@@ -18,7 +18,7 @@ function setup(maxStepsPerFrame?: number) {
   const initial = game.clone();
   const session = new Session(game, {
     now: () => nowMs,
-    validate: true,
+    validateEvery: 1,
     ...(maxStepsPerFrame === undefined ? {} : { maxStepsPerFrame }),
   });
   session.frame();

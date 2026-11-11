@@ -15,7 +15,7 @@ export type FrameResult = {
 export class Session {
   readonly commandLog: CommandLogEntry[] = [];
   private readonly clock: ReturnType<typeof createClock>;
-  private readonly stepOptions: { absorbed: null; validate: boolean };
+  private readonly stepOptions: { absorbed: null; validateEvery: number };
   private queued: Command[] = [];
   private currentView: GameView;
   private currentViewJson: string;
@@ -25,7 +25,7 @@ export class Session {
     options: {
       now: () => number;
       maxStepsPerFrame?: number;
-      validate?: boolean;
+      validateEvery?: number;
     },
   ) {
     this.clock = createClock({
@@ -33,7 +33,10 @@ export class Session {
       maxStepsPerFrame: options.maxStepsPerFrame ?? DEFAULT_MAX_STEPS_PER_FRAME,
       now: options.now,
     });
-    this.stepOptions = { absorbed: null, validate: options.validate ?? false };
+    this.stepOptions = {
+      absorbed: null,
+      validateEvery: options.validateEvery ?? 0,
+    };
     this.currentView = game.view.compute();
     this.currentViewJson = JSON.stringify(this.currentView);
   }

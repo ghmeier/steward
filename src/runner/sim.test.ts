@@ -34,6 +34,8 @@ describe("runSim argument errors", () => {
 		["negative --steps", ["--seed", "1", "--steps=-1"]],
 		["seed above uint32", ["--seed", "4294967296", "--steps", "1"]],
 		["zero --trace", [...base, "--trace", "0"]],
+		["zero --validate-every", [...base, "--validate-every", "0"]],
+		["non-numeric --validate-every", [...base, "--validate-every", "often"]],
 		["unknown flag", [...base, "--bogus"]],
 		["--strategy with --commands", [...base, "--strategy", "s.json", "--commands", "c.json"]],
 		["--record without --strategy", [...base, "--record", "r.json"]],
@@ -140,7 +142,7 @@ describe("runSim output", () => {
     });
   });
 
-  test("a state that fails validation exits with code 1 and names the failing tick", () => {
+  describe("a state that fails validation", () => {
     // With no cap, one forester at 1e308 per tick overflows to Infinity on the second tick.
     const overflowing = {
       ...tuning,
@@ -148,18 +150,44 @@ describe("runSim output", () => {
       economy: { ...tuning.economy, woodPerWorker: 1e308 },
     };
 
-    const { code, stdout, stderr } = run(
-      ["--seed", "1", "--steps", "10", "--commands", logFile(1, "forest", 1)],
-      { tuning: overflowing },
-    );
+    function runOverflowing(extraFlags: string[]) {
+      const flags = ["--seed", "1", "--steps", "10", ...extraFlags];
+      const result = run([...flags, "--commands", logFile(1, "forest", 1)], {
+        tuning: overflowing,
+      });
+      const error = JSON.parse(result.stderr[0] as string) as {
+        tick: number;
+        message: string;
+      };
+      return { ...result, error };
+    }
 
-    const error = JSON.parse(stderr[0] as string) as {
-      tick: number;
-      message: string;
-    };
-    expect(code).toBe(1);
-    expect(stdout).toEqual([]);
-    expect(error.tick).toBe(2);
-    expect(error.message).toContain("tick 2");
+    test("validating every step exits with code 1 naming the first failing tick and no hint", () => {
+      const { code, stdout, error } = runOverflowing(["--validate-every", "1"]);
+
+      expect(code).toBe(1);
+      expect(stdout).toEqual([]);
+      expect(error.tick).toBe(2);
+      expect(error.message).toContain("tick 2");
+      expect(error.message).not.toContain("--validate-every");
+    });
+
+    test("validating once per season catches it after the last step and hints at validating every step", () => {
+      const { code, error } = runOverflowing([]);
+
+      expect(code).toBe(1);
+      expect(error.message).toContain("tick 10");
+      expect(error.message).toContain("--validate-every 1");
+    });
+  });
+
+  test("the summary is identical whether validating once per season or every step", () => {
+    const steps = ["--seed", "1", "--steps", "1300"];
+
+    const seasonal = run(steps);
+    const everyStep = run([...steps, "--validate-every", "1"]);
+
+    expect(seasonal.code).toBe(0);
+    expect(everyStep.stdout).toEqual(seasonal.stdout);
   });
 });

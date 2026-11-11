@@ -40,16 +40,23 @@ describe("step", () => {
     );
   });
 
-  test.each([
-    ["throws naming the tick when validation finds a problem", true],
-    ["does not validate when validate is false", false],
-  ])("%s", (_name, validate) => {
-    const game = Game.create(42, tuning);
-    game.state.posting.resources.bad = Number.NaN;
-    const run = () => game.steps.step([], { absorbed: null, validate });
+  test("validation reports an invalid state only at ticks divisible by the interval, and never for zero", () => {
+    const corrupted = (validateEvery: number) => {
+      const game = Game.create(42, tuning);
+      game.state.posting.resources.bad = Number.NaN;
+      return {
+        step: () => game.steps.step([], { absorbed: null, validateEvery }),
+      };
+    };
+    const everyThird = corrupted(3);
+    const never = corrupted(0);
 
-    if (validate) expect(run).toThrow(/tick 1/);
-    else expect(run).not.toThrow();
+    expect(() => corrupted(1).step()).toThrow(/tick 1/);
+    expect(() => everyThird.step()).not.toThrow();
+    expect(() => everyThird.step()).not.toThrow();
+    expect(() => everyThird.step()).toThrow(/tick 3/);
+    for (let tick = 0; tick < 10; tick++)
+      expect(() => never.step()).not.toThrow();
   });
 });
 
@@ -97,7 +104,7 @@ describe("runSteps", () => {
     ];
 
     expect(() =>
-      game.steps.runSteps(10_000, log, { absorbed: null, validate: true }),
+      game.steps.runSteps(10_000, log, { absorbed: null, validateEvery: 1 }),
     ).not.toThrow();
     expect(game.state.tick).toBe(10_000);
   });
