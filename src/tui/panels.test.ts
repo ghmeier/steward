@@ -144,6 +144,46 @@ describe("createPanels", () => {
     near(offset(lines[bottom] ?? "", "C(r)own", "(C)ourt"), (2 * 160) / 3);
   });
 
+  describe("a locked Crown", () => {
+    const label = "A squabble over the miller's grain share";
+    const desk = [{ ...dispute, label }];
+    const size = { width: 100, height: 30 };
+    const bottomTitleRow = (frame: string) =>
+      frame.split("\n").find((line) => line.includes("(C)ourt")) ?? "";
+
+    test("is not drawn and leaves the bottom row to a wider Court and Decrees", async () => {
+      const frame = await draw([emptyView({ lockedPanels: ["crown"], desk })], {
+        size,
+      });
+
+      const row = bottomTitleRow(frame);
+      expect(frame).not.toContain("C(r)own");
+      expect(row.match(/\u250c/g)).toHaveLength(2);
+      expect(row.indexOf("(D)ecrees") - row.indexOf("(C)ourt")).toBeCloseTo(
+        size.width / 2,
+        -1,
+      );
+      expect(frame).toContain(label);
+    });
+
+    test("appears as the third column and narrows Court once the panel is owned", async () => {
+      const frame = await draw(
+        [
+          emptyView({ lockedPanels: ["crown"], desk }),
+          emptyView({ unlocks: [CROWN_PANEL], desk }),
+        ],
+        { size },
+      );
+
+      const row = bottomTitleRow(frame);
+      expect(row.match(/\u250c/g)).toHaveLength(3);
+      expect(row.indexOf("C(r)own") - row.indexOf("(C)ourt")).toBeGreaterThan(
+        (size.width * 2) / 3 - 3,
+      );
+      expect(frame).not.toContain(label);
+    });
+  });
+
   describe("the bottom bar", () => {
     async function drawnBar(
       unlocks: UnlockId[],
