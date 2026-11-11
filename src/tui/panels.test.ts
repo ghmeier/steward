@@ -462,17 +462,20 @@ describe("createPanels", () => {
     });
 
     test("drops the tilde for exact debt and shows the time until auditors arrive", async () => {
-      const exact = await draw([owing(true, { ...covered, owed: 123.5 }, 600)]);
+      const exact = await draw([
+        owing(true, { ...covered, owed: 1234.5 }, 600),
+      ]);
       const rough = await draw([owing(false, covered)]);
 
       expect(exact).toContain(
         copy.ledger.owed({
           figure: copy.illusion.figure({
-            amount: formatAmount(123.5),
+            amount: formatAmount(1234.5),
             exact: true,
           }),
         }),
       );
+      expect(exact).toContain("(owed 1,234.5)");
       expect(exact).toContain(
         copy.ledger.auditDue({
           wait: formatTicksRoughly(600, tuning.stepMs),

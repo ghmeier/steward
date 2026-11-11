@@ -1,3 +1,4 @@
+import { formatAmount, withThousandsSeparators } from "./amount";
 import type { CommandResult } from "./commands";
 import { copy } from "./copy";
 import type { Game } from "./game";
@@ -31,7 +32,9 @@ export class DebtFigure {
   /** Text for an amount already rounded by `round`. */
   text(rounded: number): string {
     return copy.illusion.figure({
-      amount: this.exact ? rounded.toFixed(1) : String(rounded),
+      amount: this.exact
+        ? formatAmount(rounded)
+        : withThousandsSeparators(String(rounded)),
       exact: this.exact,
     });
   }
