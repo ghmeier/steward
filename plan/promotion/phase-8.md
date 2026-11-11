@@ -4,7 +4,7 @@ status: active
 tags: [phase-8]
 created: 2026-11-11
 updated: 2026-11-11
-next_step: Get Garret's approval on the PR breakdown, then dispatch PR 1 and PR 2 in parallel
+next_step: PR 1 crown-favor and PR 2 governors-core in progress; refactor pass on each, then PR 3
 ---
 # Phase 8: governors, crown favor and Archive precision
 
@@ -150,6 +150,7 @@ Carried from phases 6 and 7:
 ## Progress
 
 - PR 0 `archive-hidden-and-food-eaten`: #20 open at 4e68a1c, `bun run check` 999 pass.
+- PR 1 `crown-favor` and PR 2 `governors-core`: dispatched 2026-11-11 after approval.
 
 ## Notes and decisions
 
