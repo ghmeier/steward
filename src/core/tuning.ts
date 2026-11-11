@@ -254,6 +254,33 @@ const crownLines = z.strictObject({
   missed: amountText,
 });
 
+const favor = z
+  .strictObject({
+    limit: positive,
+    coldBelow: z.number(),
+    warmAbove: z.number(),
+    met: nonNegative,
+    early: nonNegative,
+    missed: z.number().max(0),
+    backed: nonNegative,
+    deepened: z.number().max(0),
+    failed: z.number().max(0),
+    cold: z.strictObject({
+      debtShareFactor: positive,
+      warningFactor: positive,
+      stepFactor: positive,
+    }),
+    warm: z.strictObject({
+      ceilingFactor: positive,
+      rewardFactor: positive,
+    }),
+  })
+  .superRefine((value, ctx) => {
+    if (value.coldBelow >= value.warmAbove) {
+      addIssue(ctx, "must be below warmAbove", ["coldBelow"]);
+    }
+  });
+
 const crown = z.strictObject({
   firstDemandTicks: positiveInteger,
   deadlineTicks: positiveInteger,
@@ -268,6 +295,7 @@ const crown = z.strictObject({
   step: nonNegative,
   surcharge: nonNegative,
   reward: nonNegative,
+  favor,
   lines: z.record(z.enum(RESOURCES), crownLines),
 });
 

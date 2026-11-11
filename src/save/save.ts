@@ -104,6 +104,11 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
       state.career.unlocks[CONJURING] = state.tick as number;
     }
   },
+  // Favor starts neutral for every crown, including one that has already made demands.
+  12: (state) => {
+    if (!isRecord(state.posting) || !isRecord(state.posting.crown)) return;
+    state.posting.crown.favor = 0;
+  },
 };
 
 function upgrade(record: Record<string, unknown>): void {

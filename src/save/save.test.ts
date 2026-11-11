@@ -325,6 +325,34 @@ describe("version 11 upgrade", () => {
   });
 });
 
+describe("version 12 upgrade", () => {
+  test("a version 12 save loads with neutral favor and keeps its demand tally", () => {
+    const game = Game.create(42, loadTuning());
+    game.state.posting.crown = { ...emptyCrownState(), met: 3, missed: 1 };
+    const state = structuredClone(game.state) as unknown as Record<
+      string,
+      unknown
+    >;
+    const posting = state.posting as { crown: Record<string, unknown> };
+    const { favor: _, ...crown } = posting.crown;
+    writeSave(12, {
+      ...state,
+      schemaVersion: 12,
+      posting: { ...posting, crown },
+    });
+
+    const loadedState = loaded(dir);
+
+    expect(loadedState.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(loadedState.posting.crown).toEqual({
+      ...emptyCrownState(),
+      met: 3,
+      missed: 1,
+      favor: 0,
+    });
+  });
+});
+
 describe("version refusal", () => {
   test("refuses an older-version save by moving it to save.v<found>.json with its bytes intact", () => {
     const text = writeSave(7);

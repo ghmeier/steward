@@ -115,6 +115,7 @@ const crown = z.strictObject({
   missed: count,
   surcharge: z.number().min(0),
   lastResource: z.string(),
+  favor: z.number().min(-100).max(100),
 });
 
 const nonNegativeNumber = z.number().min(0);

@@ -21,6 +21,8 @@ export class ConditionManager {
       case "owedOre":
       case "owedWood":
         return this.game.crown.owedIn(OWED_RESOURCES[quantity]);
+      case "auditors":
+        return this.game.desk.hasAudit ? 1 : 0;
       case "debt":
         return this.game.illusion.debtValue;
       case "grainSeasons":

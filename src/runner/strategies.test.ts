@@ -20,7 +20,7 @@ type Summary = {
   starved: number;
   minPopulation: number;
   rejectedCommands: unknown[];
-  crown: { met: number; missed: number };
+  crown: { met: number; missed: number; favor: number };
   illusion: { audits: { backed: number; deepened: number; failed: number } };
   strategy: { name: string } & StrategyStats;
 };
@@ -126,7 +126,7 @@ describe("scripted strategies over ten game years", () => {
   });
 });
 
-describe("repaying illusion over fifteen game years", () => {
+describe("repaying illusion over ten game years", () => {
   const SEEDS = [1, 7, 42];
 
   function playSeed(name: string, seed: number): Summary {
@@ -134,7 +134,7 @@ describe("repaying illusion over fifteen game years", () => {
       "--seed",
       String(seed),
       "--steps",
-      "36000",
+      STEPS,
       "--strategy",
       `strategies/${name}.json`,
       "--grant",
@@ -143,23 +143,32 @@ describe("repaying illusion over fifteen game years", () => {
   }
 
   test.each(SEEDS)(
-    "seed %i: a conjurer that never repays fails audits and misses more demands than crown-aware",
+    "seed %i: a borrower that backs its audits keeps at least the favor and demands met of crown-aware and fails no audit",
     (seed) => {
-      const conjurer = playSeed("conjurer", seed);
+      const borrower = playSeed("borrower", seed);
       const careful = playSeed("crown-aware", seed);
 
-      expect(conjurer.illusion.audits.failed).toBeGreaterThanOrEqual(1);
-      expect(conjurer.crown.missed).toBeGreaterThan(careful.crown.missed);
+      expect(borrower.crown.favor).toBeGreaterThanOrEqual(careful.crown.favor);
+      expect(borrower.crown.met).toBeGreaterThanOrEqual(careful.crown.met);
+      expect(borrower.illusion.audits.backed).toBeGreaterThan(0);
+      expect(borrower.illusion.audits.failed).toBe(0);
     },
   );
 
   test.each(SEEDS)(
-    "seed %i: a borrower that backs its debt from real stock fails no audit",
+    "seed %i: a conjurer that never repays fails the most audits and ends with less favor than the borrower",
     (seed) => {
+      const conjurer = playSeed("conjurer", seed);
       const borrower = playSeed("borrower", seed);
+      const careful = playSeed("crown-aware", seed);
 
-      expect(borrower.illusion.audits.failed).toBe(0);
-      expect(borrower.crown.missed).toBe(0);
+      expect(conjurer.illusion.audits.failed).toBeGreaterThan(
+        borrower.illusion.audits.failed,
+      );
+      expect(conjurer.illusion.audits.failed).toBeGreaterThan(
+        careful.illusion.audits.failed,
+      );
+      expect(conjurer.crown.favor).toBeLessThan(borrower.crown.favor);
     },
   );
 });

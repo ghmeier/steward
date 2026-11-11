@@ -25,6 +25,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     dispute: z.int(),
     option: text,
   }),
+  z.strictObject({ type: z.literal("settle"), kind: text, option: text }),
   z.strictObject({ type: z.literal("deliver") }),
   z.strictObject({
     type: z.literal("conjure"),
@@ -91,6 +92,12 @@ export class CommandManager {
         case "settleDispute":
           return this.game.desk.settle(
             command.dispute,
+            command.option,
+            context,
+          );
+        case "settle":
+          return this.game.desk.settleOldest(
+            command.kind,
             command.option,
             context,
           );

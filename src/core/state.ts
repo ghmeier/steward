@@ -7,7 +7,7 @@ import type { IllusionState } from "./illusion";
 import type { LaborState } from "./labor";
 import type { RngState } from "./rng";
 
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 export type ResourceId = string;
 

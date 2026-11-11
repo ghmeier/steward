@@ -280,6 +280,7 @@ export function runSim(
       crown: {
         met: state.posting.crown.met,
         missed: state.posting.crown.missed,
+        favor: state.posting.crown.favor,
         outcomes: crownOutcomes,
       },
       illusion: {

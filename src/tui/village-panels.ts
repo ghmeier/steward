@@ -343,6 +343,7 @@ export class CrownPanel extends VillagePanel {
         : CrownPanel.demandLines(crown.demand, tuning)),
       "",
       copy.village.crownTally({ met: crown.met, missed: crown.missed }),
+      copy.village.crownFavor[crown.favor],
     ];
     return lines
       .flatMap((line) => wrapLine(line, size.width - 1, 2))

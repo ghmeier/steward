@@ -25,7 +25,11 @@ export type CrownState = {
   surcharge: number;
   /** The resource of the most recent demand, so the next one can differ; empty before the first. */
   lastResource: ResourceId;
+  /** How the crown regards the steward, from -limit to limit; it never decays. */
+  favor: number;
 };
+
+export type FavorBand = "cold" | "neutral" | "warm";
 
 /**
  * Stands for "no demand is open". State validation and `canonicalStringify` reject null, so the
@@ -51,6 +55,7 @@ export function emptyCrownState(): CrownState {
     missed: 0,
     surcharge: 0,
     lastResource: "",
+    favor: 0,
   };
 }
 
@@ -73,6 +78,20 @@ export class CrownManager {
     const stream = this.game.state.posting.rng.crown;
     if (stream === undefined) throw new Error("the crown stream is missing");
     return stream;
+  }
+
+  get band(): FavorBand {
+    const { coldBelow, warmAbove } = this.tuning.favor;
+    if (this.crown.favor < coldBelow) return "cold";
+    return this.crown.favor > warmAbove ? "warm" : "neutral";
+  }
+
+  private shiftFavor(delta: number): void {
+    const { limit } = this.tuning.favor;
+    this.crown.favor = Math.min(
+      limit,
+      Math.max(-limit, this.crown.favor + delta),
+    );
   }
 
   get isOpen(): boolean {
@@ -112,12 +131,14 @@ export class CrownManager {
     const { crown, tuning } = this;
     const resource = this.drawResource();
     const base = tuning.baseAmounts[resource];
+    const step =
+      this.band === "cold"
+        ? tuning.step * tuning.favor.cold.stepFactor
+        : tuning.step;
     crown.demand = {
       id: crown.met + crown.missed + 1,
       resource,
-      amount: Math.round(
-        base * (1 + tuning.step * crown.met) + crown.surcharge,
-      ),
+      amount: Math.round(base * (1 + step * crown.met) + crown.surcharge),
       delivered: 0,
       issuedAt: this.tick,
       dueAt: this.tick + tuning.deadlineTicks,
@@ -134,8 +155,10 @@ export class CrownManager {
       this.tick + drawDelay(this.stream, this.tuning.gap);
   }
 
-  private meet(): void {
+  private meet(early: boolean): void {
+    const { favor } = this.tuning;
     this.crown.met += 1;
+    this.shiftFavor(favor.met + (early ? favor.early : 0));
     this.close();
   }
 
@@ -150,19 +173,34 @@ export class CrownManager {
    * The surcharge accumulates instead of being set because an audit can record a miss while the
    * surcharge from an earlier miss has not yet been charged to a demand.
    */
-  recordMiss(uncovered: number): void {
+  private countMiss(uncovered: number): void {
     this.crown.surcharge += this.tuning.surcharge * uncovered;
     this.crown.missed += 1;
+  }
+
+  /** The crown's reaction to an audit that was backed or deepened; a failed one goes through `recordFailedAudit`. */
+  recordAudit(outcome: "backed" | "deepened"): void {
+    this.shiftFavor(this.tuning.favor[outcome]);
+  }
+
+  /**
+   * A failed audit costs its own favor figure and not the missed-demand figure on top, even though
+   * an uncovered remainder still counts as a missed demand.
+   */
+  recordFailedAudit(uncovered: number): void {
+    if (uncovered > 0) this.countMiss(uncovered);
+    this.shiftFavor(this.tuning.favor.failed);
   }
 
   /** A demand is missed only when the store cannot cover it at the deadline. */
   private collect(context: AddContext): void {
     const uncovered = this.owed - this.take(context);
     if (uncovered > 0) {
-      this.recordMiss(uncovered);
+      this.countMiss(uncovered);
+      this.shiftFavor(this.tuning.favor.missed);
       this.close();
     } else {
-      this.meet();
+      this.meet(false);
     }
   }
 
@@ -187,8 +225,10 @@ export class CrownManager {
     const completes = paid >= this.owed;
     demand.delivered += paid;
     if (completes) {
-      add(this.resources, "coin", this.tuning.reward * demand.amount, context);
-      this.meet();
+      const { reward, favor } = this.tuning;
+      const factor = this.band === "warm" ? favor.warm.rewardFactor : 1;
+      add(this.resources, "coin", reward * factor * demand.amount, context);
+      this.meet(true);
     }
   }
 

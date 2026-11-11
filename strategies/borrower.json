@@ -197,7 +197,7 @@
         "conditions": [
           {
             "kind": "compare",
-            "quantity": "debt",
+            "quantity": "auditors",
             "comparison": "above",
             "value": 0
           },
@@ -205,14 +205,15 @@
             "kind": "compare",
             "quantity": "grain",
             "comparison": "above",
-            "value": 10
+            "value": 300
           }
         ]
       },
       "commands": [
         {
-          "type": "back",
-          "resource": "grain"
+          "type": "settle",
+          "kind": "audit",
+          "option": "back"
         }
       ]
     }

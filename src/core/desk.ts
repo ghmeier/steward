@@ -195,6 +195,28 @@ export class DeskManager {
     }
   }
 
+  /**
+   * Answers the oldest waiting entry of a kind, for callers such as strategies that cannot know an
+   * entry's id. Ids rise with arrival, so the lowest id is the oldest.
+   */
+  settleOldest(
+    kind: string,
+    optionId: string,
+    context: AddContext,
+  ): CommandResult {
+    const oldest = this.posting.desk.disputes
+      .filter((entry) => entry.kind === kind)
+      .reduce<DeskEntry | undefined>(
+        (first, entry) =>
+          first === undefined || entry.id < first.id ? entry : first,
+        undefined,
+      );
+    if (oldest === undefined) {
+      return { ok: false, reason: copy.desk.noEntryOfKind({ kind }) };
+    }
+    return this.settle(oldest.id, optionId, context);
+  }
+
   settle(
     entryId: number,
     optionId: string,

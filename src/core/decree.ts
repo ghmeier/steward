@@ -8,6 +8,7 @@ import type { Tuning } from "./tuning";
 export const PETITIONS = ["harvest", "wood", "ore", "labor"] as const;
 export type Petition = (typeof PETITIONS)[number];
 export const QUANTITIES = [
+  "auditors",
   "coin",
   "debt",
   "grain",

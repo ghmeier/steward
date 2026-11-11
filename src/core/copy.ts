@@ -37,6 +37,8 @@ export const copy = {
   },
   desk: {
     noDispute: ({ entryId }: { entryId: number }) => `no dispute ${entryId}`,
+    noEntryOfKind: ({ kind }: { kind: string }) =>
+      `no ${kind} is waiting on the desk`,
     noSuchOption: ({
       entryId,
       optionId,
@@ -182,6 +184,11 @@ export const copy = {
       `The crown is quiet. Next demand in about ${wait}.`,
     crownTally: ({ met, missed }: { met: number; missed: number }) =>
       `Met ${met} \u00b7 missed ${missed}`,
+    crownFavor: {
+      cold: "The crown regards you coldly.",
+      neutral: "The crown regards you evenly.",
+      warm: "The crown regards you warmly.",
+    },
   },
   court: {
     deskClear: "The desk is clear.",
@@ -594,6 +601,7 @@ export const copy = {
       labor: "where the peasants work",
     },
     quantityHelp: {
+      auditors: "1 while auditors wait at the desk, otherwise 0",
       coin: "coin in the treasury",
       debt: "coin value of the illusion passed off as real",
       grain: "grain in store",

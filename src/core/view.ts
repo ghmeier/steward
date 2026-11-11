@@ -1,3 +1,4 @@
+import type { FavorBand } from "./crown";
 import { compareKeys, sortedKeys } from "./data";
 import type { Decree } from "./decree";
 import type { DeskKind } from "./desk";
@@ -54,6 +55,8 @@ export type CrownDemandView = {
 };
 /** What the Crown panel shows; null before promotion, when the crown has made no demands. */
 export type CrownView = {
+  /** The crown's mood toward the steward; the score behind it is never shown. */
+  favor: FavorBand;
   demand: CrownDemandView | null;
   /** Ticks until the next demand while none is open; null while one is open. */
   nextDemandTicks: number | null;
@@ -223,6 +226,7 @@ export class ViewManager {
       nextDemandTicks: open ? null : nextDemandTick - this.tick,
       met,
       missed,
+      favor: this.game.crown.band,
     };
   }
 
