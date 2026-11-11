@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { key } from "../../test/tui-helpers";
+import { copy } from "../core/copy";
 import { Job } from "../core/realm";
 import { ARCHIVE_PANEL, CONJURING, PALETTE_UNLOCK } from "../core/unlocks";
 import {
   actionForKey,
-  BAR_HINTS,
   FocusRing,
   type KeyAction,
   keyHints,
@@ -108,5 +108,5 @@ describe("peasantActionForKey", () => {
 });
 
 test("the bottom bar hints stay short enough to share a 60-column line with a message", () => {
-  expect(BAR_HINTS.length).toBeLessThanOrEqual(40);
+  expect(copy.keys.barHints.length).toBeLessThanOrEqual(40);
 });

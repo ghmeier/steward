@@ -104,22 +104,31 @@ const PEASANT_BINDINGS: Readonly<Record<string, PeasantAction>> = {
   i: { kind: "assign", job: Job.IDLE },
 };
 
+function keyWhere<Binding>(
+  bindings: Readonly<Record<string, Binding>>,
+  matches: (binding: Binding) => boolean,
+): string {
+  const bound = Object.entries(bindings).find(([, binding]) =>
+    matches(binding),
+  );
+  if (bound === undefined) throw new Error("no key has the requested binding");
+  return bound[0];
+}
+
 /** The key bound to focus a panel, so prose and notices name the letter the bindings actually use. */
 export function keyFor(panel: FocusId): string {
-  const bound = Object.entries(BINDINGS).find(
-    ([, { action }]) => action.kind === "focus" && action.panel === panel,
+  return keyWhere(
+    BINDINGS,
+    ({ action }) => action.kind === "focus" && action.panel === panel,
   );
-  if (bound === undefined) throw new Error(`no key focuses ${panel}`);
-  return bound[0];
 }
 
 /** The key that gives a peasant a job while the Peasants panel is focused. */
 export function peasantKeyFor(job: Job): string {
-  const bound = Object.entries(PEASANT_BINDINGS).find(
-    ([, action]) => action.kind === "assign" && action.job === job,
+  return keyWhere(
+    PEASANT_BINDINGS,
+    (action) => action.kind === "assign" && action.job === job,
   );
-  if (bound === undefined) throw new Error(`no key assigns ${job}`);
-  return bound[0];
 }
 
 export function isInterrupt(key: KeyPress): boolean {
@@ -248,9 +257,6 @@ export function panelHintsText(panel: FocusId, width: number): string {
     ) ?? hints.map((hint) => hint.keys).join(" ")
   );
 }
-
-/** The short list on the right of the bottom bar; everything else is in Help. */
-export const BAR_HINTS = copy.keys.barHints;
 
 /** Reminds the player of the palette on the left of the bottom bar, and is empty until it is owned. */
 export function barCommandsText(unlocks: readonly string[]): string {

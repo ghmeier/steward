@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { createTestRenderer } from "@opentui/core/testing";
 import { tuning } from "../../test/helpers";
 import { barRow, settledFrame } from "../../test/tui-helpers";
+import { copy } from "../core/copy";
 import { Job, RESOURCES } from "../core/realm";
 import {
   CONJURING,
@@ -16,7 +17,7 @@ import {
   formatRate,
   formatTicks,
 } from "./format";
-import { BAR_HINTS, type FocusId } from "./keys";
+import type { FocusId } from "./keys";
 import { createPanels } from "./panels";
 import { Village } from "./village-panels";
 
@@ -133,7 +134,7 @@ describe("createPanels", () => {
       ]) {
         expect(frame).toContain(title);
       }
-      expect(frame).toContain(BAR_HINTS);
+      expect(frame).toContain(copy.keys.barHints);
     },
   );
 
@@ -218,8 +219,10 @@ describe("createPanels", () => {
       const locked = await drawnBar([], null);
 
       expect(owned.startsWith(": commands")).toBe(true);
-      expect(owned.trimEnd().endsWith(`Saved. ${BAR_HINTS}`)).toBe(true);
-      expect(locked.trim()).toBe(BAR_HINTS);
+      expect(owned.trimEnd().endsWith(`Saved. ${copy.keys.barHints}`)).toBe(
+        true,
+      );
+      expect(locked.trim()).toBe(copy.keys.barHints);
     });
 
     test.each([{ width: 100 }, { width: 160 }])(
@@ -230,7 +233,7 @@ describe("createPanels", () => {
         const row = await drawnBar([PALETTE_UNLOCK], notice, width);
 
         expect(row.startsWith(": commands Save failed:")).toBe(true);
-        expect(row.endsWith(`\u2026 ${BAR_HINTS}`)).toBe(true);
+        expect(row.endsWith(`\u2026 ${copy.keys.barHints}`)).toBe(true);
         expect(row.length).toBe(width);
       },
     );
@@ -787,8 +790,8 @@ describe("the command line in the bar", () => {
     expect(barRows(withProblem) - barRows(five)).toBe(1);
     expect(barRows(closed)).toBe(1);
     expect(one).toContain("tab complete · esc close");
-    expect(one).not.toContain(BAR_HINTS);
-    expect(closed).toContain(BAR_HINTS);
+    expect(one).not.toContain(copy.keys.barHints);
+    expect(closed).toContain(copy.keys.barHints);
     expect(closed).not.toContain("tab complete");
   });
 

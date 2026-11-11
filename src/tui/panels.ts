@@ -4,12 +4,8 @@ import {
   RGBA,
   TextRenderable,
 } from "@opentui/core";
-import {
-  BAR_HINTS,
-  barCommandsText,
-  type FocusId,
-  panelHintsText,
-} from "./keys";
+import { copy } from "../core/copy";
+import { barCommandsText, type FocusId, panelHintsText } from "./keys";
 import type { MenuContext, MenuRender } from "./menu";
 import type { PanelSize, Village } from "./village-panels";
 import { wrapLine } from "./wrap";
@@ -126,9 +122,12 @@ class StatusBar {
 
   private rightSide(commands: string, notice: string): string {
     const room =
-      this.renderer.width - commands.length - BAR_HINTS.length - 2 * BAR_GAP;
+      this.renderer.width -
+      commands.length -
+      copy.keys.barHints.length -
+      2 * BAR_GAP;
     const shown = StatusBar.fit(notice, room);
-    return shown === "" ? BAR_HINTS : `${shown} ${BAR_HINTS}`;
+    return shown === "" ? copy.keys.barHints : `${shown} ${copy.keys.barHints}`;
   }
 
   show(unlocks: readonly string[], notice: string) {

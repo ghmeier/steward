@@ -103,16 +103,12 @@ function grainLines(tuning: Tuning): string[] {
       rate: perSecond(economy.grainPerPerson, tuning),
       feeds,
     }),
-    [
-      copy.help.grain.seasonLasts({ duration: seasonLength }),
-      ...(barren.length === 0
-        ? []
-        : [
-            copy.help.grain.barrenSeasons({
-              seasons: capitalize(barren.join(" and ")),
-            }),
-          ]),
-    ].join(" "),
+    barren.length === 0
+      ? copy.help.grain.seasonLasts({ duration: seasonLength })
+      : copy.help.grain.seasonLastsWithBarren({
+          duration: seasonLength,
+          seasons: capitalize(barren.join(" and ")),
+        }),
     copy.help.grain.noHarvestCost({
       grain: plain(economy.grainPerPerson * economy.ticksPerSeason),
     }),

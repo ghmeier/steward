@@ -146,8 +146,14 @@ export const copy = {
         `Every peasant eats ${rate}, so over a year one farmer feeds about ${feeds} peasants.`,
       seasonLasts: ({ duration }: { duration: string }) =>
         `A season lasts ${duration}.`,
-      barrenSeasons: ({ seasons }: { seasons: string }) =>
-        `${seasons} grows nothing, so store grain before it.`,
+      seasonLastsWithBarren: ({
+        duration,
+        seasons,
+      }: {
+        duration: string;
+        seasons: string;
+      }) =>
+        `A season lasts ${duration}. ${seasons} grows nothing, so store grain before it.`,
       noHarvestCost: ({ grain }: { grain: string }) =>
         `A season with no harvest costs each peasant ${grain} grain, so the stores must grow with the village.`,
       seasonsRuleAdvice:
