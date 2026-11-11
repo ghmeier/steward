@@ -20,7 +20,9 @@ Exit (from the development plan): a posting plays end to end, and in the runner 
 
 Settled with Garret on 2026-11-11:
 
-- **Governors are big delegates.** A governor is a delegate of kind `governor` who runs a village of several peasants and works one job, using the same `assign` verb, the same labor decrees and the same grudges. Each governor's village counts toward population.
+- **Governors are big delegates.** A governor is a delegate of kind `governor` who runs a village of several peasants and works one job, using the same `assign` verb and the same grudges. Each governor's village counts toward population.
+- **Labor decrees and famine act on peasants only.** A decree's shares divide the peasant count and move only peasants, so a governor changes job only by hand with `assign`. Famine never takes a governor or shrinks a village. (Decided after the governors implementer found that moving a governor shifts a whole village and makes a decree oscillate.)
+- **One generic by-kind desk command.** `crown-favor` adds a command that answers the oldest open desk entry of a kind, which strategies use for audits. `governors-core` rebases onto it to accept candidates.
 - **Crown favor only.** Lords and citizenry wait until there are mechanics to drive them.
 - **Precision covers debt and governor truth.** The `debt` decree quantity moves behind the first precision upgrade.
 
