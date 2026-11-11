@@ -3,6 +3,7 @@ import { compareKeys, sortedKeys } from "./data";
 import type { Decree } from "./decree";
 import type { DeskKind } from "./desk";
 import type { Game } from "./game";
+import type { DepartureReason } from "./governors";
 import type { Books, DebtLine } from "./illusion";
 import {
   type Job,
@@ -55,6 +56,13 @@ export type GovernorView = {
   reportedPerSecond: number;
   /** What the governor really brings in and how far the report overshoots it; null until true reports are bought. */
   truth: { realPerSecond: number; gapPerSecond: number } | null;
+};
+/** A governor who has left, oldest first, so a change in the list's length is a new departure. */
+export type FormerGovernorView = {
+  name: string;
+  reason: DepartureReason;
+  /** Coin the governor kept back and handed over on leaving; 0 for one who kept none. */
+  handedOver: number;
 };
 export type DelegateView = {
   id: number;
@@ -110,6 +118,7 @@ export type GameView = {
   savedDecrees: Decree[];
   desk: DeskEntryView[];
   governors: GovernorView[];
+  formerGovernors: FormerGovernorView[];
   crown: CrownView | null;
   illusion: IllusionView | null;
   promotion: { target: number; promotedAt: number; promotedAtSeconds: number };
@@ -193,6 +202,9 @@ export class ViewManager {
       }),
       desk: this.deskEntries(),
       governors: this.governorViews(),
+      formerGovernors: this.posting.formerStaff.map(
+        ({ name, reason, handedOver }) => ({ name, reason, handedOver }),
+      ),
       crown: this.crownView(),
       illusion: this.illusionView(),
       promotion: {

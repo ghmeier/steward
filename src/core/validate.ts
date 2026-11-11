@@ -100,6 +100,7 @@ const formerGovernor = z.strictObject({
   hiredAt: count,
   leftAt: count,
   reason: z.enum(["retired", "died", "dismissed"]),
+  handedOver: z.number().min(0),
 });
 
 const deskEntryBase = {

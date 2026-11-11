@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createTestRenderer } from "@opentui/core/testing";
-import { tuning } from "../../test/helpers";
+import {
+  addGovernors,
+  governorOf,
+  setRoster,
+  tuning,
+} from "../../test/helpers";
 import { barRow, settledFrame } from "../../test/tui-helpers";
 import { copy } from "../core/copy";
+import { Game } from "../core/game";
 import { Job, RESOURCES } from "../core/realm";
 import {
   ARCHIVE_PANEL,
@@ -93,6 +99,7 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
     savedDecrees: [],
     desk: [],
     governors: [],
+    formerGovernors: [],
     crown: null,
     illusion: null,
     promotion: { target: 20, promotedAt: 0, promotedAtSeconds: 0 },
@@ -235,6 +242,57 @@ describe("createPanels", () => {
         (size.width * 2) / 3 - 3,
       );
       expect(frame).not.toContain(label);
+    });
+  });
+
+  describe("governors in the Peasants panel", () => {
+    function governedVillage(): { view: GameView; names: string[] } {
+      const game = Game.create(1, tuning);
+      setRoster(game, { idle: 20 });
+      const governors = addGovernors(
+        game,
+        governorOf({ job: Job.MINE, traits: ["braggart"] }),
+        governorOf({ job: Job.FARM, traits: ["diligent", "hoarder"] }),
+        governorOf({ job: Job.FOREST }),
+        governorOf({ job: Job.FARM }),
+      );
+      return {
+        view: game.view.compute(),
+        names: governors.map((governor) => governor.name),
+      };
+    }
+
+    test("a selected governor stays on screen at the smallest terminal, below their heading", async () => {
+      const { view, names } = governedVillage();
+
+      const frame = await draw([view], {
+        focus: "peasants",
+        size: { width: 80, height: 24 },
+        selectedIndex: 3,
+      });
+
+      const lines = frame.split("\n");
+      const selected = lines.findIndex((line) =>
+        line.includes(`> ${names[3]}`),
+      );
+      expect(selected).toBeGreaterThan(-1);
+      expect(frame).toContain("(P)easants");
+    });
+
+    test("the roster shows the governors heading above the first governor", async () => {
+      const { view, names } = governedVillage();
+
+      const frame = await draw([view], { size: { width: 160, height: 45 } });
+
+      const lines = frame.split("\n");
+      const heading = lines.findIndex((line) =>
+        line.includes(copy.village.governorsHeading),
+      );
+      const first = lines.findIndex((line) =>
+        line.includes(names[0] as string),
+      );
+      expect(heading).toBeGreaterThan(-1);
+      expect(first).toBeGreaterThan(heading);
     });
   });
 

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { topicLines, tuning } from "../../test/helpers";
-import { copy } from "../core/copy";
+import { copy, type TraitFigures } from "../core/copy";
 import { policiesFor } from "../core/decree";
-import { Job } from "../core/realm";
+import { Job, type Trait } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 import {
   ARCHIVE_PANEL,
@@ -16,6 +16,7 @@ import {
   TRUE_REPORTS,
 } from "../core/unlocks";
 import { describePolicy, plain } from "./decree-format";
+import { capitalize } from "./format";
 import type { HelpTopicId } from "./help-menu";
 import { keyFor, keyHints, peasantKeyFor } from "./keys";
 
@@ -30,6 +31,10 @@ const village = (changes: Partial<Tuning["village"]>): Tuning => ({
 const illusion = (changes: Partial<Tuning["illusion"]>): Tuning => ({
   ...tuning,
   illusion: { ...tuning.illusion, ...changes },
+});
+const governors = (changes: Partial<Tuning["governors"]>): Tuning => ({
+  ...tuning,
+  governors: { ...tuning.governors, ...changes },
 });
 const desk = (changes: Partial<Tuning["desk"]>): Tuning => ({
   ...tuning,
@@ -94,6 +99,8 @@ const precisionSale = help.illusion.precision({
   reportsLabel: archiveEntry(TRUE_REPORTS).label,
   reportsCost: plain(archiveEntry(TRUE_REPORTS).cost),
 });
+const traitLine = (trait: Trait, figures: TraitFigures) =>
+  `  ${capitalize(copy.governors.traitWords[trait])}: ${help.governors.trait[trait](figures)}`;
 const stepSeconds = (ticks: number) => `${ticks / 10} s`;
 
 // biome-ignore format: one row per line keeps the table scannable
@@ -126,6 +133,11 @@ const rows: Row[] = [
 	{ name: "saved decrees once owned", topic: "decrees", unlocks: [SAVED_DECREES_UNLOCK], has: [help.decrees.saved] },
 	{ name: "the lot, the ceiling and the fade read from tuning", topic: "illusion", using: illusion({ lot: 40, ceilingPerPeasant: 12, fadePerTick: 0.00115 }), has: [help.illusion.teaches({ lot: "40" }), help.illusion.ceiling({ ceiling: "12", grainAndWoodPrice: plain(tuning.economy.grainPrice), oreAndCoinPrice: plain(tuning.economy.orePrice) }), help.illusion.fades({ fade: "50%" })] },
 	{ name: "the audit timings and the deeper illusion read from tuning", topic: "illusion", using: illusion({ audit: { ...tuning.illusion.audit, debtShare: 0.4, ageTicks: 1200, warningTicks: 300, deadlineTicks: 600, deepenCost: 0.25, deepenGrowth: 2 } }), has: [help.illusion.auditors({ debtShare: "40%", seasons: "2", warning: "30 s", deadline: "60 s" }), help.illusion.outcomes({ cost: "25%", growth: "2" })] },
+	{ name: "the cap, village sizes and candidate prices read from tuning", topic: "governors", using: governors({ cap: 6, village: { min: 4, max: 12 }, price: { min: 30, max: 90 } }), has: [help.governors.what({ cap: "6", smallest: "4", largest: "12" }), help.governors.candidates({ key: keyFor("court"), cheapest: "30", dearest: "90" })] },
+	{ name: "each trait's factors and the empire-builder limit read from tuning", topic: "governors", using: governors({ empireBuilderLimit: 20, traits: { ...tuning.governors.traits, diligent: { output: 1.3, report: 1 }, braggart: { output: 1, report: 1.5 } } }), has: [traitLine("diligent", { outputChange: "30%", reportRise: "0%", limit: "20" }), traitLine("braggart", { outputChange: "0%", reportRise: "50%", limit: "20" }), traitLine("empire-builder", { outputChange: "0%", reportRise: "20%", limit: "20" })] },
+	{ name: "the term range and death chance read from tuning", topic: "governors", using: governors({ term: { minTicks: 600, maxTicks: 1200 }, deathPerMille: 50 }), has: [help.governors.terms({ shortest: stepSeconds(600), longest: stepSeconds(1200), death: "5%" }), help.governors.dismissal] },
+	{ name: "the true reports sale until it is owned", topic: "governors", has: [help.governors.reports.hidden({ label: archiveEntry(TRUE_REPORTS).label, cost: plain(archiveEntry(TRUE_REPORTS).cost) })], lacks: [help.governors.reports.shown] },
+	{ name: "what true reports show once owned", topic: "governors", unlocks: [TRUE_REPORTS], has: [help.governors.reports.shown], lacks: [help.governors.reports.hidden({ label: archiveEntry(TRUE_REPORTS).label, cost: plain(archiveEntry(TRUE_REPORTS).cost) })] },
 ];
 
 describe("help topics", () => {

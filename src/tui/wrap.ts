@@ -22,3 +22,29 @@ export function wrapLine(text: string, width: number, hanging = 0): string[] {
   lines.push(current);
   return lines;
 }
+
+/**
+ * Lays out phrases that must not be split across lines: each is joined to the last with two spaces while
+ * it fits, and otherwise starts a line indented by `hanging`. A phrase wider than the line is wrapped
+ * on its own words, at the same indent.
+ */
+export function wrapPhrases(
+  phrases: readonly string[],
+  width: number,
+  hanging: number,
+): string[] {
+  const lines: string[] = [];
+  let current = "";
+  for (const phrase of phrases) {
+    if (current === "") {
+      current = phrase;
+    } else if (current.length + 2 + phrase.length <= width) {
+      current += `  ${phrase}`;
+    } else {
+      lines.push(current);
+      current = `${" ".repeat(hanging)}${phrase}`;
+    }
+  }
+  if (current !== "") lines.push(current);
+  return lines.flatMap((line) => wrapLine(line, width));
+}

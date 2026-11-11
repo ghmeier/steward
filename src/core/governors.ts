@@ -21,6 +21,8 @@ export type FormerGovernor = {
   hiredAt: number;
   leftAt: number;
   reason: DepartureReason;
+  /** Coin the governor had kept back, which they handed over on leaving. */
+  handedOver: number;
 };
 
 /** What a candidate on the desk offers, drawn when they arrive so the player sees it before choosing. */
@@ -199,6 +201,7 @@ export class GovernorManager {
       hiredAt: governor.hiredAt,
       leftAt: tick,
       reason,
+      handedOver: governor.hoard,
     });
     this.game.delegates.remove(governor.id);
   }
