@@ -1,3 +1,4 @@
+import { copy } from "../core/copy";
 import type { Resource } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 import type { CrownView } from "../core/view";
@@ -25,7 +26,10 @@ export function crownNotice(
   if (before === null) return after.herald;
   const season = tuning.economy.ticksPerSeason;
   if (before.ticksLeft > season && after.ticksLeft <= season) {
-    return `One season left to deliver ${plain(after.amount - after.delivered)} ${after.resource} to the crown.`;
+    return copy.notices.oneSeasonLeft({
+      amount: plain(after.amount - after.delivered),
+      resource: after.resource,
+    });
   }
   return null;
 }

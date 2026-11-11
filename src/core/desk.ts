@@ -1,4 +1,5 @@
 import type { CommandResult } from "./commands";
+import { copy } from "./copy";
 import { sortedKeys } from "./data";
 import type { Game } from "./game";
 import type { AddContext } from "./math";
@@ -140,11 +141,15 @@ export class DeskManager {
         ? (this.posting.resources[resource] ?? 0)
         : this.game.illusion.apparent(resource);
       if (held + delta < 0) {
-        return `not enough ${isAudit ? "real " : ""}${resource} (need ${show(-delta)}, have ${show(held)})`;
+        return (isAudit ? copy.desk.notEnoughReal : copy.desk.notEnough)({
+          resource,
+          need: show(-delta),
+          have: show(held),
+        });
       }
     }
     if (option.newcomer !== undefined && !this.game.economy.hasRoom) {
-      return "the village has no room for another peasant";
+      return copy.desk.noRoomForPeasant;
     }
     return null;
   }
@@ -199,14 +204,17 @@ export class DeskManager {
     const index = entries.findIndex((candidate) => candidate.id === entryId);
     const entry = entries[index];
     if (entry === undefined) {
-      return { ok: false, reason: `no dispute ${entryId}` };
+      return { ok: false, reason: copy.desk.noDispute({ entryId }) };
     }
     const template = this.templateOf(entry);
     const option = this.optionOf(template, optionId);
     if (option === undefined) {
       return {
         ok: false,
-        reason: `dispute ${entryId} has no option "${optionId}"`,
+        reason: copy.desk.noSuchOption({
+          entryId,
+          optionId,
+        }),
       };
     }
     const problem = this.shortfall(entry, option);

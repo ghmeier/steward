@@ -1,3 +1,4 @@
+import { copy } from "../core/copy";
 import type { Tuning } from "../core/tuning";
 import type { IllusionView } from "../core/view";
 import { formatTicksRoughly } from "./format";
@@ -14,5 +15,5 @@ export function auditNotice(
   if (previous === null || next === null) return null;
   if (previous.auditInTicks !== null || next.auditInTicks === null) return null;
   const wait = formatTicksRoughly(next.auditInTicks, tuning.stepMs);
-  return `Auditors are on the road and due in about ${wait}. Repay what you can before they count it.`;
+  return copy.notices.auditorsOnTheRoad({ wait });
 }

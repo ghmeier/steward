@@ -1,18 +1,21 @@
+import { copy } from "../core/copy";
 import type { Tuning } from "../core/tuning";
 import { ARCHIVE_PANEL, CONJURING, type UnlockId } from "../core/unlocks";
 
-export const ARCHIVE_OPENS = "The Archive opens. Press a to buy.";
-
-export const CONJURING_OPENS =
-  "You have learned conjuring. Press l to focus the Ledger, which will believe anything you tell it.";
+// The letters bound in keys.ts to focus the Archive and the Ledger.
+const ARCHIVE_KEY = "a";
+const LEDGER_KEY = "l";
 
 function noticeFor(id: UnlockId, tuning: Tuning): string | null {
-  if (id === ARCHIVE_PANEL) return ARCHIVE_OPENS;
-  if (id === CONJURING) return CONJURING_OPENS;
+  if (id === ARCHIVE_PANEL)
+    return copy.notices.archiveOpens({ key: ARCHIVE_KEY });
+  if (id === CONJURING) return copy.notices.conjuringOpens({ key: LEDGER_KEY });
   const entry = tuning.archive.entries.find((candidate) => candidate.id === id);
-  if (entry !== undefined) return `Bought ${entry.label}.`;
+  if (entry !== undefined) return copy.notices.bought({ label: entry.label });
   const play = tuning.archive.play.find((candidate) => candidate.id === id);
-  return play === undefined ? null : `${play.label} unlocked.`;
+  return play === undefined
+    ? null
+    : copy.notices.unlocked({ label: play.label });
 }
 
 /**

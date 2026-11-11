@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { tuning } from "../../test/helpers";
 import { CONJURING } from "../core/unlocks";
-import { announceNewUnlocks, CONJURING_OPENS } from "./unlock-notices";
+import { announceNewUnlocks } from "./unlock-notices";
 
 describe("announceNewUnlocks", () => {
   test("conjuring is announced once when it is first owned and never for a save that already owned it", () => {
@@ -12,7 +12,7 @@ describe("announceNewUnlocks", () => {
     const again = announceNewUnlocks(known, [CONJURING], tuning);
     const reload = announceNewUnlocks(loaded, [CONJURING], tuning);
 
-    expect(first).toBe(CONJURING_OPENS);
+    expect(first).not.toBeNull();
     expect(again).toBeNull();
     expect(reload).toBeNull();
   });

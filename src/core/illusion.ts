@@ -1,4 +1,5 @@
 import type { CommandResult } from "./commands";
+import { copy } from "./copy";
 import type { Game } from "./game";
 import { type AddContext, add } from "./math";
 import { RESOURCES, type Resource } from "./realm";
@@ -139,19 +140,24 @@ export class IllusionManager {
 
   conjure(resource: Resource, amount: number): CommandResult {
     if (!this.isUnlocked) {
-      return { ok: false, reason: "you cannot conjure yet" };
+      return { ok: false, reason: copy.illusion.cannotConjureYet };
     }
     if (!(CONJURABLE as readonly string[]).includes(resource)) {
-      return { ok: false, reason: `${resource} cannot be conjured` };
+      return {
+        ok: false,
+        reason: copy.illusion.cannotBeConjured({ resource }),
+      };
     }
     if (amount <= 0) {
-      return { ok: false, reason: "the amount to conjure must be positive" };
+      return { ok: false, reason: copy.illusion.conjureAmountMustBePositive };
     }
     const cost = amount * this.game.economy.priceOf(resource);
     if (cost > this.room) {
       return {
         ok: false,
-        reason: `the ceiling leaves room for only ${Math.floor(this.room)} coin of illusion`,
+        reason: copy.illusion.ceilingLeavesRoomFor({
+          coin: String(Math.floor(this.room)),
+        }),
       };
     }
     this.illusion.conjured[resource] = this.conjuredOf(resource) + amount;
@@ -161,14 +167,14 @@ export class IllusionManager {
   /** Marks as much of what the crown still wants as the room allows as delivered on paper. */
   forge(context: AddContext): CommandResult {
     if (!this.isUnlocked) {
-      return { ok: false, reason: "you cannot forge reports yet" };
+      return { ok: false, reason: copy.illusion.cannotForgeYet };
     }
     const { crown } = this.game;
     if (!crown.isOpen) {
-      return { ok: false, reason: "the crown has made no demand" };
+      return { ok: false, reason: copy.crown.noDemand };
     }
     if (this.room <= 0) {
-      return { ok: false, reason: "the ceiling leaves no room for a report" };
+      return { ok: false, reason: copy.illusion.ceilingLeavesNoRoom };
     }
     const resource = this.game.state.posting.crown.demand.resource;
     const price = this.game.economy.priceOf(resource as Resource);
@@ -193,17 +199,17 @@ export class IllusionManager {
   /** Repays debt from real stock alone, as far as the stock reaches. */
   back(resource: Resource, context: AddContext): CommandResult {
     if (!this.isUnlocked) {
-      return { ok: false, reason: "you have no illusions to back yet" };
+      return { ok: false, reason: copy.illusion.nothingToBackYet };
     }
     const owed = this.debtOf(resource);
     if (owed <= 0) {
-      return { ok: false, reason: `there is no ${resource} debt to back` };
+      return { ok: false, reason: copy.illusion.noDebtToBack({ resource }) };
     }
     const held = this.resources[resource] ?? 0;
     if (held <= 0) {
       return {
         ok: false,
-        reason: `the village holds no ${resource} to back it`,
+        reason: copy.illusion.villageHoldsNoneToBack({ resource }),
       };
     }
     this.repay(resource, Math.min(owed, held), context);
