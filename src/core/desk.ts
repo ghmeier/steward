@@ -2,6 +2,7 @@ import type { CommandResult } from "./commands";
 import { copy } from "./copy";
 import { sortedKeys } from "./data";
 import type { Game } from "./game";
+import type { CandidateDetails } from "./governors";
 import type { AddContext } from "./math";
 import { add } from "./math";
 import type { Resource } from "./realm";
@@ -9,7 +10,12 @@ import { drawDelay, intBelow, type RngState } from "./rng";
 import type { DeskOption, DeskTemplate } from "./tuning";
 
 /** A record keyed by kind is in this order, so the weighted draw walks the kinds in a fixed order. */
-export const DRAWN_KINDS = ["dispute", "merchant", "traveller"] as const;
+export const DRAWN_KINDS = [
+  "candidate",
+  "dispute",
+  "merchant",
+  "traveller",
+] as const;
 export type DrawnKind = (typeof DRAWN_KINDS)[number];
 
 /** Audits are placed by the illusion manager rather than drawn, so they are not among the drawn kinds. */
@@ -27,11 +33,17 @@ export type Dispute = EntryBase & {
   parties: [number, number];
 };
 
-export type Offer = EntryBase & { kind: Exclude<DrawnKind, "dispute"> };
+export type Offer = EntryBase & { kind: "merchant" | "traveller" };
+
+/** A governor asking to be hired; what they offer is stored here so it survives a save. */
+export type Candidate = EntryBase & { kind: "candidate" } & CandidateDetails;
 
 export type Audit = EntryBase & { kind: "audit"; dueAt: number };
 
-export type DeskEntry = Dispute | Offer | Audit;
+export type DeskEntry = Dispute | Offer | Candidate | Audit;
+
+/** The option that hires a candidate; the template schema requires it. */
+export const HIRE = "hire";
 
 /** Entries of every kind, oldest first; the field names predate the kinds other than disputes. */
 export type DeskState = {
@@ -54,6 +66,13 @@ export class DeskManager {
   /** The flavor lines of the entries that expired during the latest step. */
   get expired(): readonly string[] {
     return this.expiredThisStep;
+  }
+
+  /** Candidates waiting on the desk, whose names are taken even though they are not on the roster. */
+  get candidates(): Candidate[] {
+    return this.posting.desk.disputes.filter(
+      (entry) => entry.kind === "candidate",
+    );
   }
 
   private get state() {
@@ -105,8 +124,19 @@ export class DeskManager {
     return peasant.name;
   }
 
-  /** Fills a template's placeholders with the names of the entry's parties; other kinds have none. */
+  /** Fills a template's placeholders from the entry: the parties of a dispute or the details of a candidate. */
   fill(entry: DeskEntry, text: string): string {
+    if (entry.kind === "candidate") {
+      return text
+        .replaceAll("{name}", entry.name)
+        .replaceAll("{village}", String(entry.village))
+        .replaceAll("{price}", String(entry.price))
+        .replaceAll("{job}", copy.governors.jobWords[entry.job])
+        .replaceAll(
+          "{traits}",
+          copy.governors.traitList({ traits: entry.traits }),
+        );
+    }
     if (entry.kind !== "dispute") return text;
     const [first, second] = entry.parties;
     return text
@@ -114,11 +144,13 @@ export class DeskManager {
       .replaceAll("{second}", this.nameOf(second));
   }
 
-  /** What choosing the option adds and removes; an audit's is worked out from the books, not the template. */
+  /** What choosing the option adds and removes; an audit's is worked out from the books and a hire's from the entry, not the template. */
   deltasOf(entry: DeskEntry, option: DeskOption): Record<string, number> {
-    return entry.kind === "audit"
-      ? this.game.illusion.auditCost(option.id)
-      : (option.resources ?? {});
+    if (entry.kind === "audit") return this.game.illusion.auditCost(option.id);
+    if (entry.kind === "candidate") {
+      return option.id === HIRE ? { coin: -entry.price } : {};
+    }
+    return option.resources ?? {};
   }
 
   get hasAudit(): boolean {
@@ -151,6 +183,9 @@ export class DeskManager {
     }
     if (option.newcomer !== undefined && !this.game.economy.hasRoom) {
       return copy.desk.noRoomForPeasant;
+    }
+    if (entry.kind === "candidate" && option.id === HIRE) {
+      if (!this.game.governors.hasRoom) return copy.governors.noRoomForGovernor;
     }
     return null;
   }
@@ -241,6 +276,8 @@ export class DeskManager {
 
     if (entry.kind === "audit") {
       this.game.illusion.settleAudit(option.id, context);
+    } else if (entry.kind === "candidate") {
+      if (option.id === HIRE) this.game.governors.hire(entry, context);
     } else {
       this.applyResources(option, context, false);
     }
@@ -252,8 +289,10 @@ export class DeskManager {
 
   private isEligible(kind: DrawnKind): boolean {
     switch (kind) {
+      case "candidate":
+        return this.game.governors.canOffer;
       case "dispute":
-        return this.posting.delegates.length >= 2;
+        return this.game.delegates.peasants.length >= 2;
       case "traveller":
         return this.game.economy.hasRoom;
       case "merchant":
@@ -276,7 +315,7 @@ export class DeskManager {
   }
 
   private drawParties(): [number, number] {
-    const { delegates } = this.posting;
+    const delegates = this.game.delegates.peasants;
     const firstIndex = intBelow(this.stream, delegates.length);
     const drawn = intBelow(this.stream, delegates.length - 1);
     const secondIndex = drawn >= firstIndex ? drawn + 1 : drawn;
@@ -301,11 +340,22 @@ export class DeskManager {
       template: template.id,
       arrivedAt: this.state.tick,
     };
-    desk.disputes.push(
-      kind === "dispute"
-        ? { ...base, kind, parties: this.drawParties() }
-        : { ...base, kind },
-    );
+    switch (kind) {
+      case "dispute":
+        desk.disputes.push({ ...base, kind, parties: this.drawParties() });
+        break;
+      case "candidate":
+        desk.disputes.push({
+          ...base,
+          kind,
+          ...this.game.governors.drawCandidate(),
+        });
+        break;
+      case "merchant":
+      case "traveller":
+        desk.disputes.push({ ...base, kind });
+        break;
+    }
     desk.nextDisputeId += 1;
   }
 

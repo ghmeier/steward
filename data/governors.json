@@ -1,0 +1,15 @@
+{
+  "cap": 4,
+  "village": { "min": 6, "max": 10 },
+  "term": { "minTicks": 9600, "maxTicks": 19200 },
+  "deathPerMille": 20,
+  "price": { "min": 60, "max": 140 },
+  "empireBuilderLimit": 14,
+  "traits": {
+    "braggart": { "output": 1, "report": 1.4 },
+    "diligent": { "output": 1.15, "report": 1 },
+    "empire-builder": { "output": 1, "report": 1.2 },
+    "hoarder": { "output": 0.9, "report": 1 },
+    "skimmer": { "output": 0.8, "report": 1.25 }
+  }
+}

@@ -9,6 +9,7 @@ export const PETITIONS = ["harvest", "wood", "ore", "labor"] as const;
 export type Petition = (typeof PETITIONS)[number];
 export const QUANTITIES = [
   "auditors",
+  "candidates",
   "coin",
   "debt",
   "demandTicks",

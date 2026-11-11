@@ -317,6 +317,59 @@
         }
       ]
     },
+    "candidate": {
+      "weight": 3,
+      "templates": [
+        {
+          "id": "recommended",
+          "text": "{name} arrives with a letter of recommendation from a lord you have never met. They offer to run {village} peasants at {job}, and are known to be {traits}. The fee is {price} coin.",
+          "options": [
+            {
+              "id": "hire",
+              "label": "Take on {name} for {price} coin"
+            },
+            {
+              "id": "pass",
+              "label": "Thank {name} and send them home"
+            }
+          ],
+          "expiry": "pass",
+          "expired": "{name} tucked the letter away and went to offer the same village to someone else."
+        },
+        {
+          "id": "provincial",
+          "text": "{name}, late of a quieter province, would govern {village} peasants at {job}. Those who have worked with them call them {traits}. They want {price} coin to begin.",
+          "options": [
+            {
+              "id": "hire",
+              "label": "Pay {name} {price} coin to begin"
+            },
+            {
+              "id": "pass",
+              "label": "Decline politely"
+            }
+          ],
+          "expiry": "pass",
+          "expired": "{name} waited as long as courtesy asked, then took the road back."
+        },
+        {
+          "id": "petitioner",
+          "text": "A petitioner named {name} says {village} peasants are waiting for a governor and will work {job} under one. Their references describe them as {traits}. The price is {price} coin.",
+          "options": [
+            {
+              "id": "hire",
+              "label": "Appoint {name} for {price} coin"
+            },
+            {
+              "id": "pass",
+              "label": "Tell {name} the posts are filled"
+            }
+          ],
+          "expiry": "pass",
+          "expired": "{name} left the petition on the desk and was not seen again."
+        }
+      ]
+    },
     "audit": {
       "templates": [
         {

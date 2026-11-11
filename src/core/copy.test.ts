@@ -4,6 +4,7 @@ import { copy, plural } from "./copy";
 // Arguments that are not plain strings. Any other argument name is sampled as a string.
 const NON_STRING_ARGUMENTS: Record<string, unknown> = {
   names: ["Ada", "Hob", "Cole"],
+  traits: ["diligent", "skimmer"],
   deaths: 3,
   entryId: 7,
   moves: 2,

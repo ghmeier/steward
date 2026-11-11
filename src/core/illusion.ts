@@ -104,7 +104,7 @@ export class IllusionManager {
     return (
       this.tuning.ceilingPerPeasant *
       this.game.crown.ceilingFactor *
-      this.game.state.posting.delegates.length
+      this.game.delegates.population
     );
   }
 
@@ -270,6 +270,7 @@ export class IllusionManager {
     this.illusion.debtSince = NO_DEBT_TICK;
     this.illusion.audits.failed += 1;
     this.game.crown.recordFailedAudit(uncovered);
+    this.game.governors.dismissAfterFailedAudit(context);
   }
 
   private get warningTicks(): number {

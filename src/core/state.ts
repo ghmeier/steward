@@ -3,11 +3,12 @@ import type { Decree } from "./decree";
 import type { Delegate } from "./delegates";
 import type { DeskState } from "./desk";
 import type { EconomyState } from "./economy";
+import type { FormerGovernor } from "./governors";
 import type { IllusionState } from "./illusion";
 import type { LaborState } from "./labor";
 import type { RngState } from "./rng";
 
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 export type ResourceId = string;
 
@@ -17,7 +18,6 @@ export type CareerState = {
   /** The first tick each control was needed, keyed by control; the tutorial reads it. */
   needed: Record<string, number>;
   followers: string[];
-  formerStaff: string[];
   /** 0 until promotion; a promotion can only happen at tick 1 or later. */
   promotedAt: number;
 };
@@ -30,6 +30,8 @@ export type PostingState = {
   economy: EconomyState;
   delegates: Delegate[];
   nextDelegateId: number;
+  /** Governors who have left, oldest first. */
+  formerStaff: FormerGovernor[];
   decrees: Record<string, Decree>;
   labor: LaborState;
   desk: DeskState;
@@ -45,4 +47,4 @@ export type GameState = {
 };
 
 /** Every stream the systems draw from; each is seeded at creation so no system seeds lazily mid-run. */
-export const RNG_STREAMS = ["disputes", "names", "crown"] as const;
+export const RNG_STREAMS = ["disputes", "names", "crown", "governors"] as const;

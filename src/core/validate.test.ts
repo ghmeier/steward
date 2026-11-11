@@ -145,7 +145,7 @@ describe("validateState", () => {
     [
       "two peasants with one name",
       { "posting.delegates.1.name": "x", "posting.delegates.0.name": "x" },
-      'delegates[1].name: "x" is held by another peasant',
+      'delegates[1].name: "x" is held by another delegate',
     ],
     [
       "a dispute id at nextDisputeId",

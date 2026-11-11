@@ -1,14 +1,28 @@
 import type { Game } from "./game";
-import { Job } from "./realm";
+import { Job, type Trait } from "./realm";
 import { intBelow } from "./rng";
 
-export type Delegate = {
+type DelegateBase = {
   id: number;
   name: string;
-  kind: "peasant";
   job: Job;
   grudgeUntil: number;
 };
+
+export type Peasant = DelegateBase & { kind: "peasant" };
+
+/** Runs a village of several peasants on one job; the village counts toward population. */
+export type Governor = DelegateBase & {
+  kind: "governor";
+  village: number;
+  traits: Trait[];
+  hiredAt: number;
+  termEndsAt: number;
+  /** Coin value the governor has kept back, handed over when they leave. */
+  hoard: number;
+};
+
+export type Delegate = Peasant | Governor;
 
 type DelegateCounts = Record<Job, number> & { idle: number };
 
@@ -23,6 +37,23 @@ export class DelegateManager {
     return this.game.tuning.village.names;
   }
 
+  get peasants(): Peasant[] {
+    return this.all.filter((delegate) => delegate.kind === "peasant");
+  }
+
+  get governors(): Governor[] {
+    return this.all.filter((delegate) => delegate.kind === "governor");
+  }
+
+  /** One for each peasant plus each governor's village. */
+  get population(): number {
+    return this.governors.reduce(
+      (total, governor) => total + governor.village,
+      this.peasants.length,
+    );
+  }
+
+  /** Heads of peasants only: labor decrees divide peasants, and governors change job only by hand. */
   jobCounts(): DelegateCounts {
     const counts: DelegateCounts = {
       farm: 0,
@@ -30,12 +61,13 @@ export class DelegateManager {
       mine: 0,
       idle: 0,
     };
-    for (const delegate of this.all) {
-      counts[delegate.job] += 1;
+    for (const peasant of this.peasants) {
+      counts[peasant.job] += 1;
     }
     return counts;
   }
 
+  /** Workers per job: a peasant is one, a governor is their village scaled by their traits. */
   workingCountsAt(tick: number): Record<Job, number> {
     const counts: Record<Job, number> = {
       farm: 0,
@@ -43,23 +75,26 @@ export class DelegateManager {
       mine: 0,
       idle: 0,
     };
-    for (const delegate of this.all) {
-      if (tick >= delegate.grudgeUntil) {
-        counts[delegate.job] += 1;
+    for (const peasant of this.peasants) {
+      counts[tick >= peasant.grudgeUntil ? peasant.job : Job.IDLE] += 1;
+    }
+    for (const governor of this.governors) {
+      if (tick >= governor.grudgeUntil) {
+        counts[governor.job] += this.game.governors.workersOf(governor);
       } else {
-        counts.idle += 1;
+        counts.idle += governor.village;
       }
     }
     return counts;
   }
 
-  firstWithJob(job: Job): Delegate | undefined {
-    return this.all.find((delegate) => delegate.job === job);
+  firstWithJob(job: Job): Peasant | undefined {
+    return this.peasants.find((peasant) => peasant.job === job);
   }
 
-  firstFreeWithJob(job: Job, tick: number): Delegate | undefined {
-    return this.all.find(
-      (delegate) => delegate.job === job && tick >= delegate.grudgeUntil,
+  firstFreeWithJob(job: Job, tick: number): Peasant | undefined {
+    return this.peasants.find(
+      (peasant) => peasant.job === job && tick >= peasant.grudgeUntil,
     );
   }
 
@@ -89,6 +124,8 @@ export class DelegateManager {
 
   findName(): string {
     const held = new Set(this.all.map((delegate) => delegate.name));
+    // A candidate on the desk has been named but is not on the roster yet.
+    for (const entry of this.game.desk.candidates) held.add(entry.name);
     const free = this.availableNames.filter((name) => !held.has(name));
     const stream = this.game.state.posting.rng.names;
     if (stream === undefined || free.length === 0) {
@@ -99,15 +136,34 @@ export class DelegateManager {
     return name;
   }
 
-  create(): Delegate {
-    const delegate: Delegate = {
-      id: this.game.state.posting.nextDelegateId,
-      name: this.findName(),
+  private nextId(): number {
+    const id = this.game.state.posting.nextDelegateId;
+    this.game.state.posting.nextDelegateId += 1;
+    return id;
+  }
+
+  createGovernor(
+    fields: Omit<Governor, "id" | "kind" | "grudgeUntil">,
+  ): Governor {
+    const governor: Governor = {
+      ...fields,
+      id: this.nextId(),
+      kind: "governor",
+      grudgeUntil: 0,
+    };
+    this.all.push(governor);
+    return governor;
+  }
+
+  create(): Peasant {
+    const name = this.findName();
+    const delegate: Peasant = {
+      id: this.nextId(),
+      name,
       kind: "peasant",
       job: Job.IDLE,
       grudgeUntil: 0,
     };
-    this.game.state.posting.nextDelegateId += 1;
     this.all.push(delegate);
     return delegate;
   }

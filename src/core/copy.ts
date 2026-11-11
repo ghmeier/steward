@@ -1,3 +1,5 @@
+import type { Job, Trait } from "./realm";
+
 /**
  * Every hardcoded line of player-facing wording lives here, so a writer can read and edit the game's
  * voice in one file. Content text lives in `data/*.json` instead: the crown's lines, the desk templates
@@ -9,6 +11,14 @@
  * cannot import the text interface's helpers. Prose that names a key takes the key as an argument,
  * so a rebinding never leaves a stale letter in a sentence.
  */
+
+const TRAIT_WORDS: Record<Trait, string> = {
+  braggart: "a braggart",
+  diligent: "diligent",
+  "empire-builder": "an empire-builder",
+  hoarder: "a hoarder",
+  skimmer: "a skimmer",
+};
 
 export function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
@@ -34,6 +44,17 @@ export const copy = {
       `there is no ${resource} debt to back`,
     villageHoldsNoneToBack: ({ resource }: { resource: string }) =>
       `the village holds no ${resource} to back it`,
+  },
+  governors: {
+    noRoomForGovernor: "the crown allows no more governors in the village",
+    jobWords: {
+      farm: "the farms",
+      forest: "the forest",
+      mine: "the mine",
+      idle: "nothing in particular",
+    } satisfies Record<Job, string>,
+    traitList: ({ traits }: { traits: readonly Trait[] }) =>
+      traits.map((trait) => TRAIT_WORDS[trait]).join(" and "),
   },
   desk: {
     noDispute: ({ entryId }: { entryId: number }) => `no dispute ${entryId}`,
@@ -602,6 +623,7 @@ export const copy = {
     },
     quantityHelp: {
       auditors: "1 while auditors wait at the desk, otherwise 0",
+      candidates: "governors waiting on the desk to be hired",
       coin: "coin in the treasury",
       debt: "coin value of the illusion passed off as real",
       demandTicks:
