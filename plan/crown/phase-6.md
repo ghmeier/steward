@@ -1,9 +1,9 @@
 ---
 title: "Phase 6: crown quotas and a desk with more than disputes"
-status: active
+status: completed
 tags: [phase-6]
 created: 2026-11-06
-updated: 2026-11-06
+updated: 2026-11-11
 last_pr: 9
 next_step: Garret playtests from a fresh village through four demands; findings go into Notes, then a tuning PR if needed and the handoff
 ---
@@ -158,3 +158,4 @@ Things to watch in the playtest: whether demands force a decree change, whether 
 - 2026-11-06: PR #8 opened after the refactor pass (772000a). PR 3 implemented on `desk-kinds` (c8f5214) with a saved `desk.lastExpired` and the fixture changed to admit a traveller. Lead decision: rebase `desk-kinds` onto `crown-panel` so the three PRs form one stack, with desk notices below crown notices.
 - 2026-11-06: PR #9 opened against `crown-panel` after the rebase and refactor pass (2c38624). The refactor removed the saved `desk.lastExpired` in favor of `FrameResult.expired`, so two expiries in one frame both show.
 - 2026-11-06: PR #7, #8 and #9 merged to `main` in order at Garret's request (main 2353397). `bun run check` passed on `main` locally with 907 tests. Awaiting the exit playtest.
+- 2026-11-11: Garret said playtest findings will come as separate follow-up tasks rather than through this plan, so it is completed with the exit playtest unrecorded. Phase 7 built on the crown numbers unchanged; see [[handoff/illusion/phase-7-done]].
