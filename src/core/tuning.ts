@@ -195,7 +195,6 @@ const auditTemplate = z.strictObject({
   expired: textWithPlaceholders(NO_PLACEHOLDERS),
 });
 
-// Audits are never drawn, so the kind has no weight.
 const auditKind = z.strictObject({
   templates: z
     .array(auditTemplate)

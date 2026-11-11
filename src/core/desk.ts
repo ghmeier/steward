@@ -131,15 +131,16 @@ export class DeskManager {
 
   /** Names the first thing the village cannot cover, or null when the option is affordable. */
   shortfall(entry: DeskEntry, option: DeskOption): string | null {
-    if (entry.kind === "audit") {
-      return this.game.illusion.auditShortfall(option.id);
-    }
-    const resources = option.resources ?? {};
-    for (const resource of sortedKeys(resources)) {
-      const delta = resources[resource as Resource] ?? 0;
-      const held = this.game.illusion.apparent(resource);
+    // Auditors accept only real stock, so apparent stock does not count for them.
+    const isAudit = entry.kind === "audit";
+    const deltas = this.deltasOf(entry, option);
+    for (const resource of sortedKeys(deltas)) {
+      const delta = deltas[resource] ?? 0;
+      const held = isAudit
+        ? (this.posting.resources[resource] ?? 0)
+        : this.game.illusion.apparent(resource);
       if (held + delta < 0) {
-        return `not enough ${resource} (need ${show(-delta)}, have ${show(held)})`;
+        return `not enough ${isAudit ? "real " : ""}${resource} (need ${show(-delta)}, have ${show(held)})`;
       }
     }
     if (option.newcomer !== undefined && !this.game.economy.hasRoom) {

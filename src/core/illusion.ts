@@ -178,6 +178,18 @@ export class IllusionManager {
     return { ok: true };
   }
 
+  private repay(
+    resource: ResourceId,
+    amount: number,
+    context: AddContext,
+  ): void {
+    add(this.resources, resource, -amount, context);
+    this.illusion.debt[resource] = this.debtOf(resource) - amount;
+    if (!RESOURCES.some((id) => this.debtOf(id) > 0)) {
+      this.illusion.debtSince = NO_DEBT_TICK;
+    }
+  }
+
   /** Repays debt from real stock alone, as far as the stock reaches. */
   back(resource: Resource, context: AddContext): CommandResult {
     if (!this.isUnlocked) {
@@ -194,12 +206,7 @@ export class IllusionManager {
         reason: `the village holds no ${resource} to back it`,
       };
     }
-    const repaid = Math.min(owed, held);
-    add(this.resources, resource, -repaid, context);
-    this.illusion.debt[resource] = owed - repaid;
-    if (!RESOURCES.some((id) => this.debtOf(id) > 0)) {
-      this.illusion.debtSince = NO_DEBT_TICK;
-    }
+    this.repay(resource, Math.min(owed, held), context);
     return { ok: true };
   }
 
@@ -209,11 +216,13 @@ export class IllusionManager {
     return auditAt === NO_AUDIT_TICK ? null : auditAt - this.game.state.tick;
   }
 
+  private get deepenCost(): number {
+    return this.tuning.audit.deepenCost * this.debtValue;
+  }
+
   /** The cost of an audit option as negative deltas, worked out from the debt as it stands. */
   auditCost(optionId: string): Record<string, number> {
-    if (optionId === "deepen") {
-      return { coin: -this.tuning.audit.deepenCost * this.debtValue };
-    }
+    if (optionId === "deepen") return { coin: -this.deepenCost };
     const cost: Record<string, number> = {};
     for (const resource of RESOURCES) {
       if (this.debtOf(resource) > 0) cost[resource] = -this.debtOf(resource);
@@ -221,28 +230,10 @@ export class IllusionManager {
     return cost;
   }
 
-  /** Auditors accept only real stock, so apparent stock does not count here. */
-  auditShortfall(optionId: string): string | null {
-    for (const [resource, delta] of Object.entries(this.auditCost(optionId))) {
-      const held = this.resources[resource] ?? 0;
-      if (held + delta < 0) {
-        return `not enough real ${resource} (need ${Math.ceil(-delta)}, have ${Math.floor(held)})`;
-      }
-    }
-    return null;
-  }
-
-  private clearDebt(): void {
-    for (const resource of RESOURCES) this.illusion.debt[resource] = 0;
-    this.illusion.debtSince = NO_DEBT_TICK;
-  }
-
   /** Pays an audit option's cost from real stock and applies its effect; the caller checked it is affordable. */
   settleAudit(optionId: string, context: AddContext): void {
-    for (const [resource, delta] of Object.entries(this.auditCost(optionId))) {
-      add(this.resources, resource, delta, context);
-    }
     if (optionId === "deepen") {
+      add(this.resources, "coin", -this.deepenCost, context);
       for (const resource of RESOURCES) {
         this.illusion.debt[resource] =
           this.debtOf(resource) * this.tuning.audit.deepenGrowth;
@@ -250,21 +241,23 @@ export class IllusionManager {
       this.illusion.debtSince = this.game.state.tick;
       this.illusion.audits.deepened += 1;
     } else {
-      this.clearDebt();
+      for (const resource of RESOURCES) {
+        this.repay(resource, this.debtOf(resource), context);
+      }
       this.illusion.audits.backed += 1;
     }
   }
 
-  /** Seizes real stock toward each debt, clears them all, and counts a missed demand for what stock could not cover. */
   failAudit(context: AddContext): void {
     let uncovered = 0;
     for (const resource of RESOURCES) {
       const owed = this.debtOf(resource);
       const seized = Math.min(owed, this.resources[resource] ?? 0);
-      add(this.resources, resource, -seized, context);
+      this.repay(resource, seized, context);
       uncovered += (owed - seized) * this.game.economy.priceOf(resource);
     }
-    this.clearDebt();
+    for (const resource of RESOURCES) this.illusion.debt[resource] = 0;
+    this.illusion.debtSince = NO_DEBT_TICK;
     this.illusion.audits.failed += 1;
     if (uncovered > 0) this.game.crown.recordMiss(uncovered);
   }

@@ -128,6 +128,8 @@ describe("scripted strategies over ten game years", () => {
 
 describe("repaying illusion over fifteen game years", () => {
   const SEEDS = [1, 7, 42];
+  // Two fifteen-year simulations take about five seconds, the default test timeout.
+  const SIMULATION_TIMEOUT_MS = 30_000;
 
   function playSeed(name: string, seed: number): Summary {
     return run([
@@ -151,6 +153,7 @@ describe("repaying illusion over fifteen game years", () => {
       expect(conjurer.illusion.audits.failed).toBeGreaterThanOrEqual(1);
       expect(conjurer.crown.missed).toBeGreaterThan(careful.crown.missed);
     },
+    SIMULATION_TIMEOUT_MS,
   );
 
   test.each(SEEDS)(
@@ -161,6 +164,7 @@ describe("repaying illusion over fifteen game years", () => {
       expect(borrower.illusion.audits.failed).toBe(0);
       expect(borrower.crown.missed).toBe(0);
     },
+    SIMULATION_TIMEOUT_MS,
   );
 });
 

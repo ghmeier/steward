@@ -146,8 +146,8 @@ export class CrownManager {
   }
 
   /**
-   * Counts a miss and claims a share of what was left uncovered on the next demand. The surcharge
-   * accumulates because an audit can record a miss while another shortfall is still waiting.
+   * The surcharge accumulates instead of being set because an audit can record a miss while the
+   * surcharge from an earlier miss has not yet been charged to a demand.
    */
   recordMiss(uncovered: number): void {
     this.crown.surcharge += this.tuning.surcharge * uncovered;
