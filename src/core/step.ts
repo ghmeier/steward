@@ -6,8 +6,11 @@ import { validateState } from "./validate";
 
 export type StepOptions = {
   absorbed: AbsorbedAdditionLog | null;
-  validate: boolean;
+  /** Validate the state after each step that produces a tick divisible by this; 0 never validates. */
+  validateEvery: number;
 };
+
+export class InvalidStateError extends Error {}
 
 /** Called after each step with the tick that step produced and the outcome of each command applied in it. */
 export type StepObserver = (
@@ -54,15 +57,22 @@ export class StepManager {
     this.checkPromotion();
     this.game.unlocks.run();
 
-    if (options.validate) {
-      const problems = validateState(this.game.state);
-      if (problems.length > 0) {
-        throw new Error(
-          `state invalid at tick ${this.game.state.tick}: ${problems.join("; ")}`,
-        );
-      }
+    if (
+      options.validateEvery > 0 &&
+      this.game.state.tick % options.validateEvery === 0
+    ) {
+      this.validate();
     }
     return results;
+  }
+
+  validate(): void {
+    const problems = validateState(this.game.state);
+    if (problems.length > 0) {
+      throw new InvalidStateError(
+        `state invalid at tick ${this.game.state.tick}: ${problems.join("; ")}`,
+      );
+    }
   }
 
   runSteps(

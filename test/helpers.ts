@@ -155,7 +155,7 @@ export const economyTestTuning: Tuning = {
   illusion: tuning.illusion,
 };
 
-export const quietOptions = { absorbed: null, validate: false } as const;
+export const quietOptions = { absorbed: null, validateEvery: 0 } as const;
 
 export type RosterCounts = Partial<Record<Job, number>>;
 

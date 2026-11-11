@@ -34,6 +34,8 @@ describe("runSim argument errors", () => {
 		["negative --steps", ["--seed", "1", "--steps=-1"]],
 		["seed above uint32", ["--seed", "4294967296", "--steps", "1"]],
 		["zero --trace", [...base, "--trace", "0"]],
+		["zero --validate-every", [...base, "--validate-every", "0"]],
+		["non-numeric --validate-every", [...base, "--validate-every", "often"]],
 		["unknown flag", [...base, "--bogus"]],
 		["--strategy with --commands", [...base, "--strategy", "s.json", "--commands", "c.json"]],
 		["--record without --strategy", [...base, "--record", "r.json"]],
@@ -149,7 +151,10 @@ describe("runSim output", () => {
     };
 
     const { code, stdout, stderr } = run(
-      ["--seed", "1", "--steps", "10", "--commands", logFile(1, "forest", 1)],
+      [
+        ...["--seed", "1", "--steps", "10", "--validate-every", "1"],
+        ...["--commands", logFile(1, "forest", 1)],
+      ],
       { tuning: overflowing },
     );
 
@@ -161,5 +166,34 @@ describe("runSim output", () => {
     expect(stdout).toEqual([]);
     expect(error.tick).toBe(2);
     expect(error.message).toContain("tick 2");
+    expect(error.message).not.toContain("--validate-every");
+  });
+
+  test("a state that goes bad between validations is caught at the end of the run with a hint to validate every step", () => {
+    const overflowing = {
+      ...tuning,
+      maxResourceValue: Number.POSITIVE_INFINITY,
+      economy: { ...tuning.economy, woodPerWorker: 1e308 },
+    };
+
+    const { code, stderr } = run(
+      ["--seed", "1", "--steps", "10", "--commands", logFile(1, "forest", 1)],
+      { tuning: overflowing },
+    );
+
+    const error = JSON.parse(stderr[0] as string) as { message: string };
+    expect(code).toBe(1);
+    expect(error.message).toContain("tick 10");
+    expect(error.message).toContain("--validate-every 1");
+  });
+
+  test("the summary is identical whether validating once per season or every step", () => {
+    const steps = ["--seed", "1", "--steps", "1300"];
+
+    const seasonal = run(steps);
+    const everyStep = run([...steps, "--validate-every", "1"]);
+
+    expect(seasonal.code).toBe(0);
+    expect(everyStep.stdout).toEqual(seasonal.stdout);
   });
 });
