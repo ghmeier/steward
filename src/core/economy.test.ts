@@ -69,7 +69,7 @@ describe("runEconomy production", () => {
       const miner = game.delegates.firstWithJob(Job.MINE);
       if (grudgedMiner && miner) miner.grudgeUntil = tick + 5;
 
-      const flows = game.economy.run(context);
+      const { flows } = game.economy.run(context);
 
       expect(game.state.posting.resources.grain).toBeCloseTo(1000 + grain, 12);
       expect(game.state.posting.resources.wood).toBeCloseTo(wood, 12);

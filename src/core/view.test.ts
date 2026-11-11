@@ -44,6 +44,21 @@ describe("view.compute", () => {
     expect(byResource.coin?.ratePerSecond).toBe(0);
   });
 
+  test("reports the grain eaten per second, matching the net rate when nothing is harvested and zero for an empty village", () => {
+    const game = village(oddStepTuning);
+    setRoster(game, { forest: 2, idle: 10 });
+    game.state.tick = 1;
+    const { grainEatenPerSecond, ledger } = game.view.compute();
+    setRoster(game, {});
+
+    expect(grainEatenPerSecond).toBeCloseTo(12 * 0.01 * 4, 12);
+    expect(grainEatenPerSecond).toBeCloseTo(
+      -(ledger.find((l) => l.resource === "grain")?.ratePerSecond ?? 0),
+      12,
+    );
+    expect(game.view.compute().grainEatenPerSecond).toBe(0);
+  });
+
   test("reports the realm's counts, season, elapsed time, locked panels and promotion", () => {
     const game = village(oddStepTuning);
     game.state.tick = tuning.economy.ticksPerSeason + 1;

@@ -88,6 +88,8 @@ export type GameView = {
   illusion: IllusionView | null;
   promotion: { target: number; promotedAt: number; promotedAtSeconds: number };
   growth: { stored: number; needed: number; perSecond: number; full: boolean };
+  /** Grain the peasants eat each second, whatever the harvest brings in. */
+  grainEatenPerSecond: number;
   lockedPanels: PanelId[];
   unlocks: UnlockId[];
   archive: { open: boolean; entries: ArchiveEntryView[] };
@@ -125,7 +127,7 @@ export class ViewManager {
   // The UI reads only this view, never GameState, so what the player is shown can
   // differ from the underlying truth without touching any renderer.
   compute(): GameView {
-    const { rates, growthPerTick } = this.game.projection.flows();
+    const { rates, growthPerTick, eatenPerTick } = this.game.projection.flows();
     const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
       resource,
       amount: this.game.illusion.apparent(resource),
@@ -172,6 +174,7 @@ export class ViewManager {
         perSecond: (growthPerTick * 1000) / this.tuning.stepMs,
         full: !this.game.economy.hasRoom,
       },
+      grainEatenPerSecond: (eatenPerTick * 1000) / this.tuning.stepMs,
       lockedPanels: this.lockedPanels(),
       unlocks: this.game.unlocks.purchased,
       archive: {
