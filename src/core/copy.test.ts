@@ -1,54 +1,38 @@
 import { describe, expect, test } from "bun:test";
 import { copy, plural } from "./copy";
 
-const SAMPLE_ARGUMENTS: Record<string, unknown> = {
+// Arguments that are not plain strings. Any other argument name is sampled as a string.
+const NON_STRING_ARGUMENTS: Record<string, unknown> = {
   names: ["Ada", "Hob", "Cole"],
   deaths: 3,
   entryId: 7,
 };
 
-function argumentsFor(): Record<string, unknown> {
-  return new Proxy(SAMPLE_ARGUMENTS, {
-    get: (known, name) => known[String(name)] ?? `sample-${String(name)}`,
-  });
-}
+const SAMPLE_ARGUMENTS = new Proxy(NON_STRING_ARGUMENTS, {
+  get: (known, name) => known[String(name)] ?? `sample-${String(name)}`,
+});
 
-function* templates(
-  node: object,
-  path: string,
-): Generator<[string, (args: Record<string, unknown>) => string]> {
+type Template = string | ((args: Record<string, unknown>) => string);
+
+function* templates(node: object, path: string): Generator<[string, Template]> {
   for (const [name, value] of Object.entries(node)) {
     const here = `${path}.${name}`;
-    if (typeof value === "function") yield [here, value];
-    else if (typeof value === "object") yield* templates(value, here);
-  }
-}
-
-function* statics(node: object, path: string): Generator<[string, string]> {
-  for (const [name, value] of Object.entries(node)) {
-    const here = `${path}.${name}`;
-    if (typeof value === "string") yield [here, value];
-    else if (typeof value === "object") yield* statics(value, here);
+    if (typeof value === "object") yield* templates(value, here);
+    else yield [here, value];
   }
 }
 
 const UNFILLED = /\$\{|\{\w+\}/;
 
 describe("copy", () => {
-  test("every template returns a non-empty sentence with no unfilled placeholder", () => {
+  test("every line renders a non-empty string with no unfilled placeholder", () => {
     const all = [...templates(copy, "copy")];
 
     expect(all.length).toBeGreaterThan(0);
     for (const [path, template] of all) {
-      const text = template(argumentsFor());
+      const text =
+        typeof template === "string" ? template : template(SAMPLE_ARGUMENTS);
 
-      expect(text, path).not.toBe("");
-      expect(text, path).not.toMatch(UNFILLED);
-    }
-  });
-
-  test("every static line is non-empty and has no placeholder", () => {
-    for (const [path, text] of statics(copy, "copy")) {
       expect(text, path).not.toBe("");
       expect(text, path).not.toMatch(UNFILLED);
     }
