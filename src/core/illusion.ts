@@ -203,6 +203,100 @@ export class IllusionManager {
     return { ok: true };
   }
 
+  /** Ticks until announced auditors reach the desk; null when none are on the road. */
+  get auditInTicks(): number | null {
+    const { auditAt } = this.illusion;
+    return auditAt === NO_AUDIT_TICK ? null : auditAt - this.game.state.tick;
+  }
+
+  /** The cost of an audit option as negative deltas, worked out from the debt as it stands. */
+  auditCost(optionId: string): Record<string, number> {
+    if (optionId === "deepen") {
+      return { coin: -this.tuning.audit.deepenCost * this.debtValue };
+    }
+    const cost: Record<string, number> = {};
+    for (const resource of RESOURCES) {
+      if (this.debtOf(resource) > 0) cost[resource] = -this.debtOf(resource);
+    }
+    return cost;
+  }
+
+  /** Auditors accept only real stock, so apparent stock does not count here. */
+  auditShortfall(optionId: string): string | null {
+    for (const [resource, delta] of Object.entries(this.auditCost(optionId))) {
+      const held = this.resources[resource] ?? 0;
+      if (held + delta < 0) {
+        return `not enough real ${resource} (need ${Math.ceil(-delta)}, have ${Math.floor(held)})`;
+      }
+    }
+    return null;
+  }
+
+  private clearDebt(): void {
+    for (const resource of RESOURCES) this.illusion.debt[resource] = 0;
+    this.illusion.debtSince = NO_DEBT_TICK;
+  }
+
+  /** Pays an audit option's cost from real stock and applies its effect; the caller checked it is affordable. */
+  settleAudit(optionId: string, context: AddContext): void {
+    for (const [resource, delta] of Object.entries(this.auditCost(optionId))) {
+      add(this.resources, resource, delta, context);
+    }
+    if (optionId === "deepen") {
+      for (const resource of RESOURCES) {
+        this.illusion.debt[resource] =
+          this.debtOf(resource) * this.tuning.audit.deepenGrowth;
+      }
+      this.illusion.debtSince = this.game.state.tick;
+      this.illusion.audits.deepened += 1;
+    } else {
+      this.clearDebt();
+      this.illusion.audits.backed += 1;
+    }
+  }
+
+  /** Seizes real stock toward each debt, clears them all, and counts a missed demand for what stock could not cover. */
+  failAudit(context: AddContext): void {
+    let uncovered = 0;
+    for (const resource of RESOURCES) {
+      const owed = this.debtOf(resource);
+      const seized = Math.min(owed, this.resources[resource] ?? 0);
+      add(this.resources, resource, -seized, context);
+      uncovered += (owed - seized) * this.game.economy.priceOf(resource);
+    }
+    this.clearDebt();
+    this.illusion.audits.failed += 1;
+    if (uncovered > 0) this.game.crown.recordMiss(uncovered);
+  }
+
+  private get isAuditDue(): boolean {
+    if (!this.hasDebt) return false;
+    const { debtShare, ageTicks } = this.tuning.audit;
+    return (
+      this.debtValue >= debtShare * this.ceiling ||
+      this.game.state.tick - this.illusion.debtSince >= ageTicks
+    );
+  }
+
+  private runAudit(): void {
+    const { tick } = this.game.state;
+    const { warningTicks, deadlineTicks } = this.tuning.audit;
+    if (
+      this.illusion.auditAt !== NO_AUDIT_TICK &&
+      tick >= this.illusion.auditAt
+    ) {
+      this.illusion.auditAt = NO_AUDIT_TICK;
+      if (this.hasDebt) this.game.desk.placeAudit(tick + deadlineTicks);
+    }
+    if (
+      this.illusion.auditAt === NO_AUDIT_TICK &&
+      !this.game.desk.hasAudit &&
+      this.isAuditDue
+    ) {
+      this.illusion.auditAt = tick + warningTicks;
+    }
+  }
+
   /** Plain multiplication, so fading and interest draw nothing from a random stream. */
   run(): void {
     const { conjured, debt } = this.illusion;
@@ -214,5 +308,6 @@ export class IllusionManager {
     for (const resource of RESOURCES) {
       debt[resource] = this.debtOf(resource) * grow;
     }
+    this.runAudit();
   }
 }

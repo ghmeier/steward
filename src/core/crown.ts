@@ -145,12 +145,20 @@ export class CrownManager {
     return taken;
   }
 
+  /**
+   * Counts a miss and claims a share of what was left uncovered on the next demand. The surcharge
+   * accumulates because an audit can record a miss while another shortfall is still waiting.
+   */
+  recordMiss(uncovered: number): void {
+    this.crown.surcharge += this.tuning.surcharge * uncovered;
+    this.crown.missed += 1;
+  }
+
   /** A demand is missed only when the store cannot cover it at the deadline. */
   private collect(context: AddContext): void {
     const uncovered = this.owed - this.take(context);
     if (uncovered > 0) {
-      this.crown.surcharge = this.tuning.surcharge * uncovered;
-      this.crown.missed += 1;
+      this.recordMiss(uncovered);
       this.close();
     } else {
       this.meet();

@@ -200,8 +200,8 @@ export class ViewManager {
 
   private illusionView(): IllusionView | null {
     if (!this.game.unlocks.enabled(CONJURING)) return null;
-    const { books, room } = this.game.illusion;
-    return { books, room, auditInTicks: null };
+    const { books, room, auditInTicks } = this.game.illusion;
+    return { books, room, auditInTicks };
   }
 
   private crownView(): CrownView | null {
@@ -234,13 +234,13 @@ export class ViewManager {
         id: entry.id,
         kind: entry.kind,
         label: desk.fill(entry, template.text),
-        ticksLeft: null,
+        ticksLeft: entry.kind === "audit" ? entry.dueAt - this.tick : null,
         options: template.options.map((option) => ({
           id: option.id,
           label: desk.fill(entry, option.label),
-          affordable: desk.shortfall(option) === null,
+          affordable: desk.shortfall(entry, option) === null,
           expiry: option.id === template.expiry,
-          resources: sortedResources(option.resources ?? {}),
+          resources: sortedResources(desk.deltasOf(entry, option)),
           sulker: desk.sulker(entry, option),
         })),
       };

@@ -8,7 +8,7 @@ import {
 } from "../../test/helpers";
 import type { Command } from "./commands";
 import { Game } from "./game";
-import { NO_DEBT_TICK } from "./illusion";
+import { NO_AUDIT_TICK, NO_DEBT_TICK } from "./illusion";
 import type { Resource } from "./realm";
 import { ARCHIVE_PANEL, CONJURING } from "./unlocks";
 
@@ -437,5 +437,284 @@ describe("the view", () => {
 
     expect(before).toBe(false);
     expect(affordable()).toBe(true);
+  });
+});
+
+describe("audits", () => {
+  const { audit: auditTuning } = illusionTuning;
+
+  function indebted(coinValue: number, since = 1): Game {
+    const game = village();
+    game.state.tick = since;
+    game.state.posting.illusion.debt.coin = coinValue;
+    game.state.posting.illusion.debtSince = since;
+    return game;
+  }
+
+  function nextTick(game: Game): void {
+    game.state.tick += 1;
+    game.illusion.run();
+  }
+
+  function placeAudit(game: Game): {
+    id: number;
+    dueAt: number;
+    template: string;
+  } {
+    game.desk.placeAudit(game.state.tick + auditTuning.deadlineTicks);
+    const entry = game.state.posting.desk.disputes.at(-1);
+    if (entry?.kind !== "audit") throw new Error("no audit was placed");
+    return entry;
+  }
+
+  function settleAudit(game: Game, optionId: string) {
+    const { id } = placeAudit(game);
+    return command(game, {
+      type: "settleDispute",
+      dispute: id,
+      option: optionId,
+    });
+  }
+
+  function auditsOnDesk(game: Game): number {
+    return game.state.posting.desk.disputes.filter(
+      (entry) => entry.kind === "audit",
+    ).length;
+  }
+
+  test("auditors are announced when debt reaches its share of the ceiling and not below it", () => {
+    const game = indebted(1);
+    const threshold = auditTuning.debtShare * game.illusion.ceiling;
+
+    game.state.posting.illusion.debt.coin = threshold * 0.99;
+    nextTick(game);
+    const below = game.illusion.auditInTicks;
+    game.state.posting.illusion.debt.coin = threshold;
+    nextTick(game);
+
+    expect(below).toBeNull();
+    expect(game.state.posting.illusion.auditAt).toBe(
+      game.state.tick + auditTuning.warningTicks,
+    );
+    expect(game.illusion.auditInTicks).toBe(auditTuning.warningTicks);
+  });
+
+  test("auditors are announced when the debt is old enough and not before", () => {
+    const game = indebted(1, 1);
+
+    game.state.tick = auditTuning.ageTicks;
+    game.illusion.run();
+    const young = game.illusion.auditInTicks;
+    nextTick(game);
+
+    expect(young).toBeNull();
+    expect(game.state.posting.illusion.auditAt).toBe(
+      game.state.tick + auditTuning.warningTicks,
+    );
+  });
+
+  test("a clean ledger never announces auditors, however many peasants share the ceiling", () => {
+    const game = village(0);
+
+    nextTick(game);
+
+    expect(game.illusion.auditInTicks).toBeNull();
+  });
+
+  test("auditors arrive at the announced tick, and no second warning is given while they wait", () => {
+    const game = indebted(auditTuning.debtShare * village().illusion.ceiling);
+    nextTick(game);
+    const arrival = game.state.posting.illusion.auditAt;
+
+    game.state.tick = arrival - 1;
+    game.illusion.run();
+    const before = auditsOnDesk(game);
+    nextTick(game);
+    const [entry] = game.state.posting.desk.disputes;
+    nextTick(game);
+
+    expect(before).toBe(0);
+    expect(entry).toMatchObject({
+      kind: "audit",
+      dueAt: arrival + auditTuning.deadlineTicks,
+    });
+    expect(game.state.posting.illusion.auditAt).toBe(NO_AUDIT_TICK);
+    expect(auditsOnDesk(game)).toBe(1);
+  });
+
+  test("repaying the debt during the warning means nothing arrives", () => {
+    const game = indebted(auditTuning.debtShare * village().illusion.ceiling);
+    stock(game, "coin", 1e6);
+    nextTick(game);
+    const arrival = game.state.posting.illusion.auditAt;
+
+    command(game, { type: "back", resource: "coin" });
+    game.state.tick = arrival;
+    game.illusion.run();
+
+    expect(auditsOnDesk(game)).toBe(0);
+    expect(game.state.posting.illusion.auditAt).toBe(NO_AUDIT_TICK);
+  });
+
+  test("backing an audit pays each debt from real stock, clears the debt and counts it", () => {
+    const game = indebted(100);
+    game.state.posting.illusion.debt.grain = 40;
+    stock(game, "coin", 150);
+    stock(game, "grain", 40);
+
+    const result = settleAudit(game, "back");
+
+    expect(result).toEqual({ ok: true });
+    expect(game.state.posting.resources.coin).toBeCloseTo(50, 9);
+    expect(game.state.posting.resources.grain).toBe(0);
+    expect(debt(game, "coin")).toBe(0);
+    expect(debt(game, "grain")).toBe(0);
+    expect(game.state.posting.illusion.debtSince).toBe(NO_DEBT_TICK);
+    expect(game.state.posting.illusion.audits.backed).toBe(1);
+    expect(auditsOnDesk(game)).toBe(0);
+  });
+
+  test("backing an audit is refused when real stock falls short, even with conjured stock to spare", () => {
+    const game = indebted(100);
+    stock(game, "coin", 60);
+    game.state.posting.illusion.conjured.coin = 500;
+    const entry = placeAudit(game);
+    const before = structuredClone(game.state);
+
+    const result = command(game, {
+      type: "settleDispute",
+      dispute: entry.id,
+      option: "back",
+    });
+    const options = game.view.compute().desk[0]?.options;
+
+    expect(result.ok).toBe(false);
+    expect(game.state.posting.resources.coin).toBe(
+      before.posting.resources.coin,
+    );
+    expect(auditsOnDesk(game)).toBe(1);
+    expect(options?.map((candidate) => candidate.affordable)).toEqual([
+      false,
+      true,
+    ]);
+    expect(options?.map((candidate) => candidate.expiry)).toEqual([
+      false,
+      false,
+    ]);
+    expect(options?.[0]?.resources).toEqual({ coin: -100 });
+  });
+
+  test("a deeper illusion costs real coin, multiplies every debt and restarts the debt's age", () => {
+    const game = indebted(100, 5);
+    game.state.posting.illusion.debt.grain = 40;
+    const value = game.illusion.debtValue;
+    stock(game, "coin", 1000);
+    game.state.tick = 50;
+
+    const result = settleAudit(game, "deepen");
+
+    expect(result).toEqual({ ok: true });
+    expect(game.state.posting.resources.coin).toBeCloseTo(
+      1000 - auditTuning.deepenCost * value,
+      9,
+    );
+    expect(debt(game, "coin")).toBeCloseTo(100 * auditTuning.deepenGrowth, 9);
+    expect(debt(game, "grain")).toBeCloseTo(40 * auditTuning.deepenGrowth, 9);
+    expect(game.state.posting.illusion.debtSince).toBe(game.state.tick);
+    expect(game.state.posting.illusion.audits.deepened).toBe(1);
+  });
+
+  test("a deeper illusion cannot be paid with conjured coin", () => {
+    const game = indebted(100);
+    stock(game, "coin", 1);
+    game.state.posting.illusion.conjured.coin = 500;
+    const entry = placeAudit(game);
+
+    const result = command(game, {
+      type: "settleDispute",
+      dispute: entry.id,
+      option: "deepen",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(debt(game, "coin")).toBe(100);
+  });
+
+  test("an audit that lapses seizes the stock it can reach, clears the debt and misses nothing when stock covers it", () => {
+    const game = indebted(100);
+    stock(game, "coin", 130);
+    const entry = placeAudit(game);
+    const lapsedLine = tuning.desk.kinds.audit.templates.find(
+      (template) => template.id === entry.template,
+    )?.expired as string;
+    game.state.tick = entry.dueAt;
+
+    game.desk.run(contextFor(game));
+
+    expect(game.state.posting.resources.coin).toBeCloseTo(30, 9);
+    expect(debt(game, "coin")).toBe(0);
+    expect(game.state.posting.illusion.debtSince).toBe(NO_DEBT_TICK);
+    expect(game.state.posting.illusion.audits.failed).toBe(1);
+    expect(game.state.posting.crown.missed).toBe(0);
+    expect(game.desk.expired).toEqual([lapsedLine]);
+    expect(auditsOnDesk(game)).toBe(0);
+  });
+
+  test("an audit that lapses with too little stock records a miss for the coin value left uncovered", () => {
+    const game = indebted(100);
+    game.state.posting.illusion.debt.ore = 30;
+    stock(game, "coin", 100);
+    stock(game, "ore", 10);
+    const entry = placeAudit(game);
+    game.state.tick = entry.dueAt;
+    const uncovered = 20 * game.economy.priceOf("ore");
+
+    game.desk.run(contextFor(game));
+
+    expect(game.state.posting.resources.ore).toBe(0);
+    expect(game.state.posting.crown.missed).toBe(1);
+    expect(game.state.posting.crown.surcharge).toBeCloseTo(
+      crownTuning.surcharge * uncovered,
+      9,
+    );
+  });
+
+  test("an audit lapsing leaves an open crown demand as it was", () => {
+    const game = indebted(100);
+    openDemand(game, "grain", 300);
+    const demand = structuredClone(game.state.posting.crown.demand);
+    const entry = placeAudit(game);
+    game.state.tick = entry.dueAt;
+
+    game.desk.run(contextFor(game));
+
+    expect(game.state.posting.crown.demand).toEqual(demand);
+    expect(game.state.posting.crown.missed).toBe(1);
+  });
+
+  test("overflow pushes out the oldest ordinary entry and never an audit, even the oldest entry", () => {
+    const game = indebted(100);
+    game.state.posting.desk.nextArrivalTick = Number.MAX_SAFE_INTEGER;
+    const audit = placeAudit(game);
+    for (const id of [10, 11, 12]) {
+      game.state.posting.desk.disputes.push({
+        id,
+        kind: "merchant",
+        template: "smith",
+        arrivedAt: game.state.tick,
+      });
+    }
+    game.state.posting.desk.nextDisputeId = 13;
+
+    game.desk.run(contextFor(game));
+    const { disputes } = game.state.posting.desk;
+
+    expect(disputes.map((entry) => entry.kind)).toEqual([
+      "audit",
+      "merchant",
+      "merchant",
+    ]);
+    expect(disputes.map((entry) => entry.id)).toEqual([audit.id, 11, 12]);
+    expect(game.desk.expired).toHaveLength(1);
   });
 });

@@ -1,0 +1,146 @@
+{
+  "name": "conjurer",
+  "setup": [
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "granary",
+        "petition": "harvest",
+        "rules": [
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "grainSeasons",
+              "comparison": "above",
+              "value": 2
+            },
+            "policy": "feed"
+          }
+        ],
+        "otherwise": "stockpile"
+      }
+    },
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "ore-sales",
+        "petition": "ore",
+        "rules": [
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "owedOre",
+              "comparison": "above",
+              "value": 0
+            },
+            "policy": "stockpile"
+          }
+        ],
+        "otherwise": "sell"
+      }
+    },
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "wood-sales",
+        "petition": "wood",
+        "rules": [
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "owedWood",
+              "comparison": "above",
+              "value": 0
+            },
+            "policy": "stockpile"
+          }
+        ],
+        "otherwise": "sell"
+      }
+    },
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "workforce",
+        "petition": "labor",
+        "rules": [
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "owedOre",
+              "comparison": "above",
+              "value": 0
+            },
+            "policy": "mine"
+          },
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "owedWood",
+              "comparison": "above",
+              "value": 0
+            },
+            "policy": "forest"
+          },
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "owedCoin",
+              "comparison": "above",
+              "value": 0
+            },
+            "policy": "forest"
+          },
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "owedGrain",
+              "comparison": "above",
+              "value": 0
+            },
+            "policy": "farm"
+          }
+        ],
+        "otherwise": "farm"
+      }
+    }
+  ],
+  "reactions": [
+    {
+      "when": {
+        "kind": "any",
+        "conditions": [
+          {
+            "kind": "compare",
+            "quantity": "owedCoin",
+            "comparison": "above",
+            "value": 0
+          },
+          {
+            "kind": "compare",
+            "quantity": "owedGrain",
+            "comparison": "above",
+            "value": 0
+          },
+          {
+            "kind": "compare",
+            "quantity": "owedOre",
+            "comparison": "above",
+            "value": 0
+          },
+          {
+            "kind": "compare",
+            "quantity": "owedWood",
+            "comparison": "above",
+            "value": 0
+          }
+        ]
+      },
+      "commands": [
+        {
+          "type": "forge"
+        }
+      ]
+    }
+  ]
+}

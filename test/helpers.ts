@@ -135,6 +135,19 @@ export const economyTestTuning: Tuning = {
           },
         ],
       },
+      audit: {
+        templates: [
+          {
+            id: "inspection",
+            text: "The auditors have arrived.",
+            options: [
+              { id: "back", label: "Cover the books" },
+              { id: "deepen", label: "Pay for a deeper illusion" },
+            ],
+            expired: "The auditors took what they found.",
+          },
+        ],
+      },
     },
   },
   archive: tuning.archive,

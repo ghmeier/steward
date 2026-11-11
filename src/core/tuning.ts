@@ -108,6 +108,14 @@ const travellerOption = merchantOption.extend({
   newcomer: z.literal(true).exactOptional(),
 });
 
+const auditOption = <Id extends string>(id: Id) =>
+  z.strictObject({
+    id: z.literal(id),
+    label: textWithPlaceholders([]),
+    // Declared so every kind's option reads alike, but never allowed: an audit's cost is computed.
+    resources: z.never().exactOptional(),
+  });
+
 // Every kind's option is read through this one shape, so the fields only some kinds have are optional here.
 export type DeskOption = z.infer<typeof merchantOption> &
   Partial<
@@ -178,6 +186,29 @@ function deskKind(
   });
 }
 
+// An audit's options cost whatever the debt is when it is settled, so the template holds no amounts, and
+// it has no expiry option because failing the deadline is not something the player picks.
+const auditTemplate = z.strictObject({
+  id: name,
+  text: textWithPlaceholders(NO_PLACEHOLDERS),
+  options: z.tuple([auditOption("back"), auditOption("deepen")]),
+  expired: textWithPlaceholders(NO_PLACEHOLDERS),
+});
+
+// Audits are never drawn, so the kind has no weight.
+const auditKind = z.strictObject({
+  templates: z
+    .array(auditTemplate)
+    .min(1)
+    .superRefine((templates, ctx) =>
+      repeatIssues(
+        templates.map((template) => template.id),
+        "id",
+        ctx,
+      ),
+    ),
+});
+
 function repeatIssues(
   items: readonly string[],
   label: string,
@@ -214,6 +245,7 @@ const desk = z.strictObject({
     dispute: deskKind(disputeOption, PARTY_PLACEHOLDERS),
     merchant: deskKind(merchantOption, NO_PLACEHOLDERS),
     traveller: deskKind(travellerOption, NO_PLACEHOLDERS),
+    audit: auditKind,
   }),
 });
 
@@ -379,7 +411,10 @@ const tuningSchema = z
 export type Tuning = z.infer<typeof tuningSchema>;
 export type VillageTuning = z.infer<typeof village>;
 export type DeskTuning = z.infer<typeof desk>;
-export type DeskTemplate = z.infer<ReturnType<typeof deskTemplate>>;
+export type DeskTemplate = Omit<
+  z.infer<ReturnType<typeof deskTemplate>>,
+  "expiry"
+> & { expiry?: string };
 
 /** Takes the merged contents of tuning.json, village.json, desk.json, archive.json, crown.json and illusion.json. */
 export function parseTuning(value: unknown): Tuning {
