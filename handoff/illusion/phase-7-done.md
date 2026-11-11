@@ -1,6 +1,6 @@
 ---
 title: "Phase 7 merged: conjuring, forged reports, debt and audits"
-status: open
+status: picked-up
 tags: [phase-7]
 branch: main
 created: 2026-11-11
