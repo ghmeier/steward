@@ -4,7 +4,12 @@ import type { MenuContext, MenuItem, Screen, ScreenBuilder } from "./menu";
 
 function amountText(resource: string, amount: number): string {
   const sign = amount < 0 ? "−" : "+";
-  return `${sign}${String(Math.abs(amount))} ${resource}`;
+  const magnitude = Math.abs(amount);
+  // Rounding up keeps a cost from being understated, so the player is never told they can afford what they cannot.
+  const text = Number.isInteger(magnitude)
+    ? String(magnitude)
+    : (Math.ceil(magnitude * 10) / 10).toFixed(1);
+  return `${sign}${text} ${resource}`;
 }
 
 function costText(option: DeskOptionView): string {

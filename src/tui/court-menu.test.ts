@@ -121,6 +121,38 @@ describe("court menu", () => {
     expect(forSecond).toContain("free");
   });
 
+  test("a fractional cost is shown rounded up to one decimal and a whole cost without a decimal", () => {
+    const view = villageWith(["boundary"]).view.compute();
+    const [entry] = view.desk;
+    if (entry === undefined) throw new Error("no entry on the desk");
+    const [pay, forFirst] = entry.options;
+    if (pay === undefined || forFirst === undefined)
+      throw new Error("no options");
+    pay.resources = { coin: -16.967572545464858 };
+    forFirst.resources = { ore: -84.83786272732429, grain: -5 };
+    const context = { view, tuning };
+
+    const root = openMenu(courtMenu);
+    const step = menuKey(
+      root,
+      {
+        name: "return",
+        ctrl: false,
+        meta: false,
+        shift: false,
+        sequence: "return",
+      },
+      context,
+    );
+    const [first, second] = renderMenu(
+      step.state as MenuState,
+      context,
+    ).lines.slice(1);
+
+    expect(first).toContain("−17.0 coin");
+    expect(second).toContain("−84.9 ore, −5 grain");
+  });
+
   test("an option the village cannot afford is disabled and emits nothing", () => {
     const walk = new Walker(villageWith(["boundary"], 0));
     walk.key("return");
