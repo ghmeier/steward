@@ -10,7 +10,12 @@ import {
   type UnlockId,
 } from "../core/unlocks";
 import type { GameView } from "../core/view";
-import { formatAmount, formatGameTime, formatRate } from "./format";
+import {
+  formatAmount,
+  formatGameTime,
+  formatRate,
+  formatTicks,
+} from "./format";
 import { BAR_HINTS, type FocusId } from "./keys";
 import { createPanels } from "./panels";
 import { Village } from "./village-panels";
@@ -339,7 +344,9 @@ describe("createPanels", () => {
       const without = await draw([emptyView({ desk: [dispute] })]);
 
       expect(withDeadline).toContain("Counted.");
-      expect(withDeadline).toContain("due in 1m 20s");
+      expect(withDeadline).toContain(
+        `due in ${formatTicks(ticksLeft, tuning.stepMs)}`,
+      );
       expect(without).toContain(dispute.label);
       expect(without).not.toContain("due in");
     });

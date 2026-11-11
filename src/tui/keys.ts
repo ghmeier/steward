@@ -213,11 +213,12 @@ export function panelHintsText(panel: FocusId, width: number): string {
   const hints = panelKeyHints(panel);
   const labelled = (shown: readonly ShownHint[]) =>
     shown.map((hint) => `${hint.keys} ${hint.label}`).join(" \u00b7 ");
-  const full = labelled(hints);
-  if (full.length <= width) return full;
-  const withoutEscape = labelled(hints.filter((hint) => hint.keys !== "esc"));
-  if (withoutEscape.length <= width) return withoutEscape;
-  return hints.map((hint) => hint.keys).join(" ");
+  const withoutEscape = hints.filter((hint) => hint.keys !== "esc");
+  return (
+    [labelled(hints), labelled(withoutEscape)].find(
+      (text) => text.length <= width,
+    ) ?? hints.map((hint) => hint.keys).join(" ")
+  );
 }
 
 /** The short list on the right of the bottom bar; everything else is in Help. */

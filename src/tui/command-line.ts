@@ -14,7 +14,7 @@ import {
   type Quantity,
 } from "../core/decree";
 import { CONJURABLE } from "../core/illusion";
-import { Job, RESOURCES, SEASONS } from "../core/realm";
+import { Job, RESOURCES, type Resource, SEASONS } from "../core/realm";
 import {
   ARCHIVE_PANEL,
   CHAINING_UNLOCK,
@@ -662,18 +662,14 @@ function parseAssignVerb(cursor: Cursor, context: MenuContext): Command {
   return { type: "assignPeasant", peasant, job };
 }
 
-type ResourceName = (typeof RESOURCES)[number];
-
-const RESOURCE_HELP: Readonly<Record<ResourceName, string>> = {
+const RESOURCE_HELP: Readonly<Record<Resource, string>> = {
   coin: "the treasury",
   grain: "the granary",
   ore: "the mine's output",
   wood: "the forest's output",
 };
 
-function resourceChoices(
-  resources: readonly ResourceName[],
-): Choice<ResourceName>[] {
+function resourceChoices(resources: readonly Resource[]): Choice<Resource>[] {
   return resources.map((resource) => ({
     text: resource,
     description: RESOURCE_HELP[resource],

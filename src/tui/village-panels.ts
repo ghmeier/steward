@@ -8,7 +8,13 @@ import type {
   GameView,
 } from "../core/view";
 import { courtEntryLabel, courtMenu } from "./court-menu";
-import { type Cursor, moveCursor, reconcileCursor, rowWindow } from "./cursor";
+import {
+  type Cursor,
+  moveCursor,
+  reconcileCursor,
+  rowWindow,
+  stepIndex,
+} from "./cursor";
 import { formatRule, plain } from "./decree-format";
 import {
   capitalize,
@@ -353,13 +359,14 @@ export class LedgerPanel extends VillagePanel {
       Math.max(0, ...rows.map((row) => row[column]?.length ?? 0)),
     );
     return rows.flatMap(([name = "", amount = "", rate = ""], index) => {
-      const marker = focused && index === this.selected ? "> " : "  ";
-      const row = `${name.padEnd(widths[0] ?? 0)} ${amount.padStart(widths[1] ?? 0)} ${rate.padStart(widths[2] ?? 0)}`;
+      const gutter = focused ? (index === this.selected ? "> " : "  ") : "";
       const conjured = view.ledger[index]?.conjured ?? 0;
       return [
-        `${focused ? marker : ""}${row}`,
+        `${gutter}${name.padEnd(widths[0] ?? 0)} ${amount.padStart(widths[1] ?? 0)} ${rate.padStart(widths[2] ?? 0)}`,
         ...(conjured > 0
-          ? [`${focused ? "  " : ""}  (${formatAmount(conjured)} conjured)`]
+          ? [
+              `${" ".repeat(gutter.length)}  (${formatAmount(conjured)} conjured)`,
+            ]
           : []),
       ];
     });
@@ -427,12 +434,9 @@ export class LedgerPanel extends VillagePanel {
   key(key: KeyPress, { view, tuning }: MenuContext): PanelStep | null {
     const name = plainKeyName(key);
     if (name === "escape") return UNFOCUS;
-    if (name === "j" || name === "down") {
-      this.selected = Math.min(view.ledger.length - 1, this.selected + 1);
-      return step();
-    }
-    if (name === "k" || name === "up") {
-      this.selected = Math.max(0, this.selected - 1);
+    const move = peasantActionForKey(key);
+    if (move?.kind === "move") {
+      this.selected = stepIndex(view.ledger.length, this.selected, move.delta);
       return step();
     }
     const resource = view.ledger[this.selected]?.resource as Resource;

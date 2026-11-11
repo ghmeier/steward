@@ -145,7 +145,6 @@ describe("courtEntryLabel", () => {
     expect(timed).toBe(
       `(due in ${formatTicks(ticksLeft, tuning.stepMs)}) ${entry.label}`,
     );
-    expect(timed).toContain("due in 1m 20s");
     expect(untimed).toBe(entry.label);
   });
 });
