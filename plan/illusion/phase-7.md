@@ -4,8 +4,8 @@ status: active
 tags: [phase-7]
 created: 2026-11-11
 updated: 2026-11-11
-last_pr: 11
-next_step: PR 2 (illusion-audits) and PR 3 (illusion-tui) are being implemented in parallel from illusion-core; each gets a refactor pass and a PR
+last_pr: 13
+next_step: Garret reviews and merges PR #12 (illusion-tui) and PR #13 (illusion-audits), then runs the exit playtest; the handoff follows
 ---
 # Phase 7: conjuring, illusion debt and audits
 
@@ -191,3 +191,6 @@ Carried from phase 6:
 - 2026-11-11: Garret merged PR #10 and PR #11 to `main`. PR 2 and PR 3 now target `main`.
 - 2026-11-11: PR 3 implemented on `illusion-tui` (e3e5d64, 973 tests, tmux check at both sizes). Decisions: the conjured share sits on its own indented line under the row because the Ledger is 22 characters wide at 100 columns; the Ledger's `b` hint reads "repay"; panel hints drop "esc back" before falling back to bare keys; the audit warning ranks directly after the crown notice; the conjuring notice outranks the first demand's herald. Refactor pass dispatched.
 - 2026-11-11: PR 2 implemented on `illusion-audits` (a83546c, 960 tests, golden unchanged, no save upgrade). The gate holds with the starting numbers: at 36,000 steps the conjurer failed 8, 9 and 7 audits and missed 6, 8 and 7 demands on seeds 1, 7 and 42, while the borrower and crown-aware failed none and missed none. The borrower forges only grain demands, because a strategy that can only compare a quantity to a constant could not repay ore, wood or coin debt. No strategy settles an audit. Lead decision: an audit on the desk whose debt has been fully repaid passes and leaves, counted as backed; the implementation had counted it as failed. Fix and refactor pass dispatched together.
+- 2026-11-11: PR #12 opened for `illusion-tui` after the refactor pass (c88cbe1, 972 tests, CI green). The Ledger shares cursor stepping with the peasants panel.
+- 2026-11-11: PR #13 opened for `illusion-audits` after the fix and refactor pass (ebdd004, 957 tests, CI green). A repaid audit now passes and leaves the desk, and an audit lapses only while debt remains, because the desk runs before the illusion manager in a step. `IllusionManager.repay` is shared by `back`, backing an audit and seizure. `CrownManager.recordMiss` adds to the surcharge rather than replacing it, so an audit miss during an open demand survives that demand's collection. The gate numbers are unchanged. The new strategy tests take about 5 seconds each and carry a 30 second timeout; `bun run check` now takes about 33 seconds, up from 10.
+- 2026-11-11: Both branches merged together in a scratch worktree pass `bun run check` with 988 tests. Not yet verified end to end in the real game: an audit arriving, its time left in Court, and its arrival and failure notices, since each branch could only test its half. Help's desk topic does not mention audits; the Illusion topic does.
