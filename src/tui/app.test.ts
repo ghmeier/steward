@@ -17,6 +17,7 @@ import {
   tuning,
 } from "../../test/helpers";
 import { barRow, settledFrame } from "../../test/tui-helpers";
+import { copy } from "../core/copy";
 import type { Decree } from "../core/decree";
 import { Game } from "../core/game";
 import { Job } from "../core/realm";
@@ -29,7 +30,6 @@ import {
 import { stateHash } from "../save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../save/save";
 import { type App, prepareStartup, type Startup, startApp } from "./app";
-import { ARCHIVE_OPENS } from "./unlock-notices";
 
 const NEVER_MS = 1e9;
 const NEW_SEED = 321;
@@ -772,13 +772,17 @@ describe("notices", () => {
     await starving.advanceStep();
     await fed.advanceStep();
 
-    expect(await starving.screen()).toContain(`${first} starved.`);
-    expect(await fed.screen()).not.toContain("starved");
+    const notice = copy.notices.starved({ names: [first], deaths: 1 });
+
+    expect(await starving.screen()).toContain(notice);
+    expect(await fed.screen()).not.toContain(notice);
   });
 
   test("the Archive notice appears once when coin first appears, and not after a restart", async () => {
     const harness = await launch();
     harness.game.state.posting.resources.coin = 5;
+
+    const archiveOpens = copy.notices.archiveOpens({ key: "a" });
 
     const { announced, later } = await announcedThenLater(harness);
     await harness.app.shutdown();
@@ -790,9 +794,9 @@ describe("notices", () => {
     });
     await restarted.advanceStep();
 
-    expect(announced).toContain(ARCHIVE_OPENS);
-    expect(later).not.toContain(ARCHIVE_OPENS);
-    expect(await restarted.screen()).not.toContain(ARCHIVE_OPENS);
+    expect(announced).toContain(archiveOpens);
+    expect(later).not.toContain(archiveOpens);
+    expect(await restarted.screen()).not.toContain(archiveOpens);
   });
 
   test("an entry pushed off a full desk posts its flavor line in the footer", async () => {

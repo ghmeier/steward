@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { tuning } from "../../test/helpers";
+import { copy } from "../core/copy";
 import type { CrownDemandView, CrownView } from "../core/view";
 import { crownNotice } from "./crown-notices";
 
@@ -37,7 +38,9 @@ describe("crownNotice", () => {
     const before = crown({ ticksLeft: season + 1 });
     const crossing = crown({ ticksLeft: season });
 
-    expect(crownNotice(before, crossing, tuning)).toContain("One season left");
+    expect(crownNotice(before, crossing, tuning)).toBe(
+      copy.notices.oneSeasonLeft({ amount: "80", resource: "ore" }),
+    );
     expect(
       crownNotice(crossing, crown({ ticksLeft: season - 1 }), tuning),
     ).toBeNull();

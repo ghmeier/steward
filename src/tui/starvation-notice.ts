@@ -1,3 +1,4 @@
+import { copy } from "../core/copy";
 import type { GameView } from "../core/view";
 
 /**
@@ -16,12 +17,5 @@ export function starvationNotice(
     .filter((delegate) => !remaining.has(delegate.id))
     .slice(0, deaths)
     .map((delegate) => delegate.name);
-  const unnamed = deaths - names.length;
-  if (names.length === 1 && unnamed === 0) return `${names[0]} starved.`;
-  if (names.length === 2 && unnamed === 0) {
-    return `${names[0]} and ${names[1]} starved.`;
-  }
-  const listed = names.slice(0, 2);
-  const others = deaths - listed.length;
-  return `${listed.join(", ")} and ${others} other${others === 1 ? "" : "s"} starved.`;
+  return copy.notices.starved({ names, deaths });
 }

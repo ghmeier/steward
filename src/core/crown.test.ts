@@ -6,6 +6,7 @@ import {
   setRoster,
   tuning,
 } from "../../test/helpers";
+import { copy } from "./copy";
 import { type Demand, NO_DEMAND, NO_DEMAND_TICK } from "./crown";
 import type { Decree } from "./decree";
 import { Game } from "./game";
@@ -148,13 +149,10 @@ describe("delivery", () => {
     stock(game, demand.resource, 0);
     const emptyStore = deliver(game);
 
-    expect(beforeDemand).toEqual({
-      ok: false,
-      reason: expect.stringContaining("no demand"),
-    });
+    expect(beforeDemand).toEqual({ ok: false, reason: copy.crown.noDemand });
     expect(emptyStore).toEqual({
       ok: false,
-      reason: expect.stringContaining(demand.resource),
+      reason: copy.crown.villageHoldsNone({ resource: demand.resource }),
     });
     expect(game.state.posting.crown.demand.delivered).toBe(0);
   });

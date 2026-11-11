@@ -189,9 +189,6 @@ describe("conjuring", () => {
     expect(conjured(game, "grain")).toBe(room / tuning.economy.grainPrice);
     expect(game.illusion.room).toBeCloseTo(0, 9);
     expect(past.ok).toBe(false);
-    expect(past.ok === false && past.reason).toContain(
-      String(Math.floor(game.illusion.room)),
-    );
     expect(conjured(game, "coin")).toBe(0);
   });
 

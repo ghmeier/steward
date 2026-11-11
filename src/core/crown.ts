@@ -1,4 +1,5 @@
 import type { CommandResult } from "./commands";
+import { copy } from "./copy";
 import type { Game } from "./game";
 import { type AddContext, add } from "./math";
 import { RESOURCES, type Resource } from "./realm";
@@ -167,12 +168,13 @@ export class CrownManager {
 
   /** Paying in full before the deadline earns a reward that collection at the deadline does not. */
   deliver(context: AddContext): CommandResult {
-    if (!this.isOpen)
-      return { ok: false, reason: "the crown has made no demand" };
+    if (!this.isOpen) return { ok: false, reason: copy.crown.noDemand };
     if (this.held <= 0) {
       return {
         ok: false,
-        reason: `the village holds no ${this.crown.demand.resource}`,
+        reason: copy.crown.villageHoldsNone({
+          resource: this.crown.demand.resource,
+        }),
       };
     }
     this.credit(this.take(context), context);

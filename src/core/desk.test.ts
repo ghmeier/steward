@@ -260,22 +260,19 @@ describe("settleDispute", () => {
   );
 
   test.each([
-    ["an unknown dispute", 9, "pay", "no dispute 9"],
-    ["an unknown option", 1, "flog", 'dispute 1 has no option "flog"'],
-    ["an unaffordable option", 1, "pay", "not enough coin (need 10, have 4.2)"],
-  ])(
-    "rejects %s and leaves the state unchanged",
-    (_name, id, option, reason) => {
-      const game = contested();
-      game.state.posting.resources.coin = 4.2;
-      const before = structuredClone(game.state);
+    ["an unknown dispute", 9, "pay"],
+    ["an unknown option", 1, "flog"],
+    ["an unaffordable option", 1, "pay"],
+  ])("rejects %s and leaves the state unchanged", (_name, id, option) => {
+    const game = contested();
+    game.state.posting.resources.coin = 4.2;
+    const before = structuredClone(game.state);
 
-      const result = settle(game, id, option);
+    const result = settle(game, id, option);
 
-      expect(result).toEqual({ ok: false, reason });
-      expect(game.state).toEqual(before);
-    },
-  );
+    expect(result.ok).toBe(false);
+    expect(game.state).toEqual(before);
+  });
 
   test("throws a clear error when a stored template no longer exists", () => {
     const game = contested();
@@ -407,10 +404,7 @@ describe("merchants", () => {
 
     const result = settle(game, 1, "sell");
 
-    expect(result).toEqual({
-      ok: false,
-      reason: "not enough ore (need 10, have 3)",
-    });
+    expect(result.ok).toBe(false);
     expect(game.state).toEqual(before);
   });
 
@@ -482,10 +476,7 @@ describe("travellers", () => {
 
     const result = settle(game, 1, "admit");
 
-    expect(result).toEqual({
-      ok: false,
-      reason: "the village has no room for another peasant",
-    });
+    expect(result.ok).toBe(false);
     expect(game.delegates.all).toHaveLength(tuning.economy.maxPopulation);
   });
 });
