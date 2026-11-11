@@ -207,6 +207,7 @@ const PETITION_HELP: Readonly<Record<Petition, string>> = {
 
 const QUANTITY_HELP: Readonly<Record<Quantity, string>> = {
   coin: "coin in the treasury",
+  debt: "coin value of the illusion passed off as real",
   grain: "grain in store",
   grainSeasons: "seasons the stores would feed everyone",
   idle: "peasants with no job",

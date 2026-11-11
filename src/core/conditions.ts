@@ -21,6 +21,8 @@ export class ConditionManager {
       case "owedOre":
       case "owedWood":
         return this.game.crown.owedIn(OWED_RESOURCES[quantity]);
+      case "debt":
+        return this.game.illusion.debtValue;
       case "grainSeasons":
         return this.game.economy.grainSeasons();
     }

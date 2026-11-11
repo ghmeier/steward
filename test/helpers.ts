@@ -1,6 +1,7 @@
 import archiveJson from "../data/archive.json";
 import crownJson from "../data/crown.json";
 import deskJson from "../data/desk.json";
+import illusionJson from "../data/illusion.json";
 import tuningJson from "../data/tuning.json";
 import villageJson from "../data/village.json";
 import type { Delegate } from "../src/core/delegates";
@@ -17,6 +18,7 @@ export const fullTuningJson = {
   desk: deskJson,
   archive: archiveJson,
   crown: crownJson,
+  illusion: illusionJson,
 };
 
 export const tuning = parseTuning(fullTuningJson);
@@ -137,6 +139,7 @@ export const economyTestTuning: Tuning = {
   },
   archive: tuning.archive,
   crown: tuning.crown,
+  illusion: tuning.illusion,
 };
 
 export const quietOptions = { absorbed: null, validate: false } as const;

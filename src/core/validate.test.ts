@@ -180,11 +180,39 @@ describe("validateState", () => {
       "disputes[0].kind",
     ],
     [
+      "conjured ore",
+      { "posting.illusion.conjured.ore": 1 },
+      "illusion.conjured",
+    ],
+    [
+      "negative conjured grain",
+      { "posting.illusion.conjured.grain": -1 },
+      "illusion.conjured.grain",
+    ],
+    [
+      "negative debt",
+      { "posting.illusion.debt.wood": -1 },
+      "illusion.debt.wood",
+    ],
+    [
+      "debt that rose after the tick",
+      { "posting.illusion.debtSince": 51 },
+      "illusion.debtSince: must be no later than the tick",
+    ],
+    [
       "a dispute arriving after the tick",
       { "posting.desk.disputes.0.arrivedAt": 51 },
       "disputes[0].arrivedAt:",
     ],
   ];
+
+  test("plain data: rejects an infinite debt", () => {
+    const state = patched({
+      "posting.illusion.debt.grain": Number.POSITIVE_INFINITY,
+    });
+
+    expect(validateState(state).join("\n")).toContain("illusion.debt.grain");
+  });
 
   test.each(rejected)("cross-field: rejects %s", (_name, patches, expected) => {
     const problems = validateState(patched(patches));

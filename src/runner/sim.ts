@@ -194,6 +194,7 @@ export function runSim(
   const crownOutcomes: { tick: number; outcome: "met" | "missed" }[] = [];
   let crownMet = state.posting.crown.met;
   let crownMissed = state.posting.crown.missed;
+  let peakDebt = 0;
   let stepsDone = 0;
   const commandSource = player === null ? undefined : player.next;
   try {
@@ -218,6 +219,7 @@ export function runSim(
         if (met > crownMet) crownOutcomes.push({ tick, outcome: "met" });
         if (missed > crownMissed)
           crownOutcomes.push({ tick, outcome: "missed" });
+        peakDebt = Math.max(peakDebt, game.illusion.debtValue);
         crownMet = met;
         crownMissed = missed;
         player?.observe(game);
@@ -263,6 +265,11 @@ export function runSim(
         met: state.posting.crown.met,
         missed: state.posting.crown.missed,
         outcomes: crownOutcomes,
+      },
+      illusion: {
+        conjured: game.illusion.conjuredValue,
+        debt: game.illusion.debtValue,
+        peakDebt,
       },
       ...(player
         ? { strategy: { name: strategyName, ...player.stats() } }

@@ -4,6 +4,7 @@ import { NO_LABOR_POLICY } from "./labor";
 import { type AddContext, add } from "./math";
 import {
   Job,
+  type Resource,
   SEASONS,
   type Season,
   WORKING_JOBS,
@@ -155,6 +156,11 @@ export class EconomyManager {
     };
   }
 
+  /** What a unit of the resource sells for at market, in coin. */
+  priceOf(resource: Resource): number {
+    return resource === "coin" ? 1 : this.tuning.economy[PRICE_KEY[resource]];
+  }
+
   sellResource(
     resource: keyof typeof PRICE_KEY,
     amount: number,
@@ -162,12 +168,7 @@ export class EconomyManager {
   ): void {
     const resources = this.posting.resources;
     add(resources, resource, -amount, context);
-    add(
-      resources,
-      "coin",
-      amount * this.tuning.economy[PRICE_KEY[resource]],
-      context,
-    );
+    add(resources, "coin", amount * this.priceOf(resource), context);
   }
 
   feedGrain(amount: number, context: AddContext): void {

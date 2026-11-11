@@ -2,7 +2,7 @@ import { z } from "zod";
 import { addIssue, parseWith } from "./errors";
 import type { Game } from "./game";
 import type { AddContext } from "./math";
-import { JOBS } from "./realm";
+import { JOBS, RESOURCES } from "./realm";
 
 const text = z.string();
 
@@ -26,6 +26,13 @@ export const commandSchema = z.discriminatedUnion("type", [
     option: text,
   }),
   z.strictObject({ type: z.literal("deliver") }),
+  z.strictObject({
+    type: z.literal("conjure"),
+    resource: z.enum(RESOURCES),
+    amount: z.number(),
+  }),
+  z.strictObject({ type: z.literal("forge") }),
+  z.strictObject({ type: z.literal("back"), resource: z.enum(RESOURCES) }),
   z.strictObject({ type: z.literal("buyUnlock"), id: text }),
   z.strictObject({
     type: z.literal("saveDecree"),
@@ -89,6 +96,12 @@ export class CommandManager {
           );
         case "deliver":
           return this.game.crown.deliver(context);
+        case "conjure":
+          return this.game.illusion.conjure(command.resource, command.amount);
+        case "forge":
+          return this.game.illusion.forge(context);
+        case "back":
+          return this.game.illusion.back(command.resource, context);
         case "buyUnlock":
           this.game.unlocks.buy(command.id, context);
           return { ok: true };

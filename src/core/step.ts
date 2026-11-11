@@ -50,6 +50,7 @@ export class StepManager {
     this.runFlows(context);
     this.game.desk.run(context);
     this.game.crown.run(context);
+    this.game.illusion.run();
     this.checkPromotion();
     this.game.unlocks.run();
 

@@ -13,11 +13,12 @@ import { dirname, join } from "node:path";
 import { emptyCrownState } from "../core/crown";
 import { isRecord } from "../core/data";
 import { errorMessage } from "../core/errors";
+import { emptyIllusionState } from "../core/illusion";
 import { NO_LABOR_POLICY } from "../core/labor";
 import { seedStream } from "../core/rng";
 import { canonicalStringify } from "../core/serialize";
 import { type GameState, SCHEMA_VERSION } from "../core/state";
-import { CROWN_PANEL } from "../core/unlocks";
+import { CONJURING, CROWN_PANEL } from "../core/unlocks";
 import { assertValidState } from "../core/validate";
 import { contentHash, loadTuning } from "./content";
 
@@ -88,6 +89,19 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
     if (!Array.isArray(disputes)) return;
     for (const entry of disputes) {
       if (isRecord(entry)) entry.kind = "dispute";
+    }
+  },
+  // A crown that has already issued a demand would never reach the first-demand grant again.
+  11: (state) => {
+    if (!isRecord(state.posting)) return;
+    state.posting.illusion = emptyIllusionState();
+    const { crown } = state.posting;
+    if (!isRecord(crown) || !isRecord(crown.demand)) return;
+    const issued =
+      crown.demand.id !== 0 ||
+      (crown.met as number) + (crown.missed as number) > 0;
+    if (issued && isRecord(state.career) && isRecord(state.career.unlocks)) {
+      state.career.unlocks[CONJURING] = state.tick as number;
     }
   },
 };

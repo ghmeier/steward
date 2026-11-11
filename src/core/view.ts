@@ -2,13 +2,22 @@ import { compareKeys, sortedKeys } from "./data";
 import type { Decree } from "./decree";
 import type { DeskKind } from "./desk";
 import type { Game } from "./game";
+import type { Books } from "./illusion";
 import { type Job, RESOURCES, type Resource, type Season } from "./realm";
 import type { ResourceId } from "./state";
-import { ARCHIVE_PANEL, CROWN_PANEL, type UnlockId } from "./unlocks";
+import {
+  ARCHIVE_PANEL,
+  CONJURING,
+  CROWN_PANEL,
+  type UnlockId,
+} from "./unlocks";
 
 export type LedgerLine = {
   resource: ResourceId;
+  /** Real stock plus conjured units. */
   amount: number;
+  /** The conjured part of `amount`. */
+  conjured: number;
   ratePerSecond: number;
 };
 export type DeskOptionView = {
@@ -24,6 +33,8 @@ export type DeskEntryView = {
   id: number;
   kind: DeskKind;
   label: string;
+  /** Ticks until the entry expires on its own deadline; null for an entry that has none. */
+  ticksLeft: number | null;
   options: DeskOptionView[];
 };
 export type GovernorView = { id: string; name: string };
@@ -49,6 +60,14 @@ export type CrownView = {
   met: number;
   missed: number;
 };
+/** What the steward sees of the illusion; null until conjuring is unlocked. */
+export type IllusionView = {
+  books: Books;
+  /** Coin value of illusion that can still be added before the ceiling. */
+  room: number;
+  /** Ticks until announced auditors arrive; null when none are on the road. */
+  auditInTicks: number | null;
+};
 export type GameView = {
   tick: number;
   elapsedSeconds: number;
@@ -66,6 +85,7 @@ export type GameView = {
   desk: DeskEntryView[];
   governors: GovernorView[];
   crown: CrownView | null;
+  illusion: IllusionView | null;
   promotion: { target: number; promotedAt: number; promotedAtSeconds: number };
   growth: { stored: number; needed: number; perSecond: number; full: boolean };
   lockedPanels: PanelId[];
@@ -108,7 +128,8 @@ export class ViewManager {
     const { rates, growthPerTick } = this.game.projection.flows();
     const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
       resource,
-      amount: this.posting.resources[resource] ?? 0,
+      amount: this.game.illusion.apparent(resource),
+      conjured: this.game.illusion.conjuredOf(resource),
       ratePerSecond: (rates[resource] * 1000) / this.tuning.stepMs,
     }));
     const { delegates, decrees } = this.posting;
@@ -139,6 +160,7 @@ export class ViewManager {
       desk: this.deskEntries(),
       governors: [],
       crown: this.crownView(),
+      illusion: this.illusionView(),
       promotion: {
         target: this.tuning.village.promotionPopulation,
         promotedAt: this.career.promotedAt,
@@ -160,7 +182,7 @@ export class ViewManager {
           description: entry.description,
           cost: entry.cost,
           owned: this.game.unlocks.enabled(entry.id),
-          affordable: (this.posting.resources.coin ?? 0) >= entry.cost,
+          affordable: this.game.illusion.apparent("coin") >= entry.cost,
           available: entry.requires.every((id) =>
             this.game.unlocks.enabled(id),
           ),
@@ -174,6 +196,12 @@ export class ViewManager {
     if (!this.game.unlocks.enabled(ARCHIVE_PANEL)) locked.push("archive");
     if (!this.game.unlocks.enabled(CROWN_PANEL)) locked.push("crown");
     return locked;
+  }
+
+  private illusionView(): IllusionView | null {
+    if (!this.game.unlocks.enabled(CONJURING)) return null;
+    const { books, room } = this.game.illusion;
+    return { books, room, auditInTicks: null };
   }
 
   private crownView(): CrownView | null {
@@ -206,6 +234,7 @@ export class ViewManager {
         id: entry.id,
         kind: entry.kind,
         label: desk.fill(entry, template.text),
+        ticksLeft: null,
         options: template.options.map((option) => ({
           id: option.id,
           label: desk.fill(entry, option.label),

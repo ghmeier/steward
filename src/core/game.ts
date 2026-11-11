@@ -5,6 +5,7 @@ import { DecreeEngine } from "./decree-engine";
 import { DelegateManager } from "./delegates";
 import { DeskManager } from "./desk";
 import { EconomyManager } from "./economy";
+import { emptyIllusionState, IllusionManager } from "./illusion";
 import { LaborSettling, NO_LABOR_POLICY } from "./labor";
 import { ProjectionManager } from "./projection";
 import { RESOURCES } from "./realm";
@@ -33,6 +34,7 @@ export class Game {
   readonly unlocks: UnlockManager;
   readonly desk: DeskManager;
   readonly crown: CrownManager;
+  readonly illusion: IllusionManager;
   readonly commands: CommandManager;
   readonly projection: ProjectionManager;
   readonly steps: StepManager;
@@ -51,6 +53,7 @@ export class Game {
     this.unlocks = new UnlockManager(this);
     this.desk = new DeskManager(this);
     this.crown = new CrownManager(this);
+    this.illusion = new IllusionManager(this);
     this.commands = new CommandManager(this);
     this.projection = new ProjectionManager(this);
     this.steps = new StepManager(this);
@@ -94,6 +97,7 @@ export class Game {
         disputes: [],
       },
       crown: emptyCrownState(),
+      illusion: emptyIllusionState(),
     };
     const game = new Game(
       {
