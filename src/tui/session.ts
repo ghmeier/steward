@@ -25,7 +25,7 @@ export class Session {
     options: {
       now: () => number;
       maxStepsPerFrame?: number;
-      validate?: boolean;
+      validateEvery?: number;
     },
   ) {
     this.clock = createClock({
@@ -35,7 +35,7 @@ export class Session {
     });
     this.stepOptions = {
       absorbed: null,
-      validateEvery: options.validate ? 1 : 0,
+      validateEvery: options.validateEvery ?? 0,
     };
     this.currentView = game.view.compute();
     this.currentViewJson = JSON.stringify(this.currentView);

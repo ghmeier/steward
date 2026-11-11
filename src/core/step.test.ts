@@ -40,35 +40,23 @@ describe("step", () => {
     );
   });
 
-  function corruptedGame(): Game {
-    const game = Game.create(42, tuning);
-    game.state.posting.resources.bad = Number.NaN;
-    return game;
-  }
+  test("validation reports an invalid state only at ticks divisible by the interval, and never for zero", () => {
+    const corrupted = (validateEvery: number) => {
+      const game = Game.create(42, tuning);
+      game.state.posting.resources.bad = Number.NaN;
+      return {
+        step: () => game.steps.step([], { absorbed: null, validateEvery }),
+      };
+    };
+    const everyThird = corrupted(3);
+    const never = corrupted(0);
 
-  test("validating every step throws naming the first tick when the state is invalid", () => {
-    const game = corruptedGame();
-
-    expect(() =>
-      game.steps.step([], { absorbed: null, validateEvery: 1 }),
-    ).toThrow(/tick 1/);
-  });
-
-  test("validating every third step reports an invalid state at the next multiple of three and not before", () => {
-    const game = corruptedGame();
-    const options = { absorbed: null, validateEvery: 3 };
-
-    expect(() => game.steps.step([], options)).not.toThrow();
-    expect(() => game.steps.step([], options)).not.toThrow();
-    expect(() => game.steps.step([], options)).toThrow(/tick 3/);
-  });
-
-  test("an interval of zero never validates", () => {
-    const game = corruptedGame();
-
-    expect(() =>
-      game.steps.runSteps(10, [], { absorbed: null, validateEvery: 0 }),
-    ).not.toThrow();
+    expect(() => corrupted(1).step()).toThrow(/tick 1/);
+    expect(() => everyThird.step()).not.toThrow();
+    expect(() => everyThird.step()).not.toThrow();
+    expect(() => everyThird.step()).toThrow(/tick 3/);
+    for (let tick = 0; tick < 10; tick++)
+      expect(() => never.step()).not.toThrow();
   });
 });
 

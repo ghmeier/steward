@@ -1,4 +1,5 @@
 import type { Command, CommandLogEntry, CommandResult } from "./commands";
+import { InvalidStateError } from "./errors";
 import type { Game } from "./game";
 import type { AbsorbedAdditionLog, AddContext } from "./math";
 import { CROWN_PANEL } from "./unlocks";
@@ -9,8 +10,6 @@ export type StepOptions = {
   /** Validate the state after each step that produces a tick divisible by this; 0 never validates. */
   validateEvery: number;
 };
-
-export class InvalidStateError extends Error {}
 
 /** Called after each step with the tick that step produced and the outcome of each command applied in it. */
 export type StepObserver = (
