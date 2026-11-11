@@ -56,7 +56,7 @@ export class IllusionManager {
     return this.game.state.posting.resources;
   }
 
-  get isUnlocked(): boolean {
+  private get isUnlocked(): boolean {
     return this.game.unlocks.enabled(CONJURING);
   }
 
@@ -64,7 +64,7 @@ export class IllusionManager {
     return this.illusion.conjured[resource] ?? 0;
   }
 
-  debtOf(resource: ResourceId): number {
+  private debtOf(resource: ResourceId): number {
     return this.illusion.debt[resource] ?? 0;
   }
 
@@ -73,29 +73,29 @@ export class IllusionManager {
     return (this.resources[resource] ?? 0) + this.conjuredOf(resource);
   }
 
-  get hasDebt(): boolean {
+  private get hasDebt(): boolean {
     return this.illusion.debtSince !== NO_DEBT_TICK;
   }
 
-  private valueOf(amounts: (resource: Resource) => number): number {
+  private valueOf(amounts: Record<ResourceId, number>): number {
     let total = 0;
     for (const resource of RESOURCES) {
-      total += amounts(resource) * this.game.economy.priceOf(resource);
+      total += (amounts[resource] ?? 0) * this.game.economy.priceOf(resource);
     }
     return total;
   }
 
   /** Coin value of the conjured stock. */
   get conjuredValue(): number {
-    return this.valueOf((resource) => this.conjuredOf(resource));
+    return this.valueOf(this.illusion.conjured);
   }
 
   /** Coin value of all the debt. */
   get debtValue(): number {
-    return this.valueOf((resource) => this.debtOf(resource));
+    return this.valueOf(this.illusion.debt);
   }
 
-  get exposure(): number {
+  private get exposure(): number {
     return this.conjuredValue + this.debtValue;
   }
 
@@ -144,7 +144,7 @@ export class IllusionManager {
     if (!(CONJURABLE as readonly string[]).includes(resource)) {
       return { ok: false, reason: `${resource} cannot be conjured` };
     }
-    if (!(amount > 0)) {
+    if (amount <= 0) {
       return { ok: false, reason: "the amount to conjure must be positive" };
     }
     const cost = amount * this.game.economy.priceOf(resource);

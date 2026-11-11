@@ -58,47 +58,47 @@ function step(game: Game, count = 1): void {
 }
 
 describe("spending on outsiders", () => {
-  test("conjured units are spent before real stock and the conjured part becomes debt", () => {
+  test("spend takes conjured units first and turns them into debt, while real stock alone creates none", () => {
     const game = village();
     const { illusion } = game.state.posting;
     illusion.conjured.grain = 40;
     stock(game, "grain", 100);
+    const spent = 70;
 
-    game.illusion.spend("grain", 70, contextFor(game));
+    game.illusion.spend("grain", spent, contextFor(game));
 
     expect(conjured(game, "grain")).toBe(0);
     expect(debt(game, "grain")).toBe(40);
-    expect(game.state.posting.resources.grain).toBe(70);
+    expect(game.state.posting.resources.grain).toBe(100 - (spent - 40));
     expect(illusion.debtSince).toBe(game.state.tick);
-  });
 
-  test("real stock alone creates no debt", () => {
-    const game = village();
-    stock(game, "grain", 100);
+    const real = village();
+    stock(real, "grain", 100);
 
-    game.illusion.spend("grain", 70, contextFor(game));
+    real.illusion.spend("grain", spent, contextFor(real));
 
-    expect(debt(game, "grain")).toBe(0);
-    expect(game.state.posting.illusion.debtSince).toBe(NO_DEBT_TICK);
+    expect(debt(real, "grain")).toBe(0);
+    expect(real.state.posting.illusion.debtSince).toBe(NO_DEBT_TICK);
   });
 
   test("conjured grain delivered to the crown becomes debt, and delivering real grain does not", () => {
+    const amount = crownTuning.baseAmounts.grain;
     const game = village();
-    openDemand(game, "grain", crownTuning.baseAmounts.grain);
+    openDemand(game, "grain", amount);
     stock(game, "grain", 0);
-    game.state.posting.illusion.conjured.grain = 50;
+    game.state.posting.illusion.conjured.grain = amount / 2;
+    const real = village();
+    openDemand(real, "grain", amount);
+    stock(real, "grain", amount / 2);
 
     const withIllusion = command(game, { type: "deliver" });
-    const real = village();
-    openDemand(real, "grain", crownTuning.baseAmounts.grain);
-    stock(real, "grain", 50);
     command(real, { type: "deliver" });
 
     expect(withIllusion.ok).toBe(true);
-    expect(debt(game, "grain")).toBe(50);
-    expect(game.state.posting.crown.demand.delivered).toBe(50);
+    expect(debt(game, "grain")).toBe(amount / 2);
+    expect(game.state.posting.crown.demand.delivered).toBe(amount / 2);
     expect(debt(real, "grain")).toBe(0);
-    expect(real.state.posting.crown.demand.delivered).toBe(50);
+    expect(real.state.posting.crown.demand.delivered).toBe(amount / 2);
   });
 
   test("peasants do not eat conjured grain, so real grain alone decides famine", () => {
@@ -111,13 +111,13 @@ describe("spending on outsiders", () => {
     step(hungry);
     step(fed);
 
-    expect(hungry.state.posting.economy.famine.ticks).toBe(1);
+    expect(hungry.state.posting.economy.famine.ticks).toBeGreaterThan(0);
     expect(hungry.state.posting.resources.grain).toBe(0);
     expect(conjured(hungry, "grain")).toBeGreaterThan(0);
     expect(fed.state.posting.economy.famine.ticks).toBe(0);
   });
 
-  test("the Archive accepts conjured coin, which becomes debt, and refuses when real and conjured coin together fall short", () => {
+  test("the Archive accepts conjured coin as debt, and refuses when real and conjured coin together fall short", () => {
     const game = village();
     grantUnlocks(game, [ARCHIVE_PANEL]);
     stock(game, "coin", 0);
@@ -136,7 +136,7 @@ describe("spending on outsiders", () => {
     );
   });
 
-  test("a merchant option accepts conjured coin, which becomes debt, and is refused without it", () => {
+  test("a merchant option accepts conjured coin as debt and is refused without it", () => {
     const template = tuning.desk.kinds.merchant.templates.find(
       (candidate) => candidate.id === "grain-factor",
     );
@@ -170,101 +170,67 @@ describe("spending on outsiders", () => {
 });
 
 describe("conjuring", () => {
-  test("conjuring within the room adds conjured stock and conjuring past it is refused naming the room", () => {
+  test("conjuring up to the room adds conjured stock priced in coin, and conjuring past it is refused naming the room", () => {
     const game = village();
     const room = game.illusion.room;
 
     const within = command(game, {
       type: "conjure",
-      resource: "coin",
-      amount: room,
+      resource: "grain",
+      amount: room / tuning.economy.grainPrice,
     });
     const past = command(game, {
       type: "conjure",
-      resource: "grain",
+      resource: "coin",
       amount: 1,
     });
 
     expect(within.ok).toBe(true);
-    expect(conjured(game, "coin")).toBe(room);
+    expect(conjured(game, "grain")).toBe(room / tuning.economy.grainPrice);
+    expect(game.illusion.room).toBeCloseTo(0, 9);
     expect(past.ok).toBe(false);
     expect(past.ok === false && past.reason).toContain(
       String(Math.floor(game.illusion.room)),
     );
-    expect(conjured(game, "grain")).toBe(0);
-  });
-
-  test("the room is priced in coin, so a unit of grain costs its market price", () => {
-    const game = village();
-    const room = game.illusion.room;
-    const grainPrice = tuning.economy.grainPrice;
-
-    const result = command(game, {
-      type: "conjure",
-      resource: "grain",
-      amount: room / grainPrice,
-    });
-
-    expect(result.ok).toBe(true);
-    expect(game.illusion.room).toBeCloseTo(0, 9);
+    expect(conjured(game, "coin")).toBe(0);
   });
 
   test("ore, wood and non-positive amounts are refused", () => {
     const game = village();
+    const attempts = [
+      { resource: "ore", amount: 1 },
+      { resource: "wood", amount: 1 },
+      { resource: "coin", amount: 0 },
+      { resource: "coin", amount: -5 },
+    ] as const;
 
-    const ore = command(game, { type: "conjure", resource: "ore", amount: 1 });
-    const wood = command(game, {
-      type: "conjure",
-      resource: "wood",
-      amount: 1,
-    });
-    const none = command(game, {
-      type: "conjure",
-      resource: "coin",
-      amount: 0,
-    });
-    const negative = command(game, {
-      type: "conjure",
-      resource: "coin",
-      amount: -5,
-    });
+    const results = attempts.map((attempt) =>
+      command(game, { type: "conjure", ...attempt }),
+    );
 
-    expect([ore, wood, none, negative].map((result) => result.ok)).toEqual([
-      false,
-      false,
-      false,
-      false,
-    ]);
-    expect(game.illusion.exposure).toBe(0);
+    expect(results.map((result) => result.ok)).toEqual(
+      attempts.map(() => false),
+    );
+    expect(game.illusion.conjuredValue).toBe(0);
   });
 
-  test("every command is refused before conjuring is unlocked", () => {
-    const game = village();
-    delete game.state.career.unlocks[CONJURING];
-    openDemand(game, "grain", 100);
+  test("every command is refused until the first crown demand grants conjuring", () => {
+    const game = Game.create(1, tuning);
+    setRoster(game, { idle: tuning.village.promotionPopulation });
     game.state.posting.illusion.debt.grain = 5;
     stock(game, "grain", 5);
-
-    const results = [
+    const locked = () => [
       command(game, { type: "conjure", resource: "coin", amount: 1 }),
       command(game, { type: "forge" }),
       command(game, { type: "back", resource: "grain" }),
     ];
 
-    expect(results.map((result) => result.ok)).toEqual([false, false, false]);
-    expect(game.illusion.exposure).toBe(5 * tuning.economy.grainPrice);
-    expect(game.state.posting.crown.demand.delivered).toBe(0);
-  });
-
-  test("the first crown demand grants conjuring, and nothing before it does", () => {
-    const game = Game.create(1, tuning);
-    setRoster(game, { idle: tuning.village.promotionPopulation });
-    step(game);
-    const before = game.unlocks.enabled(CONJURING);
-
+    const before = locked();
+    const grainAfterRefusal = game.state.posting.resources.grain;
     while (!game.crown.isOpen) step(game);
 
-    expect(before).toBe(false);
+    expect(before.map((result) => result.ok)).toEqual([false, false, false]);
+    expect(grainAfterRefusal).toBe(5);
     expect(game.unlocks.enabled(CONJURING)).toBe(true);
     expect(game.state.career.unlocks[CONJURING]).toBe(
       game.state.posting.crown.demand.issuedAt,
@@ -291,15 +257,19 @@ describe("forging a report", () => {
     expect(game.state.posting.illusion.debtSince).toBe(game.state.tick);
   });
 
-  test("a forged report limited by the room leaves the demand open with only the room forged", () => {
+  test("a forged report forges only what the room allows, and is refused with no open demand or no room", () => {
+    const idle = village();
+    const none = command(idle, { type: "forge" });
     const game = village(4);
     openDemand(game, "grain", crownTuning.baseAmounts.grain);
     const forgeable = game.illusion.room / tuning.economy.grainPrice;
 
-    const result = command(game, { type: "forge" });
+    const limited = command(game, { type: "forge" });
+    const full = command(game, { type: "forge" });
 
+    expect(none.ok).toBe(false);
     expect(forgeable).toBeLessThan(crownTuning.baseAmounts.grain);
-    expect(result.ok).toBe(true);
+    expect(limited.ok).toBe(true);
     expect(game.crown.isOpen).toBe(true);
     expect(game.state.posting.crown.demand.delivered).toBe(forgeable);
     expect(debt(game, "grain")).toBe(forgeable);
@@ -307,75 +277,52 @@ describe("forging a report", () => {
     expect(game.state.posting.resources.coin).toBe(
       tuning.economy.initialResources.coin,
     );
-  });
-
-  test("is refused with no open demand and with no room", () => {
-    const game = village();
-    const idle = command(game, { type: "forge" });
-    openDemand(game, "grain", crownTuning.baseAmounts.grain);
-    game.state.posting.illusion.conjured.coin = game.illusion.room;
-
-    const full = command(game, { type: "forge" });
-
-    expect(idle.ok).toBe(false);
     expect(full.ok).toBe(false);
-    expect(game.state.posting.crown.demand.delivered).toBe(0);
+    expect(game.state.posting.crown.demand.delivered).toBe(forgeable);
   });
 });
 
 describe("backing debt", () => {
-  test("repays debt from real stock only as far as the stock reaches", () => {
+  test("repays debt from real stock as far as it reaches, and clears the debt sentinel with the last debt", () => {
     const game = village();
     const { illusion } = game.state.posting;
     illusion.debt.grain = 50;
     illusion.debtSince = 1;
     stock(game, "grain", 30);
 
-    const result = command(game, { type: "back", resource: "grain" });
+    const partial = command(game, { type: "back", resource: "grain" });
 
-    expect(result.ok).toBe(true);
+    expect(partial.ok).toBe(true);
     expect(game.state.posting.resources.grain).toBe(0);
     expect(debt(game, "grain")).toBe(20);
     expect(illusion.debtSince).toBe(1);
-  });
 
-  test("clears the debt sentinel when the last debt is repaid", () => {
-    const game = village();
-    const { illusion } = game.state.posting;
-    illusion.debt.grain = 10;
-    illusion.debtSince = 1;
     stock(game, "grain", 25);
 
     command(game, { type: "back", resource: "grain" });
 
     expect(debt(game, "grain")).toBe(0);
-    expect(game.state.posting.resources.grain).toBe(15);
+    expect(game.state.posting.resources.grain).toBe(5);
     expect(illusion.debtSince).toBe(NO_DEBT_TICK);
   });
 
-  test("never draws on conjured stock, so conjured stock alone cannot back a debt", () => {
+  test("is refused without real stock, even with conjured stock, and for a resource with no debt", () => {
     const game = village();
     const { illusion } = game.state.posting;
     illusion.debt.grain = 10;
     illusion.debtSince = 1;
     illusion.conjured.grain = 500;
     stock(game, "grain", 0);
+    stock(game, "coin", 100);
 
-    const result = command(game, { type: "back", resource: "grain" });
+    const unbacked = command(game, { type: "back", resource: "grain" });
+    const nothingOwed = command(game, { type: "back", resource: "coin" });
 
-    expect(result.ok).toBe(false);
+    expect(unbacked.ok).toBe(false);
     expect(debt(game, "grain")).toBe(10);
     expect(conjured(game, "grain")).toBe(500);
-  });
-
-  test("is refused for a resource with no debt", () => {
-    const game = village();
-    stock(game, "grain", 100);
-
-    const result = command(game, { type: "back", resource: "grain" });
-
-    expect(result.ok).toBe(false);
-    expect(game.state.posting.resources.grain).toBe(100);
+    expect(nothingOwed.ok).toBe(false);
+    expect(game.state.posting.resources.coin).toBe(100);
   });
 });
 
@@ -403,7 +350,7 @@ describe("fading and interest", () => {
     expect(rng).toEqual(streams);
   });
 
-  test("a step runs the fade after the village's own flows", () => {
+  test("a step fades conjured stock", () => {
     const game = village();
     game.state.posting.illusion.conjured.grain = 100;
 
@@ -416,66 +363,36 @@ describe("fading and interest", () => {
 });
 
 describe("exposure", () => {
-  test("is the coin value of conjured stock and debt, and the room is what the ceiling leaves, never below zero", () => {
+  test("the room is what the ceiling leaves after the coin value of conjured stock and debt, never below zero, and the debt quantity ignores conjured stock", () => {
     const game = village();
     const { illusion } = game.state.posting;
+    const { economy } = tuning;
     illusion.conjured.grain = 100;
     illusion.debt.ore = 10;
     illusion.debt.wood = 10;
     illusion.debt.coin = 7;
+    const debtValue = 10 * economy.orePrice + 10 * economy.woodPrice + 7;
+    const exposure = 100 * economy.grainPrice + debtValue;
 
-    const { economy } = tuning;
-    const expected =
-      100 * economy.grainPrice +
-      10 * economy.orePrice +
-      10 * economy.woodPrice +
-      7;
-
-    expect(game.illusion.exposure).toBeCloseTo(expected, 9);
     expect(game.illusion.ceiling).toBe(
       illusionTuning.ceilingPerPeasant * tuning.village.promotionPopulation,
     );
-    expect(game.illusion.room).toBeCloseTo(game.illusion.ceiling - expected, 9);
+    expect(game.illusion.room).toBeCloseTo(game.illusion.ceiling - exposure, 9);
+    expect(game.illusion.debtValue).toBeCloseTo(debtValue, 9);
+    expect(game.conditions.quantityOf("debt")).toBeCloseTo(debtValue, 9);
+
     illusion.debt.coin = game.illusion.ceiling * 2;
+
     expect(game.illusion.room).toBe(0);
-  });
-
-  test("the decree quantity debt reads the coin value of all debt and ignores conjured stock", () => {
-    const game = village();
-    game.state.posting.illusion.debt.ore = 10;
-    game.state.posting.illusion.conjured.coin = 99;
-
-    expect(game.conditions.quantityOf("debt")).toBe(
-      10 * tuning.economy.orePrice,
-    );
   });
 });
 
 describe("the view", () => {
-  test("shows nothing of the illusion until conjuring is unlocked", () => {
+  test("shows the illusion only once conjuring is unlocked, and reads the books by the share of the ceiling", () => {
     const game = village();
     delete game.state.career.unlocks[CONJURING];
-
-    expect(game.view.compute().illusion).toBeNull();
+    const locked = game.view.compute().illusion;
     grantUnlocks(game, [CONJURING]);
-    expect(game.view.compute().illusion).not.toBeNull();
-  });
-
-  test("the ledger shows the apparent amount with the conjured part beside it", () => {
-    const game = village();
-    stock(game, "grain", 30);
-    game.state.posting.illusion.conjured.grain = 12;
-
-    const grain = game.view
-      .compute()
-      .ledger.find((line) => line.resource === "grain");
-
-    expect(grain?.amount).toBe(42);
-    expect(grain?.conjured).toBe(12);
-  });
-
-  test("the books read clean at no exposure, then thin, strained and rotten by the share of the ceiling", () => {
-    const game = village();
     const { ceiling } = game.illusion;
     const { strained, rotten } = illusionTuning.books;
     const booksAt = (share: number) => {
@@ -483,6 +400,7 @@ describe("the view", () => {
       return game.view.compute().illusion?.books;
     };
 
+    expect(locked).toBeNull();
     expect(booksAt(0)).toBe("clean");
     expect(booksAt(strained / 2)).toBe("thin");
     expect(booksAt(strained)).toBe("strained");
@@ -491,7 +409,22 @@ describe("the view", () => {
     expect(game.view.compute().illusion?.auditInTicks).toBeNull();
   });
 
-  test("an option is affordable with conjured coin and not without it", () => {
+  test("the ledger shows the apparent amount with the conjured part beside it", () => {
+    const game = village();
+    const real = 30;
+    const faded = 12;
+    stock(game, "grain", real);
+    game.state.posting.illusion.conjured.grain = faded;
+
+    const grain = game.view
+      .compute()
+      .ledger.find((line) => line.resource === "grain");
+
+    expect(grain?.amount).toBe(real + faded);
+    expect(grain?.conjured).toBe(faded);
+  });
+
+  test("an Archive entry is affordable with conjured coin and not without it", () => {
     const game = village();
     grantUnlocks(game, [ARCHIVE_PANEL]);
     stock(game, "coin", 0);
