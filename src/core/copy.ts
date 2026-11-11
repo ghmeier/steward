@@ -158,7 +158,6 @@ export const copy = {
     }) => `${progress}  (~${wait})`,
   },
   village: {
-    locked: "Locked.",
     emptyVillage: "The village is empty. Press n to found a new one.",
     grudge: "(grudge)",
     moreAbove: ({ count }: { count: string }) => `↑ ${count} more`,

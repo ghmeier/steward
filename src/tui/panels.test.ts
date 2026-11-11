@@ -97,6 +97,7 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
     illusion: null,
     promotion: { target: 20, promotedAt: 0, promotedAtSeconds: 0 },
     growth: { stored: 0, needed: 25, perSecond: 0, full: false },
+    grainEatenPerSecond: 0,
     lockedPanels: [],
     unlocks: [],
     archive: { open: false, entries: [] },
@@ -290,14 +291,12 @@ describe("createPanels", () => {
           amount: 5,
           conjured: 0,
           ratePerSecond: 1,
-          eatenPerSecond: 0,
         },
         {
           resource: "timber",
           amount: 1234567.8,
           conjured: 0,
           ratePerSecond: -22.5,
-          eatenPerSecond: 0,
         },
       ],
       realm: realmOf({
@@ -331,16 +330,11 @@ describe("createPanels", () => {
   });
 
   test("the ledger shows grain eaten under the grain row only while something is eaten", async () => {
-    const withEaten = (eatenPerSecond: number) =>
+    const withEaten = (grainEatenPerSecond: number) =>
       emptyView({
+        grainEatenPerSecond,
         ledger: [
-          {
-            resource: "grain",
-            amount: 5,
-            conjured: 0,
-            ratePerSecond: -1,
-            eatenPerSecond,
-          },
+          { resource: "grain", amount: 5, conjured: 0, ratePerSecond: -1 },
         ],
       });
 
@@ -363,14 +357,12 @@ describe("createPanels", () => {
             amount: 9,
             conjured: 0,
             ratePerSecond: 0,
-            eatenPerSecond: 0,
           },
           {
             resource: "grain",
             amount: grain,
             conjured: 30,
             ratePerSecond: 1,
-            eatenPerSecond: 0,
           },
         ],
       });
@@ -492,7 +484,6 @@ describe("createPanels", () => {
         amount: 1,
         conjured: 0,
         ratePerSecond: 0,
-        eatenPerSecond: 0,
       })),
       growth: growth({}),
     });
@@ -513,7 +504,6 @@ describe("createPanels", () => {
         amount: 1,
         conjured: 0,
         ratePerSecond: 0,
-        eatenPerSecond: 0,
       })),
       growth: growth({ full: true }),
     });
@@ -533,7 +523,6 @@ describe("createPanels", () => {
             amount,
             conjured: 0,
             ratePerSecond: 1,
-            eatenPerSecond: 0,
           },
         ],
       });

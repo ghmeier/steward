@@ -19,8 +19,6 @@ export type LedgerLine = {
   /** The conjured part of `amount`. */
   conjured: number;
   ratePerSecond: number;
-  /** Grain eaten per second; zero for resources nobody eats. */
-  eatenPerSecond: number;
 };
 export type DeskOptionView = {
   id: string;
@@ -90,6 +88,8 @@ export type GameView = {
   illusion: IllusionView | null;
   promotion: { target: number; promotedAt: number; promotedAtSeconds: number };
   growth: { stored: number; needed: number; perSecond: number; full: boolean };
+  /** Grain the peasants eat each second, whatever the harvest brings in. */
+  grainEatenPerSecond: number;
   lockedPanels: PanelId[];
   unlocks: UnlockId[];
   archive: { open: boolean; entries: ArchiveEntryView[] };
@@ -133,8 +133,6 @@ export class ViewManager {
       amount: this.game.illusion.apparent(resource),
       conjured: this.game.illusion.conjuredOf(resource),
       ratePerSecond: (rates[resource] * 1000) / this.tuning.stepMs,
-      eatenPerSecond:
-        resource === "grain" ? (eatenPerTick * 1000) / this.tuning.stepMs : 0,
     }));
     const { delegates, decrees } = this.posting;
     const labor = this.game.delegates.jobCounts();
@@ -176,6 +174,7 @@ export class ViewManager {
         perSecond: (growthPerTick * 1000) / this.tuning.stepMs,
         full: !this.game.economy.hasRoom,
       },
+      grainEatenPerSecond: (eatenPerTick * 1000) / this.tuning.stepMs,
       lockedPanels: this.lockedPanels(),
       unlocks: this.game.unlocks.purchased,
       archive: {

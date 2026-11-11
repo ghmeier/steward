@@ -44,26 +44,19 @@ describe("view.compute", () => {
     expect(byResource.coin?.ratePerSecond).toBe(0);
   });
 
-  test("the grain line reports what the peasants eat, matching the net rate when nothing is harvested", () => {
+  test("reports the grain eaten per second, matching the net rate when nothing is harvested and zero for an empty village", () => {
     const game = village(oddStepTuning);
     setRoster(game, { forest: 2, idle: 10 });
     game.state.tick = 1;
-
-    const grain = game.view
-      .compute()
-      .ledger.find((l) => l.resource === "grain");
-
-    expect(grain?.eatenPerSecond).toBeCloseTo(12 * 0.01 * 4, 12);
-    expect(grain?.eatenPerSecond).toBeCloseTo(-(grain?.ratePerSecond ?? 0), 12);
-  });
-
-  test("the grain line reports nothing eaten for an empty village, and no other resource reports any", () => {
-    const game = village(oddStepTuning);
+    const { grainEatenPerSecond, ledger } = game.view.compute();
     setRoster(game, {});
 
-    const { ledger } = game.view.compute();
-
-    expect(ledger.every((line) => line.eatenPerSecond === 0)).toBe(true);
+    expect(grainEatenPerSecond).toBeCloseTo(12 * 0.01 * 4, 12);
+    expect(grainEatenPerSecond).toBeCloseTo(
+      -(ledger.find((l) => l.resource === "grain")?.ratePerSecond ?? 0),
+      12,
+    );
+    expect(game.view.compute().grainEatenPerSecond).toBe(0);
   });
 
   test("reports the realm's counts, season, elapsed time, locked panels and promotion", () => {
