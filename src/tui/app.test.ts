@@ -216,13 +216,7 @@ describe("lifecycle", () => {
 
     const screen = await harness.screen();
 
-    for (const title of [
-      "(L)edger",
-      "(P)easants",
-      "(A)rchive",
-      "(C)ourt",
-      "(D)ecrees",
-    ]) {
+    for (const title of ["(L)edger", "(P)easants", "(C)ourt", "(D)ecrees"]) {
       expect(screen).toContain(title);
     }
     expect(barRow(screen)).toContain(copy.notices.startedNewGame);

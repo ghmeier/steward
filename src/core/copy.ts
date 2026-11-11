@@ -117,6 +117,7 @@ export const copy = {
   ledger: {
     time: ({ time }: { time: string }) => `Time  ${time}`,
     conjured: ({ amount }: { amount: string }) => `(${amount} conjured)`,
+    eaten: ({ rate }: { rate: string }) => `(${rate}/s eaten)`,
     books: ({ books }: { books: string }) => `Books: ${books}`,
     peasants: ({ population, idle }: { population: number; idle: number }) =>
       `Peasants ${population} (${idle} idle)`,

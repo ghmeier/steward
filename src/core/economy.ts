@@ -23,6 +23,7 @@ export type EconomyState = {
   starved: number;
 };
 
+export type EconomyRun = { flows: EconomyFlows; eaten: number };
 export type EconomyFlows = Readonly<Record<ResourcePetition, number>>;
 
 const PRICE_KEY = {
@@ -126,7 +127,7 @@ export class EconomyManager {
     }
   }
 
-  run(context: AddContext): EconomyFlows {
+  run(context: AddContext): EconomyRun {
     const settings = this.tuning.economy;
     const resources = this.posting.resources;
     const { economy } = this.posting;
@@ -141,6 +142,7 @@ export class EconomyManager {
 
     const upkeep = this.upkeepOf();
     const grain = resources.grain ?? 0;
+    const eaten = Math.min(grain, upkeep);
     if (grain >= upkeep) {
       add(resources, "grain", -upkeep, context);
       economy.famine = { startPopulation: 0, ticks: 0, deaths: 0 };
@@ -150,9 +152,12 @@ export class EconomyManager {
     }
 
     return {
-      harvest: Math.max(0, produced - upkeep),
-      wood: woodCut,
-      ore: oreDug,
+      flows: {
+        harvest: Math.max(0, produced - upkeep),
+        wood: woodCut,
+        ore: oreDug,
+      },
+      eaten,
     };
   }
 

@@ -225,6 +225,7 @@ const archiveScreen: ScreenBuilder = ({ view }) => ({
 
 export class ArchivePanel extends MenuPanel {
   readonly id = "archive";
+  override readonly hiddenWhileLocked = true;
   protected readonly root = archiveScreen;
 
   protected unfocusedLines({ view }: MenuContext): string[] {
@@ -379,11 +380,16 @@ export class LedgerPanel extends VillagePanel {
     return rows.flatMap(([name = "", amount = "", rate = ""], index) => {
       const gutter = focused ? (index === this.selected ? "> " : "  ") : "";
       const conjured = view.ledger[index]?.conjured ?? 0;
+      const eaten = view.ledger[index]?.eatenPerSecond ?? 0;
+      const indent = `${" ".repeat(gutter.length)}  `;
       return [
         `${gutter}${name.padEnd(widths[0] ?? 0)} ${amount.padStart(widths[1] ?? 0)} ${rate.padStart(widths[2] ?? 0)}`,
+        ...(eaten > 0
+          ? [`${indent}${copy.ledger.eaten({ rate: formatAmount(eaten) })}`]
+          : []),
         ...(conjured > 0
           ? [
-              `${" ".repeat(gutter.length)}  ${copy.ledger.conjured({ amount: formatAmount(conjured) })}`,
+              `${indent}${copy.ledger.conjured({ amount: formatAmount(conjured) })}`,
             ]
           : []),
       ];

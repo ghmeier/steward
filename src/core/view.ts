@@ -19,6 +19,8 @@ export type LedgerLine = {
   /** The conjured part of `amount`. */
   conjured: number;
   ratePerSecond: number;
+  /** Grain eaten per second; zero for resources nobody eats. */
+  eatenPerSecond: number;
 };
 export type DeskOptionView = {
   id: string;
@@ -125,12 +127,14 @@ export class ViewManager {
   // The UI reads only this view, never GameState, so what the player is shown can
   // differ from the underlying truth without touching any renderer.
   compute(): GameView {
-    const { rates, growthPerTick } = this.game.projection.flows();
+    const { rates, growthPerTick, eatenPerTick } = this.game.projection.flows();
     const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
       resource,
       amount: this.game.illusion.apparent(resource),
       conjured: this.game.illusion.conjuredOf(resource),
       ratePerSecond: (rates[resource] * 1000) / this.tuning.stepMs,
+      eatenPerSecond:
+        resource === "grain" ? (eatenPerTick * 1000) / this.tuning.stepMs : 0,
     }));
     const { delegates, decrees } = this.posting;
     const labor = this.game.delegates.jobCounts();
