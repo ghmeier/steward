@@ -636,7 +636,7 @@ describe("createPanels", () => {
     test("an open demand shows its whole herald, progress, time left, tally and the deliver hint", async () => {
       const frame = await draw(
         [crownView({ demand, nextDemandTicks: null, met: 3, missed: 1 })],
-        { focus: "crown", size: { width: 240, height: 30 } },
+        { focus: "crown", size: { width: 160, height: 30 } },
       );
 
       expect(frame).toContain(demand.herald);
@@ -660,7 +660,7 @@ describe("createPanels", () => {
       const nextDemandTicks = 120 * (1000 / tuning.stepMs);
       const frame = await draw(
         [crownView({ demand: null, nextDemandTicks, met: 0, missed: 0 })],
-        { size: { width: 240, height: 30 } },
+        { size: { width: 160, height: 30 } },
       );
 
       const wait = formatTicksRoughly(nextDemandTicks, tuning.stepMs);
@@ -717,7 +717,7 @@ describe("createPanels", () => {
   ])("the ledger %s", async (_name, promotion, population, has, lacks) => {
     const view = emptyView({ promotion, realm: realmOf({ population }) });
 
-    const frame = await draw([view], { size: { width: 240, height: 30 } });
+    const frame = await draw([view], { size: { width: 160, height: 30 } });
 
     for (const shown of has) expect(frame).toContain(shown);
     for (const gone of lacks) expect(frame).not.toContain(gone);

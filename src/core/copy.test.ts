@@ -7,14 +7,6 @@ const NON_STRING_ARGUMENTS: Record<string, unknown> = {
   deaths: 3,
   entryId: 7,
   moves: 2,
-  population: 12,
-  idle: 5,
-  target: 20,
-  farm: 4,
-  forest: 2,
-  mine: 1,
-  met: 3,
-  missed: 1,
 };
 
 const SAMPLE_ARGUMENTS = new Proxy(NON_STRING_ARGUMENTS, {
