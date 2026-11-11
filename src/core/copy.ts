@@ -80,6 +80,21 @@ export const copy = {
     }) => `One season left to deliver ${amount} ${resource} to the crown.`,
     auditorsOnTheRoad: ({ wait }: { wait: string }) =>
       `Auditors are on the road and due in about ${wait}. Repay what you can before they count it.`,
+    startedNewGame: "Started a new game.",
+    unsupportedSave: ({
+      version,
+      preservedAs,
+    }: {
+      version: string;
+      preservedAs: string;
+    }) =>
+      `Save version ${version} is not supported; it was kept as ${preservedAs}. Started a new game.`,
+    repealedStale: ({ decrees }: { decrees: string }) =>
+      `Repealed ${decrees}: their policies no longer exist.`,
+    saved: "Saved.",
+    saveFailed: ({ error }: { error: string }) => `Save failed: ${error}`,
+    newVillageFounded: "A new village is founded.",
+    promoted: "The crown has noticed you. You are promoted to steward.",
     // Names beyond the first two are folded into a count so the line stays short in the footer.
     starved: ({
       names,
@@ -99,10 +114,106 @@ export const copy = {
       return `${listed.join(", ")} and ${others} ${plural(others, "other", "others")} starved.`;
     },
   },
-  ledger: {},
-  village: {},
-  court: {},
-  menus: {},
+  ledger: {
+    time: ({ time }: { time: string }) => `Time  ${time}`,
+    conjured: ({ amount }: { amount: string }) => `(${amount} conjured)`,
+    books: ({ books }: { books: string }) => `Books: ${books}`,
+    peasants: ({ population, idle }: { population: number; idle: number }) =>
+      `Peasants ${population} (${idle} idle)`,
+    labor: ({
+      farm,
+      forest,
+      mine,
+    }: {
+      farm: number;
+      forest: number;
+      mine: number;
+    }) => `Farm ${farm} Forest ${forest} Mine ${mine}`,
+    season: ({ season }: { season: string }) => `Season ${season}`,
+    promotionLabel: "Promotion",
+    promotionProgress: ({
+      population,
+      target,
+    }: {
+      population: number;
+      target: number;
+    }) => `${population} / ${target} peasants`,
+    promotedOn: ({ time }: { time: string }) =>
+      `Promoted to steward on ${time}`,
+    nextPeasantLabel: "Next peasant",
+    nextPeasantProgress: ({
+      stored,
+      needed,
+    }: {
+      stored: string;
+      needed: string;
+    }) => `${stored} / ${needed} grain`,
+    nextPeasantEstimate: ({
+      progress,
+      wait,
+    }: {
+      progress: string;
+      wait: string;
+    }) => `${progress}  (~${wait})`,
+  },
+  village: {
+    locked: "Locked.",
+    emptyVillage: "The village is empty. Press n to found a new one.",
+    grudge: "(grudge)",
+    moreAbove: ({ count }: { count: string }) => `↑ ${count} more`,
+    moreBelow: ({ count }: { count: string }) => `↓ ${count} more`,
+    noPeasantSelected: "No peasant is selected.",
+    archiveTitle: "The Archive",
+    archiveOwned: "owned",
+    archiveCost: ({ cost }: { cost: string }) => `${cost} coin`,
+    noDecreeInForce: ({ petition }: { petition: string }) =>
+      `No ${petition} decree is in force.`,
+    crownProgress: ({
+      resource,
+      delivered,
+      amount,
+    }: {
+      resource: string;
+      delivered: string;
+      amount: string;
+    }) => `${resource} ${delivered} / ${amount}`,
+    crownDueIn: ({ wait }: { wait: string }) => `due in ${wait}`,
+    crownQuiet: ({ wait }: { wait: string }) =>
+      `The crown is quiet. Next demand in about ${wait}.`,
+    crownTally: ({ met, missed }: { met: number; missed: number }) =>
+      `Met ${met} \u00b7 missed ${missed}`,
+  },
+  court: {
+    deskClear: "The desk is clear.",
+    deskTitle: "The desk",
+    nothingWaits: "Nothing waits on the desk.",
+    noLongerOnDesk: "This matter is no longer on the desk.",
+    decideTitle: "Decide",
+    dueIn: ({ wait, label }: { wait: string; label: string }) =>
+      `(due in ${wait}) ${label}`,
+    free: "free",
+    sulks: ({ sulker }: { sulker: string }) =>
+      `(${sulker} will sulk for a season)`,
+    defaultIfIgnored: "(the default if ignored)",
+  },
+  menus: {
+    listHintsBack: "up/down select · enter choose · esc back",
+    listHintsClose: "up/down select · enter choose · esc close",
+    numberHints: "0-9 . type · backspace erase · enter accept · esc back",
+    unavailable: ({ label }: { label: string }) => `${label} (unavailable)`,
+    newVillageTitle: "Found a new village?",
+    newVillageAbandons:
+      "The current village will be abandoned and the save overwritten.",
+    newVillageLosesPurchases:
+      "Anything bought in the Archive and every saved decree is lost too.",
+    newVillageKeepsBackup: "The previous save stays as the backup file.",
+    keepVillage: "No, keep this village",
+    foundVillage: "Yes, found a new village",
+    cannotReadSave: ({ error, path }: { error: string; path: string }) =>
+      `Steward cannot read its save: ${error}\nThe save at ${path} was left untouched. Fix or move it, then start again.`,
+    couldNotSave: ({ error }: { error: string }) =>
+      `Could not save the game: ${error}`,
+  },
   help: {
     title: "Help",
     scrollHints: "j/k scroll · space page · esc close",
@@ -509,5 +620,25 @@ export const copy = {
       wood: "the forest's output",
     },
   },
-  decrees: {},
+  decrees: {
+    none: "none",
+    allOf: ({ conditions }: { conditions: string }) => `all of (${conditions})`,
+    anyOf: ({ conditions }: { conditions: string }) => `any of (${conditions})`,
+    harvestPolicies: {
+      feed: "the surplus grows the village",
+      sell: "the surplus is sold for coin",
+      stockpile: "the surplus is stored",
+    },
+    storePolicies: {
+      sell: ({ resource }: { resource: string }) =>
+        `the ${resource} is sold for coin`,
+      stockpile: ({ resource }: { resource: string }) =>
+        `the ${resource} is stored`,
+    },
+    everyone: {
+      farm: "everyone farms",
+      forest: "everyone works the forest",
+      mine: "everyone mines",
+    },
+  },
 } as const;

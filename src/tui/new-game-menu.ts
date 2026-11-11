@@ -1,20 +1,21 @@
+import { copy } from "../core/copy";
 import type { ScreenBuilder } from "./menu";
 
 export const newGameMenu: ScreenBuilder = ({ view }) => ({
   kind: "list",
-  title: "Found a new village?",
+  title: copy.menus.newVillageTitle,
   notes: [
-    "The current village will be abandoned and the save overwritten.",
+    copy.menus.newVillageAbandons,
     ...(view.unlocks.length > 0 || view.savedDecrees.length > 0
-      ? ["Anything bought in the Archive and every saved decree is lost too."]
+      ? [copy.menus.newVillageLosesPurchases]
       : []),
-    "The previous save stays as the backup file.",
+    copy.menus.newVillageKeepsBackup,
     "",
   ],
   items: [
-    { label: "No, keep this village", action: { kind: "close" } },
+    { label: copy.menus.keepVillage, action: { kind: "close" } },
     {
-      label: "Yes, found a new village",
+      label: copy.menus.foundVillage,
       action: { kind: "app", request: "newGame" },
     },
   ],

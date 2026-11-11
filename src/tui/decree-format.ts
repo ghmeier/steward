@@ -1,12 +1,6 @@
-import type {
-  Condition,
-  Decree,
-  DecreeRule,
-  HARVEST_POLICIES,
-  Petition,
-  STORE_POLICIES,
-} from "../core/decree";
-import { WORKING_JOBS, type WorkingJob } from "../core/realm";
+import { copy } from "../core/copy";
+import type { Condition, Decree, DecreeRule, Petition } from "../core/decree";
+import { WORKING_JOBS } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 
 export function words(identifier: string): string {
@@ -22,9 +16,13 @@ export function formatCondition(condition: Condition): string {
     case "chose":
       return `${condition.decree} chose ${condition.policy}`;
     case "all":
-      return `all of (${condition.conditions.map(formatCondition).join(", ")})`;
+      return copy.decrees.allOf({
+        conditions: condition.conditions.map(formatCondition).join(", "),
+      });
     case "any":
-      return `any of (${condition.conditions.map(formatCondition).join(", ")})`;
+      return copy.decrees.anyOf({
+        conditions: condition.conditions.map(formatCondition).join(", "),
+      });
     case "not":
       return `not (${formatCondition(condition.condition)})`;
   }
@@ -48,50 +46,31 @@ export function percent(share: number): string {
   return `${plain(share * 100)}%`;
 }
 
-const HARVEST_DESCRIPTIONS: Readonly<
-  Record<(typeof HARVEST_POLICIES)[number], string>
-> = {
-  feed: "the surplus grows the village",
-  sell: "the surplus is sold for coin",
-  stockpile: "the surplus is stored",
-};
-
-const STORE_DESCRIPTIONS: Readonly<
-  Record<(typeof STORE_POLICIES)[number], (resource: string) => string>
-> = {
-  sell: (resource) => `the ${resource} is sold for coin`,
-  stockpile: (resource) => `the ${resource} is stored`,
-};
-
-const EVERYONE: Readonly<Record<WorkingJob, string>> = {
-  farm: "everyone farms",
-  forest: "everyone works the forest",
-  mine: "everyone mines",
-};
-
 export function describePolicy(
   petition: Petition,
   policy: string,
   tuning: Tuning,
 ): string {
   if (petition === "harvest") {
-    const text = (HARVEST_DESCRIPTIONS as Readonly<Record<string, string>>)[
-      policy
-    ];
+    const text = (
+      copy.decrees.harvestPolicies as Readonly<Record<string, string>>
+    )[policy];
     return text === undefined ? policy : `${policy}: ${text}`;
   }
   if (petition === "wood" || petition === "ore") {
     const describe = (
-      STORE_DESCRIPTIONS as Readonly<
-        Record<string, (resource: string) => string>
+      copy.decrees.storePolicies as Readonly<
+        Record<string, (args: { resource: string }) => string>
       >
     )[policy];
-    return describe === undefined ? policy : `${policy}: ${describe(petition)}`;
+    return describe === undefined
+      ? policy
+      : `${policy}: ${describe({ resource: petition })}`;
   }
   const shares = tuning.economy.laborAllocations[policy];
   if (shares === undefined) return policy;
   const sole = WORKING_JOBS.find((job) => shares[job] === 1);
-  if (sole !== undefined) return `${policy}: ${EVERYONE[sole]}`;
+  if (sole !== undefined) return `${policy}: ${copy.decrees.everyone[sole]}`;
   const split = WORKING_JOBS.map((job) => `${job} ${percent(shares[job])}`);
   return `${policy}: ${split.join(", ")}`;
 }

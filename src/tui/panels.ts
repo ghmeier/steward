@@ -25,7 +25,6 @@ export type Panels = {
   readonly lineSuggestionBudget: number;
 };
 
-const LOCKED_BODY = "Locked.";
 export const BAR_LINES = 1;
 const BORDER_COLOR = "#6b7280";
 const FOCUS_COLOR = "#f5c542";
@@ -278,7 +277,7 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
       if (!slot.box.visible) continue;
       const focused = focus === panel.id;
       const size = slot.draw((fit) =>
-        locked ? LOCKED_BODY : panel.body(context, fit, focused),
+        locked ? copy.village.locked : panel.body(context, fit, focused),
       );
       slot.box.borderStyle = focused ? "double" : "single";
       slot.box.borderColor = focused ? FOCUS_COLOR : BORDER_COLOR;
