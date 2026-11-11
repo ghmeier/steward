@@ -4,8 +4,8 @@ status: active
 tags: [phase-8]
 created: 2026-11-11
 updated: 2026-11-11
-last_pr: 23
-next_step: 3a debt-and-precision and 3b labor-shares in progress from crown-favor; Garret merges #21; then 3c governors-tui
+last_pr: 24
+next_step: Garret reviews #21 (with governors), #23 labor shares and #24 debt and precision; 3c governors-tui in progress from debt-and-precision
 ---
 # Phase 8: governors, crown favor and Archive precision
 
@@ -171,3 +171,4 @@ Carried from phases 6 and 7:
 - PR 3 is split: 3a `debt-and-precision` and 3b `labor-shares` run in parallel from `crown-favor`; 3c `governors-tui` (Peasants panel governor rows, candidate rendering polish, departure notices, Governors help topic) follows 3a because both touch the governor view.
 - 2026-11-11: 3b `labor-shares` built at 2881c03 (1100 pass, no schema bump: a policy containing a space is a split). `chose` conditions accept presets only. 3a `debt-and-precision` built at a53687c (1081 pass, no schema bump): rough debt line, `back` reports what it repaid through a new ok `message` on `CommandResult`, repay advice on the focused Ledger row, Exact books 350 and True reports 600, and an untimed audit notice without exact books. Buying either entry is unit-tested only. Both in refactor passes.
 - 2026-11-11: 3b labor-shares open as #23 against `crown-favor` at 3f6aa3c, 1100 pass, strategies unchanged.
+- 2026-11-11: 3a debt-and-precision open as #24 against `crown-favor` at 0d2db8e, 1080 pass; a follow-up restores thousands separators on exact debt. 3c governors-tui dispatched from `debt-and-precision`.
