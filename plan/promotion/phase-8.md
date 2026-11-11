@@ -154,7 +154,7 @@ Carried from phases 6 and 7:
 
 - PR 0 `archive-hidden-and-food-eaten`: #20 open at 4e68a1c, `bun run check` 999 pass.
 - PR 1 `crown-favor`: f77e4c1, `bun run check` 1013 pass, strict gate holds on seeds 1, 7, 42 (crown-aware favor 27 with one miss, borrower 49, conjurer cold). #21 at 30cdc8f with the grain reserve, 1016 pass.
-- PR 2 `governors-core`: c3a55d8 stacked on `crown-favor`, 1057 pass; governor strategy reaches population 63, 63, 71 against crown-aware 40. #22 open against `crown-favor` at 655a815, 1055 pass; dead `career.formerStaff` removed (golden changed only for that field).
+- PR 2 `governors-core`: c3a55d8 stacked on `crown-favor`, 1057 pass; governor strategy reaches population 63, 63, 71 against crown-aware 40. #22 open against `crown-favor` at 305b154 (rebased onto the grain reserve), 1059 pass, governor strategy population 57, 68, 60 against 40 with no starvation; dead `career.formerStaff` removed (golden changed only for that field).
 
 ## Notes and decisions
 
