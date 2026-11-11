@@ -590,22 +590,23 @@ function parseBuyVerb(cursor: Cursor, context: MenuContext): Command {
   if (offered.length === 0) cursor.fail(copy.commandLine.nothingToBuyYet);
   const id = cursor.expect(
     copy.commandLine.expected.archiveEntryToBuy,
-    offered.map((entry) => ({
-      text: slugOf(entry.id),
-      description: entry.affordable
-        ? copy.commandLine.archiveEntryHelp({
-            label: entry.label,
-            cost: String(entry.cost),
-            description: entry.description,
-          })
-        : copy.commandLine.archiveEntryShortHelp({
-            label: entry.label,
-            cost: String(entry.cost),
-            description: entry.description,
-            shortfall: String(Math.ceil(entry.cost - coin)),
-          }),
-      value: entry.id,
-    })),
+    offered.map((entry) => {
+      const help = {
+        label: entry.label,
+        cost: String(entry.cost),
+        description: entry.description,
+      };
+      return {
+        text: slugOf(entry.id),
+        description: entry.affordable
+          ? copy.commandLine.archiveEntryHelp(help)
+          : copy.commandLine.archiveEntryShortHelp({
+              ...help,
+              shortfall: String(Math.ceil(entry.cost - coin)),
+            }),
+        value: entry.id,
+      };
+    }),
     {
       final: true,
       unmatched: (word) => {

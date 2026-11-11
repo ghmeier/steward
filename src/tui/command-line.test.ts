@@ -82,8 +82,7 @@ const onlyDependent: Tuning = {
 };
 
 const ok = (command: object) => ({ command });
-// A bare `bad()` only requires that some problem is reported.
-const bad = (problem: string | true = true) => ({ problem });
+const bad = (problem: string) => ({ problem });
 const line = copy.commandLine;
 const expected = line.expected;
 const label = (id: string) => entry(id).label;
@@ -102,7 +101,7 @@ const savedHarvest = {
   otherwise: "stockpile",
 };
 
-type Outcome = { command?: object; problem?: string | true };
+type Outcome = { command?: object; problem?: string };
 // biome-ignore format: one row per line keeps the table scannable
 const parseRows: [string, Setup, Outcome | null][] = [
 	["decree harvest otherwise sell", {}, enact({ id: "harvest", rules: [] })],
@@ -170,8 +169,7 @@ describe("parseLine", () => {
     else expect(result.command).toMatchObject(outcome.command);
     if (outcome?.problem === undefined) expect(result.problem).toBeNull();
     else {
-      if (outcome.problem === true) expect(result.problem).not.toBeNull();
-      else expect(result.problem).toBe(outcome.problem);
+      expect(result.problem).toBe(outcome.problem);
       expect(result.problem).not.toMatch(/\w\[\d+\]/);
       expect(result.suggestions).toEqual([]);
     }
