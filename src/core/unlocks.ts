@@ -1,7 +1,7 @@
 import { compareKeys, sortedKeys } from "./data";
 import { type Condition, type Decree, OWED_RESOURCES } from "./decree";
 import type { Game } from "./game";
-import { type AddContext, add } from "./math";
+import type { AddContext } from "./math";
 
 export type UnlockId = string;
 export type ArchiveEntry = {
@@ -25,6 +25,7 @@ export const CROWN_PANEL: UnlockId = "panel.crown";
 export const COMPOUND_UNLOCK: UnlockId = "decree.compound";
 export const CHAINING_UNLOCK: UnlockId = "decree.chaining";
 export const CROWN_CORRESPONDENCE: UnlockId = "decree.crownCorrespondence";
+export const CONJURING: UnlockId = "control.conjuring";
 export const PALETTE_UNLOCK: UnlockId = "control.palette";
 export const SAVED_DECREES_UNLOCK: UnlockId = "control.savedDecrees";
 
@@ -82,11 +83,10 @@ export class UnlockManager {
         throw new Error(`${entry.label} needs ${label} first`);
       }
     }
-    const coin = this.game.state.posting.resources.coin ?? 0;
-    if (coin < entry.cost) {
+    if (this.game.illusion.apparent("coin") < entry.cost) {
       throw new Error(`you do not have enough coin to purchase ${entry.label}`);
     }
-    add(this.game.state.posting.resources, "coin", -entry.cost, context);
+    this.game.illusion.spend("coin", entry.cost, context);
     this.game.state.career.unlocks[id] = this.game.state.tick;
   }
 

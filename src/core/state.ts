@@ -3,10 +3,11 @@ import type { Decree } from "./decree";
 import type { Delegate } from "./delegates";
 import type { DeskState } from "./desk";
 import type { EconomyState } from "./economy";
+import type { IllusionState } from "./illusion";
 import type { LaborState } from "./labor";
 import type { RngState } from "./rng";
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 export type ResourceId = string;
 
@@ -33,6 +34,7 @@ export type PostingState = {
   labor: LaborState;
   desk: DeskState;
   crown: CrownState;
+  illusion: IllusionState;
 };
 
 export type GameState = {

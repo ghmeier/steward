@@ -4,6 +4,7 @@ import { type AddContext, add } from "./math";
 import { RESOURCES, type Resource } from "./realm";
 import { drawDelay, intBelow, type RngState } from "./rng";
 import type { ResourceId } from "./state";
+import { CONJURING } from "./unlocks";
 
 export type Demand = {
   id: number;
@@ -96,7 +97,7 @@ export class CrownManager {
   }
 
   private get held(): number {
-    return this.resources[this.crown.demand.resource] ?? 0;
+    return this.game.illusion.apparent(this.crown.demand.resource);
   }
 
   private drawResource(): Resource {
@@ -122,6 +123,8 @@ export class CrownManager {
     };
     crown.surcharge = 0;
     crown.lastResource = resource;
+    const { unlocks } = this.game.state.career;
+    if (!this.game.unlocks.enabled(CONJURING)) unlocks[CONJURING] = this.tick;
   }
 
   private close(): void {
@@ -135,10 +138,10 @@ export class CrownManager {
     this.close();
   }
 
-  /** Removes as much of what is owed as the store holds and returns the amount removed. */
+  /** Removes as much of what is owed as the store appears to hold and returns the amount removed. */
   private take(context: AddContext): number {
     const taken = Math.min(this.owed, this.held);
-    add(this.resources, this.crown.demand.resource, -taken, context);
+    this.game.illusion.spend(this.crown.demand.resource, taken, context);
     return taken;
   }
 
@@ -158,18 +161,25 @@ export class CrownManager {
   deliver(context: AddContext): CommandResult {
     if (!this.isOpen)
       return { ok: false, reason: "the crown has made no demand" };
-    const { demand } = this.crown;
     if (this.held <= 0) {
-      return { ok: false, reason: `the village holds no ${demand.resource}` };
+      return {
+        ok: false,
+        reason: `the village holds no ${this.crown.demand.resource}`,
+      };
     }
-    const owed = this.owed;
-    const paid = this.take(context);
+    this.credit(this.take(context), context);
+    return { ok: true };
+  }
+
+  /** Counts a payment, real or forged, toward the open demand; paying it off in full earns the reward. */
+  credit(paid: number, context: AddContext): void {
+    const { demand } = this.crown;
+    const completes = paid >= this.owed;
     demand.delivered += paid;
-    if (paid >= owed) {
+    if (completes) {
       add(this.resources, "coin", this.tuning.reward * demand.amount, context);
       this.meet();
     }
-    return { ok: true };
   }
 
   /** A demand is issued or resolved in a step, never both, so a deadline is always at least a step away. */

@@ -11,10 +11,11 @@ import { join } from "node:path";
 import { contextFor, setRoster } from "../../test/helpers";
 import { emptyCrownState } from "../core/crown";
 import { Game } from "../core/game";
+import { emptyIllusionState } from "../core/illusion";
 import { NO_LABOR_POLICY } from "../core/labor";
 import { seedStream } from "../core/rng";
 import { type GameState, SCHEMA_VERSION } from "../core/state";
-import { CROWN_PANEL } from "../core/unlocks";
+import { CONJURING, CROWN_PANEL } from "../core/unlocks";
 import { loadTuning } from "./content";
 import {
   loadGame,
@@ -271,6 +272,56 @@ describe("version 10 upgrade", () => {
       "dispute",
       "dispute",
     ]);
+  });
+});
+
+describe("version 11 upgrade", () => {
+  function version11Save(crown: Partial<GameState["posting"]["crown"]>) {
+    const game = Game.create(42, loadTuning());
+    game.state.tick = 5000;
+    game.state.posting.crown = { ...emptyCrownState(), ...crown };
+    const { illusion: _, ...posting } = structuredClone(game.state.posting);
+    return {
+      ...structuredClone(game.state),
+      schemaVersion: 11,
+      posting,
+    };
+  }
+
+  const openDemand = {
+    id: 1,
+    resource: "grain",
+    amount: 300,
+    delivered: 0,
+    issuedAt: 4000,
+    dueAt: 5800,
+  };
+
+  test("a save with an open demand gets an empty illusion state and the conjuring unlock", () => {
+    writeSave(11, version11Save({ demand: openDemand }));
+
+    const state = loaded(dir);
+
+    expect(state.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(state.posting.illusion).toEqual(emptyIllusionState());
+    expect(Object.hasOwn(state.career.unlocks, CONJURING)).toBe(true);
+  });
+
+  test("a save whose demands have all been settled also gets the unlock", () => {
+    writeSave(11, version11Save({ met: 1, missed: 1 }));
+
+    const state = loaded(dir);
+
+    expect(Object.hasOwn(state.career.unlocks, CONJURING)).toBe(true);
+  });
+
+  test("a save from before the crown's first demand gets the empty state without the unlock", () => {
+    writeSave(11, version11Save({}));
+
+    const state = loaded(dir);
+
+    expect(state.posting.illusion).toEqual(emptyIllusionState());
+    expect(Object.hasOwn(state.career.unlocks, CONJURING)).toBe(false);
   });
 });
 

@@ -64,6 +64,7 @@ describe("stateHash", () => {
         resources: state.posting.resources,
         desk: state.posting.desk,
         crown: state.posting.crown,
+        illusion: state.posting.illusion,
         rng: state.posting.rng,
         seed: state.posting.seed,
         postingId: state.posting.postingId,

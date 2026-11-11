@@ -49,6 +49,31 @@ describe("runSim argument errors", () => {
   });
 });
 
+describe("runSim illusion commands", () => {
+  const commands = [
+    { type: "conjure", resource: "coin", amount: 5 },
+    { type: "forge" },
+    { type: "back", resource: "grain" },
+  ];
+
+  test("conjure, forge and back parse, and are rejected with a reason before the unlock", () => {
+    const path = join(mkdtempSync(join(tmpdir(), "steward-sim-")), "log.json");
+    writeFileSync(
+      path,
+      JSON.stringify(commands.map((command) => ({ tick: 1, command }))),
+    );
+
+    const { code, stdout } = run([...base, "--commands", path]);
+    const summary = JSON.parse(stdout.at(-1) as string);
+
+    expect(code).toBe(0);
+    expect(
+      summary.rejectedCommands.map((c: { type: string }) => c.type),
+    ).toEqual(["conjure", "forge", "back"]);
+    expect(summary.illusion).toEqual({ conjured: 0, debt: 0, peakDebt: 0 });
+  });
+});
+
 describe("runSim --grant", () => {
   test("writing the unlock at tick 0 changes the final state", () => {
     const plain = run(base);

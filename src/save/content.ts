@@ -14,6 +14,7 @@ export function loadTuning(dataDir: string = DEFAULT_DATA_DIR): Tuning {
     desk: read("desk.json"),
     archive: read("archive.json"),
     crown: read("crown.json"),
+    illusion: read("illusion.json"),
   });
 }
 

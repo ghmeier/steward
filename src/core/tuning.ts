@@ -240,6 +240,28 @@ const crown = z.strictObject({
   lines: z.record(z.enum(RESOURCES), crownLines),
 });
 
+const illusion = z
+  .strictObject({
+    lot: positive,
+    ceilingPerPeasant: positive,
+    fadePerTick: z.number().min(0).max(1).transform(normalizeZero),
+    interestPerTick: nonNegative,
+    audit: z.strictObject({
+      debtShare: positive,
+      ageTicks: positiveInteger,
+      warningTicks: positiveInteger,
+      deadlineTicks: positiveInteger,
+      deepenCost: nonNegative,
+      deepenGrowth: z.number().min(1),
+    }),
+    books: z.strictObject({ strained: positive, rotten: positive }),
+  })
+  .superRefine((value, ctx) => {
+    if (value.books.strained >= value.books.rotten) {
+      addIssue(ctx, "must be below rotten", ["books", "strained"]);
+    }
+  });
+
 const simpleCondition: z.ZodType<Condition> = conditionSchema({
   maxRules: 1,
   maxConditionNodes: 8,
@@ -335,6 +357,7 @@ const tuningSchema = z
     desk,
     archive,
     crown,
+    illusion,
   })
   .superRefine((tuning, ctx) => {
     const max = tuning.economy.maxPopulation;
@@ -358,7 +381,7 @@ export type VillageTuning = z.infer<typeof village>;
 export type DeskTuning = z.infer<typeof desk>;
 export type DeskTemplate = z.infer<ReturnType<typeof deskTemplate>>;
 
-/** Takes the merged contents of tuning.json, village.json, desk.json, archive.json and crown.json. */
+/** Takes the merged contents of tuning.json, village.json, desk.json, archive.json, crown.json and illusion.json. */
 export function parseTuning(value: unknown): Tuning {
   return parseWith(tuningSchema, value, "tuning");
 }

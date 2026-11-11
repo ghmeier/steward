@@ -71,6 +71,7 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
     desk: [],
     governors: [],
     crown: null,
+    illusion: null,
     promotion: { target: 20, promotedAt: 0, promotedAtSeconds: 0 },
     growth: { stored: 0, needed: 25, perSecond: 0, full: false },
     lockedPanels: [],
@@ -86,6 +87,7 @@ const dispute = {
   kind: "dispute" as const,
   label: "A squabble",
   parties: ["Ada", "Bram"] as [string, string],
+  ticksLeft: null,
   options: [],
 };
 const growth = (changes: Partial<GameView["growth"]>) => ({
@@ -228,8 +230,13 @@ describe("createPanels", () => {
     const view = emptyView({
       elapsedSeconds: 185,
       ledger: [
-        { resource: "grain", amount: 5, ratePerSecond: 1 },
-        { resource: "timber", amount: 1234567.8, ratePerSecond: -22.5 },
+        { resource: "grain", amount: 5, conjured: 0, ratePerSecond: 1 },
+        {
+          resource: "timber",
+          amount: 1234567.8,
+          conjured: 0,
+          ratePerSecond: -22.5,
+        },
       ],
       realm: realmOf({
         population: 12,
@@ -291,6 +298,7 @@ describe("createPanels", () => {
       ledger: RESOURCES.map((resource) => ({
         resource,
         amount: 1,
+        conjured: 0,
         ratePerSecond: 0,
       })),
       growth: growth({}),
@@ -309,6 +317,7 @@ describe("createPanels", () => {
       ledger: RESOURCES.map((resource) => ({
         resource,
         amount: 1,
+        conjured: 0,
         ratePerSecond: 0,
       })),
       growth: growth({ full: true }),
@@ -322,7 +331,9 @@ describe("createPanels", () => {
 
   test("an update replaces the values of the last view", async () => {
     const grain = (amount: number) =>
-      emptyView({ ledger: [{ resource: "grain", amount, ratePerSecond: 1 }] });
+      emptyView({
+        ledger: [{ resource: "grain", amount, conjured: 0, ratePerSecond: 1 }],
+      });
 
     const frame = await draw([grain(111), grain(222_222)]);
 
@@ -372,6 +383,7 @@ describe("createPanels", () => {
       kind: "merchant" as const,
       label: "A smith wants ore",
       parties: null,
+      ticksLeft: null,
       options: [],
     };
     const view = emptyView({ desk: [merchant] });

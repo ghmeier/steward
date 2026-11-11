@@ -115,6 +115,24 @@ const crown = z.strictObject({
   lastResource: z.string(),
 });
 
+const nonNegativeNumber = z.number().min(0);
+
+const illusion = z.strictObject({
+  conjured: z.strictObject({
+    coin: nonNegativeNumber,
+    grain: nonNegativeNumber,
+  }),
+  debt: z.strictObject({
+    coin: nonNegativeNumber,
+    grain: nonNegativeNumber,
+    ore: nonNegativeNumber,
+    wood: nonNegativeNumber,
+  }),
+  debtSince: count,
+  auditAt: count,
+  audits: z.strictObject({ backed: count, deepened: count, failed: count }),
+});
+
 function ascendingIdIssues<List extends string, Next extends string>(
   ctx: z.RefinementCtx,
   parent: Record<List, readonly { id: number }[]> & Record<Next, number>,
@@ -209,6 +227,13 @@ function tickBoundIssues(state: GameState, ctx: z.RefinementCtx): void {
       "issuedAt",
     ]);
   }
+  if (state.posting.illusion.debtSince > state.tick) {
+    addIssue(ctx, "must be no later than the tick", [
+      "posting",
+      "illusion",
+      "debtSince",
+    ]);
+  }
   for (const [index, { arrivedAt }] of state.posting.desk.disputes.entries()) {
     if (arrivedAt > state.tick) {
       addIssue(ctx, "must be no later than the tick", [
@@ -253,6 +278,7 @@ const posting: z.ZodType<PostingState> = z
     labor: z.strictObject({ policy: z.string(), settling: z.boolean() }),
     desk,
     crown,
+    illusion,
   })
   .superRefine(rosterIssues);
 

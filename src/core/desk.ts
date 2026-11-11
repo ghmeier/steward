@@ -112,7 +112,7 @@ export class DeskManager {
     const resources = option.resources ?? {};
     for (const resource of sortedKeys(resources)) {
       const delta = resources[resource as Resource] ?? 0;
-      const held = this.posting.resources[resource] ?? 0;
+      const held = this.game.illusion.apparent(resource);
       if (held + delta < 0) {
         return `not enough ${resource} (need ${show(-delta)}, have ${show(held)})`;
       }
@@ -132,9 +132,13 @@ export class DeskManager {
     for (const resource of sortedKeys(resources)) {
       let delta = resources[resource as Resource] ?? 0;
       if (clampLosses) {
-        delta = Math.max(delta, -(this.posting.resources[resource] ?? 0));
+        delta = Math.max(delta, -this.game.illusion.apparent(resource));
       }
-      add(this.posting.resources, resource, delta, context);
+      if (delta < 0) {
+        this.game.illusion.spend(resource, -delta, context);
+      } else {
+        add(this.posting.resources, resource, delta, context);
+      }
     }
   }
 
