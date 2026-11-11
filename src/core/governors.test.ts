@@ -265,6 +265,7 @@ describe("reported output", () => {
       traits: ["braggart"],
       reportedPerSecond:
         (10 * 1.4 * tuning.economy.orePerWorker * 1000) / tuning.stepMs,
+      truth: null,
     });
   });
 });

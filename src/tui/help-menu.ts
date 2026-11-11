@@ -1,5 +1,6 @@
 import { copy } from "../core/copy";
 import { policiesFor } from "../core/decree";
+import { ROUGH_DEBT_STEP } from "../core/illusion";
 import { Job, type Resource, SEASONS } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 import {
@@ -7,7 +8,9 @@ import {
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
   CROWN_CORRESPONDENCE,
+  EXACT_DEBT,
   SAVED_DECREES_UNLOCK,
+  TRUE_REPORTS,
 } from "../core/unlocks";
 import { describePolicy, percent, plain } from "./decree-format";
 import { capitalize } from "./format";
@@ -274,7 +277,33 @@ function crownLines(tuning: Tuning): string[] {
   ];
 }
 
-function illusionLines(tuning: Tuning): string[] {
+function debtPrecisionLines(
+  tuning: Tuning,
+  unlocks: readonly string[],
+): string[] {
+  const { illusion } = copy.help;
+  const exact = tuning.archive.entries.find(({ id }) => id === EXACT_DEBT);
+  const reports = tuning.archive.entries.find(({ id }) => id === TRUE_REPORTS);
+  if (exact === undefined || reports === undefined) return [];
+  const owned = (id: string) => unlocks.includes(id);
+  return [
+    owned(EXACT_DEBT)
+      ? illusion.exactDebt
+      : illusion.roughDebt({ step: plain(ROUGH_DEBT_STEP) }),
+    ...(owned(EXACT_DEBT) && owned(TRUE_REPORTS)
+      ? []
+      : [
+          illusion.precision({
+            exactLabel: exact.label,
+            exactCost: plain(exact.cost),
+            reportsLabel: reports.label,
+            reportsCost: plain(reports.cost),
+          }),
+        ]),
+  ];
+}
+
+function illusionLines({ tuning, view }: MenuContext): string[] {
   const { illusion, economy } = tuning;
   const { audit, books } = illusion;
   const season = economy.ticksPerSeason;
@@ -304,6 +333,7 @@ function illusionLines(tuning: Tuning): string[] {
     copy.help.illusion.repay({
       key: panelHintKey("ledger", copy.keys.panelActions.repay),
     }),
+    ...debtPrecisionLines(tuning, view.unlocks),
     "",
     copy.help.illusion.auditors({
       debtShare: percent(audit.debtShare),
@@ -334,7 +364,7 @@ const TOPICS: readonly {
   { id: "desk", lines: (c) => deskLines(c.tuning) },
   { id: "promotion", lines: (c) => promotionLines(c.tuning) },
   { id: "crown", lines: (c) => crownLines(c.tuning) },
-  { id: "illusion", lines: (c) => illusionLines(c.tuning) },
+  { id: "illusion", lines: illusionLines },
 ];
 
 export type HelpSection = {

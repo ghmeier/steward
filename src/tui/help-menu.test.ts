@@ -6,11 +6,14 @@ import { Job } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 import {
   ARCHIVE_PANEL,
+  type ArchiveEntry,
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
   CONJURING,
+  EXACT_DEBT,
   PALETTE_UNLOCK,
   SAVED_DECREES_UNLOCK,
+  TRUE_REPORTS,
 } from "../core/unlocks";
 import { describePolicy, plain } from "./decree-format";
 import type { HelpTopicId } from "./help-menu";
@@ -83,6 +86,14 @@ type Row = {
 };
 
 const { help } = copy;
+const archiveEntry = (id: string) =>
+  tuning.archive.entries.find((entry) => entry.id === id) as ArchiveEntry;
+const precisionSale = help.illusion.precision({
+  exactLabel: archiveEntry(EXACT_DEBT).label,
+  exactCost: plain(archiveEntry(EXACT_DEBT).cost),
+  reportsLabel: archiveEntry(TRUE_REPORTS).label,
+  reportsCost: plain(archiveEntry(TRUE_REPORTS).cost),
+});
 const stepSeconds = (ticks: number) => `${ticks / 10} s`;
 
 // biome-ignore format: one row per line keeps the table scannable
@@ -106,6 +117,9 @@ const rows: Row[] = [
 	{ name: "coin fines", topic: "coin", using: rulingsWith({ coin: 2 }), has: [help.coin.merchantsPay], lacks: [help.coin.spentOn] },
 	{ name: "the Archive once open", topic: "coin", unlocks: [ARCHIVE_PANEL], has: [help.coin.archiveBuys({ key: keyFor("archive") })] },
 	{ name: "no Archive before it opens", topic: "coin", lacks: [help.coin.archiveBuys({ key: keyFor("archive") })] },
+	{ name: "rough debt and the Archive's precision entries before they are bought", topic: "illusion", has: [help.illusion.roughDebt({ step: "10" }), precisionSale], lacks: [help.illusion.exactDebt] },
+	{ name: "exact books once owned, with true reports still on sale", topic: "illusion", unlocks: [EXACT_DEBT], has: [help.illusion.exactDebt], lacks: [help.illusion.roughDebt({ step: "10" })] },
+	{ name: "no precision sale once both entries are owned", topic: "illusion", unlocks: [EXACT_DEBT, TRUE_REPORTS], lacks: [precisionSale] },
 	{ name: "decrees before any unlock", topic: "decrees", lacks: [help.decrees.compound, help.decrees.chaining, help.decrees.saved] },
 	{ name: "compound conditions once owned", topic: "decrees", unlocks: [COMPOUND_UNLOCK], has: [help.decrees.compound] },
 	{ name: "chaining once owned", topic: "decrees", unlocks: [CHAINING_UNLOCK], has: [help.decrees.chaining] },

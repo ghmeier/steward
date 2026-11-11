@@ -4,10 +4,22 @@ import type { Game } from "./game";
 import { type AddContext, add } from "./math";
 import { RESOURCES, type Resource } from "./realm";
 import type { ResourceId } from "./state";
-import { CONJURING } from "./unlocks";
+import { CONJURING, EXACT_DEBT } from "./unlocks";
 
 /** Only these can be conjured; the stores of ore and wood are never faked. */
 export const CONJURABLE = ["coin", "grain"] as const;
+
+/** Without exact books, debt is shown rounded up to a multiple of this, so a small debt never reads as none. */
+export const ROUGH_DEBT_STEP = 10;
+
+/** What the steward is told about one resource's debt and what repaying it from real stock would do. */
+export type DebtLine = {
+  owed: number;
+  /** What real stock would repay now, before the debt runs out or the stock does. */
+  repayable: number;
+  /** The real stock covers the whole debt. */
+  covered: boolean;
+};
 
 export type Books = "clean" | "thin" | "strained" | "rotten";
 
@@ -67,6 +79,39 @@ export class IllusionManager {
 
   private debtOf(resource: ResourceId): number {
     return this.illusion.debt[resource] ?? 0;
+  }
+
+  get showsExactDebt(): boolean {
+    return this.game.unlocks.enabled(EXACT_DEBT);
+  }
+
+  /** A debt amount as the steward sees it: exact to a tenth with exact books, otherwise rounded up. */
+  private shown(amount: number): number {
+    if (amount <= 0) return 0;
+    return this.showsExactDebt
+      ? Math.ceil(amount * 10) / 10
+      : Math.ceil(amount / ROUGH_DEBT_STEP) * ROUGH_DEBT_STEP;
+  }
+
+  private figure(amount: number): string {
+    return copy.illusion.figure({
+      amount: String(this.shown(amount)),
+      exact: this.showsExactDebt,
+    });
+  }
+
+  debtLines(): Record<ResourceId, DebtLine> {
+    const lines: Record<ResourceId, DebtLine> = {};
+    for (const resource of RESOURCES) {
+      const owed = this.debtOf(resource);
+      const held = this.resources[resource] ?? 0;
+      lines[resource] = {
+        owed: this.shown(owed),
+        repayable: this.shown(Math.min(owed, held)),
+        covered: held >= owed,
+      };
+    }
+    return lines;
   }
 
   /** What the village appears to hold: the real stock plus the conjured units. */
@@ -214,8 +259,20 @@ export class IllusionManager {
         reason: copy.illusion.villageHoldsNoneToBack({ resource }),
       };
     }
-    this.repay(resource, Math.min(owed, held), context);
-    return { ok: true };
+    const repaid = Math.min(owed, held);
+    this.repay(resource, repaid, context);
+    const left = owed - repaid;
+    return {
+      ok: true,
+      message:
+        left > 0
+          ? copy.illusion.repaidPartly({
+              resource,
+              repaid: this.figure(repaid),
+              left: this.figure(left),
+            })
+          : copy.illusion.repaidAll({ resource, repaid: this.figure(repaid) }),
+    };
   }
 
   /** Ticks until announced auditors reach the desk; null when none are on the road. */

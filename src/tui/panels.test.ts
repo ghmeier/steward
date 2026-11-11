@@ -19,7 +19,7 @@ import {
   formatTicks,
   formatTicksRoughly,
 } from "./format";
-import { type FocusId, panelHintsText } from "./keys";
+import { type FocusId, panelHintKey, panelHintsText } from "./keys";
 import { createPanels } from "./panels";
 import { Village } from "./village-panels";
 
@@ -350,7 +350,14 @@ describe("createPanels", () => {
     const conjuredView = (books: "clean" | "thin" | "strained" | "rotten") =>
       emptyView({
         unlocks: [CONJURING],
-        illusion: { books, room: 100, auditInTicks: null },
+        illusion: {
+          books,
+          room: 100,
+          debt: {},
+          debtIsExact: false,
+          auditOnTheRoad: false,
+          auditInTicks: null,
+        },
         ledger: [
           {
             resource: "coin",
@@ -414,6 +421,91 @@ describe("createPanels", () => {
       expect(focused).toContain(hints);
       expect(unfocused).not.toContain("> Coin");
       expect(unfocused).not.toContain(hints);
+    });
+  });
+
+  describe("debt under the Ledger rows", () => {
+    const owing = (
+      debtIsExact: boolean,
+      grain: { owed: number; repayable: number; covered: boolean },
+      auditInTicks: number | null = null,
+    ) => {
+      const view = emptyView({
+        unlocks: [CONJURING],
+        illusion: {
+          books: "thin",
+          room: 100,
+          debt: { coin: { owed: 0, repayable: 0, covered: true }, grain },
+          debtIsExact,
+          auditOnTheRoad: auditInTicks !== null,
+          auditInTicks,
+        },
+        ledger: [
+          { resource: "grain", amount: 80, conjured: 0, ratePerSecond: 1 },
+          { resource: "coin", amount: 9, conjured: 0, ratePerSecond: 0 },
+        ],
+      });
+      return view;
+    };
+    const covered = { owed: 120, repayable: 120, covered: true };
+    const repayKey = panelHintKey("ledger", copy.keys.panelActions.repay);
+
+    test("names what is owed under the resource that owes it, and nothing under one that owes none", async () => {
+      const frame = await draw([owing(false, covered)]);
+
+      const owed = copy.ledger.owed({
+        figure: copy.illusion.figure({ amount: "120", exact: false }),
+      });
+      expect(frame).toContain(owed);
+      expect(frame.split("(owed")).toHaveLength(2);
+      expect(frame).toMatch(/│ {3}\(owed/);
+    });
+
+    test("drops the tilde for exact debt and shows the time until auditors arrive", async () => {
+      const exact = await draw([owing(true, { ...covered, owed: 123.5 }, 600)]);
+      const rough = await draw([owing(false, covered)]);
+
+      expect(exact).toContain(
+        copy.ledger.owed({
+          figure: copy.illusion.figure({
+            amount: formatAmount(123.5),
+            exact: true,
+          }),
+        }),
+      );
+      expect(exact).toContain(
+        copy.ledger.auditDue({
+          wait: formatTicksRoughly(600, tuning.stepMs),
+        }),
+      );
+      expect(rough).not.toContain("Auditors due");
+    });
+
+    test("tells the selected row what the repay key would do with the real stock", async () => {
+      const size = { width: 240, height: 45 };
+      const short = { owed: 120, repayable: 50, covered: false };
+      const none = { owed: 120, repayable: 0, covered: false };
+      const press = (view: GameView) => draw([view], { focus: "ledger", size });
+
+      const all = await press(owing(false, covered));
+      const part = await press(owing(false, short));
+      const empty = await press(owing(false, none));
+
+      expect(all).toContain(copy.ledger.repayAll({ key: repayKey }));
+      expect(part).toContain(
+        copy.ledger.repayPart({
+          key: repayKey,
+          figure: copy.illusion.figure({ amount: "50", exact: false }),
+        }),
+      );
+      expect(empty).toContain(copy.ledger.repayNone({ resource: "grain" }));
+    });
+
+    test("shows no repay advice while the Ledger is not focused", async () => {
+      const frame = await draw([owing(false, covered)]);
+
+      expect(frame).toContain("(owed");
+      expect(frame).not.toContain(copy.ledger.repayAll({ key: repayKey }));
     });
   });
 

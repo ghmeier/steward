@@ -26,6 +26,8 @@ export const COMPOUND_UNLOCK: UnlockId = "decree.compound";
 export const CHAINING_UNLOCK: UnlockId = "decree.chaining";
 export const CROWN_CORRESPONDENCE: UnlockId = "decree.crownCorrespondence";
 export const CONJURING: UnlockId = "control.conjuring";
+export const EXACT_DEBT: UnlockId = "precision.exact";
+export const TRUE_REPORTS: UnlockId = "precision.reports";
 export const PALETTE_UNLOCK: UnlockId = "control.palette";
 export const SAVED_DECREES_UNLOCK: UnlockId = "control.savedDecrees";
 
@@ -122,6 +124,11 @@ export const DECREE_GATES: readonly {
     id: CROWN_CORRESPONDENCE,
     matches: (node) =>
       node.kind === "compare" && Object.hasOwn(OWED_RESOURCES, node.quantity),
+  },
+  {
+    // The debt quantity is the exact figure that the Ledger rounds until exact debt is bought.
+    id: EXACT_DEBT,
+    matches: (node) => node.kind === "compare" && node.quantity === "debt",
   },
 ];
 

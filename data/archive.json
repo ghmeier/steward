@@ -35,6 +35,20 @@
       "description": "Let decrees read what the crown still demands, as owedOre, owedWood, owedGrain and owedCoin.",
       "cost": 300,
       "requires": []
+    },
+    {
+      "id": "precision.exact",
+      "label": "Exact books",
+      "description": "Shows debt to the decimal instead of rounded up to the nearest ten, and how long until announced auditors arrive. Decrees may also read debt.",
+      "cost": 350,
+      "requires": []
+    },
+    {
+      "id": "precision.reports",
+      "label": "True reports",
+      "description": "Strips governors' exaggeration: the Ledger's rates count only what the stores really receive, and each governor is listed with their real output and the gap.",
+      "cost": 600,
+      "requires": []
     }
   ],
   "play": [
