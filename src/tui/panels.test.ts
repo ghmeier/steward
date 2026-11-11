@@ -3,7 +3,12 @@ import { createTestRenderer } from "@opentui/core/testing";
 import { tuning } from "../../test/helpers";
 import { barRow, settledFrame } from "../../test/tui-helpers";
 import { Job, RESOURCES } from "../core/realm";
-import { CROWN_PANEL, PALETTE_UNLOCK, type UnlockId } from "../core/unlocks";
+import {
+  CONJURING,
+  CROWN_PANEL,
+  PALETTE_UNLOCK,
+  type UnlockId,
+} from "../core/unlocks";
 import type { GameView } from "../core/view";
 import { formatAmount, formatGameTime, formatRate } from "./format";
 import { BAR_HINTS, type FocusId } from "./keys";
@@ -267,6 +272,79 @@ describe("createPanels", () => {
     expect(frame).toContain("Season Summer");
   });
 
+  describe("the Ledger once conjuring is owned", () => {
+    const grain = tuning.illusion.lot * 4;
+    const conjuredView = (books: "clean" | "thin" | "strained" | "rotten") =>
+      emptyView({
+        unlocks: [CONJURING],
+        illusion: { books, room: 100, auditInTicks: null },
+        ledger: [
+          { resource: "coin", amount: 9, conjured: 0, ratePerSecond: 0 },
+          { resource: "grain", amount: grain, conjured: 30, ratePerSecond: 1 },
+        ],
+      });
+
+    test("shows the conjured share under its row and the books word, and neither before the unlock", async () => {
+      const before = emptyView({
+        ledger: conjuredView("clean").ledger.map((line) => ({
+          ...line,
+          conjured: 0,
+        })),
+      });
+
+      const frame = await draw([conjuredView("strained")]);
+      const plainFrame = await draw([before]);
+
+      expect(frame).toContain(formatAmount(grain));
+      expect(frame).toContain(`(${formatAmount(30)} conjured)`);
+      expect(frame).toContain("Books: strained");
+      expect(frame.match(/conjured/g)?.length).toBe(1);
+      expect(plainFrame).not.toContain("conjured");
+      expect(plainFrame).not.toContain("Books");
+    });
+
+    test.each(["clean", "thin", "strained", "rotten"] as const)(
+      "names the books %s",
+      async (books) => {
+        expect(await draw([conjuredView(books)])).toContain(`Books: ${books}`);
+      },
+    );
+
+    test("marks the selected resource and shows its hints only while focused", async () => {
+      const view = conjuredView("thin");
+
+      const focused = await draw([view], {
+        focus: "ledger",
+        size: { width: 160, height: 45 },
+      });
+      const unfocused = await draw([view], {
+        size: { width: 160, height: 45 },
+      });
+
+      expect(focused).toContain("> Coin");
+      expect(focused).not.toContain("> Grain");
+      expect(focused).toContain("enter conjure");
+      expect(unfocused).not.toContain("> Coin");
+      expect(unfocused).not.toContain("enter conjure");
+    });
+  });
+
+  describe("an entry with a deadline of its own", () => {
+    const ticksLeft = 80 * (1000 / tuning.stepMs);
+
+    test("shows its time left in Court and an entry without one shows none", async () => {
+      const timed = { ...dispute, id: 2, label: "Counted.", ticksLeft };
+
+      const withDeadline = await draw([emptyView({ desk: [timed] })]);
+      const without = await draw([emptyView({ desk: [dispute] })]);
+
+      expect(withDeadline).toContain("Counted.");
+      expect(withDeadline).toContain("due in 1m 20s");
+      expect(without).toContain(dispute.label);
+      expect(without).not.toContain("due in");
+    });
+  });
+
   test("the ledger keeps promotion and next peasant on one line when wide and splits them when narrow", async () => {
     const view = emptyView({
       realm: realmOf({ population: 14 }),
@@ -520,7 +598,7 @@ describe("createPanels", () => {
       expect(frame).toContain("ore 45 / 80");
       expect(frame).toContain("due in 1m 20s");
       expect(frame).toContain("Met 3 \u00b7 missed 1");
-      expect(frame).toContain("enter deliver \u00b7 esc back");
+      expect(frame).toContain("enter deliver \u00b7 f forge");
     });
 
     test("between demands the panel says the crown is quiet and when the next one comes", async () => {

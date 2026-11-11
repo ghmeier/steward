@@ -1,15 +1,23 @@
 import type { Command } from "../core/commands";
 import { PETITIONS } from "../core/decree";
+import type { Resource } from "../core/realm";
 import type {
   ArchiveEntryView,
   CrownDemandView,
   CrownView,
   GameView,
 } from "../core/view";
-import { courtMenu } from "./court-menu";
+import { courtEntryLabel, courtMenu } from "./court-menu";
 import { type Cursor, moveCursor, reconcileCursor, rowWindow } from "./cursor";
 import { formatRule, plain } from "./decree-format";
-import { capitalize, formatAmount, formatGameTime, formatRate } from "./format";
+import {
+  capitalize,
+  formatAmount,
+  formatGameTime,
+  formatRate,
+  formatTicks,
+  formatTicksRoughly,
+} from "./format";
 import {
   type FocusId,
   type KeyPress,
@@ -175,10 +183,10 @@ export class CourtPanel extends MenuPanel {
   readonly id = "court";
   protected readonly root = courtMenu;
 
-  protected unfocusedLines({ view }: MenuContext): string[] {
+  protected unfocusedLines({ view, tuning }: MenuContext): string[] {
     return view.desk.length === 0
       ? [DESK_CLEAR]
-      : view.desk.map((entry) => entry.label);
+      : view.desk.map((entry) => courtEntryLabel(entry, tuning));
   }
 }
 
@@ -283,26 +291,14 @@ export class CrownPanel extends VillagePanel {
 
   enter(): void {}
 
-  private static seconds(ticks: number, tuning: MenuContext["tuning"]): number {
-    return (ticks * tuning.stepMs) / 1000;
-  }
-
-  /** Whole minutes once past one, since a countdown to the second would flicker for a demand not yet made. */
-  private static roughly(seconds: number): string {
-    return seconds < 60
-      ? formatGameTime(seconds)
-      : `${Math.round(seconds / 60)}m`;
-  }
-
   private static demandLines(
     demand: CrownDemandView,
     tuning: MenuContext["tuning"],
   ): string[] {
-    const seconds = CrownPanel.seconds(demand.ticksLeft, tuning);
     return [
       demand.herald,
       `${demand.resource} ${plain(demand.delivered)} / ${plain(demand.amount)}`,
-      `due in ${formatGameTime(seconds)}`,
+      `due in ${formatTicks(demand.ticksLeft, tuning.stepMs)}`,
     ];
   }
 
@@ -310,10 +306,8 @@ export class CrownPanel extends VillagePanel {
     crown: CrownView,
     tuning: MenuContext["tuning"],
   ): string[] {
-    const seconds = CrownPanel.seconds(crown.nextDemandTicks ?? 0, tuning);
-    return [
-      `The crown is quiet. Next demand in about ${CrownPanel.roughly(seconds)}.`,
-    ];
+    const wait = formatTicksRoughly(crown.nextDemandTicks ?? 0, tuning.stepMs);
+    return [`The crown is quiet. Next demand in about ${wait}.`];
   }
 
   body({ view, tuning }: MenuContext, size: PanelSize): string {
@@ -336,15 +330,20 @@ export class CrownPanel extends VillagePanel {
     if (name === "escape") return UNFOCUS;
     if (name === "return" || name === "enter")
       return step([{ type: "deliver" }]);
+    if (name === "f") return step([{ type: "forge" }]);
     return null;
   }
 }
 
-export class LedgerPanel {
-  readonly name = "Ledger";
-  readonly title = titleWithKey(this.name);
+export class LedgerPanel extends VillagePanel {
+  readonly id = "ledger";
+  private selected = 0;
 
-  private resourceLines(view: GameView): string[] {
+  enter(): void {
+    this.selected = 0;
+  }
+
+  private resourceLines(view: GameView, focused: boolean): string[] {
     const rows = view.ledger.map((line) => [
       capitalize(line.resource),
       formatAmount(line.amount),
@@ -353,10 +352,21 @@ export class LedgerPanel {
     const widths = [0, 1, 2].map((column) =>
       Math.max(0, ...rows.map((row) => row[column]?.length ?? 0)),
     );
-    return rows.map(
-      ([name = "", amount = "", rate = ""]) =>
-        `${name.padEnd(widths[0] ?? 0)} ${amount.padStart(widths[1] ?? 0)} ${rate.padStart(widths[2] ?? 0)}`,
-    );
+    return rows.flatMap(([name = "", amount = "", rate = ""], index) => {
+      const marker = focused && index === this.selected ? "> " : "  ";
+      const row = `${name.padEnd(widths[0] ?? 0)} ${amount.padStart(widths[1] ?? 0)} ${rate.padStart(widths[2] ?? 0)}`;
+      const conjured = view.ledger[index]?.conjured ?? 0;
+      return [
+        `${focused ? marker : ""}${row}`,
+        ...(conjured > 0
+          ? [`${focused ? "  " : ""}  (${formatAmount(conjured)} conjured)`]
+          : []),
+      ];
+    });
+  }
+
+  private booksLines(view: GameView): string[] {
+    return view.illusion === null ? [] : [`Books: ${view.illusion.books}`];
   }
 
   /** One line when it fits the column, otherwise the label above its value, so neither is cut off. */
@@ -395,10 +405,11 @@ export class LedgerPanel {
     );
   }
 
-  body(view: GameView, size: PanelSize): string {
+  body({ view }: MenuContext, size: PanelSize, focused: boolean): string {
     const { realm } = view;
     const rest = [
-      ...this.resourceLines(view),
+      ...this.resourceLines(view, focused),
+      ...this.booksLines(view),
       "",
       ...[
         `Peasants ${realm.population} (${realm.labor.idle} idle)`,
@@ -412,13 +423,32 @@ export class LedgerPanel {
     if (rest.length >= size.height) return rest.join("\n");
     return [`Time  ${formatGameTime(view.elapsedSeconds)}`, ...rest].join("\n");
   }
+
+  key(key: KeyPress, { view, tuning }: MenuContext): PanelStep | null {
+    const name = plainKeyName(key);
+    if (name === "escape") return UNFOCUS;
+    if (name === "j" || name === "down") {
+      this.selected = Math.min(view.ledger.length - 1, this.selected + 1);
+      return step();
+    }
+    if (name === "k" || name === "up") {
+      this.selected = Math.max(0, this.selected - 1);
+      return step();
+    }
+    const resource = view.ledger[this.selected]?.resource as Resource;
+    if (name === "return" || name === "enter") {
+      return step([{ type: "conjure", resource, amount: tuning.illusion.lot }]);
+    }
+    if (name === "b") return step([{ type: "back", resource }]);
+    return null;
+  }
 }
 
 /** The village's panels, built once per app so each focusable one keeps its own selection. */
 export class Village {
-  readonly ledger = new LedgerPanel();
   readonly peasants = new PeasantsPanel();
   readonly focusable: Readonly<Record<FocusId, VillagePanel>> = {
+    ledger: new LedgerPanel(),
     peasants: this.peasants,
     archive: new ArchivePanel(),
     court: new CourtPanel(),

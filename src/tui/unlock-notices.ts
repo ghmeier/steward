@@ -1,10 +1,14 @@
 import type { Tuning } from "../core/tuning";
-import { ARCHIVE_PANEL, type UnlockId } from "../core/unlocks";
+import { ARCHIVE_PANEL, CONJURING, type UnlockId } from "../core/unlocks";
 
 export const ARCHIVE_OPENS = "The Archive opens. Press a to buy.";
 
+export const CONJURING_OPENS =
+  "You have learned conjuring. Press l to focus the Ledger, which will believe anything you tell it.";
+
 function noticeFor(id: UnlockId, tuning: Tuning): string | null {
   if (id === ARCHIVE_PANEL) return ARCHIVE_OPENS;
+  if (id === CONJURING) return CONJURING_OPENS;
   const entry = tuning.archive.entries.find((candidate) => candidate.id === id);
   if (entry !== undefined) return `Bought ${entry.label}.`;
   const play = tuning.archive.play.find((candidate) => candidate.id === id);

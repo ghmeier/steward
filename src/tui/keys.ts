@@ -1,6 +1,7 @@
 import { Job } from "../core/realm";
 import {
   ARCHIVE_PANEL,
+  CONJURING,
   CROWN_PANEL,
   PALETTE_UNLOCK,
   type UnlockId,
@@ -15,6 +16,7 @@ export type KeyPress = {
   sequence: string;
 };
 export const FOCUS_IDS = [
+  "ledger",
   "peasants",
   "archive",
   "court",
@@ -43,6 +45,7 @@ type FocusChange = Extract<KeyAction, { kind: "focus" | "cycle" }>;
 type Binding = { action: KeyAction; needs?: UnlockId };
 
 const BINDINGS: Readonly<Record<string, Binding>> = {
+  l: { action: { kind: "focus", panel: "ledger" }, needs: CONJURING },
   p: { action: { kind: "focus", panel: "peasants" } },
   a: { action: { kind: "focus", panel: "archive" }, needs: ARCHIVE_PANEL },
   c: { action: { kind: "focus", panel: "court" } },
@@ -143,6 +146,7 @@ type ShownHint = { keys: string; label: string };
 type KeyHint = ShownHint & { needs?: UnlockId };
 
 const GLOBAL_HINTS: readonly KeyHint[] = [
+  { keys: "l", label: "ledger", needs: CONJURING },
   { keys: "p", label: "peasants" },
   { keys: "a", label: "archive", needs: ARCHIVE_PANEL },
   { keys: "c", label: "court" },
@@ -157,6 +161,12 @@ const GLOBAL_HINTS: readonly KeyHint[] = [
 
 /** Shown on the focused panel's bottom border and listed in Help; esc is handled by every panel. */
 const PANEL_HINTS: Readonly<Record<FocusId, readonly ShownHint[]>> = {
+  ledger: [
+    { keys: "j/k", label: "select" },
+    { keys: "enter", label: "conjure" },
+    { keys: "b", label: "repay" },
+    { keys: "esc", label: "back" },
+  ],
   peasants: [
     { keys: "j/k", label: "select" },
     { keys: "f/w/m/i", label: "assign" },
@@ -180,6 +190,7 @@ const PANEL_HINTS: Readonly<Record<FocusId, readonly ShownHint[]>> = {
   ],
   crown: [
     { keys: "enter", label: "deliver" },
+    { keys: "f", label: "forge" },
     { keys: "esc", label: "back" },
   ],
 };
@@ -195,15 +206,18 @@ export function panelKeyHints(panel: FocusId): readonly ShownHint[] {
 }
 
 /**
- * OpenTUI drops a border title that does not fit, so a narrow panel falls back to the bare keys
- * rather than losing its hints altogether.
+ * OpenTUI drops a border title that does not fit, so a narrow panel gives up esc first, which Help
+ * covers for every panel, and then the labels, rather than losing its hints altogether.
  */
 export function panelHintsText(panel: FocusId, width: number): string {
   const hints = panelKeyHints(panel);
-  const full = hints
-    .map((hint) => `${hint.keys} ${hint.label}`)
-    .join(" \u00b7 ");
-  return full.length <= width ? full : hints.map((hint) => hint.keys).join(" ");
+  const labelled = (shown: readonly ShownHint[]) =>
+    shown.map((hint) => `${hint.keys} ${hint.label}`).join(" \u00b7 ");
+  const full = labelled(hints);
+  if (full.length <= width) return full;
+  const withoutEscape = labelled(hints.filter((hint) => hint.keys !== "esc"));
+  if (withoutEscape.length <= width) return withoutEscape;
+  return hints.map((hint) => hint.keys).join(" ");
 }
 
 /** The short list on the right of the bottom bar; everything else is in Help. */

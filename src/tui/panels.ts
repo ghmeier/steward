@@ -229,18 +229,18 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
     return row;
   };
 
-  const { ledger: ledgerPanel, focusable: panels } = village;
+  const { focusable: panels } = village;
   const slotOf = (id: FocusId, weight: number) =>
     makeSlot(id, panels[id].title, weight);
-  const ledger = makeSlot("ledger", ledgerPanel.title, 1);
   const slots: Record<FocusId, PanelSlot> = {
+    ledger: slotOf("ledger", 1),
     peasants: slotOf("peasants", 1),
     archive: slotOf("archive", 2),
     court: slotOf("court", 1),
     decrees: slotOf("decrees", 1),
     crown: slotOf("crown", 1),
   };
-  const topRow = [ledger, slots.peasants, slots.archive];
+  const topRow = [slots.ledger, slots.peasants, slots.archive];
   const bottomRow = [slots.court, slots.decrees, slots.crown];
   grid.add(makeRow("top-row", topRow));
   grid.add(makeRow("bottom-row", bottomRow));
@@ -272,7 +272,6 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
     const { view } = context;
     const isLocked = (id: string) =>
       view.lockedPanels.some((locked) => locked === id);
-    ledger.draw((size) => ledgerPanel.body(view, size));
     for (const panel of Object.values(panels)) {
       const slot = slots[panel.id];
       const locked = isLocked(panel.id);

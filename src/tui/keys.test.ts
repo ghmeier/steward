@@ -1,17 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import { key } from "../../test/tui-helpers";
 import { Job } from "../core/realm";
-import { ARCHIVE_PANEL, PALETTE_UNLOCK } from "../core/unlocks";
+import { ARCHIVE_PANEL, CONJURING, PALETTE_UNLOCK } from "../core/unlocks";
 import {
   actionForKey,
   BAR_HINTS,
+  FocusRing,
   type KeyAction,
   keyHints,
   type PeasantAction,
   peasantActionForKey,
 } from "./keys";
 
-const everything = [ARCHIVE_PANEL, PALETTE_UNLOCK];
+const everything = [ARCHIVE_PANEL, PALETTE_UNLOCK, CONJURING];
 
 describe("actionForKey", () => {
   const palette: KeyAction = { kind: "line", prefill: "" };
@@ -25,7 +26,8 @@ describe("actionForKey", () => {
 		["p focuses the peasants", key("p"), [], { kind: "focus", panel: "peasants" }],
 		["c focuses the court", key("c"), [], { kind: "focus", panel: "court" }],
 		["d focuses the decrees", key("d"), [], { kind: "focus", panel: "decrees" }],
-		["l is unbound", key("l"), everything, null],
+		["l focuses the Ledger when conjuring is owned", key("l"), [CONJURING], { kind: "focus", panel: "ledger" }],
+		["l does nothing without conjuring", key("l"), [ARCHIVE_PANEL, PALETTE_UNLOCK], null],
 		["f does nothing without Peasants focused", key("f"), everything, null],
 		["j does nothing without a panel focused", key("j"), everything, null],
 		["n asks for a new village", key("n"), [], { kind: "newGame" }],
@@ -68,6 +70,22 @@ describe("actionForKey", () => {
     for (const name of advertised) {
       expect(actionForKey(key(name), everything)).not.toBeNull();
     }
+  });
+});
+
+describe("FocusRing", () => {
+  test("the Ledger leads the reading order once conjuring is owned and is absent before", () => {
+    const owned = new FocusRing([CONJURING]);
+    const unowned = new FocusRing([]);
+
+    expect(owned.target({ kind: "cycle", delta: 1 }, null)).toBe("ledger");
+    expect(owned.target({ kind: "cycle", delta: 1 }, "ledger")).toBe(
+      "peasants",
+    );
+    expect(unowned.target({ kind: "cycle", delta: 1 }, null)).toBe("peasants");
+    expect(unowned.target({ kind: "cycle", delta: -1 }, "peasants")).toBe(
+      "decrees",
+    );
   });
 });
 

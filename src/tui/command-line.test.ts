@@ -9,6 +9,7 @@ import {
   ARCHIVE_PANEL,
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
+  CONJURING,
   CROWN_CORRESPONDENCE,
   CROWN_PANEL,
   PALETTE_UNLOCK,
@@ -54,6 +55,7 @@ const compound: Setup = { unlocks: [COMPOUND_UNLOCK] };
 const chained: Setup = { unlocks: [CHAINING_UNLOCK], decrees: [harvest] };
 const archive: Setup = { unlocks: [ARCHIVE_PANEL] };
 const crowned: Setup = { unlocks: [CROWN_PANEL] };
+const conjuring: Setup = { unlocks: [CONJURING] };
 const corresponding: Setup = { unlocks: [CROWN_CORRESPONDENCE] };
 const saving: Setup = { saved: { name: "plan", decree: granary } };
 const palette: Setup = { unlocks: [PALETTE_UNLOCK], idle: 3 };
@@ -136,6 +138,14 @@ const parseRows: [string, Setup, Outcome | null][] = [
 	["assign x idle", {}, bad("assign needs")],
 	["deliver", crowned, ok({ type: "deliver" })],
 	["deliver", {}, bad("deliver needs the Crown")],
+	["conjure grain 25", conjuring, ok({ type: "conjure", resource: "grain", amount: 25 })],
+	["conjure coin 5", conjuring, ok({ type: "conjure", resource: "coin", amount: 5 })],
+	["conjure ore 5", conjuring, bad('"ore" is not a resource that can be conjured')],
+	["conjure grain 25", {}, bad("conjure needs conjuring")],
+	["forge", conjuring, ok({ type: "forge" })],
+	["forge", {}, bad("forge needs conjuring")],
+	["back ore", conjuring, ok({ type: "back", resource: "ore" })],
+	["back ore", {}, bad("back needs conjuring")],
 	[`${woodRuleStart}owed ore above 0 otherwise stockpile`, {}, bad(entry(CROWN_CORRESPONDENCE).label)],
 	[`${woodRuleStart}owed ore above 0 otherwise stockpile`, corresponding, enact({ rules: [{ when: { kind: "compare", quantity: "owedOre" } }] })],
 	...PETITIONS.flatMap((petition) =>
@@ -219,6 +229,10 @@ const presenceRows: [string, Setup, string[]][] = [
 	[harvestRuleStart, corresponding, ["owed ore", "owed wood", "owed grain", "owed coin"]],
 	["", crowned, ["deliver"]],
 	["", {}, ["!deliver"]],
+	["", conjuring, ["conjure", "forge", "back"]],
+	["", {}, ["!conjure", "!forge", "!back"]],
+	["conjure ", conjuring, ["grain", "coin", "!ore", "!wood"]],
+	["back ", conjuring, ["grain", "coin", "ore", "wood"]],
 	["buy ", archive, ["palette", "!saved-decrees"]],
 	["buy ", { unlocks: [ARCHIVE_PANEL, PALETTE_UNLOCK] }, ["saved-decrees"]],
 	["buy ", { unlocks: [ARCHIVE_PANEL, COMPOUND_UNLOCK] }, ["chaining", "!compound"]],

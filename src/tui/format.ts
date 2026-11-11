@@ -47,6 +47,18 @@ export function formatGameTime(seconds: number): string {
   return `${secs}s`;
 }
 
+export function formatTicks(ticks: number, stepMs: number): string {
+  return formatGameTime((ticks * stepMs) / 1000);
+}
+
+/** Whole minutes once past one, since a countdown to the second would flicker for something not yet due. */
+export function formatTicksRoughly(ticks: number, stepMs: number): string {
+  const seconds = (ticks * stepMs) / 1000;
+  return seconds < 60
+    ? formatGameTime(seconds)
+    : `${Math.round(seconds / 60)}m`;
+}
+
 export function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }

@@ -13,11 +13,13 @@ import {
   QUANTITIES,
   type Quantity,
 } from "../core/decree";
-import { Job, SEASONS } from "../core/realm";
+import { CONJURABLE } from "../core/illusion";
+import { Job, RESOURCES, SEASONS } from "../core/realm";
 import {
   ARCHIVE_PANEL,
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
+  CONJURING,
   CROWN_CORRESPONDENCE,
   CROWN_PANEL,
   PALETTE_UNLOCK,
@@ -132,12 +134,13 @@ class Cursor {
     return best;
   }
 
-  number(): number {
+  /** The last word of a command may be a finished number as it stands, since enter will not wait for more digits. */
+  number(final = false): number {
     const rest = this.skipSpaces();
     if (rest === "") throw new Halt([], null, NUMBER_HELP);
     const word = rest.split(" ")[0] ?? rest;
     const typing = word.length === rest.length;
-    if (typing && NUMBER_PREFIX.test(word)) {
+    if (typing && !(final && NUMBER.test(word)) && NUMBER_PREFIX.test(word)) {
       throw new Halt([], null, NUMBER_HELP);
     }
     const value = Number(word);
@@ -659,6 +662,46 @@ function parseAssignVerb(cursor: Cursor, context: MenuContext): Command {
   return { type: "assignPeasant", peasant, job };
 }
 
+type ResourceName = (typeof RESOURCES)[number];
+
+const RESOURCE_HELP: Readonly<Record<ResourceName, string>> = {
+  coin: "the treasury",
+  grain: "the granary",
+  ore: "the mine's output",
+  wood: "the forest's output",
+};
+
+function resourceChoices(
+  resources: readonly ResourceName[],
+): Choice<ResourceName>[] {
+  return resources.map((resource) => ({
+    text: resource,
+    description: RESOURCE_HELP[resource],
+    value: resource,
+  }));
+}
+
+const conjuringVerb = (verb: string) => ({
+  available: (context: MenuContext) => ownsUnlock(context, CONJURING),
+  unavailableProblem: () =>
+    `${verb} needs conjuring, which the crown teaches you with its first demand`,
+});
+
+function parseConjureVerb(cursor: Cursor): Command {
+  const resource = cursor.expect(
+    "a resource that can be conjured",
+    resourceChoices(CONJURABLE),
+  ).value;
+  return { type: "conjure", resource, amount: cursor.number(true) };
+}
+
+function parseBackVerb(cursor: Cursor): Command {
+  const resource = cursor.expect("a resource", resourceChoices(RESOURCES), {
+    final: true,
+  }).value;
+  return { type: "back", resource };
+}
+
 /** New verbs are appended here; each parses the rest of the line with the same cursor. */
 const VERBS: readonly Verb[] = [
   {
@@ -716,6 +759,25 @@ const VERBS: readonly Verb[] = [
     unavailableProblem: () =>
       "deliver needs the Crown, which opens at promotion",
     parse: () => ({ type: "deliver" }),
+  },
+  {
+    word: "conjure",
+    description: "add stock that does not exist, grain or coin only",
+    ...conjuringVerb("conjure"),
+    parse: parseConjureVerb,
+  },
+  {
+    word: "forge",
+    bare: true,
+    description: "report the open crown demand as delivered, on paper",
+    ...conjuringVerb("forge"),
+    parse: () => ({ type: "forge" }),
+  },
+  {
+    word: "back",
+    description: "repay one resource's debt from real stock",
+    ...conjuringVerb("back"),
+    parse: parseBackVerb,
   },
 ];
 

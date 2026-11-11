@@ -1,4 +1,5 @@
-import type { DeskOptionView } from "../core/view";
+import type { DeskEntryView, DeskOptionView } from "../core/view";
+import { formatTicks } from "./format";
 import type { MenuContext, MenuItem, Screen, ScreenBuilder } from "./menu";
 
 function amountText(resource: string, amount: number): string {
@@ -20,6 +21,16 @@ function optionLabel(option: DeskOptionView): string {
   return `${option.label}: ${costText(option)}${sulk}${fallback}`;
 }
 
+/** An entry with a deadline of its own says how long is left, the way the Crown panel does. */
+export function courtEntryLabel(
+  entry: DeskEntryView,
+  tuning: MenuContext["tuning"],
+): string {
+  return entry.ticksLeft === null
+    ? entry.label
+    : `(due in ${formatTicks(entry.ticksLeft, tuning.stepMs)}) ${entry.label}`;
+}
+
 function entryScreen(entryId: number): ScreenBuilder {
   return (context: MenuContext): Screen => {
     const entry = context.view.desk.find(
@@ -36,7 +47,7 @@ function entryScreen(entryId: number): ScreenBuilder {
     return {
       kind: "list",
       title: "Decide",
-      notes: [entry.label],
+      notes: [courtEntryLabel(entry, context.tuning)],
       items: entry.options.map(
         (option): MenuItem => ({
           label: optionLabel(option),
@@ -63,7 +74,7 @@ export const courtMenu: ScreenBuilder = (context) => {
     title: "The desk",
     notes: entries.length === 0 ? ["Nothing waits on the desk."] : [],
     items: entries.map((entry) => ({
-      label: entry.label,
+      label: courtEntryLabel(entry, context.tuning),
       action: { kind: "push", screen: entryScreen(entry.id) },
     })),
   };
