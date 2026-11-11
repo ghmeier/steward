@@ -1,4 +1,5 @@
 import type { CliRenderer, KeyEvent } from "@opentui/core";
+import { copy } from "../core/copy";
 import { errorMessage } from "../core/errors";
 import { Game } from "../core/game";
 import type { Tuning } from "../core/tuning";
@@ -40,20 +41,23 @@ export function prepareStartup(
         notice:
           repealed.length === 0
             ? null
-            : `Repealed ${repealed.join(", ")}: their policies no longer exist.`,
+            : copy.notices.repealedStale({ decrees: repealed.join(", ") }),
       };
     }
     case "missing":
       return {
         kind: "ready",
         game: Game.create(newSeed(), tuning),
-        notice: "Started a new game.",
+        notice: copy.notices.startedNewGame,
       };
     case "versionRefused":
       return {
         kind: "ready",
         game: Game.create(newSeed(), tuning),
-        notice: `Save version ${String(result.foundVersion)} is not supported; it was kept as ${result.preservedAs}. Started a new game.`,
+        notice: copy.notices.unsupportedSave({
+          version: String(result.foundVersion),
+          preservedAs: result.preservedAs,
+        }),
       };
     case "invalid":
       // Starting anyway would let an autosave overwrite a save the player may want to recover.
@@ -137,8 +141,8 @@ export function startApp(options: {
   };
   const saveAndAnnounce = (announceSuccess: boolean) => {
     const error = save();
-    if (error !== null) message = `Save failed: ${error}`;
-    else if (announceSuccess) message = "Saved.";
+    if (error !== null) message = copy.notices.saveFailed({ error });
+    else if (announceSuccess) message = copy.notices.saved;
     else return;
     redraw();
   };
@@ -152,7 +156,9 @@ export function startApp(options: {
     focus = null;
     const error = save();
     message =
-      error === null ? "A new village is founded." : `Save failed: ${error}`;
+      error === null
+        ? copy.notices.newVillageFounded
+        : copy.notices.saveFailed({ error });
   };
 
   let frameTimer: ReturnType<typeof setInterval> | undefined;
@@ -245,7 +251,7 @@ export function startApp(options: {
     if (unlocked !== null) message = unlocked;
     if (!promotionAnnounced && session.view().promotion.promotedAt > 0) {
       promotionAnnounced = true;
-      message = "The crown has noticed you. You are promoted to steward.";
+      message = copy.notices.promoted;
     }
     if (result.viewChanged || message !== drawnMessage) redraw();
   }

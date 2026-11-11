@@ -4,12 +4,8 @@ import {
   RGBA,
   TextRenderable,
 } from "@opentui/core";
-import {
-  BAR_HINTS,
-  barCommandsText,
-  type FocusId,
-  panelHintsText,
-} from "./keys";
+import { copy } from "../core/copy";
+import { barCommandsText, type FocusId, panelHintsText } from "./keys";
 import type { MenuContext, MenuRender } from "./menu";
 import type { PanelSize, Village } from "./village-panels";
 import { wrapLine } from "./wrap";
@@ -29,7 +25,6 @@ export type Panels = {
   readonly lineSuggestionBudget: number;
 };
 
-const LOCKED_BODY = "Locked.";
 export const BAR_LINES = 1;
 const BORDER_COLOR = "#6b7280";
 const FOCUS_COLOR = "#f5c542";
@@ -126,9 +121,12 @@ class StatusBar {
 
   private rightSide(commands: string, notice: string): string {
     const room =
-      this.renderer.width - commands.length - BAR_HINTS.length - 2 * BAR_GAP;
+      this.renderer.width -
+      commands.length -
+      copy.keys.barHints.length -
+      2 * BAR_GAP;
     const shown = StatusBar.fit(notice, room);
-    return shown === "" ? BAR_HINTS : `${shown} ${BAR_HINTS}`;
+    return shown === "" ? copy.keys.barHints : `${shown} ${copy.keys.barHints}`;
   }
 
   show(unlocks: readonly string[], notice: string) {
@@ -279,7 +277,7 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
       if (!slot.box.visible) continue;
       const focused = focus === panel.id;
       const size = slot.draw((fit) =>
-        locked ? LOCKED_BODY : panel.body(context, fit, focused),
+        locked ? copy.village.locked : panel.body(context, fit, focused),
       );
       slot.box.borderStyle = focused ? "double" : "single";
       slot.box.borderColor = focused ? FOCUS_COLOR : BORDER_COLOR;

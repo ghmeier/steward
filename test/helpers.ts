@@ -10,7 +10,7 @@ import type { AddContext } from "../src/core/math";
 import { JOBS, type Job } from "../src/core/realm";
 import { parseTuning, type Tuning } from "../src/core/tuning";
 import { ARCHIVE_PANEL } from "../src/core/unlocks";
-import { helpSections } from "../src/tui/help-menu";
+import { type HelpTopicId, helpSections } from "../src/tui/help-menu";
 
 export const fullTuningJson = {
   ...tuningJson,
@@ -214,16 +214,16 @@ export function setFamineDue(
   };
 }
 
-/** The text of one help topic, as it appears under its heading on the Help page. */
-export function topicText(
-  topic: string,
+/** The lines of one help topic, as they appear under its heading on the Help page. */
+export function topicLines(
+  topic: HelpTopicId,
   using: Tuning = tuning,
   unlocks: readonly string[] = [],
-): string {
+): string[] {
   const game = Game.create(1, using);
   grantUnlocks(game, unlocks);
   const context = { view: game.view.compute(), tuning: using };
-  const section = helpSections(context).find((s) => s.heading === topic);
+  const section = helpSections(context).find((s) => s.id === topic);
   if (section === undefined) throw new Error(`no help topic ${topic}`);
-  return section.lines.join("\n");
+  return section.lines;
 }

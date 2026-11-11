@@ -1,3 +1,4 @@
+import { copy } from "../core/copy";
 import type { DeskEntryView, DeskOptionView } from "../core/view";
 import { formatTicks } from "./format";
 import type { MenuContext, MenuItem, Screen, ScreenBuilder } from "./menu";
@@ -16,14 +17,17 @@ function costText(option: DeskOptionView): string {
   const parts = Object.entries(option.resources).map(([resource, amount]) =>
     amountText(resource, amount),
   );
-  return parts.length === 0 ? "free" : parts.join(", ");
+  return parts.length === 0 ? copy.court.free : parts.join(", ");
 }
 
 function optionLabel(option: DeskOptionView): string {
-  const sulk =
-    option.sulker === null ? "" : ` (${option.sulker} will sulk for a season)`;
-  const fallback = option.expiry ? " (the default if ignored)" : "";
-  return `${option.label}: ${costText(option)}${sulk}${fallback}`;
+  const notes = [
+    ...(option.sulker === null
+      ? []
+      : [copy.court.sulks({ sulker: option.sulker })]),
+    ...(option.expiry ? [copy.court.defaultIfIgnored] : []),
+  ];
+  return [`${option.label}: ${costText(option)}`, ...notes].join(" ");
 }
 
 /** An entry with a deadline of its own says how long is left, the way the Crown panel does. */
@@ -33,7 +37,10 @@ export function courtEntryLabel(
 ): string {
   return entry.ticksLeft === null
     ? entry.label
-    : `(due in ${formatTicks(entry.ticksLeft, tuning.stepMs)}) ${entry.label}`;
+    : copy.court.dueIn({
+        wait: formatTicks(entry.ticksLeft, tuning.stepMs),
+        label: entry.label,
+      });
 }
 
 function entryScreen(entryId: number): ScreenBuilder {
@@ -44,14 +51,14 @@ function entryScreen(entryId: number): ScreenBuilder {
     if (entry === undefined) {
       return {
         kind: "list",
-        title: "The desk",
-        notes: ["This matter is no longer on the desk."],
+        title: copy.court.deskTitle,
+        notes: [copy.court.noLongerOnDesk],
         items: [],
       };
     }
     return {
       kind: "list",
-      title: "Decide",
+      title: copy.court.decideTitle,
       notes: [courtEntryLabel(entry, context.tuning)],
       items: entry.options.map(
         (option): MenuItem => ({
@@ -76,8 +83,8 @@ export const courtMenu: ScreenBuilder = (context) => {
   const entries = context.view.desk;
   return {
     kind: "list",
-    title: "The desk",
-    notes: entries.length === 0 ? ["Nothing waits on the desk."] : [],
+    title: copy.court.deskTitle,
+    notes: entries.length === 0 ? [copy.court.nothingWaits] : [],
     items: entries.map((entry) => ({
       label: courtEntryLabel(entry, context.tuning),
       action: { kind: "push", screen: entryScreen(entry.id) },

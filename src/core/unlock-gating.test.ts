@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { grantUnlocks, topicText, tuning } from "../../test/helpers";
+import { grantUnlocks, topicLines, tuning } from "../../test/helpers";
 import { parseLine } from "../tui/command-line";
 import {
   actionForKey,
@@ -7,6 +7,7 @@ import {
   type KeyPress,
   keyHints,
 } from "../tui/keys";
+import { copy } from "./copy";
 import type { Decree } from "./decree";
 import { Game } from "./game";
 import {
@@ -47,10 +48,10 @@ function surfaces(unlocks: readonly string[]) {
   return {
     action: (name: string, modifiers: Partial<KeyPress> = {}) =>
       actionForKey(key(name, modifiers), owned),
-    hints: keyHints(owned).map((hint) => `${hint.keys} ${hint.label}`),
+    hints: keyHints(owned).map((hint) => hint.label),
     barCommands: barCommandsText(owned),
-    keysHelp: topicText("Keys", tuning, unlocks),
-    decreesHelp: topicText("Decrees", tuning, unlocks),
+    keysHelp: topicLines("keys", tuning, unlocks),
+    decreesHelp: topicLines("decrees", tuning, unlocks),
     verbs: words(""),
     afterCondition: words("decree wood sell when coin above 5 "),
     startOfCondition: words("decree wood sell when "),
@@ -65,22 +66,22 @@ type Checks = Record<string, boolean>;
 // biome-ignore format: one row per line keeps the table scannable
 const gated: [string, string, (s: Surfaces) => Checks][] = [
 	["panel.archive", ARCHIVE_PANEL, (s) => ({
-		key: s.action("a")?.kind === "focus", hint: s.hints.includes("a archive"),
-		help: /^a +archive$/m.test(s.keysHelp), buyVerb: s.verbs.includes("buy"),
+		key: s.action("a")?.kind === "focus", hint: s.hints.includes(copy.keys.hints.archive),
+		help: s.keysHelp.some((line) => line.endsWith(copy.keys.hints.archive)), buyVerb: s.verbs.includes("buy"),
 	})],
 	["control.palette", PALETTE_UNLOCK, (s) => ({
 		colon: s.action(":")?.kind === "line", semicolon: s.action(";", { shift: true })?.kind === "line",
-		hint: s.hints.includes(": commands"), bar: s.barCommands.includes(": commands"), help: /^: +commands$/m.test(s.keysHelp), assignVerb: s.verbs.includes("assign"),
+		hint: s.hints.includes(copy.keys.hints.commands), bar: s.barCommands === copy.keys.barCommands, help: s.keysHelp.some((line) => line.endsWith(copy.keys.hints.commands)), assignVerb: s.verbs.includes("assign"),
 	})],
 	["control.savedDecrees", SAVED_DECREES_UNLOCK, (s) => ({
-		saveVerb: s.verbs.includes("save"), enactVerb: s.verbs.includes("enact"), help: s.decreesHelp.includes("save <name>"),
+		saveVerb: s.verbs.includes("save"), enactVerb: s.verbs.includes("enact"), help: s.decreesHelp.includes(copy.help.decrees.saved),
 	})],
 	["decree.compound", COMPOUND_UNLOCK, (s) => ({
 		and: s.afterCondition.includes("and"), or: s.afterCondition.includes("or"),
-		not: s.startOfCondition.includes("not"), help: s.decreesHelp.includes("Join conditions"),
+		not: s.startOfCondition.includes("not"), help: s.decreesHelp.includes(copy.help.decrees.compound),
 	})],
 	["decree.chaining", CHAINING_UNLOCK, (s) => ({
-		subject: s.startOfCondition.includes(granary.id), help: s.decreesHelp.includes("chose"),
+		subject: s.startOfCondition.includes(granary.id), help: s.decreesHelp.includes(copy.help.decrees.chaining),
 	})],
 ];
 

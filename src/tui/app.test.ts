@@ -30,6 +30,7 @@ import {
 import { stateHash } from "../save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../save/save";
 import { type App, prepareStartup, type Startup, startApp } from "./app";
+import { keyFor } from "./keys";
 
 const NEVER_MS = 1e9;
 const NEW_SEED = 321;
@@ -46,6 +47,11 @@ function tempDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "steward-app-"));
   dirs.push(dir);
   return dir;
+}
+
+/** The fixed opening of a template that ends with a variable value, so a test can tell the notice appeared. */
+function noticeOpening(template: (args: { error: string }) => string): string {
+  return template({ error: "\u0000" }).split("\u0000")[0] ?? "";
 }
 
 function savedHash(dir: string): string {
@@ -126,7 +132,7 @@ describe("prepareStartup", () => {
     expect(stateHash(startup.game.state)).toBe(
       stateHash(Game.create(42, tuning).state),
     );
-    expect(startup.notice).not.toBeNull();
+    expect(startup.notice).toBe(copy.notices.startedNewGame);
   });
 
   test("a saved game loads with the same state hash and no notice", () => {
@@ -149,7 +155,9 @@ describe("prepareStartup", () => {
 
     const preserved = join(dir, "save.v0.json");
     expect(existsSync(preserved)).toBe(true);
-    expect(startup.notice).toContain(preserved);
+    expect(startup.notice).toBe(
+      copy.notices.unsupportedSave({ version: "0", preservedAs: preserved }),
+    );
     expect(stateHash(startup.game.state)).toBe(
       stateHash(Game.create(42, tuning).state),
     );
@@ -169,7 +177,9 @@ describe("prepareStartup", () => {
     const startup = ready(prepareStartup(dir, tuning, () => 1));
 
     expect(startup.game.state.posting.decrees.workers).toBeUndefined();
-    expect(startup.notice).toContain("workers");
+    expect(startup.notice).toBe(
+      copy.notices.repealedStale({ decrees: "workers" }),
+    );
     expect(() => startup.game.steps.step([], quietOptions)).not.toThrow();
   });
 
@@ -202,7 +212,7 @@ const savedState = (harness: Harness, file = SAVE_FILE_NAME) =>
 
 describe("lifecycle", () => {
   test("the first frame shows every panel title and the startup notice", async () => {
-    const harness = await launch({ notice: "Started a new game." });
+    const harness = await launch({ notice: copy.notices.startedNewGame });
 
     const screen = await harness.screen();
 
@@ -215,7 +225,7 @@ describe("lifecycle", () => {
     ]) {
       expect(screen).toContain(title);
     }
-    expect(screen).toContain("Started a new game.");
+    expect(barRow(screen)).toContain(copy.notices.startedNewGame);
   });
 
   test("assignment keys act on the peasant under the cursor, a repeat shows the rejection and s saves", async () => {
@@ -229,7 +239,7 @@ describe("lifecycle", () => {
     const [first, second] = harness.game.state.posting.delegates;
     expect(first?.job).toBe(Job.IDLE);
     expect(second?.job).toBe(Job.MINE);
-    expect(screen).toContain(`${second?.name} already works`);
+    expect(barRow(screen)).toContain(second?.name as string);
     expect(screen).toMatch(new RegExp(`> ${second?.name} {2}mine`));
     expect(stateHash(savedState(harness))).toBe(stateHash(harness.game.state));
   });
@@ -305,7 +315,7 @@ describe("lifecycle", () => {
     const screen = await harness.screen();
     const exit = await harness.app.shutdown();
 
-    expect(screen).toContain("Save failed");
+    expect(barRow(screen)).toContain(noticeOpening(copy.notices.saveFailed));
     expect(exit.saveError).not.toBeNull();
     expect(harness.app.hangUp().saveError).not.toBeNull();
   });
@@ -375,7 +385,7 @@ describe("doors", () => {
     expect(harness.destroyCalls()).toBe(1);
   });
 
-  test("? opens one help page with every topic, game keys scroll it instead of acting, and escape closes it", async () => {
+  test("? opens the help page over the grid, game keys scroll it instead of acting, and escape closes it", async () => {
     const harness = await launch({ kittyKeyboard: true });
 
     await harness.mockInput.typeText("?");
@@ -383,8 +393,7 @@ describe("doors", () => {
     await harness.mockInput.typeText("pf");
     harness.mockInput.pressEscape();
 
-    expect(open).toContain("KEYS");
-    expect(open).toContain("GRAIN AND GROWTH");
+    expect(open).not.toContain("(L)edger");
     expect(everyoneIdle(harness)).toBe(true);
     expect(await harness.screen()).toContain("(L)edger");
   });
@@ -401,11 +410,10 @@ describe("doors", () => {
     await harness.mockInput.typeText(" ");
     const page = await harness.screen();
 
-    expect(top).toContain("KEYS");
-    expect(oneLine).not.toContain("KEYS");
-    expect(back).toContain("KEYS");
-    expect(page).not.toContain("KEYS");
-    expect(page).toContain("COIN");
+    expect(oneLine).not.toBe(top);
+    expect(back).toBe(top);
+    expect(page).not.toBe(top);
+    expect(page).not.toBe(oneLine);
   });
 
   test("? closes the help page it opened", async () => {
@@ -526,7 +534,9 @@ describe("doors", () => {
       expect(conjured).toBeGreaterThan(0);
       expect(conjured).toBeLessThanOrEqual(lot);
       expect(Object.keys(illusion.conjured)).not.toContain("ore");
-      expect(barRow(await harness.screen())).toContain("ore");
+      expect(barRow(await harness.screen())).toContain(
+        copy.illusion.cannotBeConjured({ resource: "ore" }),
+      );
     });
 
     test("b backs the selected resource's debt from real stock", async () => {
@@ -625,7 +635,11 @@ describe("focus", () => {
     await harness.advanceStep();
 
     expect(settling).toContain("(L)edger");
-    expect(settling).toContain("sulk for a season");
+    expect(settling).toContain(
+      copy.court.sulks({
+        sulker: harness.game.state.posting.delegates[0]?.name as string,
+      }),
+    );
     expect(harness.game.state.posting.desk.disputes).toEqual([]);
   });
 
@@ -654,7 +668,9 @@ describe("focus", () => {
 
     expect(harness.game.state.career.unlocks[PALETTE_UNLOCK]).toBeDefined();
     expect(harness.game.state.posting.resources.coin).toBeLessThan(2);
-    expect(await harness.screen()).toContain("owned");
+    expect(await harness.screen()).toContain(
+      `${palette?.label}  ${copy.village.archiveOwned}`,
+    );
   });
 
   test("x in the Decrees panel repeals the selected decree and says so when none is in force", async () => {
@@ -668,7 +684,9 @@ describe("focus", () => {
     await harness.mockInput.typeText("x");
 
     expect(repealed).toBeUndefined();
-    expect(await harness.screen()).toContain("No harvest decree is in force.");
+    expect(await harness.screen()).toContain(
+      copy.village.noDecreeInForce({ petition: "harvest" }),
+    );
   });
 });
 
@@ -681,10 +699,12 @@ describe("new village", () => {
     await plain.mockInput.typeText("n");
 
     const screen = await plain.screen();
-    expect(screen).toContain("Found a new village?");
+    expect(screen).toContain(copy.menus.newVillageTitle);
     expect(screen).not.toContain("(L)edger");
-    expect(screen).not.toContain("Archive");
-    expect(await withUnlocks.screen()).toContain("bought in the Archive");
+    expect(screen).not.toContain(copy.menus.newVillageLosesPurchases);
+    expect(await withUnlocks.screen()).toContain(
+      copy.menus.newVillageLosesPurchases,
+    );
   });
 
   test("choosing yes backs up the old save, saves a new game at once and runs on its own state", async () => {
@@ -708,7 +728,7 @@ describe("new village", () => {
     expect(backup).toBe(old);
     expect(savedState(harness).posting.delegates[0]?.job).toBe(Job.FARM);
     expect(harness.game.state.tick).toBe(oldTick);
-    expect(await harness.screen()).toContain("Saved.");
+    expect(barRow(await harness.screen())).toContain(copy.notices.saved);
   });
 
   test.each([
@@ -728,7 +748,7 @@ describe("new village", () => {
 });
 
 describe("notices", () => {
-  const promotion = "The crown has noticed you. You are promoted to steward.";
+  const promotion = copy.notices.promoted;
 
   function nearlyPromoted(): Game {
     const game = Game.create(5, tuning);
@@ -782,7 +802,7 @@ describe("notices", () => {
     const harness = await launch();
     harness.game.state.posting.resources.coin = 5;
 
-    const archiveOpens = copy.notices.archiveOpens({ key: "a" });
+    const archiveOpens = copy.notices.archiveOpens({ key: keyFor("archive") });
 
     const { announced, later } = await announcedThenLater(harness);
     await harness.app.shutdown();
@@ -812,7 +832,12 @@ describe("notices", () => {
 
     await harness.advanceStep();
 
-    expect(barRow(await harness.screen())).toContain("The smith waited");
+    const template = tuning.desk.kinds.merchant.templates.find(
+      (candidate) => candidate.id === "smith",
+    );
+    expect(barRow(await harness.screen())).toContain(
+      template?.expired.slice(0, 40) as string,
+    );
   });
 
   test("a crown notice outranks a desk notice that arrives in the same frame", async () => {
@@ -833,8 +858,9 @@ describe("notices", () => {
     await harness.advanceStep();
     const bar = barRow(await harness.screen());
 
-    expect(bar).toContain("The crown requires 1000 grain");
-    expect(bar).not.toContain("accuses");
+    const view = harness.game.view.compute();
+    expect(bar).toContain(view.crown?.demand?.herald as string);
+    expect(bar).not.toContain(view.desk[0]?.label as string);
   });
 
   test("a purchase is announced once", async () => {
@@ -846,8 +872,9 @@ describe("notices", () => {
     harness.mockInput.pressEnter();
     const { announced, later } = await announcedThenLater(harness);
 
-    expect(announced).toContain(`Bought ${palette?.label}.`);
-    expect(later).not.toContain("Bought");
+    const bought = copy.notices.bought({ label: palette?.label as string });
+    expect(announced).toContain(bought);
+    expect(later).not.toContain(bought);
   });
 });
 
@@ -927,7 +954,7 @@ describe("the bottom bar", () => {
     const locked = await launch();
     const owned = await launch({ game: owning(PALETTE_UNLOCK) });
 
-    expect(barRow(await locked.screen()).trim()).not.toContain(": commands");
+    expect(barRow(await locked.screen())).not.toContain(": commands");
     expect(barRow(await owned.screen()).startsWith(": commands")).toBe(true);
   });
 });

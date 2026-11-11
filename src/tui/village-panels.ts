@@ -1,4 +1,5 @@
 import type { Command } from "../core/commands";
+import { copy } from "../core/copy";
 import { PETITIONS } from "../core/decree";
 import type { Resource } from "../core/realm";
 import type {
@@ -85,8 +86,6 @@ export abstract class VillagePanel {
 }
 
 const UNFOCUS: PanelStep = { commands: [], requests: [{ kind: "unfocus" }] };
-const EMPTY_VILLAGE = "The village is empty. Press n to found a new one.";
-const DESK_CLEAR = "The desk is clear.";
 
 function step(
   commands: Command[] = [],
@@ -113,11 +112,11 @@ export class PeasantsPanel extends VillagePanel {
   }
 
   body({ view }: MenuContext, size: PanelSize, focused: boolean): string {
-    if (view.realm.population === 0) return EMPTY_VILLAGE;
+    if (view.realm.population === 0) return copy.village.emptyVillage;
     const selectedId = focused ? (this.cursor?.id ?? null) : null;
     const rows = view.delegates.map((delegate) => {
       const marker = delegate.id === selectedId ? ">" : " ";
-      const grudge = delegate.grudgeTicks > 0 ? " (grudge)" : "";
+      const grudge = delegate.grudgeTicks > 0 ? ` ${copy.village.grudge}` : "";
       return `${marker} ${delegate.name}  ${delegate.job}${grudge}`;
     });
     const selected = view.delegates.findIndex(
@@ -125,8 +124,10 @@ export class PeasantsPanel extends VillagePanel {
     );
     const { start, end } = rowWindow(rows.length, selected, size.height);
     const lines = rows.slice(start, end);
-    if (start > 0) lines.unshift(`↑ ${start} more`);
-    if (end < rows.length) lines.push(`↓ ${rows.length - end} more`);
+    if (start > 0)
+      lines.unshift(copy.village.moreAbove({ count: String(start) }));
+    if (end < rows.length)
+      lines.push(copy.village.moreBelow({ count: String(rows.length - end) }));
     return lines.join("\n");
   }
 
@@ -139,7 +140,10 @@ export class PeasantsPanel extends VillagePanel {
       return step();
     }
     if (this.cursor === null) {
-      return step([], [{ kind: "message", text: "No peasant is selected." }]);
+      return step(
+        [],
+        [{ kind: "message", text: copy.village.noPeasantSelected }],
+      );
     }
     return step([
       { type: "assignPeasant", peasant: this.cursor.id, job: action.job },
@@ -191,18 +195,21 @@ export class CourtPanel extends MenuPanel {
 
   protected unfocusedLines({ view, tuning }: MenuContext): string[] {
     return view.desk.length === 0
-      ? [DESK_CLEAR]
+      ? [copy.court.deskClear]
       : view.desk.map((entry) => courtEntryLabel(entry, tuning));
   }
 }
 
 function archiveLabel(entry: ArchiveEntryView): string {
-  return `${entry.label}  ${entry.owned ? "owned" : `${entry.cost} coin`}`;
+  const status = entry.owned
+    ? copy.village.archiveOwned
+    : copy.village.archiveCost({ cost: String(entry.cost) });
+  return `${entry.label}  ${status}`;
 }
 
 const archiveScreen: ScreenBuilder = ({ view }) => ({
   kind: "list",
-  title: "The Archive",
+  title: copy.village.archiveTitle,
   items: view.archive.entries.map(
     (entry): MenuItem => ({
       label: archiveLabel(entry),
@@ -250,7 +257,7 @@ export class DecreesPanel extends VillagePanel {
       const decree = DecreesPanel.decreeFor(view, petition);
       const text =
         decree === undefined
-          ? "none"
+          ? copy.decrees.none
           : [
               ...decree.rules.map(formatRule),
               `otherwise ${decree.otherwise}`,
@@ -280,7 +287,12 @@ export class DecreesPanel extends VillagePanel {
     if (decree === undefined) {
       return step(
         [],
-        [{ kind: "message", text: `No ${this.petition} decree is in force.` }],
+        [
+          {
+            kind: "message",
+            text: copy.village.noDecreeInForce({ petition: this.petition }),
+          },
+        ],
       );
     }
     return step([{ type: "repealDecree", id: decree.id }]);
@@ -303,8 +315,14 @@ export class CrownPanel extends VillagePanel {
   ): string[] {
     return [
       demand.herald,
-      `${demand.resource} ${plain(demand.delivered)} / ${plain(demand.amount)}`,
-      `due in ${formatTicks(demand.ticksLeft, tuning.stepMs)}`,
+      copy.village.crownProgress({
+        resource: demand.resource,
+        delivered: plain(demand.delivered),
+        amount: plain(demand.amount),
+      }),
+      copy.village.crownDueIn({
+        wait: formatTicks(demand.ticksLeft, tuning.stepMs),
+      }),
     ];
   }
 
@@ -313,7 +331,7 @@ export class CrownPanel extends VillagePanel {
     tuning: MenuContext["tuning"],
   ): string[] {
     const wait = formatTicksRoughly(crown.nextDemandTicks ?? 0, tuning.stepMs);
-    return [`The crown is quiet. Next demand in about ${wait}.`];
+    return [copy.village.crownQuiet({ wait })];
   }
 
   body({ view, tuning }: MenuContext, size: PanelSize): string {
@@ -324,7 +342,7 @@ export class CrownPanel extends VillagePanel {
         ? CrownPanel.quietLines(crown, tuning)
         : CrownPanel.demandLines(crown.demand, tuning)),
       "",
-      `Met ${crown.met} \u00b7 missed ${crown.missed}`,
+      copy.village.crownTally({ met: crown.met, missed: crown.missed }),
     ];
     return lines
       .flatMap((line) => wrapLine(line, size.width - 1, 2))
@@ -365,7 +383,7 @@ export class LedgerPanel extends VillagePanel {
         `${gutter}${name.padEnd(widths[0] ?? 0)} ${amount.padStart(widths[1] ?? 0)} ${rate.padStart(widths[2] ?? 0)}`,
         ...(conjured > 0
           ? [
-              `${" ".repeat(gutter.length)}  (${formatAmount(conjured)} conjured)`,
+              `${" ".repeat(gutter.length)}  ${copy.ledger.conjured({ amount: formatAmount(conjured) })}`,
             ]
           : []),
       ];
@@ -373,7 +391,9 @@ export class LedgerPanel extends VillagePanel {
   }
 
   private booksLines(view: GameView): string[] {
-    return view.illusion === null ? [] : [`Books: ${view.illusion.books}`];
+    return view.illusion === null
+      ? []
+      : [copy.ledger.books({ books: view.illusion.books })];
   }
 
   /** One line when it fits the column, otherwise the label above its value, so neither is cut off. */
@@ -387,14 +407,17 @@ export class LedgerPanel extends VillagePanel {
     const { target, promotedAt, promotedAtSeconds } = view.promotion;
     if (promotedAt > 0) {
       return wrapLine(
-        `Promoted to steward on ${formatGameTime(promotedAtSeconds)}`,
+        copy.ledger.promotedOn({ time: formatGameTime(promotedAtSeconds) }),
         width,
         2,
       );
     }
     return this.labelled(
-      "Promotion",
-      `${view.realm.population} / ${target} peasants`,
+      copy.ledger.promotionLabel,
+      copy.ledger.promotionProgress({
+        population: view.realm.population,
+        target,
+      }),
       width,
     );
   }
@@ -402,12 +425,20 @@ export class LedgerPanel extends VillagePanel {
   private nextPeasantLines(view: GameView, width: number): string[] {
     const { stored, needed, perSecond, full } = view.growth;
     if (full) return [];
-    const progress = `${formatAmount(stored)} / ${plain(needed)} grain`;
-    if (perSecond <= 0) return this.labelled("Next peasant", progress, width);
+    const progress = copy.ledger.nextPeasantProgress({
+      stored: formatAmount(stored),
+      needed: plain(needed),
+    });
+    if (perSecond <= 0) {
+      return this.labelled(copy.ledger.nextPeasantLabel, progress, width);
+    }
     const seconds = Math.ceil((needed - stored) / perSecond);
     return this.labelled(
-      "Next peasant",
-      `${progress}  (~${formatGameTime(seconds)})`,
+      copy.ledger.nextPeasantLabel,
+      copy.ledger.nextPeasantEstimate({
+        progress,
+        wait: formatGameTime(seconds),
+      }),
       width,
     );
   }
@@ -419,16 +450,22 @@ export class LedgerPanel extends VillagePanel {
       ...this.booksLines(view),
       "",
       ...[
-        `Peasants ${realm.population} (${realm.labor.idle} idle)`,
-        `Farm ${realm.labor.farm} Forest ${realm.labor.forest} Mine ${realm.labor.mine}`,
-        `Season ${capitalize(realm.season)}`,
+        copy.ledger.peasants({
+          population: realm.population,
+          idle: realm.labor.idle,
+        }),
+        copy.ledger.labor(realm.labor),
+        copy.ledger.season({ season: capitalize(realm.season) }),
       ].flatMap((line) => wrapLine(line, size.width, 2)),
       ...this.promotionLines(view, size.width),
       ...this.nextPeasantLines(view, size.width),
     ];
     // The clock is the least useful line, so a short panel gives it up before anything else.
     if (rest.length >= size.height) return rest.join("\n");
-    return [`Time  ${formatGameTime(view.elapsedSeconds)}`, ...rest].join("\n");
+    return [
+      copy.ledger.time({ time: formatGameTime(view.elapsedSeconds) }),
+      ...rest,
+    ].join("\n");
   }
 
   key(key: KeyPress, { view, tuning }: MenuContext): PanelStep | null {

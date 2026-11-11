@@ -1,4 +1,5 @@
 import type { Command } from "../core/commands";
+import { copy } from "../core/copy";
 import type { Tuning } from "../core/tuning";
 import type { GameView } from "../core/view";
 import type { KeyPress } from "./keys";
@@ -61,9 +62,6 @@ export const LIST_KEYS: ReadonlySet<string> = new Set([
   "enter",
   "escape",
 ]);
-
-const LIST_HINTS = "up/down select · enter choose · esc back";
-const NUMBER_HINTS = "0-9 . type · backspace erase · enter accept · esc back";
 
 export function openMenu(root: ScreenBuilder): MenuState {
   return { frames: [{ build: root, cursor: 0, text: "" }] };
@@ -206,20 +204,22 @@ export function renderMenu(state: MenuState, context: MenuContext): MenuRender {
   const lines = [...(screen.notes ?? [])];
   if (screen.kind === "number") {
     lines.push(`> ${top.text}_`);
-    return { title: screen.title, lines, hints: NUMBER_HINTS };
+    return { title: screen.title, lines, hints: copy.menus.numberHints };
   }
   const cursor = clampCursor(screen, top.cursor);
   for (const [index, item] of screen.items.entries()) {
     const marker = index === cursor ? ">" : " ";
     const label =
-      item.disabled === true ? `${item.label} (unavailable)` : item.label;
+      item.disabled === true
+        ? copy.menus.unavailable({ label: item.label })
+        : item.label;
     lines.push(`${marker} ${label}`);
   }
   const detail = screen.items[cursor]?.detail;
   if (detail !== undefined) lines.push("", detail);
   const hints =
     state.frames.length === 1
-      ? LIST_HINTS.replace("back", "close")
-      : LIST_HINTS;
+      ? copy.menus.listHintsClose
+      : copy.menus.listHintsBack;
   return { title: screen.title, lines, hints };
 }

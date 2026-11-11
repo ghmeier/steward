@@ -1,3 +1,4 @@
+import { copy } from "../core/copy";
 import { Job } from "../core/realm";
 import {
   ARCHIVE_PANEL,
@@ -103,6 +104,33 @@ const PEASANT_BINDINGS: Readonly<Record<string, PeasantAction>> = {
   i: { kind: "assign", job: Job.IDLE },
 };
 
+function keyWhere<Binding>(
+  bindings: Readonly<Record<string, Binding>>,
+  matches: (binding: Binding) => boolean,
+): string {
+  const bound = Object.entries(bindings).find(([, binding]) =>
+    matches(binding),
+  );
+  if (bound === undefined) throw new Error("no key has the requested binding");
+  return bound[0];
+}
+
+/** The key bound to focus a panel, so prose and notices name the letter the bindings actually use. */
+export function keyFor(panel: FocusId): string {
+  return keyWhere(
+    BINDINGS,
+    ({ action }) => action.kind === "focus" && action.panel === panel,
+  );
+}
+
+/** The key that gives a peasant a job while the Peasants panel is focused. */
+export function peasantKeyFor(job: Job): string {
+  return keyWhere(
+    PEASANT_BINDINGS,
+    (action) => action.kind === "assign" && action.job === job,
+  );
+}
+
 export function isInterrupt(key: KeyPress): boolean {
   return key.ctrl && !key.meta && key.name === "c";
 }
@@ -146,52 +174,52 @@ type ShownHint = { keys: string; label: string };
 type KeyHint = ShownHint & { needs?: UnlockId };
 
 const GLOBAL_HINTS: readonly KeyHint[] = [
-  { keys: "l", label: "ledger", needs: CONJURING },
-  { keys: "p", label: "peasants" },
-  { keys: "a", label: "archive", needs: ARCHIVE_PANEL },
-  { keys: "c", label: "court" },
-  { keys: "d", label: "decrees" },
-  { keys: "r", label: "crown", needs: CROWN_PANEL },
-  { keys: ":", label: "commands", needs: PALETTE_UNLOCK },
-  { keys: "s", label: "save" },
-  { keys: "n", label: "new village" },
-  { keys: "?", label: "help" },
-  { keys: "q", label: "quit" },
+  { keys: "l", label: copy.keys.hints.ledger, needs: CONJURING },
+  { keys: "p", label: copy.keys.hints.peasants },
+  { keys: "a", label: copy.keys.hints.archive, needs: ARCHIVE_PANEL },
+  { keys: "c", label: copy.keys.hints.court },
+  { keys: "d", label: copy.keys.hints.decrees },
+  { keys: "r", label: copy.keys.hints.crown, needs: CROWN_PANEL },
+  { keys: ":", label: copy.keys.hints.commands, needs: PALETTE_UNLOCK },
+  { keys: "s", label: copy.keys.hints.save },
+  { keys: "n", label: copy.keys.hints.newVillage },
+  { keys: "?", label: copy.keys.hints.help },
+  { keys: "q", label: copy.keys.hints.quit },
 ];
 
 /** Shown on the focused panel's bottom border and listed in Help; esc is handled by every panel. */
 const PANEL_HINTS: Readonly<Record<FocusId, readonly ShownHint[]>> = {
   ledger: [
-    { keys: "j/k", label: "select" },
-    { keys: "enter", label: "conjure" },
-    { keys: "b", label: "repay" },
-    { keys: "esc", label: "back" },
+    { keys: "j/k", label: copy.keys.panelActions.select },
+    { keys: "enter", label: copy.keys.panelActions.conjure },
+    { keys: "b", label: copy.keys.panelActions.repay },
+    { keys: "esc", label: copy.keys.panelActions.back },
   ],
   peasants: [
-    { keys: "j/k", label: "select" },
-    { keys: "f/w/m/i", label: "assign" },
-    { keys: "esc", label: "back" },
+    { keys: "j/k", label: copy.keys.panelActions.select },
+    { keys: "f/w/m/i", label: copy.keys.panelActions.assign },
+    { keys: "esc", label: copy.keys.panelActions.back },
   ],
   archive: [
-    { keys: "j/k", label: "select" },
-    { keys: "enter", label: "buy" },
-    { keys: "esc", label: "back" },
+    { keys: "j/k", label: copy.keys.panelActions.select },
+    { keys: "enter", label: copy.keys.panelActions.buy },
+    { keys: "esc", label: copy.keys.panelActions.back },
   ],
   court: [
-    { keys: "j/k", label: "select" },
-    { keys: "enter", label: "choose" },
-    { keys: "esc", label: "back" },
+    { keys: "j/k", label: copy.keys.panelActions.select },
+    { keys: "enter", label: copy.keys.panelActions.choose },
+    { keys: "esc", label: copy.keys.panelActions.back },
   ],
   decrees: [
-    { keys: "j/k", label: "select" },
-    { keys: "enter", label: "write" },
-    { keys: "x", label: "repeal" },
-    { keys: "esc", label: "back" },
+    { keys: "j/k", label: copy.keys.panelActions.select },
+    { keys: "enter", label: copy.keys.panelActions.write },
+    { keys: "x", label: copy.keys.panelActions.repeal },
+    { keys: "esc", label: copy.keys.panelActions.back },
   ],
   crown: [
-    { keys: "enter", label: "deliver" },
-    { keys: "f", label: "forge" },
-    { keys: "esc", label: "back" },
+    { keys: "enter", label: copy.keys.panelActions.deliver },
+    { keys: "f", label: copy.keys.panelActions.forge },
+    { keys: "esc", label: copy.keys.panelActions.back },
   ],
 };
 
@@ -203,6 +231,15 @@ export function keyHints(unlocks: readonly string[]): ShownHint[] {
 
 export function panelKeyHints(panel: FocusId): readonly ShownHint[] {
   return PANEL_HINTS[panel];
+}
+
+/** The key shown for one of a panel's hints, found by the label the hint carries. */
+export function panelHintKey(panel: FocusId, label: string): string {
+  const hint = PANEL_HINTS[panel].find(
+    (candidate) => candidate.label === label,
+  );
+  if (hint === undefined) throw new Error(`${panel} has no hint ${label}`);
+  return hint.keys;
 }
 
 /**
@@ -221,10 +258,7 @@ export function panelHintsText(panel: FocusId, width: number): string {
   );
 }
 
-/** The short list on the right of the bottom bar; everything else is in Help. */
-export const BAR_HINTS = "(?)Help (N)ew village (Q)uit";
-
 /** Reminds the player of the palette on the left of the bottom bar, and is empty until it is owned. */
 export function barCommandsText(unlocks: readonly string[]): string {
-  return unlocks.includes(PALETTE_UNLOCK) ? ": commands" : "";
+  return unlocks.includes(PALETTE_UNLOCK) ? copy.keys.barCommands : "";
 }

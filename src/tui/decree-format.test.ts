@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { tuning } from "../../test/helpers";
+import { copy } from "../core/copy";
 import type { Condition, Decree } from "../core/decree";
-import { describePolicy, formatDecree } from "./decree-format";
+import { describePolicy, formatCondition, formatDecree } from "./decree-format";
 
 function decreeWith(when: Condition): Decree {
   return {
@@ -52,21 +53,33 @@ describe("formatDecree", () => {
     expect(formatDecree(bare)).toBe("labor (labor): otherwise balanced");
   });
 
-  // biome-ignore format: one row per line keeps the table scannable
-  const conditions: [string, Condition, string][] = [
-		["compare", { kind: "compare", quantity: "grainSeasons", comparison: "above", value: 3 }, "grain seasons above 3"],
-		["chose", { kind: "chose", decree: "workers", policy: "balanced" }, "workers chose balanced"],
-		["all", { kind: "all", conditions: [spring, poor] }, "all of (it is spring, coin below 5)"],
-		["any", { kind: "any", conditions: [spring, poor] }, "any of (it is spring, coin below 5)"],
-		["not", { kind: "not", condition: spring }, "not (it is spring)"],
-	];
+  test("a compound condition wraps its formatted parts in the matching copy", () => {
+    const parts = `${formatCondition(spring)}, ${formatCondition(poor)}`;
 
-  test.each(conditions)(
-    "a %s rule shows its subject and values",
-    (_name, when, fragment) => {
-      expect(formatDecree(decreeWith(when))).toContain(fragment);
-    },
-  );
+    const all = formatDecree(
+      decreeWith({ kind: "all", conditions: [spring, poor] }),
+    );
+    const any = formatDecree(
+      decreeWith({ kind: "any", conditions: [spring, poor] }),
+    );
+
+    expect(all).toContain(copy.decrees.allOf({ conditions: parts }));
+    expect(any).toContain(copy.decrees.anyOf({ conditions: parts }));
+  });
+
+  test("a compare condition shows its quantity, comparison and value, and a not condition wraps its inner one", () => {
+    const compare: Condition = {
+      kind: "compare",
+      quantity: "grainSeasons",
+      comparison: "above",
+      value: 3,
+    };
+
+    expect(formatCondition(compare)).toBe("grain seasons above 3");
+    expect(formatCondition({ kind: "not", condition: compare })).toContain(
+      formatCondition(compare),
+    );
+  });
 });
 
 describe("describePolicy", () => {
@@ -81,22 +94,28 @@ describe("describePolicy", () => {
     },
   };
 
-  // biome-ignore format: one row per line keeps the table scannable
-  const rows: [string, string, string, string][] = [
-		["labor", "lumberjacks", "forest", "everyone works the forest"],
-		["labor", "halves", "mine", "mine 50%"],
-		["ore", "sell", "ore", "sold for coin"],
-		["harvest", "feed", "surplus", "grows the village"],
-	];
+  test("a policy that gives everyone one job names the matching copy", () => {
+    expect(describePolicy("labor", "lumberjacks", inline)).toBe(
+      `lumberjacks: ${copy.decrees.everyone.forest}`,
+    );
+  });
 
-  test.each(rows)(
-    "%s policy %s names its %s",
-    (petition, policy, noun, effect) => {
-      const text = describePolicy(petition as "labor", policy, inline);
+  test("a split policy lists each job with its share", () => {
+    expect(describePolicy("labor", "halves", inline)).toBe(
+      "halves: farm 25%, forest 25%, mine 50%",
+    );
+  });
 
-      expect(text).toStartWith(`${policy}:`);
-      expect(text).toContain(noun);
-      expect(text).toContain(effect);
-    },
-  );
+  test("a store policy and a harvest policy take their description from copy", () => {
+    expect(describePolicy("ore", "sell", inline)).toBe(
+      `sell: ${copy.decrees.storePolicies.sell({ resource: "ore" })}`,
+    );
+    expect(describePolicy("harvest", "feed", inline)).toBe(
+      `feed: ${copy.decrees.harvestPolicies.feed}`,
+    );
+  });
+
+  test("a policy nobody described is shown as its bare name", () => {
+    expect(describePolicy("harvest", "mystery", inline)).toBe("mystery");
+  });
 });

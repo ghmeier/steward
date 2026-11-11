@@ -1,15 +1,13 @@
 import { copy } from "../core/copy";
 import type { Tuning } from "../core/tuning";
 import { ARCHIVE_PANEL, CONJURING, type UnlockId } from "../core/unlocks";
-
-// The letters bound in keys.ts to focus the Archive and the Ledger.
-const ARCHIVE_KEY = "a";
-const LEDGER_KEY = "l";
+import { keyFor } from "./keys";
 
 function noticeFor(id: UnlockId, tuning: Tuning): string | null {
   if (id === ARCHIVE_PANEL)
-    return copy.notices.archiveOpens({ key: ARCHIVE_KEY });
-  if (id === CONJURING) return copy.notices.conjuringOpens({ key: LEDGER_KEY });
+    return copy.notices.archiveOpens({ key: keyFor("archive") });
+  if (id === CONJURING)
+    return copy.notices.conjuringOpens({ key: keyFor("ledger") });
   const entry = tuning.archive.entries.find((candidate) => candidate.id === id);
   if (entry !== undefined) return copy.notices.bought({ label: entry.label });
   const play = tuning.archive.play.find((candidate) => candidate.id === id);
