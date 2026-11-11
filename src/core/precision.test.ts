@@ -70,23 +70,18 @@ describe("audit timing", () => {
     return game;
   }
 
-  test("shows ticks until the auditors arrive only with exact books, and always says they are on the road", () => {
+  test("shows ticks until the auditors arrive only with exact books, and always says whether they are on the road", () => {
     const rough = debtView(announced());
     const exact = debtView(announced(EXACT_DEBT));
+    const none = announced(EXACT_DEBT);
+    none.state.posting.illusion.auditAt = NO_AUDIT_TICK;
+    const unannounced = debtView(none);
 
     expect(rough.auditInTicks).toBeNull();
     expect(rough.auditOnTheRoad).toBe(true);
     expect(exact.auditInTicks).toBe(50);
-  });
-
-  test("shows no timing with exact books when no audit is announced", () => {
-    const game = announced(EXACT_DEBT);
-    game.state.posting.illusion.auditAt = NO_AUDIT_TICK;
-
-    const view = debtView(game);
-
-    expect(view.auditInTicks).toBeNull();
-    expect(view.auditOnTheRoad).toBe(false);
+    expect(unannounced.auditInTicks).toBeNull();
+    expect(unannounced.auditOnTheRoad).toBe(false);
   });
 });
 

@@ -12,6 +12,31 @@ export const CONJURABLE = ["coin", "grain"] as const;
 /** Without exact books, debt is shown rounded up to a multiple of this, so a small debt never reads as none. */
 export const ROUGH_DEBT_STEP = 10;
 
+/** How debt is shown to the steward: exact to a tenth with exact books, otherwise rounded up and marked approximate. */
+export class DebtFigure {
+  constructor(readonly exact: boolean) {}
+
+  round(amount: number): number {
+    if (amount <= 0) return 0;
+    return this.exact
+      ? Math.ceil(amount * 10) / 10
+      : Math.ceil(amount / ROUGH_DEBT_STEP) * ROUGH_DEBT_STEP;
+  }
+
+  /** Rounds an amount and writes it out. */
+  describe(amount: number): string {
+    return this.text(this.round(amount));
+  }
+
+  /** Text for an amount already rounded by `round`. */
+  text(rounded: number): string {
+    return copy.illusion.figure({
+      amount: this.exact ? rounded.toFixed(1) : String(rounded),
+      exact: this.exact,
+    });
+  }
+}
+
 /** What the steward is told about one resource's debt and what repaying it from real stock would do. */
 export type DebtLine = {
   owed: number;
@@ -85,29 +110,19 @@ export class IllusionManager {
     return this.game.unlocks.enabled(EXACT_DEBT);
   }
 
-  /** A debt amount as the steward sees it: exact to a tenth with exact books, otherwise rounded up. */
-  private shown(amount: number): number {
-    if (amount <= 0) return 0;
-    return this.showsExactDebt
-      ? Math.ceil(amount * 10) / 10
-      : Math.ceil(amount / ROUGH_DEBT_STEP) * ROUGH_DEBT_STEP;
-  }
-
-  private figure(amount: number): string {
-    return copy.illusion.figure({
-      amount: String(this.shown(amount)),
-      exact: this.showsExactDebt,
-    });
+  private get debtFigure(): DebtFigure {
+    return new DebtFigure(this.showsExactDebt);
   }
 
   debtLines(): Record<ResourceId, DebtLine> {
     const lines: Record<ResourceId, DebtLine> = {};
+    const figure = this.debtFigure;
     for (const resource of RESOURCES) {
       const owed = this.debtOf(resource);
       const held = this.resources[resource] ?? 0;
       lines[resource] = {
-        owed: this.shown(owed),
-        repayable: this.shown(Math.min(owed, held)),
+        owed: figure.round(owed),
+        repayable: figure.round(Math.min(owed, held)),
         covered: held >= owed,
       };
     }
@@ -262,16 +277,20 @@ export class IllusionManager {
     const repaid = Math.min(owed, held);
     this.repay(resource, repaid, context);
     const left = owed - repaid;
+    const figure = this.debtFigure;
     return {
       ok: true,
       message:
         left > 0
           ? copy.illusion.repaidPartly({
               resource,
-              repaid: this.figure(repaid),
-              left: this.figure(left),
+              repaid: figure.describe(repaid),
+              left: figure.describe(left),
             })
-          : copy.illusion.repaidAll({ resource, repaid: this.figure(repaid) }),
+          : copy.illusion.repaidAll({
+              resource,
+              repaid: figure.describe(repaid),
+            }),
     };
   }
 

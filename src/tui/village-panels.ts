@@ -1,6 +1,7 @@
 import type { Command } from "../core/commands";
 import { copy } from "../core/copy";
 import { PETITIONS } from "../core/decree";
+import { DebtFigure } from "../core/illusion";
 import type { Resource } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 import type {
@@ -378,11 +379,8 @@ export class LedgerPanel extends VillagePanel {
       return [];
     }
     const { debtIsExact } = view.illusion;
-    const figure = (amount: number) =>
-      copy.illusion.figure({
-        amount: debtIsExact ? formatAmount(amount) : String(amount),
-        exact: debtIsExact,
-      });
+    const debtFigure = new DebtFigure(debtIsExact);
+    const figure = (amount: number) => debtFigure.text(amount);
     const owed = copy.ledger.owed({ figure: figure(debt.owed) });
     if (!selected) return [`${indent}${owed}`];
     const key = panelHintKey("ledger", copy.keys.panelActions.repay);
