@@ -4,8 +4,8 @@ status: active
 tags: [phase-7]
 created: 2026-11-11
 updated: 2026-11-11
-last_pr: 13
-next_step: Two follow-up branches are in flight (sim-validate-interval, court-cost-rounding); then Garret runs the exit playtest and the handoff follows
+last_pr: 15
+next_step: Garret merges PR #14 and PR #15 and runs the exit playtest; the handoff follows
 ---
 # Phase 7: conjuring, illusion debt and audits
 
@@ -197,3 +197,4 @@ Carried from phase 6:
 - 2026-11-11: Garret merged PR #12 and PR #13 (`main` at eab6317). All three phase 7 PRs are on `main`.
 - 2026-11-11: End-to-end check in the real game (tmux, scratch save with 80 ore of forged debt and auditors 150 ticks out). The audit arrived in Court with "(due in 1m 10s)" and its arrival line in the bar, backing was shown unavailable without real ore, and at the deadline the expiry line showed, the Books line returned to "clean" and the Crown tally read "Met 1 · missed 1". A save loaded with auditors already on the road shows no warning notice, which is the intended no-replay rule. Bug found: Court printed audit costs unrounded ("−84.83786272732429 ore"). Fix dispatched on `court-cost-rounding`.
 - 2026-11-11: Garret asked for the tests to stop spending so long stepping. Measured: `runSim` validates the whole state with Zod after every step, which is 96% of a run (2,640 ms against 114 ms for 36,000 conjurer steps, same results). Dispatched `sim-validate-interval`: validate once per season and at the end, with `--validate-every` to restore per-step checks.
+- 2026-11-11: PR #14 opened for `court-cost-rounding` (fce4379): whole costs unchanged, fractional costs rounded up to one decimal. PR #15 opened for `sim-validate-interval` (9086676): `StepOptions.validateEvery`, one season by default in the simulator plus a final validation, `--validate-every`, `InvalidStateError` in `src/core/errors.ts`. `bun run check` takes 3.7 seconds on that branch, down from 36.4, and the conjurer, borrower and seasonal summary hashes are unchanged.
