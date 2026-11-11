@@ -73,7 +73,7 @@ export class IllusionManager {
     return (this.resources[resource] ?? 0) + this.conjuredOf(resource);
   }
 
-  private get hasDebt(): boolean {
+  get hasDebt(): boolean {
     return this.illusion.debtSince !== NO_DEBT_TICK;
   }
 
@@ -279,6 +279,10 @@ export class IllusionManager {
   }
 
   private runAudit(): void {
+    if (!this.hasDebt && this.game.desk.hasAudit) {
+      this.game.desk.removeAudit();
+      this.illusion.audits.backed += 1;
+    }
     const { tick } = this.game.state;
     const { warningTicks, deadlineTicks } = this.tuning.audit;
     if (

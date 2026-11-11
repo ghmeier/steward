@@ -604,6 +604,32 @@ describe("audits", () => {
     expect(options?.[0]?.resources).toEqual({ coin: -100 });
   });
 
+  test("an audit is passed with no failure when the debt is repaid, even on its deadline, and stands while debt remains", () => {
+    const owing = indebted(100);
+    stock(owing, "coin", 1000);
+    placeAudit(owing);
+    const repaid = indebted(100);
+    stock(repaid, "coin", 1000);
+    const { dueAt } = placeAudit(repaid);
+    command(repaid, { type: "back", resource: "coin" });
+    repaid.state.tick = dueAt;
+
+    nextTick(owing);
+    repaid.desk.run(contextFor(repaid));
+    repaid.illusion.run();
+
+    expect(auditsOnDesk(owing)).toBe(1);
+    expect(owing.state.posting.illusion.audits.backed).toBe(0);
+    expect(auditsOnDesk(repaid)).toBe(0);
+    expect(repaid.state.posting.illusion.audits).toEqual({
+      backed: 1,
+      deepened: 0,
+      failed: 0,
+    });
+    expect(repaid.state.posting.crown.missed).toBe(0);
+    expect(repaid.desk.expired).toEqual([]);
+  });
+
   test("a deeper illusion costs real coin, multiplies every debt and restarts the debt's age", () => {
     const game = indebted(100, 5);
     game.state.posting.illusion.debt.grain = 40;

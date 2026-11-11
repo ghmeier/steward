@@ -123,6 +123,12 @@ export class DeskManager {
     return this.posting.desk.disputes.some((entry) => entry.kind === "audit");
   }
 
+  removeAudit(): void {
+    this.posting.desk.disputes = this.posting.desk.disputes.filter(
+      (entry) => entry.kind !== "audit",
+    );
+  }
+
   /** Names the first thing the village cannot cover, or null when the option is affordable. */
   shortfall(entry: DeskEntry, option: DeskOption): string | null {
     if (entry.kind === "audit") {
@@ -330,8 +336,12 @@ export class DeskManager {
         this.state.tick + drawDelay(this.stream, this.tuning.desk.arrival);
     }
 
+    // An audit whose debt was repaid is passed by the illusion manager later in this step, so it must not lapse first.
     const lapsed = desk.disputes.filter(
-      (entry) => entry.kind === "audit" && this.state.tick >= entry.dueAt,
+      (entry) =>
+        entry.kind === "audit" &&
+        this.state.tick >= entry.dueAt &&
+        this.game.illusion.hasDebt,
     );
     desk.disputes = desk.disputes.filter((entry) => !lapsed.includes(entry));
     for (const entry of lapsed) this.expire(entry, context);
