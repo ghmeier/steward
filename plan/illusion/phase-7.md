@@ -4,8 +4,8 @@ status: active
 tags: [phase-7]
 created: 2026-11-11
 updated: 2026-11-11
-last_pr: 10
-next_step: PR 1 (illusion-core) is being implemented; refactor pass and PR follow, then PR 2 and PR 3 in parallel
+last_pr: 11
+next_step: PR 2 (illusion-audits) and PR 3 (illusion-tui) are being implemented in parallel from illusion-core; each gets a refactor pass and a PR
 ---
 # Phase 7: conjuring, illusion debt and audits
 
@@ -187,3 +187,4 @@ Carried from phase 6:
 - 2026-11-11: Garret chose outsiders-only spending, reports as forged deliveries, seizure plus a missed-demand mark for a failed audit, and a debt ceiling as the limit.
 - 2026-11-11: Garret approved the PR breakdown and every lead default. PR 1 dispatched on `illusion-core`. The phase 6 playtest question is still unanswered.
 - 2026-11-11: PR 1 implemented on `illusion-core` (db20055), 947 tests. The golden changed only in its hash, confirmed by hashing the final state with the illusion field removed. Crown-aware met 8 and missed 0 on seeds 1, 7 and 42 at 24,000 steps, the same as `main`. Deviations: `IllusionManager.run()` takes no context yet; the `books` tuning is `{ strained, rotten }`; `conjured` holds only grain and coin keys; `CrownManager.credit` is the shared path for a delivery and a forged report; `EconomyManager.priceOf` is the one price lookup; the runner's `--grant` cannot grant conjuring, so strategies unlock it through play. Refactor pass dispatched.
+- 2026-11-11: PR #11 opened for `illusion-core` after the refactor pass (7e9219a, 939 tests; 26 illusion tests consolidated to 18). PR 2 and PR 3 dispatched in parallel from it. PR 3 merges `hide-locked-crown` into its branch, because PR #10 lands first and both touch the panel code. Left for later: `forge` reads the crown demand directly and casts its resource, and `UPGRADES[11]` casts crown fields instead of validating them.
