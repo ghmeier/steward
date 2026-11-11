@@ -5,7 +5,7 @@ tags: [phase-8]
 created: 2026-11-11
 updated: 2026-11-11
 last_pr: 22
-next_step: Garret reviews #20, #21, #22 and decides whether crown grain demands may starve peasants; PR 3 after #21 and #22 merge
+next_step: Garret merges #21 (now carrying #22); then dispatch PR 3 governors-tui-and-precision from main
 ---
 # Phase 8: governors, crown favor and Archive precision
 
@@ -166,3 +166,4 @@ Carried from phases 6 and 7:
 - 2026-11-11: crown-favor's larger grain demands make honest play starve peasants after promotion: crown-aware with the correspondence grant starved 1 and 0 on seeds 1 and 7 on main, and 5 and 9 on `crown-favor` (promotion at tick 8011 in all four). Raised with Garret.
 - 2026-11-11: governors-core choices: candidates carry their job and start on it (instead of a `governorsIdle` quantity), a `candidates` quantity counts waiting candidates, famine pacing caps at half the peasants present, report factor is reported over real output and traits multiply, and the hoard is paid on any departure.
 - 2026-11-11: Garret found the post-promotion starvation too punishing. Lowering demands alone had no workable window: starvation stayed near 5 from a base of 400 to 700. The cause was `CrownManager.take` emptying the granary at collection and on partial delivery. The crown now never takes the last season of real grain (`grainReserveSeasons` 1 in `data/crown.json`); what the reserve leaves uncovered counts as missed. Grain base lowered from 700 to 625 (step 0.3), the lowest at which the strict gate holds; 600 fails because the conjurer ends at favor 4 on seed 7. Crown-aware and borrower now starve 0 on every seed; the conjurer still starves 4 on seed 1. #21 at 30cdc8f, 1016 pass.
+- 2026-11-11: #20 merged to main. #22 merged into `crown-favor`, so #21 now carries governors too. Merged main into `crown-favor` at 90ceb01 (conflict in `src/core/view.ts` only, both sides kept); 1062 pass, golden unchanged.
