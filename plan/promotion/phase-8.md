@@ -4,7 +4,7 @@ status: active
 tags: [phase-8]
 created: 2026-11-11
 updated: 2026-11-11
-last_pr: 21
+last_pr: 22
 next_step: Garret reviews #20 and #21; governors-core finishing, then its refactor pass, then PR 3
 ---
 # Phase 8: governors, crown favor and Archive precision
@@ -154,7 +154,7 @@ Carried from phases 6 and 7:
 
 - PR 0 `archive-hidden-and-food-eaten`: #20 open at 4e68a1c, `bun run check` 999 pass.
 - PR 1 `crown-favor`: f77e4c1, `bun run check` 1013 pass, strict gate holds on seeds 1, 7, 42 (crown-aware favor 27 with one miss, borrower 49, conjurer cold). #21 open at 709485c, 1012 pass.
-- PR 2 `governors-core`: c3a55d8 stacked on `crown-favor`, 1057 pass; governor strategy reaches population 63, 63, 71 against crown-aware 40. In refactor pass, PR targets `crown-favor`.
+- PR 2 `governors-core`: c3a55d8 stacked on `crown-favor`, 1057 pass; governor strategy reaches population 63, 63, 71 against crown-aware 40. #22 open against `crown-favor` at 389b16f, 1055 pass; removing the dead `career.formerStaff`.
 
 ## Notes and decisions
 
