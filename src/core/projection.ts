@@ -4,6 +4,8 @@ import { RESOURCES, type Resource } from "./realm";
 export type FlowProjection = {
   rates: Record<Resource, number>;
   growthPerTick: number;
+  /** Grain the peasants eat in one tick, whatever the harvest brings in. */
+  eatenPerTick: number;
 };
 
 export class ProjectionManager {
@@ -15,7 +17,7 @@ export class ProjectionManager {
   flows(): FlowProjection {
     const next = this.game.clone();
     next.state.tick += 1;
-    next.steps.runFlows({
+    const { eaten } = next.steps.runFlows({
       tick: next.state.tick,
       maxValue: this.game.tuning.maxResourceValue,
       absorbed: null,
@@ -39,7 +41,7 @@ export class ProjectionManager {
       next.state.posting.economy.growth -
       this.game.state.posting.economy.growth +
       this.game.tuning.economy.grainPerPeasant * births;
-    return { rates, growthPerTick };
+    return { rates, growthPerTick, eatenPerTick: eaten };
   }
 
   projectedRates(): Record<Resource, number> {

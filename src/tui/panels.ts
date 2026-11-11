@@ -268,17 +268,12 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
 
   const draw = ({ context, message: text, focus }: PanelsFrame) => {
     const { view } = context;
-    const isLocked = (id: string) =>
-      view.lockedPanels.some((locked) => locked === id);
     for (const panel of Object.values(panels)) {
       const slot = slots[panel.id];
-      const locked = isLocked(panel.id);
-      slot.box.visible = !(locked && panel.hiddenWhileLocked);
+      slot.box.visible = !view.lockedPanels.some((id) => id === panel.id);
       if (!slot.box.visible) continue;
       const focused = focus === panel.id;
-      const size = slot.draw((fit) =>
-        locked ? copy.village.locked : panel.body(context, fit, focused),
-      );
+      const size = slot.draw((fit) => panel.body(context, fit, focused));
       slot.box.borderStyle = focused ? "double" : "single";
       slot.box.borderColor = focused ? FOCUS_COLOR : BORDER_COLOR;
       slot.box.bottomTitle = focused

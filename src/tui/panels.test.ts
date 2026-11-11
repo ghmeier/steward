@@ -5,6 +5,7 @@ import { barRow, settledFrame } from "../../test/tui-helpers";
 import { copy } from "../core/copy";
 import { Job, RESOURCES } from "../core/realm";
 import {
+  ARCHIVE_PANEL,
   CONJURING,
   CROWN_PANEL,
   PALETTE_UNLOCK,
@@ -96,6 +97,7 @@ function emptyView(overrides: Partial<GameView> = {}): GameView {
     illusion: null,
     promotion: { target: 20, promotedAt: 0, promotedAtSeconds: 0 },
     growth: { stored: 0, needed: 25, perSecond: 0, full: false },
+    grainEatenPerSecond: 0,
     lockedPanels: [],
     unlocks: [],
     archive: { open: false, entries: [] },
@@ -166,6 +168,34 @@ describe("createPanels", () => {
     near(offset(lines[top] ?? "", "(A)rchive", "(L)edger"), 80);
     near(offset(lines[bottom] ?? "", "(D)ecrees", "(C)ourt"), 160 / 3);
     near(offset(lines[bottom] ?? "", "C(r)own", "(C)ourt"), (2 * 160) / 3);
+  });
+
+  describe("a locked Archive", () => {
+    const topTitleRow = (frame: string) =>
+      frame.split("\n").find((line) => line.includes("(L)edger")) ?? "";
+    const size = { width: 160, height: 30 };
+
+    test("is not drawn and leaves the top row to the Ledger and Peasants", async () => {
+      const frame = await draw([emptyView({ lockedPanels: ["archive"] })], {
+        size,
+      });
+
+      expect(frame).not.toContain("(A)rchive");
+      expect(topTitleRow(frame).match(/\u250c/g)).toHaveLength(2);
+    });
+
+    test("appears in the top row once the panel is owned", async () => {
+      const frame = await draw(
+        [
+          emptyView({ lockedPanels: ["archive"] }),
+          emptyView({ unlocks: [ARCHIVE_PANEL] }),
+        ],
+        { size },
+      );
+
+      expect(frame).toContain("(A)rchive");
+      expect(topTitleRow(frame).match(/\u250c/g)).toHaveLength(3);
+    });
   });
 
   describe("a locked Crown", () => {
@@ -256,7 +286,12 @@ describe("createPanels", () => {
     const view = emptyView({
       elapsedSeconds: 185,
       ledger: [
-        { resource: "grain", amount: 5, conjured: 0, ratePerSecond: 1 },
+        {
+          resource: "grain",
+          amount: 5,
+          conjured: 0,
+          ratePerSecond: 1,
+        },
         {
           resource: "timber",
           amount: 1234567.8,
@@ -294,6 +329,22 @@ describe("createPanels", () => {
     expect(frame).toContain(copy.ledger.season({ season: "Summer" }));
   });
 
+  test("the ledger shows grain eaten under the grain row only while something is eaten", async () => {
+    const withEaten = (grainEatenPerSecond: number) =>
+      emptyView({
+        grainEatenPerSecond,
+        ledger: [
+          { resource: "grain", amount: 5, conjured: 0, ratePerSecond: -1 },
+        ],
+      });
+
+    const eating = await draw([withEaten(1.5)]);
+    const idle = await draw([withEaten(0)]);
+
+    expect(eating).toContain(copy.ledger.eaten({ rate: formatAmount(1.5) }));
+    expect(idle).not.toContain(copy.ledger.eaten({ rate: formatAmount(0) }));
+  });
+
   describe("the Ledger once conjuring is owned", () => {
     const grain = tuning.illusion.lot * 4;
     const conjuredView = (books: "clean" | "thin" | "strained" | "rotten") =>
@@ -301,8 +352,18 @@ describe("createPanels", () => {
         unlocks: [CONJURING],
         illusion: { books, room: 100, auditInTicks: null },
         ledger: [
-          { resource: "coin", amount: 9, conjured: 0, ratePerSecond: 0 },
-          { resource: "grain", amount: grain, conjured: 30, ratePerSecond: 1 },
+          {
+            resource: "coin",
+            amount: 9,
+            conjured: 0,
+            ratePerSecond: 0,
+          },
+          {
+            resource: "grain",
+            amount: grain,
+            conjured: 30,
+            ratePerSecond: 1,
+          },
         ],
       });
 
@@ -456,7 +517,14 @@ describe("createPanels", () => {
   test("an update replaces the values of the last view", async () => {
     const grain = (amount: number) =>
       emptyView({
-        ledger: [{ resource: "grain", amount, conjured: 0, ratePerSecond: 1 }],
+        ledger: [
+          {
+            resource: "grain",
+            amount,
+            conjured: 0,
+            ratePerSecond: 1,
+          },
+        ],
       });
 
     const frame = await draw([grain(111), grain(222_222)]);
@@ -703,32 +771,6 @@ describe("createPanels", () => {
         }),
       );
     });
-  });
-
-  test("a locked panel keeps its title but hides its content", async () => {
-    const view = emptyView({
-      lockedPanels: ["archive"],
-      archive: {
-        open: false,
-        entries: [
-          {
-            id: "a",
-            label: "Alpha",
-            description: "",
-            cost: 100,
-            owned: false,
-            affordable: false,
-            available: true,
-          },
-        ],
-      },
-    });
-
-    const frame = await draw([view]);
-
-    expect(frame).toContain("(A)rchive");
-    expect(frame).toContain(copy.village.locked);
-    expect(frame).not.toContain("Alpha");
   });
 
   test.each([

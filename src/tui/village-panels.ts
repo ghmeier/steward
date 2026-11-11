@@ -62,9 +62,6 @@ export function titleWithKey(name: string, key = name.charAt(0)): string {
 export abstract class VillagePanel {
   abstract readonly id: FocusId;
 
-  /** Whether the panel takes no room at all while locked, instead of showing a locked placeholder. */
-  readonly hiddenWhileLocked: boolean = false;
-
   get name(): string {
     return capitalize(this.id);
   }
@@ -301,7 +298,6 @@ export class DecreesPanel extends VillagePanel {
 
 export class CrownPanel extends VillagePanel {
   readonly id = "crown";
-  override readonly hiddenWhileLocked = true;
 
   override get title(): string {
     return titleWithKey(this.name, "r");
@@ -380,11 +376,17 @@ export class LedgerPanel extends VillagePanel {
     return rows.flatMap(([name = "", amount = "", rate = ""], index) => {
       const gutter = focused ? (index === this.selected ? "> " : "  ") : "";
       const conjured = view.ledger[index]?.conjured ?? 0;
+      const eaten =
+        view.ledger[index]?.resource === "grain" ? view.grainEatenPerSecond : 0;
+      const indent = `${" ".repeat(gutter.length)}  `;
       return [
         `${gutter}${name.padEnd(widths[0] ?? 0)} ${amount.padStart(widths[1] ?? 0)} ${rate.padStart(widths[2] ?? 0)}`,
+        ...(eaten > 0
+          ? [`${indent}${copy.ledger.eaten({ rate: formatAmount(eaten) })}`]
+          : []),
         ...(conjured > 0
           ? [
-              `${" ".repeat(gutter.length)}  ${copy.ledger.conjured({ amount: formatAmount(conjured) })}`,
+              `${indent}${copy.ledger.conjured({ amount: formatAmount(conjured) })}`,
             ]
           : []),
       ];
