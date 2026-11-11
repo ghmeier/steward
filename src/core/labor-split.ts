@@ -8,10 +8,6 @@ export type LaborSplitResult =
 
 const WEIGHT = /^\d+(\.\d+)?$/;
 
-function isWorkingJob(word: string): word is WorkingJob {
-  return (WORKING_JOBS as readonly string[]).includes(word);
-}
-
 /**
  * A labor policy written as its own split, such as "farm 60 forest 30 mine 10". Named presets never
  * contain a space, so a space is what marks a policy as a split. The weights are relative: only their
@@ -20,8 +16,13 @@ function isWorkingJob(word: string): word is WorkingJob {
 export class LaborSplit {
   constructor(readonly weights: LaborWeights) {}
 
-  static isSplit(policy: string): boolean {
-    return /\s/.test(policy.trim());
+  static isJob(word: string): word is WorkingJob {
+    return (WORKING_JOBS as readonly string[]).includes(word);
+  }
+
+  /** The one place a policy string is classified: null for a preset name, a parse result for a split. */
+  static fromPolicy(policy: string): LaborSplitResult | null {
+    return /\s/.test(policy.trim()) ? LaborSplit.parse(policy) : null;
   }
 
   static parse(policy: string): LaborSplitResult {
@@ -45,7 +46,7 @@ export class LaborSplit {
     const weights: LaborWeights = { farm: 0, forest: 0, mine: 0 };
     const seen = new Set<string>();
     for (const [job, weight] of entries) {
-      if (!isWorkingJob(job)) {
+      if (!LaborSplit.isJob(job)) {
         return { ok: false, problem: copy.laborSplit.unknownJob({ job }) };
       }
       if (seen.has(job)) {

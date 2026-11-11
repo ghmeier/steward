@@ -324,12 +324,9 @@ export function decreePolicyProblem(
   const used = [...decree.rules.map((rule) => rule.policy), decree.otherwise];
   for (const policy of used) {
     if (allowed.includes(policy)) continue;
-    if (decree.petition === "labor" && LaborSplit.isSplit(policy)) {
-      const split = LaborSplit.parse(policy);
-      if (!split.ok) return split.problem;
-    } else {
-      return `policy "${policy}" is not a ${decree.petition} policy`;
-    }
+    const split = decree.petition === "labor" && LaborSplit.fromPolicy(policy);
+    if (!split) return `policy "${policy}" is not a ${decree.petition} policy`;
+    if (!split.ok) return split.problem;
   }
   return null;
 }

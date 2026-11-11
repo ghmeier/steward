@@ -31,9 +31,8 @@ export function formatCondition(condition: Condition): string {
 
 /** A labor split reads as its jobs and shares; any other policy is already a plain word. */
 export function formatPolicy(policy: string): string {
-  if (!LaborSplit.isSplit(policy)) return policy;
-  const split = LaborSplit.parse(policy);
-  return split.ok ? split.split.format(" · ") : policy;
+  const split = LaborSplit.fromPolicy(policy);
+  return split?.ok ? split.split.format(" · ") : policy;
 }
 
 export function formatRule(rule: DecreeRule): string {

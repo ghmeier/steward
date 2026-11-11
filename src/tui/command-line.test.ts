@@ -291,6 +291,7 @@ describe("labor splits", () => {
   test.each([
     ["otherwise farm 0 mine 0", copy.laborSplit.allZero],
     ["otherwise farm 1 farm 2", copy.laborSplit.duplicateJob({ job: "farm" })],
+    ["otherwise farm 1 wood 2", copy.laborSplit.unknownJob({ job: "wood" })],
     [
       "otherwise farm -1 mine 2",
       copy.laborSplit.badWeight({ job: "farm", text: "-1" }),

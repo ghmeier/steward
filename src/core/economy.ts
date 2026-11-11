@@ -241,8 +241,8 @@ export class EconomyManager {
     if (Object.hasOwn(allocations, policy) && allocations[policy]) {
       return this.laborTargets(allocations[policy]);
     }
-    const split = LaborSplit.parse(policy);
-    if (!split.ok) throw new Error(`unknown labor policy "${policy}"`);
+    const split = LaborSplit.fromPolicy(policy);
+    if (!split?.ok) throw new Error(`unknown labor policy "${policy}"`);
     return this.laborTargets(split.split.shares());
   }
 

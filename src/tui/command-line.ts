@@ -22,7 +22,6 @@ import {
   type Resource,
   SEASONS,
   WORKING_JOBS,
-  type WorkingJob,
 } from "../core/realm";
 import {
   ARCHIVE_PANEL,
@@ -77,10 +76,6 @@ type ExpectOptions = {
   final?: boolean;
   unmatched?: (word: string) => string | null;
 };
-
-function isWorkingJob(word: string): word is WorkingJob {
-  return (WORKING_JOBS as readonly string[]).includes(word);
-}
 
 class Cursor {
   private position = 0;
@@ -174,15 +169,19 @@ class Cursor {
   /**
    * A labor split such as `farm 60 forest 30`, or null when the text is not one. A job followed by a
    * number starts a split, so a preset word alone, like `farm`, stays a preset. The last word of a
-   * command may be a finished number as it stands, as with `number`.
+   * command may be a finished number as it stands, as with `number`. A command that ends in a split
+   * has nothing after it to end the list, so any further word there must be a job.
    */
   laborSplit(final: boolean): string | null {
     const [first = "", second = ""] = this.skipSpaces().split(/ +/);
-    if (!isWorkingJob(first) || !/^[-\d.]/.test(second)) return null;
+    if (!LaborSplit.isJob(first) || !/^[-\d.]/.test(second)) return null;
 
     const entries: [string, number][] = [];
     for (;;) {
       const job = this.skipSpaces().split(" ")[0] ?? "";
+      if (!LaborSplit.isJob(job)) {
+        return this.fail(copy.laborSplit.unknownJob({ job }));
+      }
       this.position += job.length;
       entries.push([job, this.number(final)]);
 
@@ -203,7 +202,7 @@ class Cursor {
         (choice) => choice.text.startsWith(word) && choice.text !== word,
       );
       if (typing && partial.length > 0) throw new Halt(partial, null, null);
-      if (!isWorkingJob(word)) break;
+      if (!final && !LaborSplit.isJob(word)) break;
     }
 
     const split = LaborSplit.fromEntries(entries);
