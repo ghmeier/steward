@@ -275,9 +275,12 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
     ledger.draw((size) => ledgerPanel.body(view, size));
     for (const panel of Object.values(panels)) {
       const slot = slots[panel.id];
+      const locked = isLocked(panel.id);
+      slot.box.visible = !(locked && panel.hiddenWhileLocked);
+      if (!slot.box.visible) continue;
       const focused = focus === panel.id;
       const size = slot.draw((fit) =>
-        isLocked(panel.id) ? LOCKED_BODY : panel.body(context, fit, focused),
+        locked ? LOCKED_BODY : panel.body(context, fit, focused),
       );
       slot.box.borderStyle = focused ? "double" : "single";
       slot.box.borderColor = focused ? FOCUS_COLOR : BORDER_COLOR;
