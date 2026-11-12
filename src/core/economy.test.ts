@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { setRoster, economyTestTuning as tuning } from "../../test/helpers";
+import {
+  tuning as realTuning,
+  setRoster,
+  economyTestTuning as tuning,
+} from "../../test/helpers";
 import { Game } from "./game";
 import type { AddContext } from "./math";
 import { Job, type Season, type WorkingJob } from "./realm";
@@ -170,6 +174,47 @@ describe("runEconomy eating", () => {
       expect(game.state.posting.economy.starved).toBe(0);
     },
   );
+});
+
+describe("idle upkeep", () => {
+  const { idleGrainFactor } = realTuning.economy;
+  const frugal = {
+    ...tuning,
+    economy: { ...tuning.economy, idleGrainFactor },
+  };
+
+  function peasants(roster: { farm?: number; idle?: number }): Game {
+    const game = Game.create(1, frugal);
+    setRoster(game, roster);
+    return game;
+  }
+
+  test("an idle peasant eats the idle share of a working peasant's grain", () => {
+    const idle = peasants({ idle: 10 });
+    const working = peasants({ farm: 10 });
+
+    expect(idle.economy.grainUpkeepPerTick()).toBeCloseTo(
+      10 * tuning.economy.grainPerPerson * idleGrainFactor,
+      12,
+    );
+    expect(working.economy.grainUpkeepPerTick()).toBeCloseTo(
+      10 * tuning.economy.grainPerPerson,
+      12,
+    );
+  });
+
+  test("a peasant idled by a grudge eats the idle share until the grudge ends", () => {
+    const game = peasants({ farm: 2 });
+    const full = game.economy.grainUpkeepPerTick();
+    const [peasant] = game.delegates.peasants;
+    (peasant as { grudgeUntil: number }).grudgeUntil = game.state.tick + 5;
+
+    const grudged = game.economy.grainUpkeepPerTick();
+    game.state.tick += 5;
+
+    expect(grudged).toBeLessThan(full);
+    expect(game.economy.grainUpkeepPerTick()).toBe(full);
+  });
 });
 
 describe("feedGrain", () => {

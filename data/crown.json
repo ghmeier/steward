@@ -1,9 +1,15 @@
 {
-  "firstDemandTicks": 600,
-  "deadlineTicks": 1800,
-  "gap": {
+  "firstDemand": {
+    "minTicks": 600,
+    "maxTicks": 1800
+  },
+  "deadline": {
     "minTicks": 1200,
     "maxTicks": 2400
+  },
+  "gap": {
+    "minTicks": 2400,
+    "maxTicks": 4200
   },
   "baseAmounts": {
     "coin": 100,

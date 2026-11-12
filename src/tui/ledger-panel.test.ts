@@ -83,12 +83,14 @@ describe("the Ledger panel", () => {
 
     const size = { width: 160, height: 30 };
     const eating = await drawPanels([withEaten(1.5)], { size });
+    const nibbling = await drawPanels([withEaten(0.04)], { size });
     const idle = await drawPanels([withEaten(0)], { size });
 
-    const eatenText = copy.ledger.eaten({ rate: formatAmount(1.5) });
-    const grainRow = eating.split("\n").find((line) => line.includes("Grain"));
-    expect(grainRow).toContain(eatenText);
-    expect(idle).not.toContain(copy.ledger.eaten({ rate: formatAmount(0) }));
+    const grainRowOf = (frame: string) =>
+      frame.split("\n").find((line) => line.includes("Grain"));
+    expect(grainRowOf(eating)).toContain(copy.ledger.eaten({ rate: "1.5" }));
+    expect(grainRowOf(nibbling)).toContain(copy.ledger.eaten({ rate: "0.04" }));
+    expect(idle).not.toContain(copy.ledger.eaten({ rate: "0" }));
   });
 
   describe("the Ledger once conjuring is owned", () => {

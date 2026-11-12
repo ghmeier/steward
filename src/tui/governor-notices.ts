@@ -4,12 +4,12 @@ import { formatAmount } from "./format";
 import type { Notice } from "./notices";
 
 function departureLine(departure: FormerGovernorView): string {
-  const { name, reason, handedOver } = departure;
+  const { name, reason, handedOver, cause } = departure;
   const departed = {
     retired: copy.notices.governorRetired,
     died: copy.notices.governorDied,
     dismissed: copy.notices.governorDismissed,
-  }[reason]({ name });
+  }[reason]({ name, cause });
   if (handedOver <= 0) return departed;
   return `${departed} ${copy.notices.governorHandedOver({ coin: formatAmount(handedOver) })}`;
 }

@@ -7,6 +7,7 @@ import {
   positiveInteger,
   repeatIssues,
   textWithPlaceholders,
+  tickRange,
 } from "./schema";
 
 const amount = z.number().transform(normalizeZero).exactOptional();
@@ -175,13 +176,7 @@ const auditKind = z.strictObject({
 
 export const deskTuningSchema = z.strictObject({
   slots: positiveInteger,
-  arrival: z
-    .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
-    .superRefine((arrival, ctx) => {
-      if (arrival.minTicks > arrival.maxTicks) {
-        addIssue(ctx, "must not exceed maxTicks", ["minTicks"]);
-      }
-    }),
+  arrival: tickRange,
   grudgeTicks: positiveInteger,
   kinds: z.strictObject({
     dispute: deskKind(disputeOption, PARTY_PLACEHOLDERS),

@@ -206,7 +206,7 @@ describe("version 9 upgrade", () => {
     expect(state.schemaVersion).toBe(SCHEMA_VERSION);
     expect(state.career.unlocks[CROWN_PANEL]).toBe(state.tick);
     expect(state.posting.crown.nextDemandTick).toBe(
-      state.tick + loadTuning().crown.firstDemandTicks,
+      state.tick + loadTuning().crown.firstDemand.minTicks,
     );
     expect(state.posting.rng.crown).toEqual(
       seedStream(state.posting.seed, "crown"),

@@ -38,6 +38,10 @@ function stepUntilOpen(game: Game): void {
   while (!game.crown.isOpen) step(game);
 }
 
+function stepUntilClosed(game: Game): void {
+  while (game.crown.isOpen) step(game);
+}
+
 function openDemand(game: Game, resource?: Resource): Demand {
   stepUntilOpen(game);
   const { crown } = game.state.posting;
@@ -72,28 +76,47 @@ describe("crown demands", () => {
   test("no demand is issued while the village is unpromoted", () => {
     const game = Game.create(1, tuning);
 
-    step(game, 3 * crownTuning.deadlineTicks);
+    step(game, 3 * crownTuning.firstDemand.maxTicks);
 
     expect(game.state.career.promotedAt).toBe(0);
     expect(game.crown.isOpen).toBe(false);
     expect(game.state.posting.crown.nextDemandTick).toBe(NO_DEMAND_TICK);
   });
 
-  test("promotion grants the Crown panel and issues the first demand one first-demand delay later, due one deadline after", () => {
+  test("promotion grants the Crown panel and issues the first demand within the first-demand range", () => {
     const game = promotedGame();
     const { promotedAt } = game.state.career;
 
-    step(game, crownTuning.firstDemandTicks - 1);
+    step(game, crownTuning.firstDemand.minTicks - 1);
     const early = game.crown.isOpen;
-    step(game);
-    const { demand } = game.state.posting.crown;
+    const demand = openDemand(game);
 
     expect(Object.hasOwn(game.state.career.unlocks, CROWN_PANEL)).toBe(true);
     expect(early).toBe(false);
     expect(game.crown.isOpen).toBe(true);
     expect(demand.id).not.toBe(NO_DEMAND.id);
-    expect(demand.issuedAt).toBe(promotedAt + crownTuning.firstDemandTicks);
-    expect(demand.dueAt - demand.issuedAt).toBe(crownTuning.deadlineTicks);
+    expect(demand.issuedAt - promotedAt).toBeGreaterThanOrEqual(
+      crownTuning.firstDemand.minTicks,
+    );
+    expect(demand.issuedAt - promotedAt).toBeLessThanOrEqual(
+      crownTuning.firstDemand.maxTicks,
+    );
+  });
+
+  test("every demand's deadline falls within the deadline range, and deadlines vary between demands", () => {
+    const game = promotedGame();
+    const spans = new Set<number>();
+
+    for (let i = 0; i < 12; i++) {
+      const { issuedAt, dueAt } = openDemand(game);
+      const span = dueAt - issuedAt;
+      expect(span).toBeGreaterThanOrEqual(crownTuning.deadline.minTicks);
+      expect(span).toBeLessThanOrEqual(crownTuning.deadline.maxTicks);
+      spans.add(span);
+      stepUntilClosed(game);
+    }
+
+    expect(spans.size).toBeGreaterThan(1);
   });
 
   test("the same resource is never demanded twice in a row", () => {
@@ -102,7 +125,7 @@ describe("crown demands", () => {
 
     for (let i = 0; i < 12; i++) {
       drawn.push(openDemand(game).resource);
-      step(game, crownTuning.deadlineTicks);
+      stepUntilClosed(game);
     }
 
     for (let i = 1; i < drawn.length; i++) {

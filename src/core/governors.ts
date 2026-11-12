@@ -13,7 +13,14 @@ import {
   WORKING_JOBS,
 } from "./realm";
 import { chance, drawDelay, intBelow, type RngState } from "./rng";
-import { count, positive, positiveInteger, traitList } from "./schema";
+import {
+  count,
+  name,
+  positive,
+  positiveInteger,
+  tickRange,
+  traitList,
+} from "./schema";
 import { TRUE_REPORTS } from "./unlocks";
 
 export type DepartureReason = "retired" | "died" | "dismissed";
@@ -26,6 +33,8 @@ export type FormerGovernor = {
   reason: DepartureReason;
   /** Coin the governor had kept back, which they handed over on leaving. */
   handedOver: number;
+  /** What the governor died of; absent for one who retired or was dismissed. */
+  cause?: string | undefined;
 };
 
 export const formerGovernorSchema: z.ZodType<FormerGovernor> = z.strictObject({
@@ -35,6 +44,7 @@ export const formerGovernorSchema: z.ZodType<FormerGovernor> = z.strictObject({
   leftAt: count,
   reason: z.enum(["retired", "died", "dismissed"]),
   handedOver: z.number().min(0),
+  cause: name.optional(),
 });
 
 /** What a candidate on the desk offers, drawn when they arrive so the player sees it before choosing. */
@@ -54,19 +64,12 @@ const countRange = z
     if (range.min > range.max) addIssue(ctx, "must not exceed max", ["min"]);
   });
 
-const tickRange = z
-  .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
-  .superRefine((range, ctx) => {
-    if (range.minTicks > range.maxTicks) {
-      addIssue(ctx, "must not exceed maxTicks", ["minTicks"]);
-    }
-  });
-
 export const governorTuningSchema = z.strictObject({
   cap: positiveInteger,
   village: countRange,
   term: tickRange,
   deathPerMille: z.int().min(0).max(1000),
+  causes: z.array(name).min(1),
   price: countRange,
   empireBuilderLimit: positiveInteger,
   traits: z.record(
@@ -116,6 +119,8 @@ export type GovernorView = {
   reportedPerSecond: number;
   /** What the governor really brings in and how far the report overshoots it; null until true reports are bought. */
   truth: { realPerSecond: number; gapPerSecond: number } | null;
+  /** Whole seasons until the term ends, counting the one in progress; the governor may die sooner. */
+  seasonsLeft: number;
 };
 /** A governor who has left, oldest first, so a change in the list's length is a new departure. */
 export type FormerGovernorView = {
@@ -123,6 +128,7 @@ export type FormerGovernorView = {
   reason: DepartureReason;
   /** Coin the governor kept back and handed over on leaving; 0 for one who kept none. */
   handedOver: number;
+  cause?: string | undefined;
 };
 
 export class GovernorManager {
@@ -196,7 +202,8 @@ export class GovernorManager {
 
   view(): GovernorView[] {
     const trueReports = this.game.unlocks.enabled(TRUE_REPORTS);
-    const { stepMs } = this.game.tuning;
+    const { stepMs, economy } = this.game.tuning;
+    const { ticksPerSeason } = economy;
     const perSecond = (perTick: number) => (perTick * 1000) / stepMs;
     // The projection runs the next tick, so output is read at that tick too.
     const tick = this.game.state.tick + 1;
@@ -219,13 +226,21 @@ export class GovernorManager {
               gapPerSecond: perSecond(reported - real),
             }
           : null,
+        seasonsLeft: Math.ceil(
+          (governor.termEndsAt - this.game.state.tick) / ticksPerSeason,
+        ),
       };
     });
   }
 
   formerView(): FormerGovernorView[] {
     return this.game.state.posting.formerStaff.map(
-      ({ name, reason, handedOver }) => ({ name, reason, handedOver }),
+      ({ name, reason, handedOver, cause }) => ({
+        name,
+        reason,
+        handedOver,
+        cause,
+      }),
     );
   }
 
@@ -289,6 +304,7 @@ export class GovernorManager {
     governor: Governor,
     reason: DepartureReason,
     context: AddContext,
+    cause?: string,
   ): void {
     const { posting, tick } = this.game.state;
     add(posting.resources, "coin", governor.hoard, context);
@@ -299,6 +315,7 @@ export class GovernorManager {
       leftAt: tick,
       reason,
       handedOver: governor.hoard,
+      cause,
     });
     this.game.delegates.remove(governor.id);
   }
@@ -340,7 +357,7 @@ export class GovernorManager {
       if (tick >= governor.termEndsAt) {
         this.depart(governor, "retired", context);
       } else if (seasonEnds && chance(this.stream, this.tuning.deathPerMille)) {
-        this.depart(governor, "died", context);
+        this.depart(governor, "died", context, this.pick(this.tuning.causes));
       } else if (
         seasonEnds &&
         this.traitsOf(governor).has("empire-builder") &&

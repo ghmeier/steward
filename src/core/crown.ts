@@ -10,8 +10,8 @@ import {
   count,
   nonNegative,
   positive,
-  positiveInteger,
   textWithPlaceholders,
+  tickRange,
 } from "./schema";
 import type { ResourceId } from "./state";
 import { CONJURING, CROWN_PANEL } from "./unlocks";
@@ -123,15 +123,9 @@ const favor = z
   });
 
 export const crownTuningSchema = z.strictObject({
-  firstDemandTicks: positiveInteger,
-  deadlineTicks: positiveInteger,
-  gap: z
-    .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
-    .superRefine((gap, ctx) => {
-      if (gap.minTicks > gap.maxTicks) {
-        addIssue(ctx, "must not exceed maxTicks", ["minTicks"]);
-      }
-    }),
+  firstDemand: tickRange,
+  deadline: tickRange,
+  gap: tickRange,
   baseAmounts: z.record(z.enum(RESOURCES), positive),
   step: nonNegative,
   grainReserveSeasons: nonNegative,
@@ -258,7 +252,8 @@ export class CrownManager {
   }
 
   scheduleFirstDemand(): void {
-    this.crown.nextDemandTick = this.tick + this.tuning.firstDemandTicks;
+    this.crown.nextDemandTick =
+      this.tick + drawDelay(this.stream, this.tuning.firstDemand);
   }
 
   private get resources() {
@@ -301,7 +296,7 @@ export class CrownManager {
       amount: Math.round(base * (1 + step * crown.met) + crown.surcharge),
       delivered: 0,
       issuedAt: this.tick,
-      dueAt: this.tick + tuning.deadlineTicks,
+      dueAt: this.tick + drawDelay(this.stream, tuning.deadline),
     };
     crown.surcharge = 0;
     crown.lastResource = resource;

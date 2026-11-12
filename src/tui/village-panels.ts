@@ -9,7 +9,7 @@ import { ARCHIVE_PANEL, CONJURING, CROWN_PANEL } from "../core/unlocks";
 import type { ArchiveEntryView, GameView } from "../core/view";
 import { courtEntryLabel, courtMenu } from "./court-menu";
 import { type Cursor, moveCursor, reconcileCursor, stepIndex } from "./cursor";
-import { formatPolicy, formatRule, plain } from "./decree-format";
+import { formatPolicy, formatRule } from "./decree-format";
 import {
   capitalize,
   formatAmount,
@@ -17,6 +17,7 @@ import {
   formatRate,
   formatTicks,
   formatTicksRoughly,
+  plain,
 } from "./format";
 import {
   type FocusId,
@@ -469,7 +470,7 @@ export class LedgerPanel extends VillagePanel {
         // A column too narrow for the eaten rate beside the grain row drops it to a line of its own.
         ...(eaten > 0
           ? wrapPhrases(
-              [row, copy.ledger.eaten({ rate: formatAmount(eaten) })],
+              [row, copy.ledger.eaten({ rate: plain(eaten) })],
               width,
               indent.length,
             )

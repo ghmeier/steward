@@ -32,6 +32,8 @@ export const economyTestTuning: Tuning = {
     woodPerWorker: 0.02,
     orePerWorker: 0.01,
     grainPerPerson: 0.01,
+    // Hand-computed expectations assume every peasant eats in full, idle or not.
+    idleGrainFactor: 1,
     grainPrice: 0.5,
     woodPrice: 0.5,
     orePrice: 1,
