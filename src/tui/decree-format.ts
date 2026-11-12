@@ -1,5 +1,6 @@
 import { copy } from "../core/copy";
 import type { Condition, Decree, DecreeRule, Petition } from "../core/decree";
+import { LaborSplit } from "../core/labor-split";
 import { WORKING_JOBS } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 
@@ -28,13 +29,19 @@ export function formatCondition(condition: Condition): string {
   }
 }
 
+/** A labor split reads as its jobs and shares; any other policy is already a plain word. */
+export function formatPolicy(policy: string): string {
+  const split = LaborSplit.fromPolicy(policy);
+  return split?.ok ? split.split.format(" · ") : policy;
+}
+
 export function formatRule(rule: DecreeRule): string {
-  return `${rule.policy} when ${formatCondition(rule.when)}`;
+  return `${formatPolicy(rule.policy)} when ${formatCondition(rule.when)}`;
 }
 
 export function formatDecree(decree: Decree): string {
   const clauses = decree.rules.map(formatRule);
-  clauses.push(`otherwise ${decree.otherwise}`);
+  clauses.push(`otherwise ${formatPolicy(decree.otherwise)}`);
   return `${decree.id} (${decree.petition}): ${clauses.join("; ")}`;
 }
 

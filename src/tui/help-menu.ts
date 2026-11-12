@@ -209,6 +209,7 @@ function harvestAndLaborLines(tuning: Tuning): string[] {
     "",
     harvestAndLabor.laborMoves({ moves: economy.laborMovesPerTick }),
     ...allocations.map((line) => `  ${line}`),
+    harvestAndLabor.laborSplit,
     harvestAndLabor.laborChangesOnly,
     "",
     harvestAndLabor.laborExample,

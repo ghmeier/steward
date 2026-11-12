@@ -54,6 +54,48 @@ describe("settling a labor decree", () => {
     expect(game.labor.settling).toBe(false);
   });
 
+  test("a custom split settles the village to its targets and holds them", () => {
+    const game = villageOf(10);
+    enactLabor(game, "farm 60 forest 30 mine 10");
+
+    runTicks(game, 12);
+
+    expect(game.delegates.jobCounts()).toMatchObject({
+      farm: 6,
+      forest: 3,
+      mine: 1,
+    });
+    expect(game.labor.settling).toBe(false);
+  });
+
+  test("a rule picks a custom split in winter and otherwise falls back to a preset", () => {
+    const game = villageOf(4);
+    game.decrees.enact({
+      id: "workforce",
+      petition: "labor",
+      rules: [
+        {
+          when: { kind: "season", season: "winter" },
+          policy: "forest 1 mine 1",
+        },
+      ],
+      otherwise: "farm",
+    });
+
+    runTicks(game, 4);
+
+    expect(game.delegates.jobCounts()).toMatchObject({ farm: 4 });
+
+    game.state.tick = 3 * tuning.economy.ticksPerSeason + 1;
+    runTicks(game, 4);
+
+    expect(game.delegates.jobCounts()).toMatchObject({
+      farm: 0,
+      forest: 2,
+      mine: 2,
+    });
+  });
+
   test("a hand assignment sticks while the policy is unchanged and is overridden when it changes", () => {
     const game = villageOf(4);
     enactLabor(game, "farm");
