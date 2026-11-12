@@ -1,6 +1,6 @@
 import type { CrownView } from "./crown";
-import { compareKeys, sortedKeys } from "./data";
 import type { Decree } from "./decree";
+import type { DelegateView } from "./delegates";
 import type { DeskEntryView } from "./desk";
 import type { Game } from "./game";
 import type { FormerGovernorView, GovernorView } from "./governors";
@@ -9,7 +9,7 @@ import { type Job, RESOURCES, type Season } from "./realm";
 import type { ResourceId } from "./state";
 import {
   ARCHIVE_PANEL,
-  CROWN_PANEL,
+  type PanelId,
   TRUE_REPORTS,
   type UnlockId,
 } from "./unlocks";
@@ -22,13 +22,6 @@ export type LedgerLine = {
   conjured: number;
   ratePerSecond: number;
 };
-export type DelegateView = {
-  id: number;
-  name: string;
-  job: Job | "idle";
-  grudgeTicks: number;
-};
-export type PanelId = "archive" | "crown" | "ledger" | "peasants";
 export type GameView = {
   tick: number;
   elapsedSeconds: number;
@@ -102,7 +95,6 @@ export class ViewManager {
         ((rates[resource] + (gap?.[resource] ?? 0)) * 1000) /
         this.tuning.stepMs,
     }));
-    const { decrees } = this.posting;
     const labor = this.game.delegates.jobCounts();
     return {
       tick: this.tick,
@@ -114,19 +106,9 @@ export class ViewManager {
         season: this.game.economy.seasonAt(this.tick),
         starved: this.posting.economy.starved,
       },
-      delegates: this.game.delegates.peasants.map((delegate) => ({
-        id: delegate.id,
-        name: delegate.name,
-        job: delegate.job,
-        grudgeTicks: Math.max(0, delegate.grudgeUntil - this.tick),
-      })),
-      decrees: Object.entries(decrees)
-        .sort(([a], [b]) => compareKeys(a, b))
-        .map(([, decree]) => structuredClone(decree)),
-      savedDecrees: sortedKeys(this.career.savedDecrees).flatMap((name) => {
-        const saved = this.career.savedDecrees[name];
-        return saved === undefined ? [] : [structuredClone(saved)];
-      }),
+      delegates: this.game.delegates.view(),
+      decrees: this.game.decrees.view(),
+      savedDecrees: this.game.savedDecrees.view(),
       desk: this.game.desk.view(),
       governors: this.game.governors.view(),
       formerGovernors: this.game.governors.formerView(),
@@ -144,7 +126,7 @@ export class ViewManager {
         full: !this.game.economy.hasRoom,
       },
       grainEatenPerSecond: (eatenPerTick * 1000) / this.tuning.stepMs,
-      lockedPanels: this.lockedPanels(),
+      lockedPanels: this.game.unlocks.lockedPanels(),
       unlocks: this.game.unlocks.purchased,
       archive: {
         open: this.game.unlocks.enabled(ARCHIVE_PANEL),
@@ -161,12 +143,5 @@ export class ViewManager {
         })),
       },
     };
-  }
-
-  private lockedPanels(): PanelId[] {
-    const locked: PanelId[] = [];
-    if (!this.game.unlocks.enabled(ARCHIVE_PANEL)) locked.push("archive");
-    if (!this.game.unlocks.enabled(CROWN_PANEL)) locked.push("crown");
-    return locked;
   }
 }

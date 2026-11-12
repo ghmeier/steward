@@ -28,6 +28,8 @@ export type ArchiveTuning = {
   needs: NeedHook[];
 };
 
+export type PanelId = "archive" | "crown" | "ledger" | "peasants";
+
 export const ARCHIVE_PANEL: UnlockId = "panel.archive";
 export const CROWN_PANEL: UnlockId = "panel.crown";
 export const COMPOUND_UNLOCK: UnlockId = "decree.compound";
@@ -48,6 +50,14 @@ export class UnlockManager {
 
   get purchased(): UnlockId[] {
     return sortedKeys(this.game.state.career.unlocks);
+  }
+
+  /** Panels hidden until their unlock is bought; the ledger and peasants are always open. */
+  lockedPanels(): PanelId[] {
+    const locked: PanelId[] = [];
+    if (!this.enabled(ARCHIVE_PANEL)) locked.push("archive");
+    if (!this.enabled(CROWN_PANEL)) locked.push("crown");
+    return locked;
   }
 
   run(): void {
