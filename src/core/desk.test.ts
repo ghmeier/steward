@@ -1,14 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import {
   contextFor,
+  grantUnlocks,
   setRoster,
   economyTestTuning as tuning,
 } from "../../test/helpers";
-import type { DeskEntry, Dispute, Offer } from "./desk";
+import type { DeskEntry, Dispute, DrawnKind, Offer } from "./desk";
 import { Game } from "./game";
 import { Job } from "./realm";
 
-const { arrival, grudgeTicks } = tuning.desk;
+const { arrival, grudgeTicks, scale } = tuning.desk;
 
 function village(seed = 1, idle = 10): Game {
   const game = Game.create(seed, tuning);
@@ -500,5 +501,208 @@ describe("expiry lines", () => {
     expect(game.desk.expired).toEqual([
       `A hen was bought for ${peasant(game, first).name}.`,
     ]);
+  });
+});
+
+/** Arrives entries one at a time, clearing the desk between them, until one of the wanted kind shows up. */
+function drawEntry<Kind extends DrawnKind>(
+  game: Game,
+  kind: Kind,
+  wanted: (entry: DeskEntry & { kind: Kind }) => boolean = () => true,
+): DeskEntry & { kind: Kind } {
+  for (let i = 0; i < 500; i++) {
+    holdDisputes(game);
+    arriveNext(game);
+    const latest = game.state.posting.desk.disputes.at(-1);
+    if (latest?.kind === kind && wanted(latest as DeskEntry & { kind: Kind })) {
+      return latest as DeskEntry & { kind: Kind };
+    }
+  }
+  throw new Error(`no ${kind} arrived`);
+}
+
+const factorAt = (population: number) =>
+  Math.max(1, population / scale.perPopulation);
+
+describe("scaling with the realm", () => {
+  test.each([5, 40])(
+    "a merchant's amounts at %p peasants are the written amounts times the population factor, rounded",
+    (peasants) => {
+      const game = village(1, peasants);
+      const entry = drawEntry(game, "merchant");
+      const template = game.desk.templateOf(entry);
+
+      const options = game.view.compute().desk[0]?.options ?? [];
+
+      for (const written of template.options) {
+        const shown = options.find((candidate) => candidate.id === written.id);
+        for (const [resource, amount] of Object.entries(
+          written.resources ?? {},
+        )) {
+          expect(shown?.resources[resource]).toBe(
+            Math.round(amount * factorAt(peasants)),
+          );
+        }
+      }
+    },
+  );
+
+  test("a larger realm pays and charges more than a small one for the same offer", () => {
+    const amountAt = (peasants: number) => {
+      const game = village(1, peasants);
+      const entry = drawEntry(game, "merchant");
+      const [option] = game.desk.templateOf(entry).options;
+      if (option === undefined) throw new Error("no option");
+      return Math.abs(Object.values(game.desk.deltasOf(entry, option))[0] ?? 0);
+    };
+
+    expect(amountAt(40)).toBeGreaterThan(amountAt(5));
+  });
+
+  test("the amount applied on settling is the amount that was shown", () => {
+    const game = village(1, 40);
+    game.state.posting.resources.ore = 1000;
+    const entry = drawEntry(game, "merchant");
+    const [first] = game.view.compute().desk;
+    const shown = first?.options[0];
+    const before = game.state.posting.resources.coin ?? 0;
+
+    settle(game, entry.id, shown?.id ?? "");
+
+    expect(shown?.resources.coin).toBeDefined();
+    expect(game.state.posting.resources.coin).toBe(
+      before + (shown?.resources.coin ?? Number.NaN),
+    );
+  });
+
+  test.each([5, 40])(
+    "a grudge at %p peasants lasts the same grudge time",
+    (peasants) => {
+      const game = village(1, peasants);
+      game.state.posting.resources = {
+        coin: 1000,
+        grain: 1000,
+        ore: 1000,
+        wood: 1000,
+      };
+      const entry = drawEntry(game, "dispute", (candidate) =>
+        game.desk
+          .templateOf(candidate)
+          .options.some((option) => option.grudge !== undefined),
+      );
+      const template = game.desk.templateOf(entry);
+      const sulking = template.options.find((candidate) => candidate.grudge);
+      if (sulking === undefined) throw new Error("no grudge option");
+      const [first, second] = entry.parties;
+      const sulker = sulking.grudge === "first" ? first : second;
+
+      settle(game, entry.id, sulking.id);
+
+      expect(peasant(game, sulker).grudgeUntil).toBe(
+        game.state.tick + grudgeTicks,
+      );
+    },
+  );
+
+  test.each([5, 30])(
+    "a traveller at %p peasants brings population over newcomersPer newcomers, rounded up",
+    (peasants) => {
+      const game = village(1, peasants);
+      game.state.posting.resources.grain = 1000;
+      const entry = drawEntry(game, "traveller");
+
+      settle(game, entry.id, "admit");
+
+      expect(game.delegates.peasants).toHaveLength(
+        peasants + Math.ceil(peasants / scale.newcomersPer),
+      );
+    },
+  );
+
+  test("a traveller admits only as many newcomers as the village has room for", () => {
+    const game = village(1, tuning.economy.maxPopulation - 1);
+    game.state.posting.resources.grain = 1000;
+    holdDisputes(game, { ...offer(1, "traveller", "settler"), newcomers: 5 });
+
+    settle(game, 1, "admit");
+
+    expect(game.delegates.peasants).toHaveLength(tuning.economy.maxPopulation);
+  });
+});
+
+describe("gated kinds", () => {
+  const { petition, omen } = tuning.desk.kinds;
+
+  test("petitions and omens are never drawn without their unlocks", () => {
+    const kinds = drawnKinds(village(2, 10), 300);
+
+    expect(kinds.has("petition")).toBe(false);
+    expect(kinds.has("omen")).toBe(false);
+  });
+
+  test("owning only the petition unlock draws petitions and still no omens", () => {
+    const game = village(2, 10);
+    grantUnlocks(game, [petition.unlock as string]);
+
+    const kinds = drawnKinds(game, 300);
+
+    expect(kinds.has("petition")).toBe(true);
+    expect(kinds.has("omen")).toBe(false);
+  });
+
+  test("owning only the omen unlock draws omens and still no petitions", () => {
+    const game = village(2, 10);
+    grantUnlocks(game, [omen.unlock as string]);
+
+    const kinds = drawnKinds(game, 300);
+
+    expect(kinds.has("omen")).toBe(true);
+    expect(kinds.has("petition")).toBe(false);
+  });
+});
+
+describe("petitions", () => {
+  function petitioned() {
+    const game = village();
+    game.state.posting.resources.grain = 100;
+    const [petitioner] = game.delegates.all;
+    if (petitioner === undefined) throw new Error("no peasants");
+    holdDisputes(game, {
+      id: 1,
+      kind: "petition",
+      template: "cousin",
+      peasant: petitioner.id,
+      arrivedAt: 0,
+    });
+    return { game, petitioner };
+  }
+
+  test("granting a petition costs grain and brings a newcomer", () => {
+    const { game } = petitioned();
+    const before = game.delegates.peasants.length;
+
+    expect(settle(game, 1, "send-for")).toEqual({ ok: true });
+
+    expect(game.delegates.peasants).toHaveLength(before + 1);
+    expect(game.state.posting.resources.grain).toBeLessThan(100);
+  });
+
+  test("refusing a petition makes the petitioner sulk", () => {
+    const { game, petitioner } = petitioned();
+
+    settle(game, 1, "refuse");
+
+    expect(petitioner.grudgeUntil).toBe(game.state.tick + grudgeTicks);
+  });
+
+  test("a petition is dropped when its petitioner leaves", () => {
+    const { game, petitioner } = petitioned();
+    game.state.posting.delegates = game.state.posting.delegates.filter(
+      (delegate) => delegate.id !== petitioner.id,
+    );
+
+    game.desk.run(contextFor(game));
+
+    expect(game.state.posting.desk.disputes).toEqual([]);
   });
 });

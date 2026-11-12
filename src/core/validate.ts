@@ -135,6 +135,14 @@ function rosterIssues(posting: PostingState, ctx: z.RefinementCtx): void {
 
   const living = new Set(posting.delegates.map(({ id }) => id));
   for (const [index, entry] of posting.desk.disputes.entries()) {
+    if (entry.kind === "petition" && !living.has(entry.peasant)) {
+      addIssue(ctx, "must be a peasant in the roster", [
+        "desk",
+        "disputes",
+        index,
+        "peasant",
+      ]);
+    }
     if (entry.kind !== "dispute") continue;
     const [first, second] = entry.parties;
     if (first === second || !living.has(first) || !living.has(second)) {

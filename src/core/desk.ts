@@ -7,15 +7,23 @@ import type { Game } from "./game";
 import type { CandidateDetails } from "./governors";
 import type { AddContext } from "./math";
 import { add } from "./math";
-import { type Resource, WORKING_JOBS } from "./realm";
+import { WORKING_JOBS } from "./realm";
 import { drawDelay, intBelow, type RngState } from "./rng";
-import { ascendingIdIssues, count, positiveCount, traitList } from "./schema";
+import {
+  ascendingIdIssues,
+  count,
+  positive,
+  positiveCount,
+  traitList,
+} from "./schema";
 
 /** A record keyed by kind is in this order, so the weighted draw walks the kinds in a fixed order. */
 export const DRAWN_KINDS = [
   "candidate",
   "dispute",
   "merchant",
+  "omen",
+  "petition",
   "traveller",
 ] as const;
 export type DrawnKind = (typeof DRAWN_KINDS)[number];
@@ -30,19 +38,32 @@ type EntryBase = {
   arrivedAt: number;
 };
 
-export type Dispute = EntryBase & {
-  kind: "dispute";
-  parties: [number, number];
-};
+/** Option amounts are multiplied by this when the entry arrives, and it is kept so the numbers shown stay the numbers applied. */
+type Scaled = { scale?: number };
 
-export type Offer = EntryBase & { kind: "merchant" | "traveller" };
+export type Dispute = EntryBase &
+  Scaled & {
+    kind: "dispute";
+    parties: [number, number];
+  };
+
+/** A peasant asking the steward for something; refusing is what makes them sulk. */
+export type Petition = EntryBase &
+  Scaled & { kind: "petition"; peasant: number };
+
+export type Offer = EntryBase &
+  Scaled & {
+    kind: "merchant" | "omen" | "traveller";
+    /** How many peasants a traveller's admitting option brings; absent means one. */
+    newcomers?: number;
+  };
 
 /** A governor asking to be hired; what they offer is stored here so it survives a save. */
 export type Candidate = EntryBase & { kind: "candidate" } & CandidateDetails;
 
 export type Audit = EntryBase & { kind: "audit"; dueAt: number };
 
-export type DeskEntry = Dispute | Offer | Candidate | Audit;
+export type DeskEntry = Dispute | Petition | Offer | Candidate | Audit;
 
 /** The option that hires a candidate; the template schema requires it. */
 export const HIRE = "hire";
@@ -65,10 +86,19 @@ const deskEntry = z.discriminatedUnion("kind", [
     ...deskEntryBase,
     kind: z.literal("dispute"),
     parties: z.tuple([positiveCount, positiveCount]),
+    scale: positive.exactOptional(),
   }),
   z.strictObject({
     ...deskEntryBase,
-    kind: z.enum(DRAWN_KINDS).exclude(["dispute", "candidate"]),
+    kind: z.literal("petition"),
+    peasant: positiveCount,
+    scale: positive.exactOptional(),
+  }),
+  z.strictObject({
+    ...deskEntryBase,
+    kind: z.enum(DRAWN_KINDS).exclude(["dispute", "candidate", "petition"]),
+    scale: positive.exactOptional(),
+    newcomers: positiveCount.exactOptional(),
   }),
   z.strictObject({
     ...deskEntryBase,
@@ -117,6 +147,8 @@ export type DeskOptionView = {
   expiry: boolean;
   /** Resource deltas, keys sorted. */
   resources: Record<string, number>;
+  /** How many peasants choosing the option adds; zero when it adds none. */
+  newcomers: number;
   sulker: string | null;
 };
 export type DeskEntryView = {
@@ -179,6 +211,8 @@ export class DeskManager {
           affordable: this.shortfall(entry, option) === null,
           expiry: option.id === template.expiry,
           resources: this.sortedDeltas(entry, option),
+          newcomers:
+            option.newcomer === undefined ? 0 : this.newcomersOf(entry),
           sulker: this.sulker(entry, option),
         })),
       };
@@ -236,6 +270,9 @@ export class DeskManager {
           copy.governors.traitList({ traits: entry.traits }),
         );
     }
+    if (entry.kind === "petition") {
+      return text.replaceAll("{first}", this.nameOf(entry.peasant));
+    }
     if (entry.kind !== "dispute") return text;
     const [first, second] = entry.parties;
     return text
@@ -249,7 +286,23 @@ export class DeskManager {
     if (entry.kind === "candidate") {
       return option.id === HIRE ? { coin: -entry.price } : {};
     }
-    return option.resources ?? {};
+    const scale = entry.scale ?? 1;
+    const scaled: Record<string, number> = {};
+    for (const [resource, amount] of Object.entries(option.resources ?? {})) {
+      scaled[resource] = Math.round(amount * scale);
+    }
+    return scaled;
+  }
+
+  private newcomersOf(entry: DeskEntry): number {
+    return entry.kind === "traveller" ? (entry.newcomers ?? 1) : 1;
+  }
+
+  private admitNewcomers(entry: DeskEntry): void {
+    for (let i = 0; i < this.newcomersOf(entry); i++) {
+      if (!this.game.economy.hasRoom) return;
+      this.game.economy.admitNewcomer();
+    }
   }
 
   get hasAudit(): boolean {
@@ -290,13 +343,14 @@ export class DeskManager {
   }
 
   private applyResources(
+    entry: DeskEntry,
     option: DeskOption,
     context: AddContext,
     clampLosses: boolean,
   ): void {
-    const resources = option.resources ?? {};
+    const resources = this.deltasOf(entry, option);
     for (const resource of sortedKeys(resources)) {
-      let delta = resources[resource as Resource] ?? 0;
+      let delta = resources[resource] ?? 0;
       if (clampLosses) {
         delta = Math.max(delta, -this.game.illusion.apparent(resource));
       }
@@ -309,7 +363,9 @@ export class DeskManager {
   }
 
   private grudgedParty(entry: DeskEntry, option: DeskOption): number | null {
-    if (option.grudge === undefined || entry.kind !== "dispute") return null;
+    if (option.grudge === undefined) return null;
+    if (entry.kind === "petition") return entry.peasant;
+    if (entry.kind !== "dispute") return null;
     return entry.parties[option.grudge === "first" ? 0 : 1];
   }
 
@@ -378,15 +434,19 @@ export class DeskManager {
     } else if (entry.kind === "candidate") {
       if (option.id === HIRE) this.game.governors.hire(entry, context);
     } else {
-      this.applyResources(option, context, false);
+      this.applyResources(entry, option, context, false);
     }
     this.applyGrudge(entry, option);
-    if (option.newcomer !== undefined) this.game.economy.admitNewcomer();
+    if (option.newcomer !== undefined) this.admitNewcomers(entry);
     entries.splice(index, 1);
     return { ok: true };
   }
 
   private isEligible(kind: DrawnKind): boolean {
+    const { unlock } = this.tuning.desk.kinds[kind];
+    if (unlock !== undefined && !this.game.unlocks.enabled(unlock)) {
+      return false;
+    }
     switch (kind) {
       case "candidate":
         return this.game.governors.canOffer;
@@ -394,9 +454,18 @@ export class DeskManager {
         return this.game.delegates.peasants.length >= 2;
       case "traveller":
         return this.game.economy.hasRoom;
+      case "petition":
+        return this.game.delegates.peasants.length >= 1;
       case "merchant":
+      case "omen":
         return true;
     }
+  }
+
+  /** Grows with the realm so a reward or a price keeps pace with what the village earns; never below the written amount. */
+  private get scale(): number {
+    const { perPopulation } = this.tuning.desk.scale;
+    return Math.max(1, this.game.delegates.population / perPopulation);
   }
 
   private drawKind(): DrawnKind {
@@ -411,6 +480,15 @@ export class DeskManager {
       if (roll < 0) return kind;
     }
     throw new Error("desk kind draw landed outside its range");
+  }
+
+  private drawPeasant(): number {
+    const peasants = this.game.delegates.peasants;
+    const drawn = peasants[intBelow(this.stream, peasants.length)];
+    if (drawn === undefined) {
+      throw new Error("petitioner draw landed outside its range");
+    }
+    return drawn.id;
   }
 
   private drawParties(): [number, number] {
@@ -439,9 +517,13 @@ export class DeskManager {
       template: template.id,
       arrivedAt: this.state.tick,
     };
+    const scaled = { ...base, scale: this.scale };
     switch (kind) {
       case "dispute":
-        desk.disputes.push({ ...base, kind, parties: this.drawParties() });
+        desk.disputes.push({ ...scaled, kind, parties: this.drawParties() });
+        break;
+      case "petition":
+        desk.disputes.push({ ...scaled, kind, peasant: this.drawPeasant() });
         break;
       case "candidate":
         desk.disputes.push({
@@ -451,8 +533,18 @@ export class DeskManager {
         });
         break;
       case "merchant":
+      case "omen":
+        desk.disputes.push({ ...scaled, kind });
+        break;
       case "traveller":
-        desk.disputes.push({ ...base, kind });
+        desk.disputes.push({
+          ...scaled,
+          kind,
+          newcomers: Math.ceil(
+            this.game.delegates.population /
+              this.tuning.desk.scale.newcomersPer,
+          ),
+        });
         break;
     }
     desk.nextDisputeId += 1;
@@ -486,7 +578,7 @@ export class DeskManager {
     } else {
       const option = this.optionOf(template, template.expiry ?? "");
       if (option === undefined) throw new Error("expiry option is missing");
-      this.applyResources(option, context, true);
+      this.applyResources(entry, option, context, true);
     }
     this.expiredThisStep.push(this.fill(entry, template.expired));
   }
@@ -496,8 +588,9 @@ export class DeskManager {
     const living = new Set(delegates.map((delegate) => delegate.id));
     desk.disputes = desk.disputes.filter(
       (entry) =>
-        entry.kind !== "dispute" ||
-        entry.parties.every((party) => living.has(party)),
+        (entry.kind !== "dispute" ||
+          entry.parties.every((party) => living.has(party))) &&
+        (entry.kind !== "petition" || living.has(entry.peasant)),
     );
   }
 

@@ -57,6 +57,7 @@ export const economyTestTuning: Tuning = {
     slots: 3,
     arrival: { minTicks: 900, maxTicks: 1800 },
     grudgeTicks: 600,
+    scale: { perPopulation: 10, newcomersPer: 15 },
     kinds: {
       dispute: {
         weight: 1,
@@ -133,6 +134,52 @@ export const economyTestTuning: Tuning = {
             ],
             expiry: "turn-away",
             expired: "The traveller walked on.",
+          },
+        ],
+      },
+      petition: {
+        weight: 1,
+        unlock: "court.petitions",
+        templates: [
+          {
+            id: "cousin",
+            text: "{first} asks to send for a cousin.",
+            options: [
+              {
+                id: "send-for",
+                label: "Send for the cousin",
+                resources: { grain: -20 },
+                newcomer: true,
+              },
+              { id: "put-off", label: "Say the village will think on it" },
+              {
+                id: "refuse",
+                label: "Tell {first} there is no room",
+                grudge: "first",
+              },
+            ],
+            expiry: "put-off",
+            expired: "{first} stopped asking.",
+          },
+        ],
+      },
+      omen: {
+        weight: 1,
+        unlock: "court.omens",
+        templates: [
+          {
+            id: "geese",
+            text: "A drover says the geese left early.",
+            options: [
+              {
+                id: "reroof",
+                label: "Patch the granary roof",
+                resources: { wood: -10, grain: 20 },
+              },
+              { id: "ignore", label: "Ignore him" },
+            ],
+            expiry: "ignore",
+            expired: "The drover drove on.",
           },
         ],
       },
