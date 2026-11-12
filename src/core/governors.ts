@@ -351,7 +351,7 @@ export class GovernorManager {
   /** Ends terms, rolls each season's chance of death and grows empire-builders' villages. */
   run(context: AddContext): void {
     const { tick } = this.game.state;
-    const seasonEnds = tick % this.game.tuning.economy.ticksPerSeason === 0;
+    const { seasonEnds } = this.game.economy;
     for (const governor of this.roster) {
       this.keepBack(governor, tick);
       if (tick >= governor.termEndsAt) {

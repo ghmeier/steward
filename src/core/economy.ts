@@ -170,6 +170,10 @@ export class EconomyManager {
     return this.tuning.economy.seasonYield;
   }
 
+  get seasonEnds(): boolean {
+    return this.tick % this.ticksPerSeason === 0;
+  }
+
   seasonAt(tick: number): Season {
     if (tick < 1) return "spring";
     const index = Math.floor((tick - 1) / this.ticksPerSeason) % SEASONS.length;

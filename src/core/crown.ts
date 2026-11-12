@@ -199,7 +199,6 @@ export class CrownManager {
     return this.band === "warm" ? this.tuning.favor.warm.ceilingFactor : 1;
   }
 
-  /** Ticks a warm crown adds to the shortest gap between audits. */
   get auditGapBonus(): number {
     return this.band === "warm" ? this.tuning.favor.warm.auditGapTicks : 0;
   }
@@ -276,12 +275,15 @@ export class CrownManager {
    * Only real grain is protected; conjured grain is not food, so it can always be handed over.
    */
   private get available(): number {
-    if (this.crown.demand.resource !== "grain") return this.held;
-    const real = this.resources.grain ?? 0;
-    return this.held - Math.min(real, this.grainReserve);
+    return this.held - this.reservedOf(this.crown.demand.resource);
   }
 
-  /** The real grain that neither the crown nor failed auditors may take, so the village can still eat. */
+  /** The real stock of a resource that neither the crown nor failed auditors may take, so the village can still eat. */
+  reservedOf(resource: ResourceId): number {
+    if (resource !== "grain") return 0;
+    return Math.min(this.resources.grain ?? 0, this.grainReserve);
+  }
+
   get grainReserve(): number {
     return (
       this.tuning.grainReserveSeasons * this.game.economy.grainUpkeepPerSeason()

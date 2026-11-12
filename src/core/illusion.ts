@@ -60,8 +60,8 @@ export type IllusionState = {
   /** Illusory units that were passed off as real, keyed by resource. */
   debt: Record<ResourceId, number>;
   /**
-   * What was forged or passed off, keyed by resource. Interest is charged on this and never on the
-   * interest already added, and repayment takes it down first.
+   * What was forged or passed off, keyed by resource. Interest is charged on this rather than on the
+   * whole debt so that it never compounds.
    */
   principal: Record<ResourceId, number>;
   /** The tick the debt last rose from zero; see `NO_DEBT_TICK`. */
@@ -75,23 +75,20 @@ export type IllusionState = {
 
 const nonNegativeNumber = z.number().min(0);
 
+const amountPerResource = z.strictObject({
+  coin: nonNegativeNumber,
+  grain: nonNegativeNumber,
+  ore: nonNegativeNumber,
+  wood: nonNegativeNumber,
+});
+
 export const illusionStateSchema: z.ZodType<IllusionState> = z.strictObject({
   conjured: z.strictObject({
     coin: nonNegativeNumber,
     grain: nonNegativeNumber,
   }),
-  debt: z.strictObject({
-    coin: nonNegativeNumber,
-    grain: nonNegativeNumber,
-    ore: nonNegativeNumber,
-    wood: nonNegativeNumber,
-  }),
-  principal: z.strictObject({
-    coin: nonNegativeNumber,
-    grain: nonNegativeNumber,
-    ore: nonNegativeNumber,
-    wood: nonNegativeNumber,
-  }),
+  debt: amountPerResource,
+  principal: amountPerResource,
   debtSince: count,
   auditAt: count,
   lastAuditClosedAt: count,
@@ -333,15 +330,21 @@ export class IllusionManager {
     };
   }
 
-  /** Marks as much of what the crown still wants as the room allows as delivered on paper. */
-  forge(context: AddContext): CommandResult {
+  private get forgeRefusal(): CommandResult | null {
     if (!this.isUnlocked) {
       return { ok: false, reason: copy.illusion.cannotForgeYet };
     }
-    const { crown } = this.game;
-    if (!crown.isOpen) {
+    if (!this.game.crown.isOpen) {
       return { ok: false, reason: copy.crown.noDemand };
     }
+    return null;
+  }
+
+  /** Marks as much of what the crown still wants as the room allows as delivered on paper. */
+  forge(context: AddContext): CommandResult {
+    const refusal = this.forgeRefusal;
+    if (refusal) return refusal;
+    const { crown } = this.game;
     if (this.room <= 0) {
       return { ok: false, reason: copy.illusion.ceilingLeavesNoRoom };
     }
@@ -359,16 +362,11 @@ export class IllusionManager {
    * nothing held to hand over.
    */
   forgeMissing(context: AddContext): CommandResult {
-    if (!this.isUnlocked) {
-      return { ok: false, reason: copy.illusion.cannotForgeYet };
-    }
+    const refusal = this.forgeRefusal;
+    if (refusal) return refusal;
     const { crown } = this.game;
-    if (!crown.isOpen) {
-      return { ok: false, reason: copy.crown.noDemand };
-    }
     crown.deliver(context);
-    if (!crown.isOpen) return { ok: true };
-    return this.forge(context);
+    return crown.isOpen ? this.forge(context) : { ok: true };
   }
 
   private repay(
@@ -378,9 +376,9 @@ export class IllusionManager {
   ): void {
     add(this.resources, resource, -amount, context);
     this.illusion.debt[resource] = this.debtOf(resource) - amount;
-    this.illusion.principal[resource] = Math.min(
-      this.debtOf(resource),
-      Math.max(0, this.principalOf(resource) - amount),
+    this.illusion.principal[resource] = Math.max(
+      0,
+      this.principalOf(resource) - amount,
     );
     if (!RESOURCES.some((id) => this.debtOf(id) > 0)) {
       this.illusion.debtSince = NO_DEBT_TICK;
@@ -447,42 +445,36 @@ export class IllusionManager {
   settleAudit(optionId: string, context: AddContext): void {
     if (optionId === "deepen") {
       add(this.resources, "coin", -this.deepenCost, context);
-      for (const resource of RESOURCES) {
-        this.illusion.debt[resource] =
-          this.debtOf(resource) +
-          this.principalOf(resource) * this.tuning.audit.deepenFee;
-      }
+      this.chargeOnPrincipal(this.tuning.audit.deepenFee);
       this.illusion.debtSince = this.game.state.tick;
-      this.illusion.audits.deepened += 1;
-      this.closeAudit();
-      this.game.crown.recordAudit("deepened");
+      this.passAudit("deepened");
     } else {
       for (const resource of RESOURCES) {
         this.repay(resource, this.debtOf(resource), context);
       }
-      this.illusion.audits.backed += 1;
-      this.game.crown.recordAudit("backed");
-      this.closeAudit();
+      this.passAudit("backed");
     }
   }
 
-  private closeAudit(): void {
+  private closeAudit(outcome: keyof IllusionState["audits"]): void {
+    this.illusion.audits[outcome] += 1;
     this.illusion.lastAuditClosedAt = this.game.state.tick;
   }
 
-  /** What the auditors may take of a resource; grain keeps the same reserve the crown leaves. */
-  private seizable(resource: ResourceId): number {
-    const held = this.resources[resource] ?? 0;
-    return resource === "grain"
-      ? Math.max(0, held - this.game.crown.grainReserve)
-      : held;
+  private passAudit(outcome: "backed" | "deepened"): void {
+    this.closeAudit(outcome);
+    this.game.crown.recordAudit(outcome);
   }
 
   failAudit(context: AddContext): void {
     let uncovered = 0;
     for (const resource of RESOURCES) {
       const owed = this.debtOf(resource);
-      const seized = Math.min(owed, this.seizable(resource));
+      const held = this.resources[resource] ?? 0;
+      const seized = Math.min(
+        owed,
+        held - this.game.crown.reservedOf(resource),
+      );
       this.repay(resource, seized, context);
       uncovered += (owed - seized) * this.game.economy.priceOf(resource);
     }
@@ -491,8 +483,7 @@ export class IllusionManager {
       this.illusion.principal[resource] = 0;
     }
     this.illusion.debtSince = NO_DEBT_TICK;
-    this.illusion.audits.failed += 1;
-    this.closeAudit();
+    this.closeAudit("failed");
     this.game.crown.recordFailedAudit(uncovered);
     this.game.governors.dismissAfterFailedAudit(context);
   }
@@ -529,9 +520,7 @@ export class IllusionManager {
   private runAudit(): void {
     if (!this.hasDebt && this.game.desk.hasAudit) {
       this.game.desk.removeAudit();
-      this.illusion.audits.backed += 1;
-      this.game.crown.recordAudit("backed");
-      this.closeAudit();
+      this.passAudit("backed");
     }
     const { tick } = this.game.state;
     const { deadlineTicks } = this.tuning.audit;
@@ -551,14 +540,11 @@ export class IllusionManager {
     }
   }
 
-  /** Interest is charged once a season on the principal alone, so it never compounds. */
-  private chargeInterest(): void {
-    const { tick } = this.game.state;
-    if (tick % this.game.tuning.economy.ticksPerSeason !== 0) return;
+  /** Charges are taken on the principal alone so that interest and fees never compound. */
+  private chargeOnPrincipal(rate: number): void {
     for (const resource of RESOURCES) {
       this.illusion.debt[resource] =
-        this.debtOf(resource) +
-        this.principalOf(resource) * this.tuning.interestPerSeason;
+        this.debtOf(resource) + this.principalOf(resource) * rate;
     }
   }
 
@@ -569,7 +555,9 @@ export class IllusionManager {
     for (const resource of CONJURABLE) {
       conjured[resource] = this.conjuredOf(resource) * keep;
     }
-    this.chargeInterest();
+    if (this.game.economy.seasonEnds) {
+      this.chargeOnPrincipal(this.tuning.interestPerSeason);
+    }
     this.runAudit();
   }
 }

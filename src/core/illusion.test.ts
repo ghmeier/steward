@@ -372,7 +372,7 @@ describe("fading and interest", () => {
     expect(rng).toEqual(streams);
   });
 
-  test("interest grows debt by a share of the principal at a season end and not between", () => {
+  test("interest adds the same share of the principal at each season end and nothing between", () => {
     const game = village();
     owe(game, "ore", 100);
     const season = tuning.economy.ticksPerSeason;
@@ -380,26 +380,12 @@ describe("fading and interest", () => {
     game.state.tick = season - 1;
     game.illusion.run();
     const between = debt(game, "ore");
-    game.state.tick = season;
-    game.illusion.run();
-
-    expect(between).toBe(100);
-    expect(debt(game, "ore")).toBeCloseTo(
-      100 * (1 + illusionTuning.interestPerSeason),
-      9,
-    );
-  });
-
-  test("interest never compounds, so later seasons add the same amount", () => {
-    const game = village();
-    owe(game, "ore", 100);
-    const season = tuning.economy.ticksPerSeason;
-
     for (const tick of [season, 2 * season, 3 * season]) {
       game.state.tick = tick;
       game.illusion.run();
     }
 
+    expect(between).toBe(100);
     expect(debt(game, "ore")).toBeCloseTo(
       100 * (1 + 3 * illusionTuning.interestPerSeason),
       9,
@@ -839,71 +825,46 @@ describe("the gap between audits", () => {
   });
 });
 
-describe("a failed audit", () => {
-  test("leaves the real grain the village needs for a season and takes the rest", () => {
-    const game = village();
-    owe(game, "grain", 10_000);
-    stock(game, "grain", 10_000);
-    stock(game, "coin", 50);
-    const reserve = game.crown.grainReserve;
+test("a failed audit leaves the real grain the village needs for a season and takes all of a resource with no reserve", () => {
+  const game = village();
+  owe(game, "grain", 10_000);
+  owe(game, "coin", 100);
+  stock(game, "grain", 10_000);
+  stock(game, "coin", 500);
+  const reserve = game.crown.grainReserve;
 
-    game.illusion.failAudit(contextFor(game));
+  game.illusion.failAudit(contextFor(game));
 
-    expect(reserve).toBeGreaterThan(0);
-    expect(game.state.posting.resources.grain).toBe(reserve);
-    expect(debt(game, "grain")).toBe(0);
-    expect(principal(game, "grain")).toBe(0);
-  });
-
-  test("takes all of a resource that has no reserve", () => {
-    const game = village();
-    owe(game, "coin", 100);
-    stock(game, "coin", 500);
-
-    game.illusion.failAudit(contextFor(game));
-
-    expect(game.state.posting.resources.coin).toBe(400);
-  });
+  expect(reserve).toBeGreaterThan(0);
+  expect(game.state.posting.resources.grain).toBe(reserve);
+  expect(game.state.posting.resources.coin).toBe(400);
+  expect(debt(game, "grain")).toBe(0);
+  expect(principal(game, "grain")).toBe(0);
 });
 
 describe("forging what is missing", () => {
-  test("delivers held stock above the reserve and forges only the remainder", () => {
-    const game = village();
-    const reserve = game.crown.grainReserve;
-    const held = reserve + 40;
-    stock(game, "grain", held);
-    openDemand(game, "grain", 100);
+  test.each([
+    ["grain", 40, 60],
+    ["grain", 0, 100],
+    ["ore", 500, 0],
+  ] as const)(
+    "a %s demand of 100 with %d held above the reserve delivers what is held and forges %d",
+    (resource, aboveReserve, forged) => {
+      const game = village();
+      const reserve = resource === "grain" ? game.crown.grainReserve : 0;
+      stock(game, resource, reserve + aboveReserve);
+      openDemand(game, resource, 100);
 
-    const result = command(game, { type: "forgeMissing" });
+      const result = command(game, { type: "forgeMissing" });
 
-    expect(result.ok).toBe(true);
-    expect(game.state.posting.resources.grain).toBe(reserve);
-    expect(debt(game, "grain")).toBe(60);
-    expect(game.state.posting.crown.met).toBe(1);
-  });
-
-  test("forges the whole demand when nothing is held", () => {
-    const game = village();
-    stock(game, "grain", 0);
-    openDemand(game, "grain", 100);
-
-    command(game, { type: "forgeMissing" });
-
-    expect(debt(game, "grain")).toBe(100);
-    expect(game.state.posting.crown.met).toBe(1);
-  });
-
-  test("forges nothing when the held stock already covers the demand", () => {
-    const game = village();
-    stock(game, "ore", 500);
-    openDemand(game, "ore", 100);
-
-    const result = command(game, { type: "forgeMissing" });
-
-    expect(result.ok).toBe(true);
-    expect(debt(game, "ore")).toBe(0);
-    expect(game.state.posting.crown.met).toBe(1);
-  });
+      expect(result.ok).toBe(true);
+      expect(debt(game, resource)).toBe(forged);
+      expect(game.state.posting.resources[resource]).toBe(
+        reserve + Math.max(0, aboveReserve - 100),
+      );
+      expect(game.state.posting.crown.met).toBe(1);
+    },
+  );
 
   test("is refused with no open demand", () => {
     const game = village();
