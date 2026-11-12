@@ -81,7 +81,7 @@ describe("formatDecree", () => {
     expect(any).toContain(copy.decrees.anyOf({ conditions: parts }));
   });
 
-  test("a compare condition shows its quantity, comparison and value, and a not condition wraps its inner one", () => {
+  test("a compare condition shows its quantity, comparison and value, a full condition its resource, and a not condition wraps its inner one", () => {
     const compare: Condition = {
       kind: "compare",
       quantity: "grainSeasons",
@@ -90,6 +90,9 @@ describe("formatDecree", () => {
     };
 
     expect(formatCondition(compare)).toBe("grain seasons above 3");
+    expect(formatCondition({ kind: "full", resource: "wood" })).toBe(
+      "wood is full",
+    );
     expect(formatCondition({ kind: "not", condition: compare })).toContain(
       formatCondition(compare),
     );

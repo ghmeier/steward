@@ -49,6 +49,11 @@ export class ConditionManager {
         return (
           this.game.economy.seasonAt(this.game.state.tick) === condition.season
         );
+      case "full": {
+        const stock =
+          this.game.state.posting.resources[condition.resource] ?? 0;
+        return stock >= this.game.economy.capOf(condition.resource);
+      }
       case "chose":
         return (
           Object.hasOwn(chosen, condition.decree) &&

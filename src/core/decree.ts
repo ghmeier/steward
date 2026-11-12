@@ -3,7 +3,13 @@ import { compareKeys, isRecord, sortedKeys } from "./data";
 import { addIssue, type IssuePath, parseWith } from "./errors";
 import { LaborSplit } from "./labor-split";
 import { normalizeZero } from "./math";
-import { type Resource, SEASONS, type Season } from "./realm";
+import {
+  CAPPED_RESOURCES,
+  type CappedResource,
+  type Resource,
+  SEASONS,
+  type Season,
+} from "./realm";
 import { positiveInteger } from "./schema";
 import type { Tuning } from "./tuning";
 
@@ -41,6 +47,7 @@ export type Condition =
       value: number;
     }
   | { kind: "season"; season: Season }
+  | { kind: "full"; resource: CappedResource }
   | { kind: "chose"; decree: string; policy: string }
   | { kind: "all"; conditions: Condition[] }
   | { kind: "any"; conditions: Condition[] }
@@ -88,6 +95,10 @@ const conditionTree: z.ZodType<Condition> = z.lazy(() =>
       value: z.number().transform(normalizeZero),
     }),
     z.strictObject({ kind: z.literal("season"), season: z.enum(SEASONS) }),
+    z.strictObject({
+      kind: z.literal("full"),
+      resource: z.enum(CAPPED_RESOURCES),
+    }),
     z.strictObject({
       kind: z.literal("chose"),
       decree: decreeId,

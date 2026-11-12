@@ -5,7 +5,7 @@ import type { DeskEntryView } from "./desk";
 import type { Game } from "./game";
 import type { FormerGovernorView, GovernorView } from "./governors";
 import type { IllusionView } from "./illusion";
-import { type Job, RESOURCES, type Season } from "./realm";
+import { type CappedResource, type Job, RESOURCES, type Season } from "./realm";
 import type { ResourceId } from "./state";
 import {
   ARCHIVE_PANEL,
@@ -62,7 +62,7 @@ export type LiveTuning = {
   /** Yields are per worker per tick; farming is before the season's multiplier. */
   yields: { grain: number; wood: number; ore: number };
   prices: { grain: number; wood: number; ore: number };
-  caps: { grain: number; wood: number; ore: number };
+  caps: Record<CappedResource, number>;
   interestPerSeason: number;
   auditGapTicks: number;
   governorCap: number;

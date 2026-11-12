@@ -166,12 +166,15 @@ describe("parseDecree rejections", () => {
   });
 });
 
-test("parseCondition reports problems under the caller's path", () => {
-  const message = rejection(() =>
-    parseCondition({ kind: "season", season: "monsoon" }, limits, "x.when"),
-  );
+test("parseCondition rejects an unknown season or an uncapped full resource under the caller's path", () => {
+  const unknownSeason = { kind: "season", season: "monsoon" };
+  const uncappedFull = { kind: "full", resource: "coin" };
 
-  expect(message).toStartWith("x.when");
+  for (const condition of [unknownSeason, uncappedFull]) {
+    expect(
+      rejection(() => parseCondition(condition, limits, "x.when")),
+    ).toStartWith("x.when");
+  }
 });
 
 describe("orderDecrees", () => {
