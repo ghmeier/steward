@@ -3,7 +3,7 @@ title: "Phase 8: governors, crown favor and Archive precision"
 status: active
 tags: [phase-8]
 created: 2026-11-11
-updated: 2026-11-11
+updated: 2026-11-12
 last_pr: 24
 next_step: Garret reviews #21 (with governors), #23 labor shares and #24 debt and precision; 3c governors-tui in progress from debt-and-precision
 ---
@@ -172,3 +172,4 @@ Carried from phases 6 and 7:
 - 2026-11-11: 3b `labor-shares` built at 2881c03 (1100 pass, no schema bump: a policy containing a space is a split). `chose` conditions accept presets only. 3a `debt-and-precision` built at a53687c (1081 pass, no schema bump): rough debt line, `back` reports what it repaid through a new ok `message` on `CommandResult`, repay advice on the focused Ledger row, Exact books 350 and True reports 600, and an untimed audit notice without exact books. Buying either entry is unit-tested only. Both in refactor passes.
 - 2026-11-11: 3b labor-shares open as #23 against `crown-favor` at 3f6aa3c, 1100 pass, strategies unchanged.
 - 2026-11-11: 3a debt-and-precision open as #24 against `crown-favor` at 0d2db8e, 1080 pass; a follow-up restores thousands separators on exact debt. 3c governors-tui dispatched from `debt-and-precision`.
+- 2026-11-11: 3c governors-tui built at 9e313a0; refactor pass dispatched, PR to target `debt-and-precision`.
