@@ -5,7 +5,7 @@ last_pr: 38
 tags: [playtest]
 created: 2026-11-12
 updated: 2026-11-12
-next_step: #38 (decree-full-condition) open for review; then PR 7 balance and crown pressure
+next_step: PR 7 (tech-tree-balance) in implementation
 ---
 # Governors playtest: tech tree, illusion relief, pacing and polish
 
@@ -274,3 +274,4 @@ Objective: tune costs and thresholds so wood and ore are worth producing, and th
 - 2026-11-12: `tech-tree-upgrades` opened as #37 (ed8207a), 1250 tests. Zod now rejects unknown modifiers, `uncappedContext` is a shared test helper, and the reachability test asserts that no tier-1 upgrade goes unseen.
 - 2026-11-12: #37 merged. Garret asked for a way to sell or feed when stores are full. A '<resource> is full' decree condition is in progress as its own PR, `decree-full-condition`.
 - 2026-11-12: `decree-full-condition` opened as #38 (2163fbd), 1259 tests. `CAPPED_RESOURCES` is the only list of capped resources. The first tick at a full store still loses its production.
+- 2026-11-12: #38 merged. PR 7 `tech-tree-balance` dispatched.
