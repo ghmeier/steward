@@ -2,7 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { tuning } from "../../test/helpers";
 import { copy } from "../core/copy";
 import type { Condition, Decree } from "../core/decree";
-import { describePolicy, formatCondition, formatDecree } from "./decree-format";
+import {
+  describePolicy,
+  formatCondition,
+  formatDecree,
+  formatPolicy,
+} from "./decree-format";
 
 function decreeWith(when: Condition): Decree {
   return {
@@ -20,6 +25,15 @@ const poor: Condition = {
   comparison: "below",
   value: 5,
 };
+
+describe("formatPolicy", () => {
+  test("shows a labor split as dotted jobs and shares, and leaves a preset alone", () => {
+    expect(formatPolicy("farm 60 forest 30 mine 10")).toBe(
+      "farm 60 · forest 30 · mine 10",
+    );
+    expect(formatPolicy("balanced")).toBe("balanced");
+  });
+});
 
 describe("formatDecree", () => {
   test("lists the rules in order, then the otherwise policy", () => {

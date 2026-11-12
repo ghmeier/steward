@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DESK_KINDS } from "./desk";
 import { addIssue, parseWith } from "./errors";
 import type { Game } from "./game";
 import type { AddContext } from "./math";
@@ -23,6 +24,11 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("settleDispute"),
     dispute: z.int(),
+    option: text,
+  }),
+  z.strictObject({
+    type: z.literal("settle"),
+    kind: z.enum(DESK_KINDS),
     option: text,
   }),
   z.strictObject({ type: z.literal("deliver") }),
@@ -91,6 +97,12 @@ export class CommandManager {
         case "settleDispute":
           return this.game.desk.settle(
             command.dispute,
+            command.option,
+            context,
+          );
+        case "settle":
+          return this.game.desk.settleOldest(
+            command.kind,
             command.option,
             context,
           );

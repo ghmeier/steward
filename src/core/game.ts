@@ -5,6 +5,7 @@ import { DecreeEngine } from "./decree-engine";
 import { DelegateManager } from "./delegates";
 import { DeskManager } from "./desk";
 import { EconomyManager } from "./economy";
+import { GovernorManager } from "./governors";
 import { emptyIllusionState, IllusionManager } from "./illusion";
 import { LaborSettling, NO_LABOR_POLICY } from "./labor";
 import { ProjectionManager } from "./projection";
@@ -33,6 +34,7 @@ export class Game {
   readonly savedDecrees: SavedDecreeManager;
   readonly unlocks: UnlockManager;
   readonly desk: DeskManager;
+  readonly governors: GovernorManager;
   readonly crown: CrownManager;
   readonly illusion: IllusionManager;
   readonly commands: CommandManager;
@@ -52,6 +54,7 @@ export class Game {
     this.savedDecrees = new SavedDecreeManager(this);
     this.unlocks = new UnlockManager(this);
     this.desk = new DeskManager(this);
+    this.governors = new GovernorManager(this);
     this.crown = new CrownManager(this);
     this.illusion = new IllusionManager(this);
     this.commands = new CommandManager(this);
@@ -89,6 +92,7 @@ export class Game {
       },
       delegates: [],
       nextDelegateId: 1,
+      formerStaff: [],
       decrees: {},
       labor: { policy: NO_LABOR_POLICY, settling: false },
       desk: {
@@ -108,7 +112,6 @@ export class Game {
           savedDecrees: {},
           needed: {},
           followers: [],
-          formerStaff: [],
           promotedAt: 0,
         },
         posting,

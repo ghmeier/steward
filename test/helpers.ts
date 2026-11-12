@@ -1,13 +1,14 @@
 import archiveJson from "../data/archive.json";
 import crownJson from "../data/crown.json";
 import deskJson from "../data/desk.json";
+import governorsJson from "../data/governors.json";
 import illusionJson from "../data/illusion.json";
 import tuningJson from "../data/tuning.json";
 import villageJson from "../data/village.json";
-import type { Delegate } from "../src/core/delegates";
+import type { Delegate, Governor } from "../src/core/delegates";
 import { Game } from "../src/core/game";
 import type { AddContext } from "../src/core/math";
-import { JOBS, type Job } from "../src/core/realm";
+import { JOBS, Job } from "../src/core/realm";
 import { parseTuning, type Tuning } from "../src/core/tuning";
 import { ARCHIVE_PANEL } from "../src/core/unlocks";
 import { type HelpTopicId, helpSections } from "../src/tui/help-menu";
@@ -19,6 +20,7 @@ export const fullTuningJson = {
   archive: archiveJson,
   crown: crownJson,
   illusion: illusionJson,
+  governors: governorsJson,
 };
 
 export const tuning = parseTuning(fullTuningJson);
@@ -135,6 +137,7 @@ export const economyTestTuning: Tuning = {
           },
         ],
       },
+      candidate: tuning.desk.kinds.candidate,
       audit: {
         templates: [
           {
@@ -153,6 +156,7 @@ export const economyTestTuning: Tuning = {
   archive: tuning.archive,
   crown: tuning.crown,
   illusion: tuning.illusion,
+  governors: tuning.governors,
 };
 
 export const quietOptions = { absorbed: null, validateEvery: 0 } as const;
@@ -175,6 +179,38 @@ export function rosterOf(counts: RosterCounts): Delegate[] {
     }
   }
   return delegates;
+}
+
+let governorCount = 0;
+
+/** A governor of the first of the village's names not used by `rosterOf`, so names stay unique alongside a small peasant roster. */
+export function governorOf(fields: Partial<Governor> = {}): Governor {
+  governorCount += 1;
+  return {
+    id: 1000 + governorCount,
+    name: villageJson.names[villageJson.names.length - governorCount] as string,
+    kind: "governor",
+    job: Job.FARM,
+    grudgeUntil: 0,
+    village: 8,
+    traits: [],
+    hiredAt: 0,
+    termEndsAt: 1_000_000,
+    hoard: 0,
+    ...fields,
+  };
+}
+
+/** Puts governors after the peasants, renumbering them so ids still ascend. */
+export function addGovernors(game: Game, ...governors: Governor[]): Governor[] {
+  const { posting } = game.state;
+  const added = governors.map((governor) => {
+    const id = posting.nextDelegateId;
+    posting.nextDelegateId += 1;
+    return { ...governor, id };
+  });
+  posting.delegates.push(...added);
+  return added;
 }
 
 export function setRoster(game: Game, counts: RosterCounts): void {

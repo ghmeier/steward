@@ -2,7 +2,7 @@ import { z } from "zod";
 import { type Condition, conditionSchema, type DecreeLimits } from "./decree";
 import { addIssue, type IssuePath, parseWith } from "./errors";
 import { normalizeZero } from "./math";
-import { RESOURCES, SEASONS, WORKING_JOBS } from "./realm";
+import { RESOURCES, SEASONS, TRAITS, WORKING_JOBS } from "./realm";
 import {
   ARCHIVE_PANEL,
   type ArchiveEntry,
@@ -88,6 +88,7 @@ const optionResources = z
   .exactOptional();
 
 const PARTY_PLACEHOLDERS = ["first", "second"];
+const CANDIDATE_PLACEHOLDERS = ["name", "village", "price", "job", "traits"];
 const NO_PLACEHOLDERS: string[] = [];
 
 function deskOption(placeholders: readonly string[]) {
@@ -108,13 +109,21 @@ const travellerOption = merchantOption.extend({
   newcomer: z.literal(true).exactOptional(),
 });
 
-const auditOption = <Id extends string>(id: Id) =>
+const computedCostOption = <Id extends string>(
+  id: Id,
+  placeholders: readonly string[],
+) =>
   z.strictObject({
     id: z.literal(id),
-    label: textWithPlaceholders([]),
-    // Declared so every kind's option reads alike, but never allowed: an audit's cost is computed.
+    label: textWithPlaceholders(placeholders),
+    // Declared so every kind's option reads alike, but never allowed: the cost is computed from the entry or the books.
     resources: z.never().exactOptional(),
   });
+
+const auditOption = <Id extends string>(id: Id) => computedCostOption(id, []);
+
+const candidateOption = <Id extends string>(id: Id) =>
+  computedCostOption(id, CANDIDATE_PLACEHOLDERS);
 
 // Every kind's option is read through this one shape, so the fields only some kinds have are optional here.
 export type DeskOption = z.infer<typeof merchantOption> &
@@ -195,6 +204,29 @@ const auditTemplate = z.strictObject({
   expired: textWithPlaceholders(NO_PLACEHOLDERS),
 });
 
+// A candidate's price is on the entry, so its options hold no amounts; the only way out without hiring is passing.
+const candidateTemplate = z.strictObject({
+  id: name,
+  text: textWithPlaceholders(CANDIDATE_PLACEHOLDERS),
+  options: z.tuple([candidateOption("hire"), candidateOption("pass")]),
+  expiry: z.literal("pass"),
+  expired: textWithPlaceholders(CANDIDATE_PLACEHOLDERS),
+});
+
+const candidateKind = z.strictObject({
+  weight: positiveInteger,
+  templates: z
+    .array(candidateTemplate)
+    .min(1)
+    .superRefine((templates, ctx) =>
+      repeatIssues(
+        templates.map((template) => template.id),
+        "id",
+        ctx,
+      ),
+    ),
+});
+
 const auditKind = z.strictObject({
   templates: z
     .array(auditTemplate)
@@ -244,8 +276,36 @@ const desk = z.strictObject({
     dispute: deskKind(disputeOption, PARTY_PLACEHOLDERS),
     merchant: deskKind(merchantOption, NO_PLACEHOLDERS),
     traveller: deskKind(travellerOption, NO_PLACEHOLDERS),
+    candidate: candidateKind,
     audit: auditKind,
   }),
+});
+
+const countRange = z
+  .strictObject({ min: positiveInteger, max: positiveInteger })
+  .superRefine((range, ctx) => {
+    if (range.min > range.max) addIssue(ctx, "must not exceed max", ["min"]);
+  });
+
+const tickRange = z
+  .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
+  .superRefine((range, ctx) => {
+    if (range.minTicks > range.maxTicks) {
+      addIssue(ctx, "must not exceed maxTicks", ["minTicks"]);
+    }
+  });
+
+const governors = z.strictObject({
+  cap: positiveInteger,
+  village: countRange,
+  term: tickRange,
+  deathPerMille: z.int().min(0).max(1000),
+  price: countRange,
+  empireBuilderLimit: positiveInteger,
+  traits: z.record(
+    z.enum(TRAITS),
+    z.strictObject({ output: positive, report: positive }),
+  ),
 });
 
 const crownLines = z.strictObject({
@@ -253,6 +313,33 @@ const crownLines = z.strictObject({
   met: amountText,
   missed: amountText,
 });
+
+const favor = z
+  .strictObject({
+    limit: positive,
+    coldBelow: z.number(),
+    warmAbove: z.number(),
+    met: nonNegative,
+    early: nonNegative,
+    missed: z.number().max(0),
+    backed: nonNegative,
+    deepened: z.number().max(0),
+    failed: z.number().max(0),
+    cold: z.strictObject({
+      debtShareFactor: positive,
+      warningFactor: positive,
+      stepFactor: positive,
+    }),
+    warm: z.strictObject({
+      ceilingFactor: positive,
+      rewardFactor: positive,
+    }),
+  })
+  .superRefine((value, ctx) => {
+    if (value.coldBelow >= value.warmAbove) {
+      addIssue(ctx, "must be below warmAbove", ["coldBelow"]);
+    }
+  });
 
 const crown = z.strictObject({
   firstDemandTicks: positiveInteger,
@@ -266,8 +353,10 @@ const crown = z.strictObject({
     }),
   baseAmounts: z.record(z.enum(RESOURCES), positive),
   step: nonNegative,
+  grainReserveSeasons: nonNegative,
   surcharge: nonNegative,
   reward: nonNegative,
+  favor,
   lines: z.record(z.enum(RESOURCES), crownLines),
 });
 
@@ -389,33 +478,38 @@ const tuningSchema = z
     archive,
     crown,
     illusion,
+    governors,
   })
   .superRefine((tuning, ctx) => {
-    const max = tuning.economy.maxPopulation;
+    // Governors and open candidates are named from the same pool as peasants.
+    const max =
+      tuning.economy.maxPopulation + tuning.governors.cap + tuning.desk.slots;
     if (tuning.village.names.length < max) {
       addIssue(
         ctx,
-        `needs at least maxPopulation (${max}) names, got ${tuning.village.names.length}`,
+        `needs at least maxPopulation plus the governor cap plus the desk slots (${max}) names, got ${tuning.village.names.length}`,
         ["village", "names"],
       );
     }
-    if (tuning.village.promotionPopulation > max) {
-      addIssue(ctx, `must not exceed economy.maxPopulation (${max})`, [
-        "village",
-        "promotionPopulation",
-      ]);
+    if (tuning.village.promotionPopulation > tuning.economy.maxPopulation) {
+      addIssue(
+        ctx,
+        `must not exceed economy.maxPopulation (${tuning.economy.maxPopulation})`,
+        ["village", "promotionPopulation"],
+      );
     }
   });
 
 export type Tuning = z.infer<typeof tuningSchema>;
 export type VillageTuning = z.infer<typeof village>;
 export type DeskTuning = z.infer<typeof desk>;
+export type GovernorTuning = z.infer<typeof governors>;
 export type DeskTemplate = Omit<
   z.infer<ReturnType<typeof deskTemplate>>,
   "expiry"
 > & { expiry?: string };
 
-/** Takes the merged contents of tuning.json, village.json, desk.json, archive.json, crown.json and illusion.json. */
+/** Takes the merged contents of tuning.json, village.json, desk.json, archive.json, crown.json, illusion.json and governors.json. */
 export function parseTuning(value: unknown): Tuning {
   return parseWith(tuningSchema, value, "tuning");
 }

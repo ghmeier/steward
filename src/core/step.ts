@@ -32,7 +32,7 @@ export class StepManager {
   private checkPromotion(): void {
     const { state, tuning } = this.game;
     if (state.career.promotedAt !== 0) return;
-    if (state.posting.delegates.length >= tuning.village.promotionPopulation) {
+    if (this.game.delegates.population >= tuning.village.promotionPopulation) {
       state.career.promotedAt = state.tick;
       state.career.unlocks[CROWN_PANEL] = state.tick;
       this.game.crown.scheduleFirstDemand();
@@ -52,6 +52,7 @@ export class StepManager {
     );
     this.runFlows(context);
     this.game.desk.run(context);
+    this.game.governors.run(context);
     this.game.crown.run(context);
     this.game.illusion.run();
     this.checkPromotion();

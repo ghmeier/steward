@@ -5,7 +5,7 @@ export class ConditionManager {
   constructor(private game: Game) {}
 
   quantityOf(quantity: Quantity): number {
-    const { resources, delegates } = this.game.state.posting;
+    const { resources } = this.game.state.posting;
     switch (quantity) {
       case "coin":
       case "grain":
@@ -13,7 +13,7 @@ export class ConditionManager {
       case "wood":
         return resources[quantity] ?? 0;
       case "population":
-        return delegates.length;
+        return this.game.delegates.population;
       case "idle":
         return this.game.delegates.jobCounts().idle;
       case "owedCoin":
@@ -21,6 +21,12 @@ export class ConditionManager {
       case "owedOre":
       case "owedWood":
         return this.game.crown.owedIn(OWED_RESOURCES[quantity]);
+      case "candidates":
+        return this.game.desk.candidates.length;
+      case "auditors":
+        return this.game.desk.hasAudit ? 1 : 0;
+      case "demandTicks":
+        return this.game.crown.ticksLeft;
       case "debt":
         return this.game.illusion.debtValue;
       case "grainSeasons":

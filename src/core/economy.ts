@@ -1,6 +1,7 @@
 import type { ResourcePetition } from "./decree";
 import type { Game } from "./game";
 import { NO_LABOR_POLICY } from "./labor";
+import { LaborSplit } from "./labor-split";
 import { type AddContext, add } from "./math";
 import {
   Job,
@@ -47,8 +48,14 @@ export class EconomyManager {
     return this.game.tuning;
   }
 
+  /** Everyone who eats: peasants and the villages governors run. */
   private get population() {
-    return this.game.delegates.all.length;
+    return this.game.delegates.population;
+  }
+
+  /** The peasants alone; labor decrees and famine act on them, never on a governor. */
+  private get peasantCount() {
+    return this.game.delegates.peasants.length;
   }
 
   private get ticksPerSeason() {
@@ -77,10 +84,14 @@ export class EconomyManager {
     return SEASONS[index] ?? "spring";
   }
 
+  /** Grain the whole village eats in one season at the current population. */
+  grainUpkeepPerSeason(): number {
+    return this.population * this.grainPerPerson * this.ticksPerSeason;
+  }
+
   grainSeasons(): number {
     const grain = this.posting.resources.grain ?? 0;
-    const upkeepPerSeason =
-      this.population * this.grainPerPerson * this.ticksPerSeason;
+    const upkeepPerSeason = this.grainUpkeepPerSeason();
     if (upkeepPerSeason === 0)
       return grain === 0 ? 0 : this.tuning.maxResourceValue;
     return grain / upkeepPerSeason;
@@ -93,6 +104,26 @@ export class EconomyManager {
       this.grainPerFarmer *
       this.seasonYield[season]
     );
+  }
+
+  /** What one worker on the job yields in a tick at the given tick; null for idle. */
+  yieldPerWorker(
+    job: Job,
+    tick: number,
+  ): { resource: Resource; amount: number } | null {
+    switch (job) {
+      case Job.FARM:
+        return {
+          resource: "grain",
+          amount: this.grainPerFarmer * this.seasonYield[this.seasonAt(tick)],
+        };
+      case Job.FOREST:
+        return { resource: "wood", amount: this.tuning.economy.woodPerWorker };
+      case Job.MINE:
+        return { resource: "ore", amount: this.tuning.economy.orePerWorker };
+      case Job.IDLE:
+        return null;
+    }
   }
 
   private upkeepOf(): number {
@@ -109,18 +140,18 @@ export class EconomyManager {
       this.game.delegates.firstWithJob(Job.FARM);
     if (victim !== undefined) this.game.delegates.remove(victim.id);
   }
-  // Deaths are paced against the starting population so a famine takes at most half the
-  // village, spread evenly over one season; integer arithmetic keeps the schedule exact.
+  // Only peasants can starve, so deaths are paced against the starting peasants: a famine takes at
+  // most half of them, spread evenly over one season, and integer arithmetic keeps the schedule exact.
   private advanceFamine(): void {
     const famine = this.posting.economy.famine;
-    if (famine.ticks === 0) famine.startPopulation = this.population;
+    if (famine.ticks === 0) famine.startPopulation = this.peasantCount;
     famine.ticks += 1;
     const cap = Math.floor(famine.startPopulation / 2);
     const due = Math.min(
       cap,
       Math.floor((famine.ticks * cap) / this.tuning.economy.ticksPerSeason),
     );
-    while (famine.deaths < due && this.population > 0) {
+    while (famine.deaths < due && this.peasantCount > 0) {
       this.killOnePeasant();
       famine.deaths += 1;
       this.posting.economy.starved += 1;
@@ -190,7 +221,7 @@ export class EconomyManager {
   }
 
   get hasRoom(): boolean {
-    return this.posting.delegates.length < this.tuning.economy.maxPopulation;
+    return this.peasantCount < this.tuning.economy.maxPopulation;
   }
 
   /** Births and admitted travellers both arrive here, so the labor decree places every newcomer. */
@@ -198,7 +229,7 @@ export class EconomyManager {
     const newcomer = this.game.delegates.create();
     const { policy } = this.game.labor;
     if (policy === NO_LABOR_POLICY) return;
-    // The targets sum to the population, which already counts this idle newcomer, so a job is short.
+    // The targets sum to the peasants, which already count this idle newcomer, so a job is short.
     newcomer.job = this.mostShortJob(
       this.laborTargetFor(policy),
       this.game.delegates.jobCounts(),
@@ -207,17 +238,18 @@ export class EconomyManager {
 
   laborTargetFor(policy: string): Record<Job, number> {
     const allocations = this.tuning.economy.laborAllocations;
-    const shares = Object.hasOwn(allocations, policy)
-      ? allocations[policy]
-      : undefined;
-    if (!shares) throw new Error(`unknown labor policy "${policy}"`);
-    return this.laborTargets(shares);
+    if (Object.hasOwn(allocations, policy) && allocations[policy]) {
+      return this.laborTargets(allocations[policy]);
+    }
+    const split = LaborSplit.fromPolicy(policy);
+    if (!split?.ok) throw new Error(`unknown labor policy "${policy}"`);
+    return this.laborTargets(split.split.shares());
   }
 
   laborTargets(
     shares: Readonly<Record<WorkingJob, number>>,
   ): Record<Job, number> {
-    const population = this.population;
+    const population = this.peasantCount;
     const targets: Record<Job, number> = {
       farm: 0,
       forest: 0,

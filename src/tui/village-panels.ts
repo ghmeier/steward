@@ -16,7 +16,7 @@ import {
   rowWindow,
   stepIndex,
 } from "./cursor";
-import { formatRule, plain } from "./decree-format";
+import { formatPolicy, formatRule, plain } from "./decree-format";
 import {
   capitalize,
   formatAmount,
@@ -257,7 +257,7 @@ export class DecreesPanel extends VillagePanel {
           ? copy.decrees.none
           : [
               ...decree.rules.map(formatRule),
-              `otherwise ${decree.otherwise}`,
+              `otherwise ${formatPolicy(decree.otherwise)}`,
             ].join("; ");
       const marker = focused && index === this.selected ? ">" : " ";
       const row = `${marker} ${petition.padEnd(label)}  ${text}`;
@@ -339,6 +339,7 @@ export class CrownPanel extends VillagePanel {
         : CrownPanel.demandLines(crown.demand, tuning)),
       "",
       copy.village.crownTally({ met: crown.met, missed: crown.missed }),
+      copy.village.crownFavor[crown.favor],
     ];
     return lines
       .flatMap((line) => wrapLine(line, size.width - 1, 2))

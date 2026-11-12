@@ -102,7 +102,9 @@ export class IllusionManager {
 
   get ceiling(): number {
     return (
-      this.tuning.ceilingPerPeasant * this.game.state.posting.delegates.length
+      this.tuning.ceilingPerPeasant *
+      this.game.crown.ceilingFactor *
+      this.game.delegates.population
     );
   }
 
@@ -246,11 +248,13 @@ export class IllusionManager {
       }
       this.illusion.debtSince = this.game.state.tick;
       this.illusion.audits.deepened += 1;
+      this.game.crown.recordAudit("deepened");
     } else {
       for (const resource of RESOURCES) {
         this.repay(resource, this.debtOf(resource), context);
       }
       this.illusion.audits.backed += 1;
+      this.game.crown.recordAudit("backed");
     }
   }
 
@@ -265,14 +269,22 @@ export class IllusionManager {
     for (const resource of RESOURCES) this.illusion.debt[resource] = 0;
     this.illusion.debtSince = NO_DEBT_TICK;
     this.illusion.audits.failed += 1;
-    if (uncovered > 0) this.game.crown.recordMiss(uncovered);
+    this.game.crown.recordFailedAudit(uncovered);
+    this.game.governors.dismissAfterFailedAudit(context);
+  }
+
+  private get warningTicks(): number {
+    return Math.round(
+      this.tuning.audit.warningTicks * this.game.crown.warningFactor,
+    );
   }
 
   private get isAuditDue(): boolean {
     if (!this.hasDebt) return false;
     const { debtShare, ageTicks } = this.tuning.audit;
+    const share = debtShare * this.game.crown.debtShareFactor;
     return (
-      this.debtValue >= debtShare * this.ceiling ||
+      this.debtValue >= share * this.ceiling ||
       this.game.state.tick - this.illusion.debtSince >= ageTicks
     );
   }
@@ -281,9 +293,10 @@ export class IllusionManager {
     if (!this.hasDebt && this.game.desk.hasAudit) {
       this.game.desk.removeAudit();
       this.illusion.audits.backed += 1;
+      this.game.crown.recordAudit("backed");
     }
     const { tick } = this.game.state;
-    const { warningTicks, deadlineTicks } = this.tuning.audit;
+    const { deadlineTicks } = this.tuning.audit;
     if (
       this.illusion.auditAt !== NO_AUDIT_TICK &&
       tick >= this.illusion.auditAt
@@ -296,7 +309,7 @@ export class IllusionManager {
       !this.game.desk.hasAudit &&
       this.isAuditDue
     ) {
-      this.illusion.auditAt = tick + warningTicks;
+      this.illusion.auditAt = tick + this.warningTicks;
     }
   }
 

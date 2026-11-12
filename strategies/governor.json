@@ -1,0 +1,241 @@
+{
+  "name": "governor",
+  "setup": [
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "granary",
+        "petition": "harvest",
+        "rules": [
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "grain",
+              "comparison": "above",
+              "value": 2500
+            },
+            "policy": "sell"
+          },
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "grainSeasons",
+              "comparison": "above",
+              "value": 2
+            },
+            "policy": "feed"
+          }
+        ],
+        "otherwise": "stockpile"
+      }
+    },
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "ore-sales",
+        "petition": "ore",
+        "rules": [
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "owedOre",
+              "comparison": "above",
+              "value": 0
+            },
+            "policy": "stockpile"
+          }
+        ],
+        "otherwise": "sell"
+      }
+    },
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "wood-sales",
+        "petition": "wood",
+        "rules": [
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "owedWood",
+              "comparison": "above",
+              "value": 0
+            },
+            "policy": "stockpile"
+          }
+        ],
+        "otherwise": "sell"
+      }
+    },
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "workforce",
+        "petition": "labor",
+        "rules": [
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "owedOre",
+              "comparison": "above",
+              "value": 0
+            },
+            "policy": "mine"
+          },
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "owedWood",
+              "comparison": "above",
+              "value": 0
+            },
+            "policy": "forest"
+          },
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "owedCoin",
+              "comparison": "above",
+              "value": 0
+            },
+            "policy": "forest"
+          },
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "owedGrain",
+              "comparison": "above",
+              "value": 0
+            },
+            "policy": "farm"
+          }
+        ],
+        "otherwise": "farm"
+      }
+    }
+  ],
+  "reactions": [
+    {
+      "when": {
+        "kind": "all",
+        "conditions": [
+          {
+            "kind": "compare",
+            "quantity": "owedOre",
+            "comparison": "above",
+            "value": 0
+          },
+          {
+            "kind": "compare",
+            "quantity": "ore",
+            "comparison": "above",
+            "value": 20
+          }
+        ]
+      },
+      "commands": [
+        {
+          "type": "deliver"
+        }
+      ]
+    },
+    {
+      "when": {
+        "kind": "all",
+        "conditions": [
+          {
+            "kind": "compare",
+            "quantity": "owedWood",
+            "comparison": "above",
+            "value": 0
+          },
+          {
+            "kind": "compare",
+            "quantity": "wood",
+            "comparison": "above",
+            "value": 40
+          }
+        ]
+      },
+      "commands": [
+        {
+          "type": "deliver"
+        }
+      ]
+    },
+    {
+      "when": {
+        "kind": "all",
+        "conditions": [
+          {
+            "kind": "compare",
+            "quantity": "owedGrain",
+            "comparison": "above",
+            "value": 0
+          },
+          {
+            "kind": "compare",
+            "quantity": "grain",
+            "comparison": "above",
+            "value": 350
+          }
+        ]
+      },
+      "commands": [
+        {
+          "type": "deliver"
+        }
+      ]
+    },
+    {
+      "when": {
+        "kind": "all",
+        "conditions": [
+          {
+            "kind": "compare",
+            "quantity": "owedCoin",
+            "comparison": "above",
+            "value": 0
+          },
+          {
+            "kind": "compare",
+            "quantity": "coin",
+            "comparison": "above",
+            "value": 20
+          }
+        ]
+      },
+      "commands": [
+        {
+          "type": "deliver"
+        }
+      ]
+    },
+    {
+      "when": {
+        "kind": "all",
+        "conditions": [
+          {
+            "kind": "compare",
+            "quantity": "candidates",
+            "comparison": "above",
+            "value": 0
+          },
+          {
+            "kind": "compare",
+            "quantity": "coin",
+            "comparison": "above",
+            "value": 140
+          }
+        ]
+      },
+      "commands": [
+        {
+          "type": "settle",
+          "kind": "candidate",
+          "option": "hire"
+        }
+      ]
+    }
+  ]
+}

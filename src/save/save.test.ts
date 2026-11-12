@@ -325,6 +325,34 @@ describe("version 11 upgrade", () => {
   });
 });
 
+describe("version 12 upgrade", () => {
+  test("a version 12 save loads with neutral favor and keeps its demand tally", () => {
+    const game = Game.create(42, loadTuning());
+    game.state.posting.crown = { ...emptyCrownState(), met: 3, missed: 1 };
+    const state = structuredClone(game.state) as unknown as Record<
+      string,
+      unknown
+    >;
+    const posting = state.posting as { crown: Record<string, unknown> };
+    const { favor: _, ...crown } = posting.crown;
+    writeSave(12, {
+      ...state,
+      schemaVersion: 12,
+      posting: { ...posting, crown },
+    });
+
+    const loadedState = loaded(dir);
+
+    expect(loadedState.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(loadedState.posting.crown).toEqual({
+      ...emptyCrownState(),
+      met: 3,
+      missed: 1,
+      favor: 0,
+    });
+  });
+});
+
 describe("version refusal", () => {
   test("refuses an older-version save by moving it to save.v<found>.json with its bytes intact", () => {
     const text = writeSave(7);
@@ -384,5 +412,39 @@ describe("invalid saves", () => {
 
     expect(result.kind).toBe("invalid");
     expect(readFileSync(join(dir, "save.json"), "utf8")).toBe(text);
+  });
+});
+
+describe("version 13 upgrade", () => {
+  function version13Save(): Record<string, unknown> {
+    const game = Game.create(42, loadTuning());
+    setRoster(game, { idle: 2 });
+    const state = structuredClone(game.state) as unknown as {
+      posting: {
+        formerStaff?: unknown;
+        rng: Record<string, unknown>;
+        delegates: Record<string, unknown>[];
+      };
+    };
+    const { formerStaff: _, ...posting } = state.posting;
+    const { governors: __, ...rng } = posting.rng;
+    for (const delegate of posting.delegates) delete delegate.kind;
+    return { ...state, schemaVersion: 13, posting: { ...posting, rng } };
+  }
+
+  test("a version 13 save gains empty former staff, its own governors stream and peasant kinds", () => {
+    writeSave(13, version13Save());
+
+    const state = loaded(dir);
+
+    expect(state.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(state.posting.formerStaff).toEqual([]);
+    expect(state.posting.rng.governors).toEqual(
+      seedStream(state.posting.seed, "governors"),
+    );
+    expect(state.posting.delegates.map((delegate) => delegate.kind)).toEqual([
+      "peasant",
+      "peasant",
+    ]);
   });
 });

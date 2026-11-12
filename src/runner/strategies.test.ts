@@ -20,7 +20,7 @@ type Summary = {
   starved: number;
   minPopulation: number;
   rejectedCommands: unknown[];
-  crown: { met: number; missed: number };
+  crown: { met: number; missed: number; favor: number };
   illusion: { audits: { backed: number; deepened: number; failed: number } };
   strategy: { name: string } & StrategyStats;
 };
@@ -126,7 +126,7 @@ describe("scripted strategies over ten game years", () => {
   });
 });
 
-describe("repaying illusion over fifteen game years", () => {
+describe("repaying illusion over ten game years", () => {
   const SEEDS = [1, 7, 42];
 
   function playSeed(name: string, seed: number): Summary {
@@ -134,7 +134,7 @@ describe("repaying illusion over fifteen game years", () => {
       "--seed",
       String(seed),
       "--steps",
-      "36000",
+      STEPS,
       "--strategy",
       `strategies/${name}.json`,
       "--grant",
@@ -143,23 +143,32 @@ describe("repaying illusion over fifteen game years", () => {
   }
 
   test.each(SEEDS)(
-    "seed %i: a conjurer that never repays fails audits and misses more demands than crown-aware",
+    "seed %i: a borrower that forges to bridge grain demands and then backs its debt ends with more favor than crown-aware and no fewer demands met",
     (seed) => {
-      const conjurer = playSeed("conjurer", seed);
+      const borrower = playSeed("borrower", seed);
       const careful = playSeed("crown-aware", seed);
 
-      expect(conjurer.illusion.audits.failed).toBeGreaterThanOrEqual(1);
-      expect(conjurer.crown.missed).toBeGreaterThan(careful.crown.missed);
+      expect(careful.crown.missed).toBeGreaterThan(0);
+      expect(borrower.crown.favor).toBeGreaterThan(careful.crown.favor);
+      expect(borrower.crown.met).toBeGreaterThanOrEqual(careful.crown.met);
+      expect(borrower.illusion.audits.failed).toBe(0);
     },
   );
 
   test.each(SEEDS)(
-    "seed %i: a borrower that backs its debt from real stock fails no audit",
+    "seed %i: a conjurer that never repays ends cold with the most audits failed",
     (seed) => {
+      const conjurer = playSeed("conjurer", seed);
       const borrower = playSeed("borrower", seed);
+      const careful = playSeed("crown-aware", seed);
 
-      expect(borrower.illusion.audits.failed).toBe(0);
-      expect(borrower.crown.missed).toBe(0);
+      expect(conjurer.crown.favor).toBeLessThan(tuning.crown.favor.coldBelow);
+      expect(conjurer.illusion.audits.failed).toBeGreaterThan(
+        borrower.illusion.audits.failed,
+      );
+      expect(conjurer.illusion.audits.failed).toBeGreaterThan(
+        careful.illusion.audits.failed,
+      );
     },
   );
 });
@@ -210,4 +219,28 @@ describe("promotion under the reference strategy", () => {
     expect(game.state.career.promotedAt).toBe(firstAtTarget);
     expect(unpromotedAfter).toBe(false);
   });
+});
+
+describe("governing over ten game years", () => {
+  test.each([1, 7, 42])(
+    "seed %i: a strategy that hires every candidate ends with a larger population than crown-aware and starves no more",
+    (seed) => {
+      const options = [
+        "--seed",
+        String(seed),
+        "--steps",
+        STEPS,
+        "--grant",
+        CROWN_CORRESPONDENCE,
+        "--strategy",
+      ];
+
+      const governing = run([...options, "strategies/governor.json"]);
+      const careful = run([...options, "strategies/crown-aware.json"]);
+
+      expect(governing.rejectedCommands).toEqual([]);
+      expect(governing.population).toBeGreaterThan(careful.population);
+      expect(governing.starved).toBeLessThanOrEqual(careful.starved);
+    },
+  );
 });

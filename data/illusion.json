@@ -1,6 +1,6 @@
 {
   "lot": 25,
-  "ceilingPerPeasant": 15,
+  "ceilingPerPeasant": 40,
   "fadePerTick": 0.00115,
   "interestPerTick": 0.00016,
   "audit": {

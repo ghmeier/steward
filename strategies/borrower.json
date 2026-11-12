@@ -160,6 +160,30 @@
         "conditions": [
           {
             "kind": "compare",
+            "quantity": "owedGrain",
+            "comparison": "above",
+            "value": 0
+          },
+          {
+            "kind": "compare",
+            "quantity": "grain",
+            "comparison": "above",
+            "value": 350
+          }
+        ]
+      },
+      "commands": [
+        {
+          "type": "deliver"
+        }
+      ]
+    },
+    {
+      "when": {
+        "kind": "all",
+        "conditions": [
+          {
+            "kind": "compare",
             "quantity": "owedCoin",
             "comparison": "above",
             "value": 0
@@ -180,10 +204,27 @@
     },
     {
       "when": {
-        "kind": "compare",
-        "quantity": "owedGrain",
-        "comparison": "above",
-        "value": 0
+        "kind": "all",
+        "conditions": [
+          {
+            "kind": "compare",
+            "quantity": "owedGrain",
+            "comparison": "above",
+            "value": 0
+          },
+          {
+            "kind": "compare",
+            "quantity": "grain",
+            "comparison": "below",
+            "value": 350
+          },
+          {
+            "kind": "compare",
+            "quantity": "demandTicks",
+            "comparison": "below",
+            "value": 300
+          }
+        ]
       },
       "commands": [
         {
@@ -205,7 +246,7 @@
             "kind": "compare",
             "quantity": "grain",
             "comparison": "above",
-            "value": 10
+            "value": 300
           }
         ]
       },
@@ -213,6 +254,21 @@
         {
           "type": "back",
           "resource": "grain"
+        }
+      ]
+    },
+    {
+      "when": {
+        "kind": "compare",
+        "quantity": "auditors",
+        "comparison": "above",
+        "value": 0
+      },
+      "commands": [
+        {
+          "type": "settle",
+          "kind": "audit",
+          "option": "back"
         }
       ]
     }

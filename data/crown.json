@@ -1,11 +1,40 @@
 {
   "firstDemandTicks": 600,
   "deadlineTicks": 1800,
-  "gap": { "minTicks": 1200, "maxTicks": 2400 },
-  "baseAmounts": { "coin": 100, "grain": 300, "ore": 80, "wood": 150 },
-  "step": 0.2,
+  "gap": {
+    "minTicks": 1200,
+    "maxTicks": 2400
+  },
+  "baseAmounts": {
+    "coin": 100,
+    "grain": 625,
+    "ore": 80,
+    "wood": 150
+  },
+  "step": 0.3,
+  "grainReserveSeasons": 1,
   "surcharge": 0.5,
   "reward": 0.1,
+  "favor": {
+    "limit": 100,
+    "coldBelow": -15,
+    "warmAbove": 15,
+    "met": 5,
+    "early": 2,
+    "missed": -15,
+    "backed": 3,
+    "deepened": -3,
+    "failed": -25,
+    "cold": {
+      "debtShareFactor": 0.7,
+      "warningFactor": 0.5,
+      "stepFactor": 1.5
+    },
+    "warm": {
+      "ceilingFactor": 1.3333333333333333,
+      "rewardFactor": 1.5
+    }
+  },
   "lines": {
     "coin": {
       "herald": "The crown requires {amount} coin for the treasury.",

@@ -104,6 +104,28 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
       state.career.unlocks[CONJURING] = state.tick as number;
     }
   },
+  // Favor starts neutral for every crown, including one that has already made demands.
+  12: (state) => {
+    if (!isRecord(state.posting) || !isRecord(state.posting.crown)) return;
+    state.posting.crown.favor = 0;
+  },
+  // Governors arrive after promotion, so a save has none; it gains an empty record of former staff and its own random stream.
+  // The career's list of former staff was never read, so it is dropped in favor of the posting's record.
+  13: (state) => {
+    if (isRecord(state.career)) delete state.career.formerStaff;
+    if (!isRecord(state.posting)) return;
+    state.posting.formerStaff = [];
+    if (isRecord(state.posting.rng)) {
+      state.posting.rng.governors = seedStream(
+        Number(state.posting.seed),
+        "governors",
+      );
+    }
+    if (!Array.isArray(state.posting.delegates)) return;
+    for (const delegate of state.posting.delegates) {
+      if (isRecord(delegate)) delegate.kind ??= "peasant";
+    }
+  },
 };
 
 function upgrade(record: Record<string, unknown>): void {

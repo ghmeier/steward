@@ -1,3 +1,5 @@
+import type { Job, Trait } from "./realm";
+
 /**
  * Every hardcoded line of player-facing wording lives here, so a writer can read and edit the game's
  * voice in one file. Content text lives in `data/*.json` instead: the crown's lines, the desk templates
@@ -10,11 +12,30 @@
  * so a rebinding never leaves a stale letter in a sentence.
  */
 
+const TRAIT_WORDS: Record<Trait, string> = {
+  braggart: "a braggart",
+  diligent: "diligent",
+  "empire-builder": "an empire-builder",
+  hoarder: "a hoarder",
+  skimmer: "a skimmer",
+};
+
 export function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
 }
 
 export const copy = {
+  laborSplit: {
+    unpaired:
+      "a labor split names each job with a number, such as farm 60 forest 30",
+    badWeight: ({ job, text }: { job: string; text: string }) =>
+      `"${text}" is not a share for ${job}; use a number that is not negative, such as 60`,
+    unknownJob: ({ job }: { job: string }) =>
+      `"${job}" is not a job; a labor split uses farm, forest and mine`,
+    duplicateJob: ({ job }: { job: string }) =>
+      `${job} appears twice in the labor split`,
+    allZero: "a labor split needs at least one job with a share above zero",
+  },
   crown: {
     noDemand: "the crown has made no demand",
     villageHoldsNone: ({ resource }: { resource: string }) =>
@@ -35,8 +56,21 @@ export const copy = {
     villageHoldsNoneToBack: ({ resource }: { resource: string }) =>
       `the village holds no ${resource} to back it`,
   },
+  governors: {
+    noRoomForGovernor: "the crown allows no more governors in the village",
+    jobWords: {
+      farm: "the farms",
+      forest: "the forest",
+      mine: "the mine",
+      idle: "nothing in particular",
+    } satisfies Record<Job, string>,
+    traitList: ({ traits }: { traits: readonly Trait[] }) =>
+      traits.map((trait) => TRAIT_WORDS[trait]).join(" and "),
+  },
   desk: {
     noDispute: ({ entryId }: { entryId: number }) => `no dispute ${entryId}`,
+    noEntryOfKind: ({ kind }: { kind: string }) =>
+      `no ${kind} is waiting on the desk`,
     noSuchOption: ({
       entryId,
       optionId,
@@ -182,6 +216,11 @@ export const copy = {
       `The crown is quiet. Next demand in about ${wait}.`,
     crownTally: ({ met, missed }: { met: number; missed: number }) =>
       `Met ${met} \u00b7 missed ${missed}`,
+    crownFavor: {
+      cold: "The crown regards you coldly.",
+      neutral: "The crown regards you evenly.",
+      warm: "The crown regards you warmly.",
+    },
   },
   court: {
     deskClear: "The desk is clear.",
@@ -356,6 +395,8 @@ export const copy = {
         `Labor: each tick, ${moves} ${plural(moves, "peasant moves", "peasants move")} toward a split of farm, forest and mine:`,
       laborChangesOnly:
         "  A labor decree moves peasants when its policy changes, and your hand assignments stay until then.",
+      laborSplit:
+        "  Or give a split of your own, with a number for each job: farm 60 forest 30 mine 10. The numbers are relative, so farm 2 mine 1 works, and a job left out gets none.",
       laborExample:
         "Example, a labor decree: decree labor mine when it is winter otherwise farm",
     },
@@ -594,8 +635,12 @@ export const copy = {
       labor: "where the peasants work",
     },
     quantityHelp: {
+      auditors: "1 while auditors wait at the desk, otherwise 0",
+      candidates: "governors waiting on the desk to be hired",
       coin: "coin in the treasury",
       debt: "coin value of the illusion passed off as real",
+      demandTicks:
+        "ticks until the open crown demand is collected, 0 when none is open",
       grain: "grain in store",
       grainSeasons: "seasons the stores would feed everyone",
       idle: "peasants with no job",

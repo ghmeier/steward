@@ -89,7 +89,12 @@ describe("spending on outsiders", () => {
     game.state.posting.illusion.conjured.grain = amount / 2;
     const real = village();
     openDemand(real, "grain", amount);
-    stock(real, "grain", amount / 2);
+    stock(
+      real,
+      "grain",
+      crownTuning.grainReserveSeasons * real.economy.grainUpkeepPerSeason() +
+        amount / 2,
+    );
 
     const withIllusion = command(game, { type: "deliver" });
     command(real, { type: "deliver" });

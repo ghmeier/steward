@@ -20,6 +20,7 @@ const crown = (
 ): CrownView => ({
   demand: open === null ? null : { ...demand, ...open },
   nextDemandTicks: open === null ? 1200 : null,
+  favor: "neutral",
   met: tally.met ?? 0,
   missed: tally.missed ?? 0,
 });

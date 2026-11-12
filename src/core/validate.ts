@@ -4,7 +4,7 @@ import { type Decree, decreeSchema, decreeSetProblem } from "./decree";
 import { DRAWN_KINDS } from "./desk";
 import { addIssue, formatIssue } from "./errors";
 import { NO_AUDIT_TICK } from "./illusion";
-import { JOBS, RESOURCES } from "./realm";
+import { JOBS, RESOURCES, TRAITS, WORKING_JOBS } from "./realm";
 import { type GameState, type PostingState, SCHEMA_VERSION } from "./state";
 
 function isPlainObject(value: object): boolean {
@@ -72,12 +72,34 @@ const rngStream = z
     }
   });
 
-const delegate = z.strictObject({
+const delegateBase = {
   id: positiveCount,
   name: z.string().min(1),
-  kind: z.literal("peasant"),
   job: z.enum(JOBS),
   grudgeUntil: count,
+};
+
+const traits = z.array(z.enum(TRAITS));
+
+const delegate = z.discriminatedUnion("kind", [
+  z.strictObject({ ...delegateBase, kind: z.literal("peasant") }),
+  z.strictObject({
+    ...delegateBase,
+    kind: z.literal("governor"),
+    village: positiveCount,
+    traits,
+    hiredAt: count,
+    termEndsAt: count,
+    hoard: z.number().min(0),
+  }),
+]);
+
+const formerGovernor = z.strictObject({
+  name: z.string().min(1),
+  traits,
+  hiredAt: count,
+  leftAt: count,
+  reason: z.enum(["retired", "died", "dismissed"]),
 });
 
 const deskEntryBase = {
@@ -94,7 +116,17 @@ const deskEntry = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     ...deskEntryBase,
-    kind: z.enum(DRAWN_KINDS).exclude(["dispute"]),
+    kind: z.enum(DRAWN_KINDS).exclude(["dispute", "candidate"]),
+  }),
+  z.strictObject({
+    ...deskEntryBase,
+    kind: z.literal("candidate"),
+    name: z.string().min(1),
+    job: z.enum(WORKING_JOBS),
+    village: positiveCount,
+    traits,
+    price: count,
+    term: positiveCount,
   }),
   z.strictObject({ ...deskEntryBase, kind: z.literal("audit"), dueAt: count }),
 ]);
@@ -115,6 +147,7 @@ const crown = z.strictObject({
   missed: count,
   surcharge: z.number().min(0),
   lastResource: z.string(),
+  favor: z.number().min(-100).max(100),
 });
 
 const nonNegativeNumber = z.number().min(0);
@@ -193,13 +226,25 @@ function rosterIssues(posting: PostingState, ctx: z.RefinementCtx): void {
   const names = new Set<string>();
   for (const [index, { name }] of posting.delegates.entries()) {
     if (names.has(name)) {
-      addIssue(ctx, `"${name}" is held by another peasant`, [
+      addIssue(ctx, `"${name}" is held by another delegate`, [
         "delegates",
         index,
         "name",
       ]);
     }
     names.add(name);
+  }
+  for (const [index, entry] of posting.desk.disputes.entries()) {
+    if (entry.kind !== "candidate") continue;
+    if (names.has(entry.name)) {
+      addIssue(ctx, `"${entry.name}" is held by another delegate`, [
+        "desk",
+        "disputes",
+        index,
+        "name",
+      ]);
+    }
+    names.add(entry.name);
   }
 
   const audits = posting.desk.disputes.filter(({ kind }) => kind === "audit");
@@ -294,6 +339,7 @@ const posting: z.ZodType<PostingState> = z
     }),
     delegates: z.array(delegate),
     nextDelegateId: positiveCount,
+    formerStaff: z.array(formerGovernor),
     decrees: decreeRecord(true),
     labor: z.strictObject({ policy: z.string(), settling: z.boolean() }),
     desk,
@@ -307,7 +353,6 @@ const career = z.strictObject({
   savedDecrees: decreeRecord(false),
   needed: z.record(z.string(), count),
   followers: z.array(z.string()),
-  formerStaff: z.array(z.string()),
   promotedAt: count,
 });
 
