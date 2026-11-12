@@ -1,11 +1,11 @@
 ---
 title: "Governors playtest: tech tree, illusion relief, pacing and polish"
 status: active
-last_pr: 35
+last_pr: 36
 tags: [playtest]
 created: 2026-11-12
 updated: 2026-11-12
-next_step: trim-strategy-tests and tech-tree-upgrades (stacked on it) in implementation
+next_step: #36 (trim-strategy-tests) open; tech-tree-upgrades in implementation, stacked on it
 ---
 # Governors playtest: tech tree, illusion relief, pacing and polish
 
@@ -268,3 +268,4 @@ Objective: tune costs and thresholds so wood and ore are worth producing, and th
 - 2026-11-12: `tech-tree-foundation` opened as #35 (9b9e7b0). There is now one `COMMAND_UNLOCKS` table, and the TUI keys read `PANEL_UNLOCKS`. Garret found that a new village dead-ends: Decrees is the only way to grow or earn coin, and it is hidden until you hold 10 wood. The proposed fix reveals Decrees with the Archive, priced in grain.
 - 2026-11-12: Fixed the opening dead end on #35 (4f08b9c). Decrees costs 50 grain and is seen at once, behind the Archive's grain-above-70 gate. A regression test covers a new village that keeps farming. The seasonal quiet limit is back to 4 seasons. The first-birth limit is now 5 minutes, measured at 4.06.
 - 2026-11-12: #35 merged. Garret agreed the strategy comparison tests are circular, so a new `trim-strategy-tests` PR removes them. PR 6 is stacked on it, and PR 7 becomes a tuning pass with progress invariants only.
+- 2026-11-12: `trim-strategy-tests` opened as #36 (ba891d1). It deletes six strategy files and about 1170 lines, and bun test drops from 10.9s to between 2 and 3.5s. What stays is seasonal replay and reference never-starves-and-promotes. `tech-tree-upgrades` was dispatched, stacked on it.
