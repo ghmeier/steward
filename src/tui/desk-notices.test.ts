@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { tuning } from "../../test/helpers";
+import { noticeFrame, tuning } from "../../test/helpers";
 import { Game } from "../core/game";
 import { deskNotice } from "./desk-notices";
 
@@ -8,6 +8,8 @@ function game(): Game {
   created.state.posting.desk.nextDisputeId = 8;
   return created;
 }
+
+const expiring = (...expired: string[]) => ({ ...noticeFrame, expired });
 
 describe("desk notice", () => {
   test("a frame posts its expiry lines, then the first line of each arrival", () => {
@@ -19,9 +21,9 @@ describe("desk notice", () => {
     const [previous, next] = [before.view.compute(), after.view.compute()];
     const arrival = next.desk[0]?.label as string;
 
-    expect(deskNotice(previous, next, [])).toBe(arrival);
-    expect(deskNotice(previous, previous, ["Gone."])).toBe("Gone.");
-    expect(deskNotice(previous, next, ["Gone.", "Moved on."])).toBe(
+    expect(deskNotice(previous, next, noticeFrame)).toBe(arrival);
+    expect(deskNotice(previous, previous, expiring("Gone."))).toBe("Gone.");
+    expect(deskNotice(previous, next, expiring("Gone.", "Moved on."))).toBe(
       `Gone. Moved on. ${arrival}`,
     );
   });
@@ -35,7 +37,7 @@ describe("desk notice", () => {
     settled.state.posting.desk.disputes = [];
     const waiting = before.view.compute();
 
-    expect(deskNotice(waiting, waiting, [])).toBeNull();
-    expect(deskNotice(waiting, settled.view.compute(), [])).toBeNull();
+    expect(deskNotice(waiting, waiting, noticeFrame)).toBeNull();
+    expect(deskNotice(waiting, settled.view.compute(), noticeFrame)).toBeNull();
   });
 });

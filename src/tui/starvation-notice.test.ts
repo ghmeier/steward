@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { noticeFrame } from "../../test/helpers";
 import { copy } from "../core/copy";
 import type { GameView } from "../core/view";
 import { starvationNotice } from "./starvation-notice";
@@ -19,7 +20,9 @@ describe("starvationNotice", () => {
   ])("is null when %s", (_name, gone, before, after) => {
     const next = viewOf(NAMES.slice(gone), after);
 
-    expect(starvationNotice(viewOf(NAMES, before), next)).toBeNull();
+    expect(
+      starvationNotice(viewOf(NAMES, before), next, noticeFrame),
+    ).toBeNull();
   });
 
   test.each<[string, number, number, string[]]>([
@@ -30,7 +33,7 @@ describe("starvationNotice", () => {
   ])("reports starvation that %s", (_name, gone, starved, named) => {
     const next = viewOf(NAMES.slice(gone), starved);
 
-    const notice = starvationNotice(viewOf(NAMES, 0), next);
+    const notice = starvationNotice(viewOf(NAMES, 0), next, noticeFrame);
 
     expect(notice).toBe(
       copy.notices.starved({ names: named, deaths: starved }),
