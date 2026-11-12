@@ -1,6 +1,7 @@
 import type { Command } from "../core/commands";
 import { copy } from "../core/copy";
 import type { Tuning } from "../core/tuning";
+import type { UnlockId } from "../core/unlocks";
 import type { GameView } from "../core/view";
 import type { KeyPress } from "./keys";
 
@@ -222,4 +223,10 @@ export function renderMenu(state: MenuState, context: MenuContext): MenuRender {
       ? copy.menus.listHintsClose
       : copy.menus.listHintsBack;
   return { title: screen.title, lines, hints };
+}
+
+export function entryLabel(context: MenuContext, id: UnlockId): string {
+  return (
+    context.tuning.archive.entries.find((entry) => entry.id === id)?.label ?? id
+  );
 }
