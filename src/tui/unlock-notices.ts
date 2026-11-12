@@ -2,6 +2,7 @@ import { copy } from "../core/copy";
 import type { Tuning } from "../core/tuning";
 import { ARCHIVE_PANEL, CONJURING, type UnlockId } from "../core/unlocks";
 import { keyFor } from "./keys";
+import type { Notice } from "./notices";
 
 function noticeFor(id: UnlockId, tuning: Tuning): string | null {
   if (id === ARCHIVE_PANEL)
@@ -17,20 +18,14 @@ function noticeFor(id: UnlockId, tuning: Tuning): string | null {
 }
 
 /**
- * Announces each owned unlock once. `known` holds the ids already seen and is updated in place; it must
- * start from the unlocks owned when a game begins so a loaded save never replays old announcements.
+ * Announces each unlock that appears between two views. A notice is a difference between views, so a
+ * loaded save, whose first view has nothing before it, never replays old announcements.
  */
-export function announceNewUnlocks(
-  known: Set<UnlockId>,
-  owned: readonly UnlockId[],
-  tuning: Tuning,
-): string | null {
-  const notices: string[] = [];
-  for (const id of owned) {
-    if (known.has(id)) continue;
-    known.add(id);
-    const notice = noticeFor(id, tuning);
-    if (notice !== null) notices.push(notice);
-  }
-  return notices.length === 0 ? null : notices.join(" ");
-}
+export const unlockNotice: Notice = (previous, next, { tuning }) => {
+  const owned = new Set(previous.unlocks);
+  const lines = next.unlocks
+    .filter((id) => !owned.has(id))
+    .map((id) => noticeFor(id, tuning))
+    .filter((line) => line !== null);
+  return lines.length === 0 ? null : lines.join(" ");
+};

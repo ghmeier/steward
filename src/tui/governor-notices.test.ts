@@ -3,6 +3,7 @@ import {
   addGovernors,
   contextFor,
   governorOf,
+  noticeFrame,
   quietOptions,
   setRoster,
   tuning,
@@ -34,11 +35,11 @@ describe("governorNotice", () => {
     const after = game.view.compute();
     stepTo(game, 3);
 
-    expect(governorNotice(before, after)).toBe(
+    expect(governorNotice(before, after, noticeFrame)).toBe(
       copy.notices.governorRetired({ name: governor?.name as string }),
     );
-    expect(governorNotice(after, game.view.compute())).toBeNull();
-    expect(governorNotice(before, before)).toBeNull();
+    expect(governorNotice(after, game.view.compute(), noticeFrame)).toBeNull();
+    expect(governorNotice(before, before, noticeFrame)).toBeNull();
   });
 
   test("a death is reported with the governor's name", () => {
@@ -51,7 +52,7 @@ describe("governorNotice", () => {
 
     stepTo(game, tuning.economy.ticksPerSeason);
 
-    expect(governorNotice(before, game.view.compute())).toBe(
+    expect(governorNotice(before, game.view.compute(), noticeFrame)).toBe(
       copy.notices.governorDied({ name: governor?.name as string }),
     );
   });
@@ -63,7 +64,7 @@ describe("governorNotice", () => {
 
     game.illusion.failAudit(contextFor(game));
 
-    expect(governorNotice(before, game.view.compute())).toBe(
+    expect(governorNotice(before, game.view.compute(), noticeFrame)).toBe(
       copy.notices.governorDismissed({ name: braggart?.name as string }),
     );
   });
@@ -77,12 +78,12 @@ describe("governorNotice", () => {
     stepTo(hoarding, 1);
     stepTo(honest, 1);
 
-    expect(governorNotice(beforeHoarding, hoarding.view.compute())).toContain(
-      copy.notices.governorHandedOver({ coin: formatAmount(50) }),
-    );
-    expect(governorNotice(beforeHonest, honest.view.compute())).not.toContain(
-      copy.notices.governorHandedOver({ coin: formatAmount(0) }),
-    );
+    expect(
+      governorNotice(beforeHoarding, hoarding.view.compute(), noticeFrame),
+    ).toContain(copy.notices.governorHandedOver({ coin: formatAmount(50) }));
+    expect(
+      governorNotice(beforeHonest, honest.view.compute(), noticeFrame),
+    ).not.toContain(copy.notices.governorHandedOver({ coin: formatAmount(0) }));
   });
 
   test("a loaded save whose first view already lists former governors replays nothing", () => {
@@ -90,6 +91,6 @@ describe("governorNotice", () => {
     stepTo(game, 1);
     const loaded = game.view.compute();
 
-    expect(governorNotice(loaded, game.view.compute())).toBeNull();
+    expect(governorNotice(loaded, game.view.compute(), noticeFrame)).toBeNull();
   });
 });

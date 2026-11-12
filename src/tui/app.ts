@@ -4,19 +4,14 @@ import { errorMessage } from "../core/errors";
 import { Game } from "../core/game";
 import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
-import { auditNotice } from "./audit-notices";
 import { type LineState, lineKey, openLine, renderLine } from "./command-line";
-import { crownNotice } from "./crown-notices";
-import { deskNotice } from "./desk-notices";
-import { governorNotice } from "./governor-notices";
 import { HelpPage } from "./help-menu";
 import { actionForKey, type FocusId, FocusRing, isInterrupt } from "./keys";
 import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
 import { newGameMenu } from "./new-game-menu";
+import { latestNotice } from "./notices";
 import { BAR_LINES, createPanels } from "./panels";
 import { Session } from "./session";
-import { starvationNotice } from "./starvation-notice";
-import { announceNewUnlocks } from "./unlock-notices";
 import { type PanelStep, Village } from "./village-panels";
 
 const FRAME_INTERVAL_MS = 50;
@@ -99,9 +94,7 @@ export function startApp(options: {
   let menu: MenuState | null = null;
   let help: HelpPage | null = null;
   let line: LineState | null = null;
-  let promotionAnnounced = session.view().promotion.promotedAt > 0;
   let lastView = session.view();
-  let knownUnlocks = new Set(lastView.unlocks);
 
   const menuContext = () => ({ view: session.view(), tuning });
   // Help is reference text that fills the screen, so its scroll window is the whole grid area.
@@ -151,8 +144,6 @@ export function startApp(options: {
   const foundNewVillage = () => {
     session = makeSession(Game.create(options.newSeed(), tuning));
     lastView = session.view();
-    promotionAnnounced = lastView.promotion.promotedAt > 0;
-    knownUnlocks = new Set(lastView.unlocks);
     village.peasants.reset(lastView);
     focus = null;
     const error = save();
@@ -233,31 +224,13 @@ export function startApp(options: {
     const lastReport = result.messages.at(-1);
     if (lastReport !== undefined) message = lastReport;
     if (lastRejection !== undefined) message = lastRejection.reason;
-    const starved = starvationNotice(lastView, session.view());
-    if (starved !== null) message = starved;
-    const deskChange = deskNotice(lastView, session.view(), result.expired);
-    if (deskChange !== null) message = deskChange;
-    const crown = crownNotice(lastView.crown, session.view().crown, tuning);
-    if (crown !== null) message = crown;
-    const audit = auditNotice(
-      lastView.illusion,
-      session.view().illusion,
-      tuning,
-    );
-    if (audit !== null) message = audit;
-    const departure = governorNotice(lastView, session.view());
-    if (departure !== null) message = departure;
+    const previous = lastView;
     lastView = session.view();
-    const unlocked = announceNewUnlocks(
-      knownUnlocks,
-      session.view().unlocks,
+    const notice = latestNotice(previous, lastView, {
       tuning,
-    );
-    if (unlocked !== null) message = unlocked;
-    if (!promotionAnnounced && session.view().promotion.promotedAt > 0) {
-      promotionAnnounced = true;
-      message = copy.notices.promoted;
-    }
+      expired: result.expired,
+    });
+    if (notice !== null) message = notice;
     if (result.viewChanged || message !== drawnMessage) redraw();
   }
 

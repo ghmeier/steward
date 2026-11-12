@@ -1,7 +1,7 @@
 import { copy } from "../core/copy";
 import type { FormerGovernorView } from "../core/governors";
-import type { GameView } from "../core/view";
 import { formatAmount } from "./format";
+import type { Notice } from "./notices";
 
 function departureLine(departure: FormerGovernorView): string {
   const { name, reason, handedOver } = departure;
@@ -19,14 +19,11 @@ function departureLine(departure: FormerGovernorView): string {
  * governors only grows, so a notice is the difference between views and a loaded save, whose first view
  * has nothing before it, never replays one.
  */
-export function governorNotice(
-  previous: GameView,
-  next: GameView,
-): string | null {
+export const governorNotice: Notice = (previous, next) => {
   const departures = next.formerGovernors.slice(
     previous.formerGovernors.length,
   );
   return departures.length === 0
     ? null
     : departures.map(departureLine).join(" ");
-}
+};
