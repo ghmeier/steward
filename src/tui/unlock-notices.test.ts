@@ -1,19 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import { tuning } from "../../test/helpers";
+import { noticeFrame } from "../../test/helpers";
 import { CONJURING } from "../core/unlocks";
-import { announceNewUnlocks } from "./unlock-notices";
+import type { GameView } from "../core/view";
+import { unlockNotice } from "./unlock-notices";
 
-describe("announceNewUnlocks", () => {
-  test("conjuring is announced once when it is first owned and never for a save that already owned it", () => {
-    const known = new Set<string>();
-    const loaded = new Set([CONJURING]);
+const viewOwning = (...unlocks: string[]) =>
+  ({ unlocks }) as unknown as GameView;
 
-    const first = announceNewUnlocks(known, [CONJURING], tuning);
-    const again = announceNewUnlocks(known, [CONJURING], tuning);
-    const reload = announceNewUnlocks(loaded, [CONJURING], tuning);
+describe("unlockNotice", () => {
+  test("conjuring is announced on the frame it is first owned and never for a save that already owned it", () => {
+    const before = viewOwning();
+    const after = viewOwning(CONJURING);
 
-    expect(first).not.toBeNull();
-    expect(again).toBeNull();
-    expect(reload).toBeNull();
+    expect(unlockNotice(before, after, noticeFrame)).not.toBeNull();
+    expect(unlockNotice(after, after, noticeFrame)).toBeNull();
   });
 });

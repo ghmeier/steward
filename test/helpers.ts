@@ -25,6 +25,9 @@ export const fullTuningJson = {
 
 export const tuning = parseTuning(fullTuningJson);
 
+/** The shared third argument of every notice, for a frame with nothing expired. */
+export const noticeFrame = { tuning, expired: [] as readonly string[] };
+
 // Balancing edits data/tuning.json, so tests that assert hand-computed economy numbers use these literals.
 export const economyTestTuning: Tuning = {
   stepMs: 100,
