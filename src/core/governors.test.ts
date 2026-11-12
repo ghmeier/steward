@@ -7,6 +7,7 @@ import {
   setRoster,
   tuning,
 } from "../../test/helpers";
+import { copy } from "./copy";
 import type { Governor } from "./delegates";
 import type { Candidate } from "./desk";
 import { Game } from "./game";
@@ -291,6 +292,7 @@ describe("terms", () => {
         hiredAt: 0,
         leftAt: 5,
         reason: "retired",
+        handedOver: 0,
       },
     ]);
   });
@@ -363,6 +365,7 @@ describe("hoard", () => {
 
     expect(coinWhileServing).toBe(0);
     expect(game.state.posting.resources.coin).toBe(50);
+    expect(game.state.posting.formerStaff[0]?.handedOver).toBe(50);
   });
 });
 
@@ -552,7 +555,7 @@ describe("hiring through the desk", () => {
     expect(view?.kind).toBe("candidate");
     expect(view?.label).toContain("Wat");
     expect(view?.label).toContain("7");
-    expect(view?.label).toContain("a hoarder");
+    expect(view?.label).toContain(copy.governors.traitWords.hoarder);
     expect(view?.options.find((o) => o.id === "hire")?.resources).toEqual({
       coin: -entry.price,
     });

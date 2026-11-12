@@ -11,13 +11,7 @@ import type {
   GameView,
 } from "../core/view";
 import { courtEntryLabel, courtMenu } from "./court-menu";
-import {
-  type Cursor,
-  moveCursor,
-  reconcileCursor,
-  rowWindow,
-  stepIndex,
-} from "./cursor";
+import { type Cursor, moveCursor, reconcileCursor, stepIndex } from "./cursor";
 import { formatPolicy, formatRule, plain } from "./decree-format";
 import {
   capitalize,
@@ -44,6 +38,7 @@ import {
   renderMenu,
   type ScreenBuilder,
 } from "./menu";
+import { Roster } from "./roster";
 import { wrapLine } from "./wrap";
 
 export type PanelSize = { width: number; height: number };
@@ -100,11 +95,11 @@ export class PeasantsPanel extends VillagePanel {
 
   /** Keeps the selection on the same peasant as the roster changes. */
   reconcile(view: GameView): void {
-    this.cursor = reconcileCursor(view.delegates, this.cursor);
+    this.cursor = reconcileCursor(new Roster(view).selectable, this.cursor);
   }
 
   reset(view: GameView): void {
-    this.cursor = reconcileCursor(view.delegates, null);
+    this.cursor = reconcileCursor(new Roster(view).selectable, null);
   }
 
   enter({ view }: MenuContext): void {
@@ -114,21 +109,10 @@ export class PeasantsPanel extends VillagePanel {
   body({ view }: MenuContext, size: PanelSize, focused: boolean): string {
     if (view.realm.population === 0) return copy.village.emptyVillage;
     const selectedId = focused ? (this.cursor?.id ?? null) : null;
-    const rows = view.delegates.map((delegate) => {
-      const marker = delegate.id === selectedId ? ">" : " ";
-      const grudge = delegate.grudgeTicks > 0 ? ` ${copy.village.grudge}` : "";
-      return `${marker} ${delegate.name}  ${delegate.job}${grudge}`;
-    });
-    const selected = view.delegates.findIndex(
-      (delegate) => delegate.id === selectedId,
-    );
-    const { start, end } = rowWindow(rows.length, selected, size.height);
-    const lines = rows.slice(start, end);
-    if (start > 0)
-      lines.unshift(copy.village.moreAbove({ count: String(start) }));
-    if (end < rows.length)
-      lines.push(copy.village.moreBelow({ count: String(rows.length - end) }));
-    return lines.join("\n");
+    // One column stays empty on the right because panels have no right padding.
+    return new Roster(view)
+      .render(selectedId, { width: size.width - 1, height: size.height })
+      .join("\n");
   }
 
   key(key: KeyPress, { view }: MenuContext): PanelStep | null {
@@ -136,7 +120,11 @@ export class PeasantsPanel extends VillagePanel {
     const action = peasantActionForKey(key);
     if (action === null) return null;
     if (action.kind === "move") {
-      this.cursor = moveCursor(view.delegates, this.cursor, action.delta);
+      this.cursor = moveCursor(
+        new Roster(view).selectable,
+        this.cursor,
+        action.delta,
+      );
       return step();
     }
     if (this.cursor === null) {

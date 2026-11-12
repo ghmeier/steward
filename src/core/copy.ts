@@ -12,12 +12,20 @@ import type { Job, Trait } from "./realm";
  * so a rebinding never leaves a stale letter in a sentence.
  */
 
+/** The numbers a trait's help line quotes, each already formatted from tuning. */
+export type TraitFigures = {
+  outputChange: string;
+  reportRise: string;
+  limit: string;
+};
+
+// Adjectives, so a list of them reads both in the sentences that describe a candidate and on a governor's row.
 const TRAIT_WORDS: Record<Trait, string> = {
-  braggart: "a braggart",
+  braggart: "boastful",
   diligent: "diligent",
-  "empire-builder": "an empire-builder",
-  hoarder: "a hoarder",
-  skimmer: "a skimmer",
+  "empire-builder": "ambitious",
+  hoarder: "tight-fisted",
+  skimmer: "light-fingered",
 };
 
 export function plural(count: number, one: string, many: string): string {
@@ -80,6 +88,9 @@ export const copy = {
     } satisfies Record<Job, string>,
     traitList: ({ traits }: { traits: readonly Trait[] }) =>
       traits.map((trait) => TRAIT_WORDS[trait]).join(" and "),
+    traitRowList: ({ traits }: { traits: readonly Trait[] }) =>
+      traits.map((trait) => TRAIT_WORDS[trait]).join(", "),
+    traitWords: TRAIT_WORDS,
   },
   desk: {
     noDispute: ({ entryId }: { entryId: number }) => `no dispute ${entryId}`,
@@ -130,6 +141,14 @@ export const copy = {
       `Auditors are on the road and due in about ${wait}. Repay what you can before they count it.`,
     auditorsOnTheRoadUnknownWait:
       "Auditors are on the road, and you do not know when they arrive. Repay what you can before they count it.",
+    governorRetired: ({ name }: { name: string }) =>
+      `${name}'s term is over and they have retired from governing.`,
+    governorDied: ({ name }: { name: string }) =>
+      `${name} has died, and their village is gone with them.`,
+    governorDismissed: ({ name }: { name: string }) =>
+      `The failed audit fell on ${name}, who has been dismissed.`,
+    governorHandedOver: ({ coin }: { coin: string }) =>
+      `They handed over ${coin} coin they had kept back.`,
     startedNewGame: "Started a new game.",
     unsupportedSave: ({
       version,
@@ -219,7 +238,15 @@ export const copy = {
     grudge: "(grudge)",
     moreAbove: ({ count }: { count: string }) => `↑ ${count} more`,
     moreBelow: ({ count }: { count: string }) => `↓ ${count} more`,
-    noPeasantSelected: "No peasant is selected.",
+    noPeasantSelected: "Nobody is selected.",
+    governorsHeading: "Governors",
+    peasantsHeading: "Peasants",
+    governorVillage: ({ village }: { village: number }) =>
+      `village of ${village}`,
+    governorReports: ({ rate }: { rate: string }) => `reports ${rate}`,
+    governorMakes: ({ real }: { real: string }) => `makes ${real}`,
+    governorOverstates: ({ gap }: { gap: string }) => `reports ${gap} too much`,
+    governorHonest: "reports it fairly",
     archiveTitle: "The Archive",
     archiveOwned: "owned",
     archiveCost: ({ cost }: { cost: string }) => `${cost} coin`,
@@ -290,6 +317,7 @@ export const copy = {
       promotion: "Promotion",
       crown: "Crown",
       illusion: "Illusion",
+      governors: "Governors",
     },
     keys: {
       panelRowLabel: ({ panel }: { panel: string }) => `${panel}:`,
@@ -533,6 +561,75 @@ export const copy = {
         `The desk offers three outcomes: back the debt from real stock, a deeper illusion that costs real coin worth ${cost} of the debt and multiplies it by ${growth}, or let the deadline pass.`,
       deadlinePasses:
         "If the deadline passes, the auditors seize real stock toward the debt and the debt is cleared. If the stores cannot cover it, the crown counts a missed demand.",
+    },
+    governors: {
+      what: ({
+        cap,
+        smallest,
+        largest,
+      }: {
+        cap: string;
+        smallest: string;
+        largest: string;
+      }) =>
+        `After promotion you can take on governors, up to ${cap} at a time. A governor is a named character who runs a village of ${smallest} to ${largest} peasants at one job, and that village counts toward your population.`,
+      candidates: ({
+        key,
+        cheapest,
+        dearest,
+      }: {
+        key: string;
+        cheapest: string;
+        dearest: string;
+      }) =>
+        `Candidates arrive on the desk (press ${key}) only after promotion, and only while hiring every one waiting would stay within the cap. Each asks ${cheapest} to ${dearest} coin. Declining, or letting one leave, costs nothing.`,
+      assigning: ({
+        key,
+        farmKey,
+        forestKey,
+        mineKey,
+        idleKey,
+      }: {
+        key: string;
+        farmKey: string;
+        forestKey: string;
+        mineKey: string;
+        idleKey: string;
+      }) =>
+        `Governors are listed above the peasants in the Peasants panel (press ${key}). Select one and give them a job with ${farmKey}, ${forestKey}, ${mineKey} or ${idleKey}, as with a peasant. Labor decrees and famine never move them.`,
+      traitsIntro: "Each governor has one or two traits:",
+      trait: {
+        diligent: ({ outputChange }: TraitFigures) =>
+          `Their village brings in ${outputChange} more than its size suggests.`,
+        skimmer: ({ outputChange, reportRise }: TraitFigures) =>
+          `Their village brings in ${outputChange} less, and they report ${reportRise} more than that.`,
+        braggart: ({ reportRise }: TraitFigures) =>
+          `They report ${reportRise} more than their village brings in.`,
+        hoarder: ({ outputChange }: TraitFigures) =>
+          `Their village brings in ${outputChange} less. They keep the difference as coin and hand it over when they leave.`,
+        "empire-builder": ({ limit, reportRise }: TraitFigures) =>
+          `Their village gains a peasant each season, up to ${limit}, and they report ${reportRise} more than it brings in.`,
+      } satisfies Record<Trait, (figures: TraitFigures) => string>,
+      reports: {
+        inflated:
+          "A governor's report may exceed what their village really brings in. The Ledger's rates include the report, so they can outrun what lands in the stores.",
+        hidden: ({ label, cost }: { label: string; cost: string }) =>
+          `${label} (Archive, ${cost} coin) shows each governor's real output and the gap on their row, and removes the exaggeration from the Ledger's rates.`,
+        shown:
+          "True reports are owned, so each governor's row shows their real output and how far their report is off.",
+      },
+      terms: ({
+        shortest,
+        longest,
+        death,
+      }: {
+        shortest: string;
+        longest: string;
+        death: string;
+      }) =>
+        `A governor serves ${shortest} to ${longest}, then retires, and each season carries a ${death} chance that they die. Either way their village leaves the population and a candidate may arrive to replace them.`,
+      dismissal:
+        "A failed audit dismisses one governor: the one whose reports exaggerate the most, or the newest hire if none exaggerates.",
     },
   },
   keys: {

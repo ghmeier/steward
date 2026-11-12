@@ -326,7 +326,7 @@
           "options": [
             {
               "id": "hire",
-              "label": "Take on {name} for {price} coin"
+              "label": "Take on {name}"
             },
             {
               "id": "pass",
@@ -342,7 +342,7 @@
           "options": [
             {
               "id": "hire",
-              "label": "Pay {name} {price} coin to begin"
+              "label": "Engage {name}"
             },
             {
               "id": "pass",
@@ -358,7 +358,7 @@
           "options": [
             {
               "id": "hire",
-              "label": "Appoint {name} for {price} coin"
+              "label": "Appoint {name}"
             },
             {
               "id": "pass",

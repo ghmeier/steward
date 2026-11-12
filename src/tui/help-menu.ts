@@ -1,7 +1,7 @@
 import { copy } from "../core/copy";
 import { policiesFor } from "../core/decree";
 import { ROUGH_DEBT_STEP } from "../core/illusion";
-import { Job, type Resource, SEASONS } from "../core/realm";
+import { Job, type Resource, SEASONS, TRAITS } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 import {
   type ArchiveEntry,
@@ -350,6 +350,61 @@ function illusionLines({ tuning, view }: MenuContext): string[] {
   ];
 }
 
+function governorLines({ tuning, view }: MenuContext): string[] {
+  const { governors } = tuning;
+  const { reports } = copy.help.governors;
+  // The tuning schema requires every unlock named in code to be an Archive entry.
+  const trueReports = tuning.archive.entries.find(
+    ({ id }) => id === TRUE_REPORTS,
+  ) as ArchiveEntry;
+  const traitLines = TRAITS.map((trait) => {
+    const { output, report } = governors.traits[trait];
+    const line = copy.help.governors.trait[trait]({
+      outputChange: percent(Math.abs(output - 1)),
+      reportRise: percent(report - 1),
+      limit: plain(governors.empireBuilderLimit),
+    });
+    return `  ${capitalize(copy.governors.traitWords[trait])}: ${line}`;
+  });
+  return [
+    copy.help.governors.what({
+      cap: plain(governors.cap),
+      smallest: plain(governors.village.min),
+      largest: plain(governors.village.max),
+    }),
+    copy.help.governors.candidates({
+      key: keyFor("court"),
+      cheapest: plain(governors.price.min),
+      dearest: plain(governors.price.max),
+    }),
+    copy.help.governors.assigning({
+      key: keyFor("peasants"),
+      farmKey: peasantKeyFor(Job.FARM),
+      forestKey: peasantKeyFor(Job.FOREST),
+      mineKey: peasantKeyFor(Job.MINE),
+      idleKey: peasantKeyFor(Job.IDLE),
+    }),
+    "",
+    copy.help.governors.traitsIntro,
+    ...traitLines,
+    "",
+    reports.inflated,
+    view.unlocks.includes(TRUE_REPORTS)
+      ? reports.shown
+      : reports.hidden({
+          label: trueReports.label,
+          cost: plain(trueReports.cost),
+        }),
+    "",
+    copy.help.governors.terms({
+      shortest: seconds(governors.term.minTicks, tuning),
+      longest: seconds(governors.term.maxTicks, tuning),
+      death: percent(governors.deathPerMille / 1000),
+    }),
+    copy.help.governors.dismissal,
+  ];
+}
+
 export type HelpTopicId = keyof typeof copy.help.topics;
 
 const TOPICS: readonly {
@@ -366,6 +421,7 @@ const TOPICS: readonly {
   { id: "promotion", lines: (c) => promotionLines(c.tuning) },
   { id: "crown", lines: (c) => crownLines(c.tuning) },
   { id: "illusion", lines: illusionLines },
+  { id: "governors", lines: governorLines },
 ];
 
 export type HelpSection = {

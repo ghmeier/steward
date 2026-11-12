@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { setRoster, economyTestTuning as tuning } from "../../test/helpers";
 import type { Command } from "../core/commands";
 import { copy } from "../core/copy";
+import type { Candidate } from "../core/desk";
 import { Game } from "../core/game";
+import { Job } from "../core/realm";
 import { courtEntryLabel, courtMenu } from "./court-menu";
 import { formatTicks } from "./format";
 import {
@@ -167,6 +169,63 @@ describe("court menu", () => {
 
     expect(walk.commands).toEqual([]);
     expect(walk.state?.frames).toHaveLength(2);
+  });
+});
+
+describe("a candidate on the desk", () => {
+  function villageWithCandidate(coin: number) {
+    const game = villageWith([], coin);
+    const candidate: Candidate = {
+      id: 1,
+      kind: "candidate",
+      template: "recommended",
+      arrivedAt: 0,
+      name: "Wilhelmina",
+      job: Job.MINE,
+      village: 9,
+      traits: ["braggart", "hoarder"],
+      price: 80,
+      term: 4000,
+    };
+    game.state.posting.desk.disputes.push(candidate);
+    return { game, candidate };
+  }
+
+  test("the offer names the governor, village, job, traits and price once, with hire and decline options", () => {
+    const { game, candidate } = villageWithCandidate(100);
+    const walk = new Walker(game);
+
+    walk.key("return");
+    const lines = walk.lines().join("\n");
+
+    for (const detail of [
+      candidate.name,
+      String(candidate.village),
+      copy.governors.jobWords[candidate.job],
+      copy.governors.traitList({ traits: candidate.traits }),
+      String(candidate.price),
+    ]) {
+      expect(lines).toContain(detail);
+    }
+    expect(lines).toContain(
+      `Take on ${candidate.name}: −${candidate.price} coin`,
+    );
+    expect(lines).toContain(`Thank ${candidate.name} and send them home: free`);
+  });
+
+  test("hiring is offered only to a steward who can pay the price", () => {
+    const poor = new Walker(villageWithCandidate(10).game);
+    const rich = new Walker(villageWithCandidate(100).game);
+
+    poor.key("return");
+    rich.key("return");
+    poor.key("return");
+    rich.key("return");
+
+    expect(poor.commands).toEqual([]);
+    expect(rich.commands).toEqual([
+      { type: "settleDispute", dispute: 1, option: "hire" },
+    ]);
   });
 });
 

@@ -8,6 +8,7 @@ import { auditNotice } from "./audit-notices";
 import { type LineState, lineKey, openLine, renderLine } from "./command-line";
 import { crownNotice } from "./crown-notices";
 import { deskNotice } from "./desk-notices";
+import { governorNotice } from "./governor-notices";
 import { HelpPage } from "./help-menu";
 import { actionForKey, type FocusId, FocusRing, isInterrupt } from "./keys";
 import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
@@ -244,6 +245,8 @@ export function startApp(options: {
       tuning,
     );
     if (audit !== null) message = audit;
+    const departure = governorNotice(lastView, session.view());
+    if (departure !== null) message = departure;
     lastView = session.view();
     const unlocked = announceNewUnlocks(
       knownUnlocks,
