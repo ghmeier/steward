@@ -5,7 +5,7 @@ last_pr: 30
 tags: [refactor, modularity]
 created: 2026-11-12
 updated: 2026-11-12
-next_step: Garret reviews #26, #27, #28, #29, then #30 (retarget to main after #28 merges); #27 and #29 conflict lightly in app.ts
+next_step: merge #28 (carries #30); then the churn check and a handoff
 ---
 # Let each system own its schemas, view and panel declarations
 
@@ -136,3 +136,4 @@ Acceptance: `bun run check` passes with no test behavior changes.
 
 - 2026-11-12: Garret: separate systems and modules to minimize coupling, not a fixed per-feature rule. One mechanical PR for state and tuning schemas, all seven seams, keep `career.followers` and `career.needed`, split `panels.test.ts`.
 - 2026-11-12: #26 and #27 merged. Merged main into `system-schemas` (3773450, conflict in `test/helpers.ts` imports and the new notice helpers, kept both; 1155 pass), `panel-declarations` (c3eb79e, conflicts in `app.ts` and `unlock-notices.ts` imports, now using `keymap` and the `Notice` type; 1151 pass, no cycles), and the updated `system-schemas` into `system-views` (7f80eef, import-only conflicts in the notice modules; 1155 pass, golden unchanged, no cycles). #28 and #29 also merge cleanly with each other.
+- 2026-11-12: #29 squash-merged to main. #30 merged into `system-schemas`, so #28 now carries the view slices too. Merged main into `system-schemas` at 6a00d89 (import-only conflict in `village-panels.ts`); 1161 pass, golden unchanged, no cycles. #28 is the last PR of the plan.
