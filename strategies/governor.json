@@ -265,10 +265,5 @@
       ]
     }
   ],
-  "purchases": [
-    "panel.decrees",
-    "panel.court",
-    "panel.crown",
-    "control.governors"
-  ]
+  "purchases": ["panel.court", "panel.crown", "control.governors"]
 }

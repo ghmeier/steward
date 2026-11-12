@@ -4,9 +4,9 @@ import { CONJURABLE } from "../core/illusion";
 import { Job, RESOURCES, type Resource } from "../core/realm";
 import {
   ARCHIVE_PANEL,
+  COMMAND_UNLOCKS,
   CONJURING,
   CROWN_PANEL,
-  DECREES_PANEL,
   FORGING,
   PALETTE_UNLOCK,
   SAVED_DECREES_UNLOCK,
@@ -66,16 +66,22 @@ function ownsUnlock(context: MenuContext, id: UnlockId): boolean {
   return context.view.unlocks.includes(id);
 }
 
+/** Unlocks whose refusal says more than the entry's name, such as when the entry is first offered. */
+const UNLOCK_PROBLEMS: Partial<
+  Record<UnlockId, (args: { verb: string }) => string>
+> = {
+  [ARCHIVE_PANEL]: copy.commandLine.needsArchive,
+  [CROWN_PANEL]: copy.commandLine.needsCrown,
+  [CONJURING]: copy.commandLine.needsConjuring,
+  [FORGING]: copy.commandLine.needsForging,
+};
+
 function needsUnlock(id: UnlockId, verb: string) {
   return {
     available: (context: MenuContext) => ownsUnlock(context, id),
     unavailableProblem: (context: MenuContext) =>
-      id === ARCHIVE_PANEL
-        ? copy.commandLine.needsArchive({ verb })
-        : copy.commandLine.needsEntry({
-            verb,
-            label: entryLabel(context, id),
-          }),
+      UNLOCK_PROBLEMS[id]?.({ verb }) ??
+      copy.commandLine.needsEntry({ verb, label: entryLabel(context, id) }),
   };
 }
 
@@ -209,16 +215,6 @@ function resourceChoices(resources: readonly Resource[]): Choice<Resource>[] {
   }));
 }
 
-const conjuringVerb = (verb: string) => ({
-  available: (context: MenuContext) => ownsUnlock(context, CONJURING),
-  unavailableProblem: () => copy.commandLine.needsConjuring({ verb }),
-});
-
-const forgingVerb = (verb: string) => ({
-  available: (context: MenuContext) => ownsUnlock(context, FORGING),
-  unavailableProblem: () => copy.commandLine.needsForging({ verb }),
-});
-
 /** Repaying stays open to anyone who owes, however the debt arose. */
 const backVerbGate = {
   available: (context: MenuContext) =>
@@ -250,7 +246,7 @@ const VERBS: readonly Verb[] = [
   {
     word: "decree",
     description: copy.commandLine.verbHelp.decree,
-    ...needsUnlock(DECREES_PANEL, "decree"),
+    ...needsUnlock(COMMAND_UNLOCKS.enactDecree, "decree"),
     parse: (cursor, context) =>
       parseDecreeVerb(cursor, context, (decree) => ({
         type: "enactDecree",
@@ -260,13 +256,13 @@ const VERBS: readonly Verb[] = [
   {
     word: "repeal",
     description: copy.commandLine.verbHelp.repeal,
-    ...needsUnlock(DECREES_PANEL, "repeal"),
+    ...needsUnlock(COMMAND_UNLOCKS.repealDecree, "repeal"),
     parse: parseRepealVerb,
   },
   {
     word: "buy",
     description: copy.commandLine.verbHelp.buy,
-    ...needsUnlock(ARCHIVE_PANEL, "buy"),
+    ...needsUnlock(COMMAND_UNLOCKS.buyUnlock, "buy"),
     parse: parseBuyVerb,
   },
   {
@@ -298,28 +294,27 @@ const VERBS: readonly Verb[] = [
     word: "deliver",
     bare: true,
     description: copy.commandLine.verbHelp.deliver,
-    available: (context) => ownsUnlock(context, CROWN_PANEL),
-    unavailableProblem: () => copy.commandLine.needsCrown,
+    ...needsUnlock(COMMAND_UNLOCKS.deliver, "deliver"),
     parse: () => ({ type: "deliver" }),
   },
   {
     word: "conjure",
     description: copy.commandLine.verbHelp.conjure,
-    ...conjuringVerb("conjure"),
+    ...needsUnlock(COMMAND_UNLOCKS.conjure, "conjure"),
     parse: parseConjureVerb,
   },
   {
     word: "forge",
     bare: true,
     description: copy.commandLine.verbHelp.forge,
-    ...forgingVerb("forge"),
+    ...needsUnlock(COMMAND_UNLOCKS.forge, "forge"),
     parse: () => ({ type: "forge" }),
   },
   {
     word: "forge missing",
     bare: true,
     description: copy.commandLine.verbHelp.forgeMissing,
-    ...forgingVerb("forge missing"),
+    ...needsUnlock(COMMAND_UNLOCKS.forgeMissing, "forge missing"),
     parse: () => ({ type: "forgeMissing" }),
   },
   {

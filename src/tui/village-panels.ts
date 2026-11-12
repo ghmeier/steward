@@ -5,12 +5,7 @@ import { PETITIONS } from "../core/decree";
 import { DebtFigure } from "../core/illusion";
 import type { Resource } from "../core/realm";
 import type { Tuning } from "../core/tuning";
-import {
-  ARCHIVE_PANEL,
-  COURT_PANEL,
-  CROWN_PANEL,
-  DECREES_PANEL,
-} from "../core/unlocks";
+import { CROWN_PANEL } from "../core/unlocks";
 import type { ArchiveEntryView, GameView } from "../core/view";
 import { courtEntryLabel, courtMenu } from "./court-menu";
 import { type Cursor, moveCursor, reconcileCursor, stepIndex } from "./cursor";
@@ -106,7 +101,6 @@ export class PeasantsPanel extends VillagePanel {
   static override readonly keys: PanelKeys = {
     id: "peasants",
     focusKey: "p",
-    needs: undefined,
     focusLabel: copy.keys.hints.peasants,
     hints: [
       { keys: "j/k", label: copy.keys.panelActions.select },
@@ -204,7 +198,6 @@ export class CourtPanel extends MenuPanel {
   static override readonly keys: PanelKeys = {
     id: "court",
     focusKey: "c",
-    needs: COURT_PANEL,
     focusLabel: copy.keys.hints.court,
     hints: [
       { keys: "j/k", label: copy.keys.panelActions.select },
@@ -246,7 +239,6 @@ export class ArchivePanel extends MenuPanel {
   static override readonly keys: PanelKeys = {
     id: "archive",
     focusKey: "a",
-    needs: ARCHIVE_PANEL,
     focusLabel: copy.keys.hints.archive,
     hints: [
       { keys: "j/k", label: copy.keys.panelActions.select },
@@ -267,7 +259,6 @@ export class DecreesPanel extends VillagePanel {
   static override readonly keys: PanelKeys = {
     id: "decrees",
     focusKey: "d",
-    needs: DECREES_PANEL,
     focusLabel: copy.keys.hints.decrees,
     hints: [
       { keys: "j/k", label: copy.keys.panelActions.select },
@@ -345,7 +336,6 @@ export class CrownPanel extends VillagePanel {
   static override readonly keys: PanelKeys = {
     id: "crown",
     focusKey: "r",
-    needs: CROWN_PANEL,
     focusLabel: copy.keys.hints.crown,
     hints: [
       { keys: "enter", label: copy.keys.panelActions.deliver },
@@ -414,7 +404,7 @@ export class LedgerPanel extends VillagePanel {
   static override readonly keys: PanelKeys = {
     id: "ledger",
     focusKey: "l",
-    needs: CROWN_PANEL,
+    focusNeeds: CROWN_PANEL,
     focusLabel: copy.keys.hints.ledger,
     hints: [
       { keys: "j/k", label: copy.keys.panelActions.select },

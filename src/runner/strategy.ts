@@ -7,16 +7,7 @@ import {
 } from "../core/decree";
 import { addIssue, parseWith } from "../core/errors";
 import type { Game } from "../core/game";
-import {
-  ARCHIVE_PANEL,
-  CONJURING,
-  COURT_PANEL,
-  CROWN_PANEL,
-  costLines,
-  DECREES_PANEL,
-  FORGING,
-  type UnlockId,
-} from "../core/unlocks";
+import { type UnlockId, unlockFor } from "../core/unlocks";
 
 export type Reaction = { when: Condition; commands: Command[] };
 /** A setup command may also wait for a condition, which it needs only once to be released. */
@@ -24,7 +15,7 @@ export type SetupStep = Command | { when: Condition; command: Command };
 export type Strategy = {
   name: string;
   setup: SetupStep[];
-  /** Archive entries bought in this order, each as soon as it is on offer and affordable. */
+  /** Archive entries bought in this order, after the ones the setup commands need, each as soon as it is on offer and affordable. */
   purchases: string[];
   reactions: Reaction[];
 };
@@ -35,35 +26,6 @@ export type StrategyStats = {
   actingTicks: number;
   longestQuietTicks: number;
 };
-
-/** The unlock a command needs before the game would let a player issue it, or undefined when it needs none. */
-export function unlockNeededBy(command: Command): UnlockId | undefined {
-  switch (command.type) {
-    case "enactDecree":
-    case "repealDecree":
-    case "saveDecree":
-    case "enactSaved":
-    case "forgetSaved":
-      return DECREES_PANEL;
-    case "settleDispute":
-    case "settle":
-      return COURT_PANEL;
-    case "deliver":
-      return CROWN_PANEL;
-    case "forge":
-      return FORGING;
-    case "conjure":
-      return CONJURING;
-    case "buyUnlock":
-      return ARCHIVE_PANEL;
-    default:
-      return undefined;
-  }
-}
-
-function stepCommand(step: SetupStep): Command {
-  return "command" in step ? step.command : step;
-}
 
 function containsChose(condition: Condition): boolean {
   switch (condition.kind) {
@@ -106,96 +68,116 @@ export function parseStrategy(value: unknown, limits: DecreeLimits): Strategy {
   return parseWith(strategySchema(limits), value, "strategy");
 }
 
-export type StrategyPlayer = {
-  next(): Command[];
-  observe(game: Game): void;
-  stats(): StrategyStats;
-};
+/** A setup command with a condition waits for it to hold once; after that it waits only for its unlock. */
+type WaitingStep = { when: Condition | undefined; command: Command };
 
-export function createStrategyPlayer(strategy: Strategy): StrategyPlayer {
-  const held = strategy.reactions.map(() => false);
-  let waiting: SetupStep[] = [...strategy.setup];
-  // A step whose condition has held stays released even if the condition later stops holding.
-  const released = new Set<SetupStep>();
-  let owned: ReadonlySet<UnlockId> = new Set();
-  let pending: Command[] = [];
-  let purchase: Command[] = [];
-  let setupCommands = 0;
-  let purchaseCommands = 0;
-  let reactionCommands = 0;
-  let actingTicks = 0;
-  let quiet = 0;
-  let longestQuietTicks = 0;
-
-  const copy = (command: Command): Command => structuredClone(command);
-  const canIssue = (command: Command): boolean => {
-    const needed = unlockNeededBy(command);
-    return needed === undefined || owned.has(needed);
+export class StrategyPlayer {
+  private readonly held: boolean[];
+  private waiting: WaitingStep[];
+  private readonly purchases: UnlockId[];
+  private game: Game | undefined;
+  private pending: Command[] = [];
+  private purchase: Command[] = [];
+  private readonly counts: StrategyStats = {
+    setupCommands: 0,
+    purchaseCommands: 0,
+    reactionCommands: 0,
+    actingTicks: 0,
+    longestQuietTicks: 0,
   };
+  private quiet = 0;
 
-  return {
-    next() {
-      const setup = waiting.filter(
-        (step) =>
-          ("command" in step ? released.has(step) : true) &&
-          canIssue(stepCommand(step)),
-      );
-      waiting = waiting.filter((step) => !setup.includes(step));
-      setupCommands += setup.length;
-      const reactions = pending;
-      reactionCommands += reactions.length;
-      purchaseCommands += purchase.length;
-      if (reactions.length > 0) {
-        actingTicks += 1;
-        quiet = 0;
-      } else {
-        quiet += 1;
-      }
-      longestQuietTicks = Math.max(longestQuietTicks, quiet);
-      const handed = [
-        ...setup.map((step) => copy(stepCommand(step))),
-        ...purchase,
-        ...reactions,
-      ];
-      pending = [];
-      purchase = [];
-      return handed;
-    },
-    observe(game) {
-      owned = new Set(game.unlocks.purchased);
-      for (const step of waiting) {
-        if ("command" in step && game.conditions.evaluate(step.when, {})) {
-          released.add(step);
-        }
-      }
-      const fired: Command[] = [];
-      for (const [index, reaction] of strategy.reactions.entries()) {
-        const holds = game.conditions.evaluate(reaction.when, {});
-        if (holds && !held[index]) {
-          fired.push(...reaction.commands.map(copy).filter(canIssue));
-        }
-        held[index] = holds;
-      }
-      pending = fired;
-      purchase = nextPurchase(game);
-    },
-    stats: () => ({
-      setupCommands,
-      purchaseCommands,
-      reactionCommands,
-      actingTicks,
-      longestQuietTicks,
-    }),
-  };
-
-  function nextPurchase(game: Game): Command[] {
-    const id = strategy.purchases.find((candidate) => !owned.has(candidate));
-    if (id === undefined || !owned.has(ARCHIVE_PANEL)) return [];
-    const entry = game.unlocks.offered().find((offered) => offered.id === id);
-    if (entry === undefined) return [];
-    const affordable = costLines(entry).every(
-      ({ resource, amount }) => game.illusion.apparent(resource) >= amount,
+  constructor(private readonly strategy: Strategy) {
+    this.held = strategy.reactions.map(() => false);
+    this.waiting = strategy.setup.map((step) =>
+      "command" in step
+        ? { when: step.when, command: step.command }
+        : { when: undefined, command: step },
     );
-    return affordable ? [{ type: "buyUnlock", id }] : [];
+    this.purchases = [
+      ...new Set([
+        ...this.waiting.flatMap(({ command }) => {
+          const needed = unlockFor(command.type);
+          return needed === undefined ? [] : [needed];
+        }),
+        ...strategy.purchases,
+      ]),
+    ];
+  }
+
+  private canIssue(command: Command): boolean {
+    const needed = unlockFor(command.type);
+    return needed === undefined || this.game?.unlocks.enabled(needed) === true;
+  }
+
+  next(): Command[] {
+    const ready = this.waiting.filter(
+      (step) => step.when === undefined && this.canIssue(step.command),
+    );
+    if (ready.length > 0) {
+      this.waiting = this.waiting.filter((step) => !ready.includes(step));
+    }
+    const reactions = this.pending;
+    this.counts.setupCommands += ready.length;
+    this.counts.purchaseCommands += this.purchase.length;
+    this.counts.reactionCommands += reactions.length;
+    if (reactions.length > 0) {
+      this.counts.actingTicks += 1;
+      this.quiet = 0;
+    } else {
+      this.quiet += 1;
+    }
+    this.counts.longestQuietTicks = Math.max(
+      this.counts.longestQuietTicks,
+      this.quiet,
+    );
+    const handed = [
+      ...ready.map(({ command }) => structuredClone(command)),
+      ...this.purchase,
+      ...reactions,
+    ];
+    this.pending = [];
+    this.purchase = [];
+    return handed;
+  }
+
+  observe(game: Game): void {
+    this.game = game;
+    for (const step of this.waiting) {
+      if (step.when !== undefined && game.conditions.evaluate(step.when, {})) {
+        step.when = undefined;
+      }
+    }
+    const fired: Command[] = [];
+    for (const [index, reaction] of this.strategy.reactions.entries()) {
+      const holds = game.conditions.evaluate(reaction.when, {});
+      if (holds && !this.held[index]) {
+        fired.push(
+          ...reaction.commands
+            .filter((command) => this.canIssue(command))
+            .map((command) => structuredClone(command)),
+        );
+      }
+      this.held[index] = holds;
+    }
+    this.pending = fired;
+    this.purchase = this.nextPurchase(game);
+  }
+
+  /** Purchases go in order, so the next one waits until it can be bought. */
+  private nextPurchase(game: Game): Command[] {
+    const id = this.purchases.find(
+      (candidate) => !game.unlocks.enabled(candidate),
+    );
+    const entry = game.tuning.archive.entries.find(
+      (candidate) => candidate.id === id,
+    );
+    return entry !== undefined && game.unlocks.canBuy(entry)
+      ? [{ type: "buyUnlock", id: entry.id }]
+      : [];
+  }
+
+  stats(): StrategyStats {
+    return { ...this.counts };
   }
 }

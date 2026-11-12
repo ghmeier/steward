@@ -786,7 +786,8 @@ export const copy = {
     needsForging: ({ verb }: { verb: string }) =>
       `${verb} needs forging from the Archive, once you hold the Crown charter`,
     needsDebt: "back needs a debt to repay",
-    needsCrown: "deliver needs the Crown charter from the Archive",
+    needsCrown: ({ verb }: { verb: string }) =>
+      `${verb} needs the Crown charter from the Archive`,
     archiveEntryHelp: ({
       label,
       cost,

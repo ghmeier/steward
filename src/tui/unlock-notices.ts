@@ -13,22 +13,27 @@ import {
 import type { Notice } from "./notices";
 import { keymap } from "./village-panels";
 
-function noticeFor(id: UnlockId, tuning: Tuning): string | null {
-  if (id === ARCHIVE_PANEL)
-    return copy.notices.archiveOpens({ key: keymap.keyFor("archive") });
-  if (id === COURT_PANEL)
-    return copy.notices.courtOpens({ key: keymap.keyFor("court") });
-  if (id === DECREES_PANEL)
-    return copy.notices.decreesOpen({ key: keymap.keyFor("decrees") });
-  if (id === CROWN_PANEL)
-    return copy.notices.charterOpens({ key: keymap.keyFor("crown") });
-  if (id === FORGING)
-    return copy.notices.forgingOpens({
+/** Unlocks that change what the player can do get a notice naming the key to press; the rest just say they were bought. */
+const SPECIFIC_NOTICES: Partial<Record<UnlockId, () => string>> = {
+  [ARCHIVE_PANEL]: () =>
+    copy.notices.archiveOpens({ key: keymap.keyFor("archive") }),
+  [COURT_PANEL]: () => copy.notices.courtOpens({ key: keymap.keyFor("court") }),
+  [DECREES_PANEL]: () =>
+    copy.notices.decreesOpen({ key: keymap.keyFor("decrees") }),
+  [CROWN_PANEL]: () =>
+    copy.notices.charterOpens({ key: keymap.keyFor("crown") }),
+  [FORGING]: () =>
+    copy.notices.forgingOpens({
       key: keymap.panelHintKey("crown", copy.keys.panelActions.forge),
-    });
-  if (id === CONJURING)
-    return copy.notices.conjuringOpens({ key: keymap.keyFor("ledger") });
-  if (id === GOVERNORS) return copy.notices.governorsOpen;
+    }),
+  [CONJURING]: () =>
+    copy.notices.conjuringOpens({ key: keymap.keyFor("ledger") }),
+  [GOVERNORS]: () => copy.notices.governorsOpen,
+};
+
+function noticeFor(id: UnlockId, tuning: Tuning): string | null {
+  const specific = SPECIFIC_NOTICES[id];
+  if (specific !== undefined) return specific();
   const entry = tuning.archive.entries.find((candidate) => candidate.id === id);
   if (entry !== undefined) return copy.notices.bought({ label: entry.label });
   const play = tuning.archive.play.find((candidate) => candidate.id === id);

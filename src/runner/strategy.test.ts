@@ -6,10 +6,10 @@ import { Game } from "../core/game";
 import { Job } from "../core/realm";
 import { ARCHIVE_PANEL, CROWN_PANEL, DECREES_PANEL } from "../core/unlocks";
 import {
-  createStrategyPlayer,
   parseStrategy,
   type Reaction,
   type SetupStep,
+  StrategyPlayer,
 } from "./strategy";
 
 const noop: Command = { type: "noop" };
@@ -62,7 +62,7 @@ describe("parseStrategy", () => {
 });
 
 function playerWith(...reactions: Reaction[]) {
-  return createStrategyPlayer({
+  return new StrategyPlayer({
     name: "s",
     setup: [noop],
     purchases: [],
@@ -70,7 +70,7 @@ function playerWith(...reactions: Reaction[]) {
   });
 }
 
-describe("createStrategyPlayer", () => {
+describe("StrategyPlayer", () => {
   function observeWith(
     player: ReturnType<typeof playerWith>,
     population: number,
@@ -142,9 +142,9 @@ describe("createStrategyPlayer", () => {
   });
 });
 
-describe("createStrategyPlayer with locked panels", () => {
+describe("StrategyPlayer with locked panels", () => {
   function playerFor(setup: SetupStep[], purchases: string[] = []) {
-    return createStrategyPlayer({ name: "s", setup, purchases, reactions: [] });
+    return new StrategyPlayer({ name: "s", setup, purchases, reactions: [] });
   }
 
   test("a setup command that needs the Decrees panel waits until the panel is owned", () => {

@@ -309,10 +309,5 @@
       ]
     }
   ],
-  "purchases": [
-    "panel.decrees",
-    "panel.court",
-    "panel.crown",
-    "control.forging"
-  ]
+  "purchases": ["panel.court", "panel.crown", "control.forging"]
 }

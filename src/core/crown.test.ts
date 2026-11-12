@@ -3,7 +3,6 @@ import {
   contextFor,
   grantUnlocks,
   quietOptions,
-  revealArchive,
   setRoster,
   tuning,
 } from "../../test/helpers";
@@ -12,7 +11,7 @@ import { type Demand, NO_DEMAND, NO_DEMAND_TICK } from "./crown";
 import type { Decree } from "./decree";
 import { Game } from "./game";
 import type { Resource } from "./realm";
-import { ARCHIVE_PANEL, CROWN_CORRESPONDENCE, CROWN_PANEL } from "./unlocks";
+import { CROWN_CORRESPONDENCE, CROWN_PANEL } from "./unlocks";
 
 const { crown: crownTuning } = tuning;
 const oreBase = crownTuning.baseAmounts.ore;
@@ -28,16 +27,12 @@ function step(game: Game, count = 1): void {
   game.steps.runSteps(count, [], quietOptions);
 }
 
-/** A promoted village that has bought the Crown charter, so its demands are under way. */
 function promotedGame(): Game {
   const game = Game.create(1, tuning);
   setRoster(game, { idle: tuning.village.promotionPopulation });
   step(game);
-  grantUnlocks(game, [ARCHIVE_PANEL]);
-  revealArchive(game);
-  Object.assign(game.state.posting.resources, { coin: 1e6, wood: 1e6 });
-  game.unlocks.buy(CROWN_PANEL, contextFor(game));
-  Object.assign(game.state.posting.resources, { coin: 0, wood: 0 });
+  grantUnlocks(game, [CROWN_PANEL]);
+  game.crown.scheduleFirstDemand();
   return game;
 }
 
@@ -90,9 +85,9 @@ describe("crown demands", () => {
     expect(game.state.posting.crown.nextDemandTick).toBe(NO_DEMAND_TICK);
   });
 
-  test("the first demand is issued one first-demand delay after the charter is bought, due one deadline after", () => {
+  test("the first demand is issued one first-demand delay after the charter schedules it", () => {
     const game = promotedGame();
-    const chartered = game.state.career.unlocks[CROWN_PANEL] as number;
+    const chartered = game.state.tick;
 
     step(game, crownTuning.firstDemand.minTicks - 1);
     const early = game.crown.isOpen;

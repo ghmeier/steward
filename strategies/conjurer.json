@@ -179,10 +179,5 @@
       ]
     }
   ],
-  "purchases": [
-    "panel.decrees",
-    "panel.crown",
-    "control.conjuring",
-    "control.forging"
-  ]
+  "purchases": ["panel.crown", "control.conjuring", "control.forging"]
 }

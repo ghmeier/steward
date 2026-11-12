@@ -23,6 +23,7 @@ import {
   DECREES_PANEL,
   FORGING,
   GOVERNORS,
+  PALETTE_UNLOCK,
 } from "../core/unlocks";
 import { loadTuning } from "./content";
 import {
@@ -505,8 +506,9 @@ describe("version 15 upgrade", () => {
     expect(upgraded.lastAuditClosedAt).toBe(0);
   });
 });
+
 describe("version 16 upgrade", () => {
-  function version14Save(
+  function version16Save(
     unlocks: Record<string, number>,
     promotedAt = 0,
   ): Record<string, unknown> {
@@ -515,13 +517,13 @@ describe("version 16 upgrade", () => {
     const { seen: _, ...career } = game.state.career;
     return {
       ...structuredClone(game.state),
-      schemaVersion: 14,
+      schemaVersion: 16,
       career: { ...career, needed: { court: 3 }, unlocks, promotedAt },
     };
   }
 
-  test("any old save gains the Court, Decrees and Archive panels and drops the unread needed record", () => {
-    writeSave(14, version14Save({}));
+  test("a save that has not reached the crown gains the Court, Decrees and Archive panels but not the charter, forging or governors, and drops the needed record", () => {
+    writeSave(16, version16Save({}));
 
     const state = loaded(dir);
 
@@ -529,17 +531,10 @@ describe("version 16 upgrade", () => {
     for (const id of [COURT_PANEL, DECREES_PANEL, ARCHIVE_PANEL]) {
       expect(state.career.unlocks[id]).toBe(100);
     }
-    expect(Object.hasOwn(state.career, "needed")).toBe(false);
-  });
-
-  test("a save that has not reached the crown does not gain the charter, forging or governors", () => {
-    writeSave(14, version14Save({}));
-
-    const { unlocks } = loaded(dir).career;
-
     for (const id of [CROWN_PANEL, FORGING, GOVERNORS]) {
-      expect(Object.hasOwn(unlocks, id)).toBe(false);
+      expect(Object.hasOwn(state.career.unlocks, id)).toBe(false);
     }
+    expect(Object.hasOwn(state.career, "needed")).toBe(false);
   });
 
   test.each([
@@ -549,7 +544,7 @@ describe("version 16 upgrade", () => {
   ])(
     "a save that %s gains the charter, forging and governors and keeps what it owned",
     (_name, owned, promotedAt) => {
-      writeSave(14, version14Save(owned, promotedAt));
+      writeSave(16, version16Save(owned, promotedAt));
 
       const { unlocks } = loaded(dir).career;
 
@@ -563,10 +558,10 @@ describe("version 16 upgrade", () => {
   );
 
   test("every entry the save already owned counts as seen", () => {
-    writeSave(14, version14Save({ "control.palette": 40 }));
+    writeSave(16, version16Save({ [PALETTE_UNLOCK]: 40 }));
 
     const { seen } = loaded(dir).career;
 
-    expect(seen["control.palette"]).toBe(40);
+    expect(seen[PALETTE_UNLOCK]).toBe(40);
   });
 });

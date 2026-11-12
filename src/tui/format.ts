@@ -1,7 +1,7 @@
-import { formatAmount, formatMagnitude } from "../core/amount";
+import { formatMagnitude } from "../core/amount";
 import { copy } from "../core/copy";
 
-export { formatAmount };
+export { formatAmount } from "../core/amount";
 
 export function formatRate(perSecond: number): string {
   const body = formatMagnitude(Math.abs(perSecond));

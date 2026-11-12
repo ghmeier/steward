@@ -313,21 +313,13 @@ describe("revealing entries", () => {
 });
 
 describe("view", () => {
-  test("every panel except the ledger and peasants is reported locked in a new village", () => {
+  test("every panel except the ledger and peasants is locked in a new village, and a panel opens once its unlock is owned", () => {
     const game = Game.create(1, tuning);
+    const before = game.view.compute().lockedPanels;
 
-    expect(game.view.compute().lockedPanels.sort()).toEqual([
-      "archive",
-      "court",
-      "crown",
-      "decrees",
-    ]);
-  });
-
-  test("a panel is reported open once its unlock is owned", () => {
-    const game = Game.create(1, tuning);
     grantUnlocks(game, [COURT_PANEL]);
 
+    expect(before.sort()).toEqual(["archive", "court", "crown", "decrees"]);
     expect(game.view.compute().lockedPanels).not.toContain("court");
   });
 

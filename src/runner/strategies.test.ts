@@ -6,11 +6,7 @@ import { tuning } from "../../test/helpers";
 import { Game } from "../core/game";
 import { CROWN_CORRESPONDENCE } from "../core/unlocks";
 import { runSim } from "./sim";
-import {
-  createStrategyPlayer,
-  parseStrategy,
-  type StrategyStats,
-} from "./strategy";
+import { parseStrategy, StrategyPlayer, type StrategyStats } from "./strategy";
 
 const STEPS = "24000";
 // Crown demands are spaced far enough apart that a conjurer only falls below the cold
@@ -185,7 +181,7 @@ describe("promotion under the reference strategy", () => {
       JSON.parse(readFileSync("strategies/reference.json", "utf8")),
       tuning.decrees,
     );
-    const player = createStrategyPlayer(strategy);
+    const player = new StrategyPlayer(strategy);
     const game = Game.create(1, tuning);
     let firstAtTarget = 0;
     let firstBirth = 0;
@@ -215,7 +211,7 @@ describe("promotion under the reference strategy", () => {
         }
         player.observe(game);
       },
-      player.next,
+      player.next.bind(player),
     );
 
     const sevenMinutesInTicks = (7 * 60 * 1000) / tuning.stepMs;

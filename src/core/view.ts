@@ -5,12 +5,12 @@ import type { DeskEntryView } from "./desk";
 import type { Game } from "./game";
 import type { FormerGovernorView, GovernorView } from "./governors";
 import type { IllusionView } from "./illusion";
-import { type Job, RESOURCES, type Resource, type Season } from "./realm";
+import { type Job, RESOURCES, type Season } from "./realm";
 import type { ResourceId } from "./state";
 import {
   ARCHIVE_PANEL,
+  type ArchiveCostPart,
   CROWN_PANEL,
-  costLines,
   type PanelId,
   TRUE_REPORTS,
   type UnlockId,
@@ -54,20 +54,12 @@ export type GameView = {
   unlocks: UnlockId[];
   archive: { open: boolean; entries: ArchiveEntryView[] };
 };
-export type ArchiveCostView = {
-  resource: Resource;
-  amount: number;
-  /** The stock on hand, conjured units included. */
-  held: number;
-  /** The stock on hand covers this part of the cost. */
-  affordable: boolean;
-};
-/** Only entries on offer appear: revealed, not owned and with every prerequisite owned. */
+/** Only entries on offer appear. */
 export type ArchiveEntryView = {
   id: UnlockId;
   label: string;
   description: string;
-  cost: ArchiveCostView[];
+  cost: ArchiveCostPart[];
   /** Every part of the cost is covered. */
   affordable: boolean;
 };
@@ -153,10 +145,7 @@ export class ViewManager {
       archive: {
         open: this.game.unlocks.enabled(ARCHIVE_PANEL),
         entries: this.game.unlocks.offered().map((entry) => {
-          const cost = costLines(entry).map(({ resource, amount }) => {
-            const held = this.game.illusion.apparent(resource);
-            return { resource, amount, held, affordable: held >= amount };
-          });
+          const cost = this.game.unlocks.costParts(entry);
           return {
             id: entry.id,
             label: entry.label,

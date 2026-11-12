@@ -348,7 +348,6 @@ export class IllusionManager {
   forge(context: AddContext): CommandResult {
     const refusal = this.forgeRefusal;
     if (refusal) return refusal;
-
     const { crown } = this.game;
     if (this.room <= 0) {
       return { ok: false, reason: copy.illusion.ceilingLeavesNoRoom };
