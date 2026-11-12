@@ -27,6 +27,7 @@ import {
   CROWN_PANEL,
   PALETTE_UNLOCK,
 } from "../core/unlocks";
+import { defaultVillageName } from "../core/village-name";
 import { stateHash } from "../save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../save/save";
 import { type App, prepareStartup, type Startup, startApp } from "./app";
@@ -711,6 +712,7 @@ describe("new village", () => {
 
     await harness.mockInput.typeText("nj");
     harness.mockInput.pressEnter();
+    harness.mockInput.pressEnter();
     const founded = stateHash(savedState(harness));
     const backup = stateHash(savedState(harness, `${SAVE_FILE_NAME}.bak`));
     await harness.mockInput.typeText("pf");
@@ -723,6 +725,47 @@ describe("new village", () => {
     expect(savedState(harness).posting.delegates[0]?.job).toBe(Job.FARM);
     expect(harness.game.state.tick).toBe(oldTick);
     expect(barRow(await harness.screen())).toContain(copy.notices.saved);
+  });
+
+  test("founding a village with a typed name saves that name", async () => {
+    const harness = await launch();
+    const typed = "Quillhaven";
+    const defaultName = defaultVillageName(NEW_SEED, tuning);
+
+    await harness.mockInput.typeText("nj");
+    harness.mockInput.pressEnter();
+    const prompt = await harness.screen();
+    for (let i = 0; i < defaultName.length; i++) {
+      harness.mockInput.pressBackspace();
+    }
+    await harness.mockInput.typeText(typed);
+    harness.mockInput.pressEnter();
+
+    expect(prompt).toContain(defaultName);
+    expect(savedState(harness).posting.name).toBe(typed);
+    expect(await harness.screen()).toContain(
+      copy.ledger.title({ title: "Reeve", village: typed }),
+    );
+  });
+
+  test("escape at the name prompt founds nothing, and an empty name is not accepted", async () => {
+    const harness = await launch({ kittyKeyboard: true });
+    const before = stateHash(harness.game.state);
+    const defaultName = defaultVillageName(NEW_SEED, tuning);
+
+    await harness.mockInput.typeText("nj");
+    harness.mockInput.pressEnter();
+    for (let i = 0; i < defaultName.length; i++) {
+      harness.mockInput.pressBackspace();
+    }
+    harness.mockInput.pressEnter();
+    const stillAsking = await harness.screen();
+    harness.mockInput.pressEscape();
+
+    expect(stillAsking).toContain(copy.menus.namePromptTitle);
+    expect(stateHash(harness.game.state)).toBe(before);
+    expect(existsSync(join(harness.saveDir, SAVE_FILE_NAME))).toBe(false);
+    expect(await harness.screen()).not.toContain(copy.menus.namePromptTitle);
   });
 
   test.each([

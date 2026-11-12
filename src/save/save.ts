@@ -20,6 +20,7 @@ import { canonicalStringify } from "../core/serialize";
 import { type GameState, SCHEMA_VERSION } from "../core/state";
 import { CONJURING, CROWN_PANEL } from "../core/unlocks";
 import { assertValidState } from "../core/validate";
+import { defaultVillageName } from "../core/village-name";
 import { contentHash, loadTuning } from "./content";
 
 export const SAVE_FILE_NAME = "save.json";
@@ -125,6 +126,14 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
     for (const delegate of state.posting.delegates) {
       if (isRecord(delegate)) delegate.kind ??= "peasant";
     }
+  },
+  // Villages were unnamed before version 15, so an old save is given the default its own seed picks.
+  14: (state) => {
+    if (!isRecord(state.posting)) return;
+    state.posting.name = defaultVillageName(
+      Number(state.posting.seed),
+      loadTuning(),
+    );
   },
 };
 

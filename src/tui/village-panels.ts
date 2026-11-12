@@ -37,7 +37,7 @@ import {
   type ScreenBuilder,
 } from "./menu";
 import { Roster } from "./roster";
-import { wrapLine } from "./wrap";
+import { wrapLine, wrapPhrases } from "./wrap";
 
 export type PanelSize = { width: number; height: number };
 
@@ -445,7 +445,11 @@ export class LedgerPanel extends VillagePanel {
     return [`${indent}${owed}`, `${indent}${advice}`];
   }
 
-  private resourceLines(view: GameView, focused: boolean): string[] {
+  private resourceLines(
+    view: GameView,
+    focused: boolean,
+    width: number,
+  ): string[] {
     const rows = view.ledger.map((line) => [
       capitalize(line.resource),
       formatAmount(line.amount),
@@ -460,11 +464,16 @@ export class LedgerPanel extends VillagePanel {
       const eaten =
         view.ledger[index]?.resource === "grain" ? view.grainEatenPerSecond : 0;
       const indent = `${" ".repeat(gutter.length)}  `;
+      const row = `${gutter}${name.padEnd(widths[0] ?? 0)} ${amount.padStart(widths[1] ?? 0)} ${rate.padStart(widths[2] ?? 0)}`;
       return [
-        `${gutter}${name.padEnd(widths[0] ?? 0)} ${amount.padStart(widths[1] ?? 0)} ${rate.padStart(widths[2] ?? 0)}`,
+        // A column too narrow for the eaten rate beside the grain row drops it to a line of its own.
         ...(eaten > 0
-          ? [`${indent}${copy.ledger.eaten({ rate: formatAmount(eaten) })}`]
-          : []),
+          ? wrapPhrases(
+              [row, copy.ledger.eaten({ rate: formatAmount(eaten) })],
+              width,
+              indent.length,
+            )
+          : [row]),
         ...(conjured > 0
           ? [
               `${indent}${copy.ledger.conjured({ amount: formatAmount(conjured) })}`,
@@ -502,15 +511,17 @@ export class LedgerPanel extends VillagePanel {
     return [label, ...wrapLine(`  ${value}`, width, 0)];
   }
 
+  private titleLines(view: GameView, width: number): string[] {
+    return this.labelled(
+      copy.ledger.titleLabel,
+      copy.ledger.title({ title: view.title, village: view.villageName }),
+      width,
+    );
+  }
+
   private promotionLines(view: GameView, width: number): string[] {
-    const { target, promotedAt, promotedAtSeconds } = view.promotion;
-    if (promotedAt > 0) {
-      return wrapLine(
-        copy.ledger.promotedOn({ time: formatGameTime(promotedAtSeconds) }),
-        width,
-        2,
-      );
-    }
+    const { target, promotedAt } = view.promotion;
+    if (promotedAt > 0) return [];
     return this.labelled(
       copy.ledger.promotionLabel,
       copy.ledger.promotionProgress({
@@ -549,7 +560,7 @@ export class LedgerPanel extends VillagePanel {
   ): string {
     const { realm } = view;
     const rest = [
-      ...this.resourceLines(view, focused),
+      ...this.resourceLines(view, focused, size.width),
       ...this.booksLines(view, tuning),
       "",
       ...[
@@ -560,6 +571,7 @@ export class LedgerPanel extends VillagePanel {
         copy.ledger.labor(realm.labor),
         copy.ledger.season({ season: capitalize(realm.season) }),
       ].flatMap((line) => wrapLine(line, size.width, 2)),
+      ...this.titleLines(view, size.width),
       ...this.promotionLines(view, size.width),
       ...this.nextPeasantLines(view, size.width),
     ];

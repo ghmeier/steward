@@ -3,11 +3,13 @@ import { copy } from "../core/copy";
 import { errorMessage } from "../core/errors";
 import { Game } from "../core/game";
 import type { Tuning } from "../core/tuning";
+import { defaultVillageName } from "../core/village-name";
 import { loadGame, saveGame } from "../save/save";
 import { type LineState, lineKey, openLine, renderLine } from "./command-line";
 import { HelpPage } from "./help-menu";
 import { type FocusId, FocusRing, isInterrupt } from "./keys";
 import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
+import { type NamePrompt, nameKey, renderNamePrompt } from "./name-prompt";
 import { newGameMenu } from "./new-game-menu";
 import { latestNotice } from "./notices";
 import { BAR_LINES, createPanels } from "./panels";
@@ -94,6 +96,7 @@ export function startApp(options: {
   let menu: MenuState | null = null;
   let help: HelpPage | null = null;
   let line: LineState | null = null;
+  let namePrompt: NamePrompt | null = null;
   let lastView = session.view();
 
   const menuContext = () => ({ view: session.view(), tuning });
@@ -117,9 +120,11 @@ export function startApp(options: {
     });
     panels.showOverlay(currentOverlay());
     panels.showLine(
-      line === null
-        ? null
-        : renderLine(line, menuContext(), panels.lineSuggestionBudget),
+      namePrompt !== null
+        ? renderNamePrompt(namePrompt)
+        : line === null
+          ? null
+          : renderLine(line, menuContext(), panels.lineSuggestionBudget),
     );
     renderer.requestRender();
   };
@@ -141,8 +146,8 @@ export function startApp(options: {
     redraw();
   };
 
-  const foundNewVillage = () => {
-    session = makeSession(Game.create(options.newSeed(), tuning));
+  const foundNewVillage = (seed: number, name: string) => {
+    session = makeSession(Game.create(seed, tuning, name));
     lastView = session.view();
     village.peasants.reset(lastView);
     focus = null;
@@ -170,6 +175,17 @@ export function startApp(options: {
     }
   };
   const onKeyPress = (key: KeyEvent) => {
+    if (namePrompt !== null && !isInterrupt(key)) {
+      const result = nameKey(namePrompt, key);
+      if (result.kind === "editing") namePrompt = result.prompt;
+      else {
+        const { seed } = namePrompt;
+        namePrompt = null;
+        if (result.kind === "confirmed") foundNewVillage(seed, result.name);
+      }
+      redraw();
+      return;
+    }
     if (line !== null && !isInterrupt(key)) {
       const result = lineKey(line, key, menuContext());
       line = result.state;
@@ -186,7 +202,10 @@ export function startApp(options: {
       const result = menuKey(menu, key, menuContext());
       menu = result.state;
       for (const command of result.commands) session.enqueue(command);
-      if (result.requests.includes("newGame")) foundNewVillage();
+      if (result.requests.includes("newGame")) {
+        const seed = options.newSeed();
+        namePrompt = { seed, text: defaultVillageName(seed, tuning) };
+      }
       redraw();
       return;
     }

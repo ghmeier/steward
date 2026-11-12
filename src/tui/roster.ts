@@ -13,33 +13,35 @@ export class Roster {
     return [...this.view.governors, ...this.view.delegates];
   }
 
-  private static perSecond(amount: number): string {
-    return `${formatAmount(amount)}/s`;
-  }
-
   private static governorLines(
     governor: GovernorView,
     marker: string,
     width: number,
   ): string[] {
     const { truth } = governor;
+    const { resource } = governor;
     const output =
-      truth === null
-        ? [
-            copy.village.governorReports({
-              rate: Roster.perSecond(governor.reportedPerSecond),
-            }),
-          ]
-        : [
-            copy.village.governorMakes({
-              real: Roster.perSecond(truth.realPerSecond),
-            }),
-            truth.gapPerSecond > 0
-              ? copy.village.governorOverstates({
-                  gap: Roster.perSecond(truth.gapPerSecond),
-                })
-              : copy.village.governorHonest,
-          ];
+      resource === null
+        ? [copy.village.governorIdle]
+        : truth === null
+          ? [
+              copy.village.governorReports({
+                rate: formatAmount(governor.reportedPerSecond),
+                resource,
+              }),
+            ]
+          : [
+              truth.gapPerSecond > 0
+                ? copy.village.governorBringsIn({
+                    real: formatAmount(truth.realPerSecond),
+                    resource,
+                    gap: formatAmount(truth.gapPerSecond),
+                  })
+                : copy.village.governorHonest({
+                    real: formatAmount(truth.realPerSecond),
+                    resource,
+                  }),
+            ];
     return wrapPhrases(
       [
         `${marker} ${governor.name}  ${governor.job}`,

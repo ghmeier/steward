@@ -1,11 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import {
+  addGovernors,
+  governorOf,
+  grantUnlocks,
   quietOptions,
   setRoster,
   economyTestTuning as tuning,
 } from "../../test/helpers";
 import type { Decree } from "./decree";
 import { Game } from "./game";
+import { Job } from "./realm";
+import { CROWN_PANEL } from "./unlocks";
 
 const oddStepTuning = { ...tuning, stepMs: 250 };
 
@@ -82,6 +87,46 @@ describe("view.compute", () => {
       promotedAt: 7,
       promotedAtSeconds: (7 * oddStepTuning.stepMs) / 1000,
     });
+  });
+
+  describe("title", () => {
+    const { titles } = tuning.village;
+    const governor = () => governorOf({ village: 4, job: Job.FARM });
+
+    test("is the starting title before promotion", () => {
+      const game = village();
+
+      expect(game.view.compute().title).toBe(titles.start);
+    });
+
+    test("is the promoted title once promoted, with or without a governor but without the charter", () => {
+      const game = village();
+      game.state.career.promotedAt = 1;
+      game.state.tick = 1;
+      const bare = game.view.compute().title;
+      addGovernors(game, governor());
+
+      expect(bare).toBe(titles.promoted);
+      expect(game.view.compute().title).toBe(titles.promoted);
+    });
+
+    test("is the crowned title only with the charter and a governor serving", () => {
+      const game = village();
+      game.state.career.promotedAt = 1;
+      game.state.tick = 1;
+      grantUnlocks(game, [CROWN_PANEL]);
+      const withoutGovernor = game.view.compute().title;
+      addGovernors(game, governor());
+
+      expect(withoutGovernor).toBe(titles.promoted);
+      expect(game.view.compute().title).toBe(titles.crowned);
+    });
+  });
+
+  test("carries the village's name", () => {
+    const game = Game.create(1, tuning, "Larkhill");
+
+    expect(game.view.compute().villageName).toBe("Larkhill");
   });
 
   test("lists delegates in id order with grudge ticks left, and decrees sorted by id as copies", () => {

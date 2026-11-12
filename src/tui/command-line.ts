@@ -21,6 +21,7 @@ import { formatDecree } from "./decree-format";
 import { parseDecreeVerb } from "./decree-grammar";
 import type { KeyPress } from "./keys";
 import { entryLabel, type MenuContext, type MenuRender } from "./menu";
+import { editedText } from "./text-edit";
 
 export type LineState = { text: string; highlight: number };
 export type LineResult = {
@@ -367,17 +368,6 @@ export function parseLine(text: string, context: MenuContext): LineResult {
   return { suggestions, command, problem };
 }
 
-function typedCharacter(key: KeyPress): string | null {
-  if (key.name === "space") return " ";
-  if (/^[\x20-\x7e]$/.test(key.sequence)) return key.sequence;
-  // Kitty-protocol terminals send an escape sequence instead of the character.
-  if (key.name === "/" && key.shift) return "?";
-  if (/^[\x20-\x7e]$/.test(key.name)) {
-    return key.shift ? key.name.toUpperCase() : key.name;
-  }
-  return null;
-}
-
 export function lineKey(
   state: LineState,
   key: KeyPress,
@@ -416,12 +406,10 @@ export function lineKey(
         return { state: null, commands: [analysis.command] };
       }
       return complete();
-    case "backspace":
-      return { state: openLine(state.text.slice(0, -1)), commands: [] };
   }
-  const character = typedCharacter(key);
-  if (character === null) return stay;
-  return { state: openLine(state.text + character), commands: [] };
+  const text = editedText(state.text, key);
+  if (text === null) return stay;
+  return { state: openLine(text), commands: [] };
 }
 
 /** `maxSuggestions` lets a short terminal show fewer than the usual six. */
