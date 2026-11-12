@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   uncappedContext as context,
+  contextFor,
   grantUnlocks,
   setRoster,
   economyTestTuning as tuning,
@@ -530,5 +531,86 @@ describe("repealStale", () => {
     expect(
       decreeSetProblem(game.decrees.enacted, game.decrees.policiesFor("labor")),
     ).toBeNull();
+  });
+});
+
+describe("the full condition", () => {
+  const woodIsFull: Condition = { kind: "full", resource: "wood" };
+
+  function woodStockedAt(stock: (game: Game) => number) {
+    const game = freshGame();
+    game.state.posting.resources.wood = stock(game);
+    return game;
+  }
+
+  test("is true when the stock is at the cap", () => {
+    const game = woodStockedAt((g) => g.economy.capOf("wood"));
+
+    expect(game.conditions.evaluate(woodIsFull, {})).toBe(true);
+  });
+
+  test("is false when the stock is below the cap", () => {
+    const game = woodStockedAt((g) => g.economy.capOf("wood") - 1);
+
+    expect(game.conditions.evaluate(woodIsFull, {})).toBe(false);
+  });
+
+  test("follows the cap when an upgrade raises it", () => {
+    const game = woodStockedAt((g) => g.economy.capOf("wood"));
+
+    grantUnlocks(game, ["store.woodshed1"]);
+
+    expect(game.conditions.evaluate(woodIsFull, {})).toBe(false);
+  });
+
+  test("a sell-when-full decree sells each tick's production and keeps the store from losing any", () => {
+    const game = woodStockedAt((g) => g.economy.capOf("wood"));
+    const cap = game.economy.capOf("wood");
+    setRoster(game, { forest: 2 });
+    enactOk(
+      game,
+      decreeOf("timber", "wood", [{ when: woodIsFull, policy: "sell" }]),
+    );
+    const tick = () => {
+      const { flows } = game.economy.run(contextFor(game));
+      game.decrees.run(contextFor(game), flows);
+      return flows.wood;
+    };
+
+    const first = tick();
+    const woodAfterFirst = game.state.posting.resources.wood;
+    const second = tick();
+
+    expect(woodAfterFirst).toBe(cap - first);
+    expect(game.state.posting.resources.wood).toBe(woodAfterFirst);
+    expect(game.state.posting.resources.coin).toBe(
+      (first + second) * game.economy.priceOf("wood"),
+    );
+  });
+
+  test("a sell-when-full decree leaves a store below its cap alone", () => {
+    const game = woodStockedAt((g) => g.economy.capOf("wood") / 2);
+    setRoster(game, { forest: 2 });
+    enactOk(
+      game,
+      decreeOf("timber", "wood", [{ when: woodIsFull, policy: "sell" }]),
+    );
+    const before = game.state.posting.resources.wood ?? 0;
+
+    const { flows } = game.economy.run(contextFor(game));
+    game.decrees.run(contextFor(game), flows);
+
+    expect(game.state.posting.resources.wood).toBe(before + flows.wood);
+    expect(game.state.posting.resources.coin).toBe(0);
+  });
+
+  test("needs no Archive entry beyond the decrees panel", () => {
+    const game = Game.create(1, tuning);
+
+    expect(() =>
+      game.decrees.enact(
+        decreeOf("timber", "wood", [{ when: woodIsFull, policy: "sell" }]),
+      ),
+    ).not.toThrow();
   });
 });

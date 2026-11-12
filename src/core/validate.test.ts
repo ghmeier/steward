@@ -276,6 +276,19 @@ describe("validateState", () => {
   test.each([
     ["a decree stored under its id", { "posting.decrees": { granary } }],
     [
+      "a decree that sells when a store is full",
+      {
+        "posting.decrees": {
+          granary: {
+            ...granary,
+            rules: [
+              { when: { kind: "full", resource: "grain" }, policy: "sell" },
+            ],
+          },
+        },
+      },
+    ],
+    [
       "a roster with gaps in the ids",
       {
         "posting.delegates": (l: unknown[]) => l.slice(1),

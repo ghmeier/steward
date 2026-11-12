@@ -81,6 +81,12 @@ describe("formatDecree", () => {
     expect(any).toContain(copy.decrees.anyOf({ conditions: parts }));
   });
 
+  test("a full condition reads as its resource is full", () => {
+    expect(formatCondition({ kind: "full", resource: "wood" })).toBe(
+      "wood is full",
+    );
+  });
+
   test("a compare condition shows its quantity, comparison and value, and a not condition wraps its inner one", () => {
     const compare: Condition = {
       kind: "compare",

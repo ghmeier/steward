@@ -189,6 +189,9 @@ function decreeLines(context: MenuContext): string[] {
     copy.help.decrees.exampleBothMatch,
     copy.help.decrees.exampleSwapped,
     "",
+    copy.help.decrees.fullExample,
+    copy.help.decrees.fullExampleActs,
+    "",
     copy.help.decrees.withdraw({
       key: keymap.panelHintKey("decrees", copy.keys.panelActions.repeal),
     }),

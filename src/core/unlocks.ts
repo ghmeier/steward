@@ -312,8 +312,12 @@ const simpleCondition: z.ZodType<Condition> = conditionSchema({
   maxConditionNodes: 8,
   maxConditionDepth: 3,
 }).superRefine((condition, ctx) => {
-  if (condition.kind !== "compare" && condition.kind !== "season") {
-    addIssue(ctx, "must be a compare or season condition");
+  if (
+    condition.kind !== "compare" &&
+    condition.kind !== "season" &&
+    condition.kind !== "full"
+  ) {
+    addIssue(ctx, "must be a compare, season or full condition");
   }
 });
 

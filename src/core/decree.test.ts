@@ -174,6 +174,14 @@ test("parseCondition reports problems under the caller's path", () => {
   expect(message).toStartWith("x.when");
 });
 
+test("parseCondition rejects a full condition on a resource that has no cap", () => {
+  const message = rejection(() =>
+    parseCondition({ kind: "full", resource: "coin" }, limits, "x.when"),
+  );
+
+  expect(message).toStartWith("x.when");
+});
+
 describe("orderDecrees", () => {
   // biome-ignore format: one row per line keeps the table scannable
   const orders: [string, Decree[], string[]][] = [

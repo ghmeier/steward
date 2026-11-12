@@ -6,6 +6,7 @@ import { NO_LABOR_POLICY } from "./labor";
 import { LaborSplit } from "./labor-split";
 import { type AddContext, add } from "./math";
 import {
+  type CappedResource,
   Job,
   RESOURCES,
   type Resource,
@@ -125,7 +126,7 @@ const CAP_MODIFIER = {
   grain: "grainCap",
   wood: "woodCap",
   ore: "oreCap",
-} as const;
+} as const satisfies Record<CappedResource, string>;
 
 const PRICE_KEY = {
   grain: "grainPrice",

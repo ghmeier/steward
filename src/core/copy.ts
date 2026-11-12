@@ -420,7 +420,7 @@ export const copy = {
       feedingThroughDecree:
         "Feeding happens through a harvest decree (see Harvest and labor).",
       storeCap: ({ cap }: { cap: string }) =>
-        `The granary holds ${cap} grain. Harvest past that is lost, so sell or feed the surplus; the Archive sells bigger stores.`,
+        `The granary holds ${cap} grain. Harvest past that is lost, so sell or feed the surplus, or let a decree act when the granary is full (grain is full); the Archive sells bigger stores.`,
     },
     coin: {
       steadySource: ({
@@ -445,7 +445,7 @@ export const copy = {
         `Foresters cut wood at ${rate} each.`,
       oreDug: ({ rate }: { rate: string }) => `Miners dig ore at ${rate} each.`,
       storeCap: ({ woodCap, oreCap }: { woodCap: string; oreCap: string }) =>
-        `The woodshed holds ${woodCap} wood and the ore store ${oreCap} ore. Whatever is cut or dug past that is lost; the Archive sells bigger stores.`,
+        `The woodshed holds ${woodCap} wood and the ore store ${oreCap} ore. Whatever is cut or dug past that is lost, so a decree can act when a store is full (wood is full, ore is full); the Archive sells bigger stores.`,
       woodPays: "Wood pays for some rulings and merchants' wares.",
       woodNoUse: "Wood has no use yet.",
       orePays: "Ore pays for some rulings and merchants' wares.",
@@ -478,6 +478,10 @@ export const copy = {
         "  At 3.5 seasons both rules match, and sell wins by coming first.",
       exampleSwapped:
         "  Swap them and feed catches everything above 2, so nothing is ever sold.",
+      fullExample:
+        "Example, a wood decree: decree wood sell when wood is full otherwise stockpile",
+      fullExampleActs:
+        "  A store that is full loses what it cannot hold, so this sells each tick's new wood instead. Grain, wood and ore each have a store, and a store's cap grows when you buy a bigger one, so is full needs no number.",
       withdraw: ({ key }: { key: string }) =>
         `To withdraw a decree, focus Decrees, select its petition and press ${key}.`,
       compound:
@@ -749,6 +753,7 @@ export const copy = {
       condition: "a condition",
       season: "a season",
       comparisonOrChose: "above, below or chose",
+      comparisonOrFullOrChose: "above, below, is full or chose",
       policyThatDecreeCanChoose: "a policy that decree can choose",
       joinPolicyOrOtherwise: "and, or, a policy or otherwise",
       policy: "a policy",
@@ -770,6 +775,8 @@ export const copy = {
       `"${rest}" does not belong after a complete command`,
     owedNeedsEntry: ({ label }: { label: string }) =>
       `owed quantities need "${label}" from the Archive`,
+    notStored: ({ quantity }: { quantity: string }) =>
+      `${quantity} is not stored, so it is never full; only grain, wood and ore have a cap`,
     notRepeated: "not cannot be repeated",
     tooManyRules: ({ maxRules }: { maxRules: string }) =>
       `a decree holds at most ${maxRules} rules`,
@@ -840,6 +847,7 @@ export const copy = {
       or: "any condition may hold",
       not: "the condition that follows is false",
       itIs: "the season",
+      isFull: "true when the store is at its cap",
       decree: "the decree to keep",
     },
     petitionHelp: {

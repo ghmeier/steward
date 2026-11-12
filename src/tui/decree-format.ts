@@ -15,6 +15,8 @@ export function formatCondition(condition: Condition): string {
       return `${words(condition.quantity)} ${condition.comparison} ${String(condition.value)}`;
     case "season":
       return `it is ${condition.season}`;
+    case "full":
+      return `${condition.resource} is full`;
     case "chose":
       return `${condition.decree} chose ${condition.policy}`;
     case "all":

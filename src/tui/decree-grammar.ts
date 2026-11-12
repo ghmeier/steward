@@ -13,7 +13,7 @@ import {
   QUANTITIES,
   type Quantity,
 } from "../core/decree";
-import { SEASONS } from "../core/realm";
+import { CAPPED_RESOURCES, SEASONS } from "../core/realm";
 import {
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
@@ -120,7 +120,7 @@ function parseBase(
     ).value;
     return { kind: "season", season };
   }
-  const verbs: Choice<"compare" | "chose">[] = [];
+  const verbs: Choice<"compare" | "chose" | "full">[] = [];
   if (subject.quantity !== null) {
     verbs.push(
       ...COMPARISONS.map((choice) => ({
@@ -128,6 +128,14 @@ function parseBase(
         value: "compare" as const,
       })),
     );
+  }
+  const capped = CAPPED_RESOURCES.find((value) => value === subject.quantity);
+  if (capped !== undefined) {
+    verbs.push({
+      text: "is full",
+      description: copy.commandLine.keywordHelp.isFull,
+      value: "full",
+    });
   }
   if (subject.id !== null) {
     verbs.push({
@@ -137,9 +145,20 @@ function parseBase(
     });
   }
   const next = cursor.expect(
-    copy.commandLine.expected.comparisonOrChose,
+    capped === undefined
+      ? copy.commandLine.expected.comparisonOrChose
+      : copy.commandLine.expected.comparisonOrFullOrChose,
     verbs,
+    {
+      unmatched: (word) =>
+        word === "is" && subject.quantity !== null && capped === undefined
+          ? copy.commandLine.notStored({ quantity: words(subject.quantity) })
+          : null,
+    },
   );
+  if (next.value === "full" && capped !== undefined) {
+    return { kind: "full", resource: capped };
+  }
   if (next.value === "compare" && subject.quantity !== null) {
     return {
       kind: "compare",
