@@ -35,7 +35,7 @@ describe("the Crown panel", () => {
     test("an open demand shows its whole herald, progress, time left, tally and the deliver hint", async () => {
       const frame = await drawPanels(
         [crownView({ demand, nextDemandTicks: null, met: 3, missed: 1 })],
-        { focus: "crown", size: { width: 160, height: 30 } },
+        { focus: "crown", size: { width: 240, height: 30 } },
       );
 
       expect(frame).toContain(demand.herald);

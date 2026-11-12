@@ -38,6 +38,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     amount: z.number(),
   }),
   z.strictObject({ type: z.literal("forge") }),
+  z.strictObject({ type: z.literal("forgeMissing") }),
   z.strictObject({ type: z.literal("back"), resource: z.enum(RESOURCES) }),
   z.strictObject({ type: z.literal("buyUnlock"), id: text }),
   z.strictObject({
@@ -115,6 +116,8 @@ export class CommandManager {
           return this.game.illusion.conjure(command.resource, command.amount);
         case "forge":
           return this.game.illusion.forge(context);
+        case "forgeMissing":
+          return this.game.illusion.forgeMissing(context);
         case "back":
           return this.game.illusion.back(command.resource, context);
         case "buyUnlock":

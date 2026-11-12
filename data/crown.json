@@ -30,7 +30,7 @@
     "missed": -15,
     "backed": 3,
     "deepened": -3,
-    "failed": -25,
+    "failed": -30,
     "cold": {
       "debtShareFactor": 0.7,
       "warningFactor": 0.5,
@@ -38,7 +38,8 @@
     },
     "warm": {
       "ceilingFactor": 1.3333333333333333,
-      "rewardFactor": 1.5
+      "rewardFactor": 1.5,
+      "auditGapTicks": 600
     }
   },
   "lines": {

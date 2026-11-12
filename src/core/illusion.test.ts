@@ -7,6 +7,7 @@ import {
   tuning,
 } from "../../test/helpers";
 import type { Command } from "./commands";
+import { copy } from "./copy";
 import { Game } from "./game";
 import { NO_AUDIT_TICK, NO_DEBT_TICK } from "./illusion";
 import type { Resource } from "./realm";
@@ -51,6 +52,17 @@ function conjured(game: Game, resource: string): number {
 
 function debt(game: Game, resource: string): number {
   return game.state.posting.illusion.debt[resource] ?? 0;
+}
+
+function principal(game: Game, resource: string): number {
+  return game.state.posting.illusion.principal[resource] ?? 0;
+}
+
+function owe(game: Game, resource: string, amount: number): void {
+  const { illusion } = game.state.posting;
+  illusion.debt[resource] = amount;
+  illusion.principal[resource] = amount;
+  illusion.debtSince = game.state.tick;
 }
 
 function step(game: Game, count = 1): void {
@@ -197,6 +209,21 @@ describe("conjuring", () => {
     expect(conjured(game, "coin")).toBe(0);
   });
 
+  test("conjuring returns a message naming the amount and who the illusion fools", () => {
+    const game = village();
+
+    const result = command(game, {
+      type: "conjure",
+      resource: "grain",
+      amount: 25,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: copy.illusion.conjureDone({ amount: "25", resource: "grain" }),
+    });
+  });
+
   test("ore, wood and non-positive amounts are refused", () => {
     const game = village();
     const attempts = [
@@ -329,12 +356,10 @@ describe("backing debt", () => {
 });
 
 describe("fading and interest", () => {
-  test("conjured stock fades and debt grows by the tuned fractions every tick without touching real stock or the random streams", () => {
+  test("conjured stock fades by the tuned fraction every tick without touching the random streams", () => {
     const game = village();
     const { illusion, rng } = game.state.posting;
     illusion.conjured.coin = 100;
-    illusion.debt.ore = 100;
-    illusion.debtSince = 1;
     const streams = structuredClone(rng);
     const ticks = 600;
 
@@ -344,12 +369,54 @@ describe("fading and interest", () => {
       100 * (1 - illusionTuning.fadePerTick) ** ticks,
       9,
     );
+    expect(rng).toEqual(streams);
+  });
+
+  test("interest grows debt by a share of the principal at a season end and not between", () => {
+    const game = village();
+    owe(game, "ore", 100);
+    const season = tuning.economy.ticksPerSeason;
+
+    game.state.tick = season - 1;
+    game.illusion.run();
+    const between = debt(game, "ore");
+    game.state.tick = season;
+    game.illusion.run();
+
+    expect(between).toBe(100);
     expect(debt(game, "ore")).toBeCloseTo(
-      100 * (1 + illusionTuning.interestPerTick) ** ticks,
+      100 * (1 + illusionTuning.interestPerSeason),
       9,
     );
-    expect(debt(game, "coin")).toBe(0);
-    expect(rng).toEqual(streams);
+  });
+
+  test("interest never compounds, so later seasons add the same amount", () => {
+    const game = village();
+    owe(game, "ore", 100);
+    const season = tuning.economy.ticksPerSeason;
+
+    for (const tick of [season, 2 * season, 3 * season]) {
+      game.state.tick = tick;
+      game.illusion.run();
+    }
+
+    expect(debt(game, "ore")).toBeCloseTo(
+      100 * (1 + 3 * illusionTuning.interestPerSeason),
+      9,
+    );
+    expect(principal(game, "ore")).toBe(100);
+  });
+
+  test("repaying takes the principal down first, so interest is charged only on what is still owed", () => {
+    const game = village();
+    owe(game, "coin", 100);
+    game.state.posting.illusion.debt.coin = 110;
+    stock(game, "coin", 60);
+
+    command(game, { type: "back", resource: "coin" });
+
+    expect(debt(game, "coin")).toBe(50);
+    expect(principal(game, "coin")).toBe(40);
   });
 
   test("a step fades conjured stock", () => {
@@ -448,8 +515,7 @@ describe("audits", () => {
   function indebted(coinValue: number, since = 1): Game {
     const game = village();
     game.state.tick = since;
-    game.state.posting.illusion.debt.coin = coinValue;
-    game.state.posting.illusion.debtSince = since;
+    owe(game, "coin", coinValue);
     return game;
   }
 
@@ -602,9 +668,9 @@ describe("audits", () => {
     expect(options?.[0]?.resources).toEqual({ coin: -100 });
   });
 
-  test("a deeper illusion costs real coin, multiplies every debt and restarts the debt's age, and cannot be paid with conjured coin", () => {
+  test("a deeper illusion costs real coin, adds a fee on the principal and restarts the debt's age, and cannot be paid with conjured coin", () => {
     const funded = indebted(100, 5);
-    funded.state.posting.illusion.debt.grain = 40;
+    owe(funded, "grain", 40);
     const value = funded.illusion.debtValue;
     stock(funded, "coin", 1000);
     funded.state.tick = 50;
@@ -620,8 +686,15 @@ describe("audits", () => {
       1000 - auditTuning.deepenCost * value,
       9,
     );
-    expect(debt(funded, "coin")).toBeCloseTo(100 * auditTuning.deepenGrowth, 9);
-    expect(debt(funded, "grain")).toBeCloseTo(40 * auditTuning.deepenGrowth, 9);
+    expect(debt(funded, "coin")).toBeCloseTo(
+      100 * (1 + auditTuning.deepenFee),
+      9,
+    );
+    expect(debt(funded, "grain")).toBeCloseTo(
+      40 * (1 + auditTuning.deepenFee),
+      9,
+    );
+    expect(principal(funded, "coin")).toBe(100);
     expect(funded.state.posting.illusion.debtSince).toBe(funded.state.tick);
     expect(funded.state.posting.illusion.audits.deepened).toBe(1);
     expect(refused.ok).toBe(false);
@@ -689,5 +762,154 @@ describe("audits", () => {
     ]);
     expect(disputes.map((entry) => entry.id)).toEqual([audit.id, 11, 12]);
     expect(game.desk.expired).toHaveLength(1);
+  });
+});
+
+describe("the gap between audits", () => {
+  const { audit: auditTuning } = illusionTuning;
+
+  function overdue(): Game {
+    const game = village();
+    game.state.tick = auditTuning.ageTicks + 1;
+    owe(game, "coin", 1);
+    game.state.posting.illusion.debtSince = 1;
+    return game;
+  }
+
+  function closedAgo(game: Game, ticks: number): void {
+    game.state.posting.illusion.lastAuditClosedAt = game.state.tick - ticks;
+  }
+
+  test("no audit is announced inside the minimum gap after the last one closed, and one is announced after it", () => {
+    const inside = overdue();
+    closedAgo(inside, auditTuning.minGapTicks - 1);
+    const outside = overdue();
+    closedAgo(outside, auditTuning.minGapTicks);
+
+    inside.illusion.run();
+    outside.illusion.run();
+
+    expect(inside.illusion.auditInTicks).toBeNull();
+    expect(outside.illusion.auditInTicks).not.toBeNull();
+  });
+
+  test("a warm crown lengthens the gap by its bonus", () => {
+    const warm = overdue();
+    warm.state.posting.crown.favor = crownTuning.favor.warmAbove + 1;
+    closedAgo(warm, auditTuning.minGapTicks);
+    const neutral = overdue();
+
+    expect(warm.illusion.auditGapTicks).toBe(
+      auditTuning.minGapTicks + crownTuning.favor.warm.auditGapTicks,
+    );
+    expect(neutral.illusion.auditGapTicks).toBe(auditTuning.minGapTicks);
+
+    warm.illusion.run();
+
+    expect(warm.illusion.auditInTicks).toBeNull();
+  });
+
+  test("settling an audit records when it closed", () => {
+    const game = overdue();
+    stock(game, "coin", 1000);
+
+    game.illusion.settleAudit("back", contextFor(game));
+
+    expect(game.state.posting.illusion.lastAuditClosedAt).toBe(game.state.tick);
+  });
+
+  test("forging one demand at population 20 brings at most one audit in four seasons", () => {
+    const game = village(20);
+    stock(game, "grain", 0);
+    openDemand(game, "grain", crownTuning.baseAmounts.grain);
+    command(game, { type: "forge" });
+    const forged = debt(game, "grain");
+    let announced = 0;
+    let waiting = false;
+
+    for (let i = 0; i < 4 * tuning.economy.ticksPerSeason; i++) {
+      step(game);
+      const { auditAt } = game.state.posting.illusion;
+      if (auditAt !== NO_AUDIT_TICK && !waiting) announced += 1;
+      waiting = auditAt !== NO_AUDIT_TICK;
+    }
+
+    expect(forged).toBeGreaterThan(0);
+    expect(announced).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("a failed audit", () => {
+  test("leaves the real grain the village needs for a season and takes the rest", () => {
+    const game = village();
+    owe(game, "grain", 10_000);
+    stock(game, "grain", 10_000);
+    stock(game, "coin", 50);
+    const reserve = game.crown.grainReserve;
+
+    game.illusion.failAudit(contextFor(game));
+
+    expect(reserve).toBeGreaterThan(0);
+    expect(game.state.posting.resources.grain).toBe(reserve);
+    expect(debt(game, "grain")).toBe(0);
+    expect(principal(game, "grain")).toBe(0);
+  });
+
+  test("takes all of a resource that has no reserve", () => {
+    const game = village();
+    owe(game, "coin", 100);
+    stock(game, "coin", 500);
+
+    game.illusion.failAudit(contextFor(game));
+
+    expect(game.state.posting.resources.coin).toBe(400);
+  });
+});
+
+describe("forging what is missing", () => {
+  test("delivers held stock above the reserve and forges only the remainder", () => {
+    const game = village();
+    const reserve = game.crown.grainReserve;
+    const held = reserve + 40;
+    stock(game, "grain", held);
+    openDemand(game, "grain", 100);
+
+    const result = command(game, { type: "forgeMissing" });
+
+    expect(result.ok).toBe(true);
+    expect(game.state.posting.resources.grain).toBe(reserve);
+    expect(debt(game, "grain")).toBe(60);
+    expect(game.state.posting.crown.met).toBe(1);
+  });
+
+  test("forges the whole demand when nothing is held", () => {
+    const game = village();
+    stock(game, "grain", 0);
+    openDemand(game, "grain", 100);
+
+    command(game, { type: "forgeMissing" });
+
+    expect(debt(game, "grain")).toBe(100);
+    expect(game.state.posting.crown.met).toBe(1);
+  });
+
+  test("forges nothing when the held stock already covers the demand", () => {
+    const game = village();
+    stock(game, "ore", 500);
+    openDemand(game, "ore", 100);
+
+    const result = command(game, { type: "forgeMissing" });
+
+    expect(result.ok).toBe(true);
+    expect(debt(game, "ore")).toBe(0);
+    expect(game.state.posting.crown.met).toBe(1);
+  });
+
+  test("is refused with no open demand", () => {
+    const game = village();
+
+    const result = command(game, { type: "forgeMissing" });
+
+    expect(result.ok).toBe(false);
   });
 });

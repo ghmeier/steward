@@ -319,8 +319,12 @@ function illusionLines({ tuning, view }: MenuContext): string[] {
     copy.help.illusion.fades({ fade: perSeason(illusion.fadePerTick, -1) }),
     "",
     copy.help.illusion.debt({
-      growth: perSeason(illusion.interestPerTick, 1),
+      interest: percent(illusion.interestPerSeason),
       forgeKey: keymap.panelHintKey("crown", copy.keys.panelActions.forge),
+      forgeMissingKey: keymap.panelHintKey(
+        "crown",
+        copy.keys.panelActions.forgeMissing,
+      ),
     }),
     copy.help.illusion.ceiling({
       ceiling: plain(illusion.ceilingPerPeasant),
@@ -340,12 +344,13 @@ function illusionLines({ tuning, view }: MenuContext): string[] {
     copy.help.illusion.auditors({
       debtShare: percent(audit.debtShare),
       seasons: plain(audit.ageTicks / season),
+      gap: plain(audit.minGapTicks / season),
       warning: seconds(audit.warningTicks, tuning),
       deadline: seconds(audit.deadlineTicks, tuning),
     }),
     copy.help.illusion.outcomes({
       cost: percent(audit.deepenCost),
-      growth: plain(audit.deepenGrowth),
+      fee: percent(audit.deepenFee),
     }),
     copy.help.illusion.deadlinePasses,
   ];

@@ -114,6 +114,7 @@ const favor = z
     warm: z.strictObject({
       ceilingFactor: positive,
       rewardFactor: positive,
+      auditGapTicks: nonNegative,
     }),
   })
   .superRefine((value, ctx) => {
@@ -198,6 +199,11 @@ export class CrownManager {
     return this.band === "warm" ? this.tuning.favor.warm.ceilingFactor : 1;
   }
 
+  /** Ticks a warm crown adds to the shortest gap between audits. */
+  get auditGapBonus(): number {
+    return this.band === "warm" ? this.tuning.favor.warm.auditGapTicks : 0;
+  }
+
   get rewardFactor(): number {
     return this.band === "warm" ? this.tuning.favor.warm.rewardFactor : 1;
   }
@@ -271,11 +277,15 @@ export class CrownManager {
    */
   private get available(): number {
     if (this.crown.demand.resource !== "grain") return this.held;
-    const reserve =
-      this.tuning.grainReserveSeasons *
-      this.game.economy.grainUpkeepPerSeason();
     const real = this.resources.grain ?? 0;
-    return this.held - Math.min(real, reserve);
+    return this.held - Math.min(real, this.grainReserve);
+  }
+
+  /** The real grain that neither the crown nor failed auditors may take, so the village can still eat. */
+  get grainReserve(): number {
+    return (
+      this.tuning.grainReserveSeasons * this.game.economy.grainUpkeepPerSeason()
+    );
   }
 
   private drawResource(): Resource {
