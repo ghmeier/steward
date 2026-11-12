@@ -594,26 +594,30 @@ export class LedgerPanel extends VillagePanel {
   }
 }
 
-/** The focusable panels in reading order, which is the order of the focus keys and of the rows in Help. */
-const PANELS = [
-  LedgerPanel,
-  PeasantsPanel,
-  ArchivePanel,
-  CourtPanel,
-  DecreesPanel,
-  CrownPanel,
-];
+/** The focusable panels keyed by id, so a missing or extra panel is a type error; key order is the reading order. */
+const PANELS = {
+  ledger: LedgerPanel,
+  peasants: PeasantsPanel,
+  archive: ArchivePanel,
+  court: CourtPanel,
+  decrees: DecreesPanel,
+  crown: CrownPanel,
+} satisfies Record<FocusId, { new (): VillagePanel; keys: PanelKeys }>;
 
 /** The village's panels, built once per app so each focusable one keeps its own selection. */
 export class Village {
-  readonly focusable = Object.fromEntries(
-    PANELS.map((panel) => [panel.keys.id, new panel()]),
-  ) as unknown as Record<FocusId, VillagePanel>;
-
-  get peasants(): PeasantsPanel {
-    return this.focusable.peasants as PeasantsPanel;
-  }
+  readonly peasants = new PeasantsPanel();
+  readonly focusable: Readonly<Record<FocusId, VillagePanel>> = {
+    ledger: new LedgerPanel(),
+    peasants: this.peasants,
+    archive: new ArchivePanel(),
+    court: new CourtPanel(),
+    decrees: new DecreesPanel(),
+    crown: new CrownPanel(),
+  };
 }
 
 /** Declared keys and hints are static, so the key tables are built once from the classes without constructing any panel. */
-export const keymap = new Keymap(PANELS.map((panel) => panel.keys));
+export const keymap = new Keymap(
+  Object.values(PANELS).map((panel) => panel.keys),
+);
