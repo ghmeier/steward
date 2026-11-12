@@ -1,11 +1,11 @@
 ---
 title: "Governors playtest: tech tree, illusion relief, pacing and polish"
 status: active
-last_pr: 38
+last_pr: 39
 tags: [playtest]
 created: 2026-11-12
 updated: 2026-11-12
-next_step: tech-tree-balance in refactor pass; then Garret plays it; command-line usability found in TUI check
+next_step: #39 (tech-tree-balance) open; Garret plays it; then handoff
 ---
 # Governors playtest: tech tree, illusion relief, pacing and polish
 
@@ -277,3 +277,4 @@ Objective: tune costs and thresholds so wood and ore are worth producing, and th
 - 2026-11-12: #38 merged. PR 7 `tech-tree-balance` dispatched.
 - 2026-11-12: `tech-tree-balance` built (2495e1b). The Archive opens above 66 grain, and the first birth comes at 1568 ticks. Tier-1 reveals moved to population 5 to 15, and 13 of 16 are seen before promotion. Caps are wood 200 and ore 100. Crown base amounts are coin 180, grain 400, wood 160; step is 0.15 and failed favor is back to -25. Honest play over 60000 ticks meets about 11 to 13 demands and misses 0 or 1. Crown scaling by population was prototyped and rejected, because it made governed demands unwinnable. The refactor also stops a help test from hard-coding the idle rate.
 - 2026-11-12: Usability issue found in the balance TUI check: entering the first decree by hand took about 3 minutes. The command line keeps its text after Escape, and the first Enter accepts a completion instead of issuing the command. This is a candidate for a follow-up.
+- 2026-11-12: `tech-tree-balance` opened as #39 (7f39a2f), 1260 tests.
