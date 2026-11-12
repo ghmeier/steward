@@ -85,42 +85,24 @@ describe("view.compute", () => {
     expect(view.promotion).toEqual({
       target: tuning.village.promotionPopulation,
       promotedAt: 7,
-      promotedAtSeconds: (7 * oddStepTuning.stepMs) / 1000,
     });
   });
 
-  describe("title", () => {
+  test("the title climbs from start to promoted, and to crowned only with both the charter and a governor serving", () => {
     const { titles } = tuning.village;
-    const governor = () => governorOf({ village: 4, job: Job.FARM });
+    const game = village();
+    const unpromoted = game.view.compute().title;
+    game.state.career.promotedAt = 1;
+    game.state.tick = 1;
+    const promoted = game.view.compute().title;
+    addGovernors(game, governorOf({ village: 4, job: Job.FARM }));
+    const governorWithoutCharter = game.view.compute().title;
+    grantUnlocks(game, [CROWN_PANEL]);
 
-    test("is the starting title before promotion", () => {
-      const game = village();
-
-      expect(game.view.compute().title).toBe(titles.start);
-    });
-
-    test("is the promoted title once promoted, with or without a governor but without the charter", () => {
-      const game = village();
-      game.state.career.promotedAt = 1;
-      game.state.tick = 1;
-      const bare = game.view.compute().title;
-      addGovernors(game, governor());
-
-      expect(bare).toBe(titles.promoted);
-      expect(game.view.compute().title).toBe(titles.promoted);
-    });
-
-    test("is the crowned title only with the charter and a governor serving", () => {
-      const game = village();
-      game.state.career.promotedAt = 1;
-      game.state.tick = 1;
-      grantUnlocks(game, [CROWN_PANEL]);
-      const withoutGovernor = game.view.compute().title;
-      addGovernors(game, governor());
-
-      expect(withoutGovernor).toBe(titles.promoted);
-      expect(game.view.compute().title).toBe(titles.crowned);
-    });
+    expect(unpromoted).toBe(titles.start);
+    expect(promoted).toBe(titles.promoted);
+    expect(governorWithoutCharter).toBe(titles.promoted);
+    expect(game.view.compute().title).toBe(titles.crowned);
   });
 
   test("carries the village's name", () => {

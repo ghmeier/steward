@@ -3,7 +3,6 @@ import { copy } from "../core/copy";
 import { errorMessage } from "../core/errors";
 import { Game } from "../core/game";
 import type { Tuning } from "../core/tuning";
-import { defaultVillageName } from "../core/village-name";
 import { loadGame, saveGame } from "../save/save";
 import { type LineState, lineKey, openLine, renderLine } from "./command-line";
 import { HelpPage } from "./help-menu";
@@ -109,6 +108,12 @@ export function startApp(options: {
     if (help !== null) return help.render(menuContext(), helpViewport());
     return menu === null ? null : renderMenu(menu, menuContext());
   };
+  const currentLine = () => {
+    if (namePrompt !== null) return renderNamePrompt(namePrompt);
+    return line === null
+      ? null
+      : renderLine(line, menuContext(), panels.lineSuggestionBudget);
+  };
   const redraw = () => {
     drawnMessage = message;
     const view = session.view();
@@ -119,13 +124,7 @@ export function startApp(options: {
       focus,
     });
     panels.showOverlay(currentOverlay());
-    panels.showLine(
-      namePrompt !== null
-        ? renderNamePrompt(namePrompt)
-        : line === null
-          ? null
-          : renderLine(line, menuContext(), panels.lineSuggestionBudget),
-    );
+    panels.showLine(currentLine());
     renderer.requestRender();
   };
 
@@ -204,7 +203,7 @@ export function startApp(options: {
       for (const command of result.commands) session.enqueue(command);
       if (result.requests.includes("newGame")) {
         const seed = options.newSeed();
-        namePrompt = { seed, text: defaultVillageName(seed, tuning) };
+        namePrompt = { seed, text: Game.defaultVillageName(seed, tuning) };
       }
       redraw();
       return;

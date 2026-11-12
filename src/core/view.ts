@@ -42,11 +42,10 @@ export type GameView = {
   formerGovernors: FormerGovernorView[];
   crown: CrownView | null;
   illusion: IllusionView | null;
-  /** What the village is called. */
   villageName: string;
   /** The steward's rank, which climbs with promotion and then with the crown's charter and a governor in service. */
   title: string;
-  promotion: { target: number; promotedAt: number; promotedAtSeconds: number };
+  promotion: { target: number; promotedAt: number };
   growth: { stored: number; needed: number; perSecond: number; full: boolean };
   /** Grain the peasants eat each second, whatever the harvest brings in. */
   grainEatenPerSecond: number;
@@ -133,7 +132,6 @@ export class ViewManager {
       promotion: {
         target: this.tuning.village.promotionPopulation,
         promotedAt: this.career.promotedAt,
-        promotedAtSeconds: (this.career.promotedAt * this.tuning.stepMs) / 1000,
       },
       growth: {
         stored: this.posting.economy.growth,

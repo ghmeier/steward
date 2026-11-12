@@ -117,7 +117,7 @@ export function emptyView(overrides: Partial<GameView> = {}): GameView {
     illusion: null,
     villageName: "Ashford",
     title: "Reeve",
-    promotion: { target: 20, promotedAt: 0, promotedAtSeconds: 0 },
+    promotion: { target: 20, promotedAt: 0 },
     growth: { stored: 0, needed: 25, perSecond: 0, full: false },
     grainEatenPerSecond: 0,
     lockedPanels: [],

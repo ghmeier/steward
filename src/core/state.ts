@@ -24,7 +24,6 @@ export type CareerState = {
 
 export type PostingState = {
   postingId: string;
-  /** What the village is called, chosen when it is founded. */
   name: string;
   seed: number;
   rng: Record<string, RngState>;

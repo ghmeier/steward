@@ -27,7 +27,6 @@ import {
   CROWN_PANEL,
   PALETTE_UNLOCK,
 } from "../core/unlocks";
-import { defaultVillageName } from "../core/village-name";
 import { stateHash } from "../save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../save/save";
 import { type App, prepareStartup, type Startup, startApp } from "./app";
@@ -727,37 +726,38 @@ describe("new village", () => {
     expect(barRow(await harness.screen())).toContain(copy.notices.saved);
   });
 
+  const eraseDefaultName = (harness: Harness) => {
+    for (const _ of Game.defaultVillageName(NEW_SEED, tuning)) {
+      harness.mockInput.pressBackspace();
+    }
+  };
+
   test("founding a village with a typed name saves that name", async () => {
     const harness = await launch();
     const typed = "Quillhaven";
-    const defaultName = defaultVillageName(NEW_SEED, tuning);
+    const defaultName = Game.defaultVillageName(NEW_SEED, tuning);
 
     await harness.mockInput.typeText("nj");
     harness.mockInput.pressEnter();
     const prompt = await harness.screen();
-    for (let i = 0; i < defaultName.length; i++) {
-      harness.mockInput.pressBackspace();
-    }
+    eraseDefaultName(harness);
     await harness.mockInput.typeText(typed);
     harness.mockInput.pressEnter();
 
     expect(prompt).toContain(defaultName);
     expect(savedState(harness).posting.name).toBe(typed);
     expect(await harness.screen()).toContain(
-      copy.ledger.title({ title: "Reeve", village: typed }),
+      copy.ledger.title({ title: tuning.village.titles.start, village: typed }),
     );
   });
 
   test("escape at the name prompt founds nothing, and an empty name is not accepted", async () => {
     const harness = await launch({ kittyKeyboard: true });
     const before = stateHash(harness.game.state);
-    const defaultName = defaultVillageName(NEW_SEED, tuning);
 
     await harness.mockInput.typeText("nj");
     harness.mockInput.pressEnter();
-    for (let i = 0; i < defaultName.length; i++) {
-      harness.mockInput.pressBackspace();
-    }
+    eraseDefaultName(harness);
     harness.mockInput.pressEnter();
     const stillAsking = await harness.screen();
     harness.mockInput.pressEscape();

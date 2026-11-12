@@ -21,7 +21,7 @@ import { formatDecree } from "./decree-format";
 import { parseDecreeVerb } from "./decree-grammar";
 import type { KeyPress } from "./keys";
 import { entryLabel, type MenuContext, type MenuRender } from "./menu";
-import { editedText } from "./text-edit";
+import { editedText, promptLine } from "./text-edit";
 
 export type LineState = { text: string; highlight: number };
 export type LineResult = {
@@ -431,7 +431,7 @@ export function renderLine(
     0,
     ...shown.map((suggestion) => suggestion.text.length),
   );
-  const lines = [`: ${state.text}_`];
+  const lines = [promptLine(state.text)];
   for (const [index, suggestion] of shown.entries()) {
     const marker = first + index === highlight ? ">" : " ";
     const description =

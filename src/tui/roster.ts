@@ -13,41 +13,39 @@ export class Roster {
     return [...this.view.governors, ...this.view.delegates];
   }
 
+  private static outputPhrase({
+    resource,
+    truth,
+    reportedPerSecond,
+  }: GovernorView): string {
+    if (resource === null) return copy.village.governorIdle;
+    if (truth === null) {
+      return copy.village.governorReports({
+        rate: formatAmount(reportedPerSecond),
+        resource,
+      });
+    }
+    const real = formatAmount(truth.realPerSecond);
+    return truth.gapPerSecond > 0
+      ? copy.village.governorBringsIn({
+          real,
+          resource,
+          gap: formatAmount(truth.gapPerSecond),
+        })
+      : copy.village.governorHonest({ real, resource });
+  }
+
   private static governorLines(
     governor: GovernorView,
     marker: string,
     width: number,
   ): string[] {
-    const { truth } = governor;
-    const { resource } = governor;
-    const output =
-      resource === null
-        ? [copy.village.governorIdle]
-        : truth === null
-          ? [
-              copy.village.governorReports({
-                rate: formatAmount(governor.reportedPerSecond),
-                resource,
-              }),
-            ]
-          : [
-              truth.gapPerSecond > 0
-                ? copy.village.governorBringsIn({
-                    real: formatAmount(truth.realPerSecond),
-                    resource,
-                    gap: formatAmount(truth.gapPerSecond),
-                  })
-                : copy.village.governorHonest({
-                    real: formatAmount(truth.realPerSecond),
-                    resource,
-                  }),
-            ];
     return wrapPhrases(
       [
         `${marker} ${governor.name}  ${governor.job}`,
         copy.village.governorVillage({ village: governor.village }),
         copy.governors.traitRowList({ traits: governor.traits }),
-        ...output,
+        Roster.outputPhrase(governor),
       ],
       width,
       2,

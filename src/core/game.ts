@@ -24,7 +24,6 @@ import type { Tuning } from "./tuning";
 import { UnlockManager } from "./unlocks";
 import { assertValidState } from "./validate";
 import { ViewManager } from "./view";
-import { defaultVillageName } from "./village-name";
 
 export class Game {
   readonly delegates: DelegateManager;
@@ -64,11 +63,17 @@ export class Game {
     this.view = new ViewManager(this);
   }
 
-  /** Starts a new game: seeds every random stream and gathers the initial village. A village founded without a name takes the default its seed picks. */
+  /** Picks from the seed rather than a random stream, so the same seed always founds the same village name. */
+  static defaultVillageName(seed: number, tuning: Tuning): string {
+    const { villageNames } = tuning.village;
+    return villageNames[seed % villageNames.length] as string;
+  }
+
+  /** Starts a new game: seeds every random stream and gathers the initial village. */
   static create(
     seed: number,
     tuning: Tuning,
-    name: string = defaultVillageName(seed, tuning),
+    name: string = Game.defaultVillageName(seed, tuning),
   ): Game {
     if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
       throw new RangeError(`seed must be a uint32, got ${seed}`);

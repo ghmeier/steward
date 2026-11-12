@@ -17,3 +17,7 @@ export function editedText(text: string, key: KeyPress): string | null {
   const character = typedCharacter(key);
   return character === null ? null : text + character;
 }
+
+export function promptLine(text: string): string {
+  return `: ${text}_`;
+}

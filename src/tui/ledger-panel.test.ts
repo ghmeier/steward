@@ -359,42 +359,30 @@ describe("the Ledger panel", () => {
   });
 
   test.each([
-    [
-      "before promotion",
-      { target: 20, promotedAt: 0, promotedAtSeconds: 0 },
-      "Reeve",
-      [copy.ledger.promotionProgress({ population: 14, target: 20 })],
-    ],
-    [
-      "after promotion",
-      { target: 20, promotedAt: 1200, promotedAtSeconds: 120 },
-      "Steward",
-      [],
-    ],
+    ["before promotion", 0, "Reeve", true],
+    ["after promotion", 1200, "Steward", false],
   ])(
-    "the ledger %s shows the title and village name and the promotion progress only before",
-    async (_name, promotion, title, progress) => {
+    "the ledger %s shows the title and village name, and the promotion progress only before",
+    async (_name, promotedAt, title, showsProgress) => {
       const view = emptyView({
-        promotion,
+        promotion: { target: 20, promotedAt },
         title,
         villageName: "Larkhill",
         realm: realmOf({ population: 14 }),
       });
-      const has = [
-        copy.ledger.title({ title, village: "Larkhill" }),
-        ...progress,
-      ];
-      const lacks =
-        progress.length === 0
-          ? [copy.ledger.promotionProgress({ population: 14, target: 20 })]
-          : [];
+      const progress = copy.ledger.promotionProgress({
+        population: 14,
+        target: 20,
+      });
 
       const frame = await drawPanels([view], {
         size: { width: 160, height: 30 },
       });
 
-      for (const shown of has) expect(frame).toContain(shown);
-      for (const gone of lacks) expect(frame).not.toContain(gone);
+      expect(frame).toContain(
+        copy.ledger.title({ title, village: "Larkhill" }),
+      );
+      expect(frame.includes(progress)).toBe(showsProgress);
     },
   );
 
