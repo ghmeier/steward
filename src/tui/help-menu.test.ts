@@ -109,12 +109,23 @@ const precisionSale = help.illusion.precision({
 const traitLine = (trait: Trait, figures: TraitFigures) =>
   `  ${capitalize(copy.governors.traitWords[trait])}: ${help.governors.trait[trait](figures)}`;
 const stepSeconds = (ticks: number) => `${ticks / 10} s`;
+const yearRoundFeeding = economy({
+  grainPerFarmer: 0.03,
+  grainPerPerson: 0.01,
+  seasonYield: { spring: 0.5, summer: 1, autumn: 0.5, winter: 0 },
+});
+const idleFeedingRate = `${plain(
+  (yearRoundFeeding.economy.grainPerPerson *
+    yearRoundFeeding.economy.idleGrainFactor *
+    1000) /
+    yearRoundFeeding.stepMs,
+)}/s`;
 
 // biome-ignore format: one row per line keeps the table scannable
 const rows: Row[] = [
 	{ name: "coin prices", topic: "coin", using: economy({ grainPrice: 0.25, woodPrice: 0.75, orePrice: 3 }), has: [help.coin.steadySource({ grainPrice: "0.25", woodPrice: "0.75", orePrice: "3" })] },
 	{ name: "feeding cost, population cap and season length", topic: "grain", using: economy({ grainPerPeasant: 45, maxPopulation: 77, ticksPerSeason: 1200, seasonYield: fertile }), has: [help.grain.newPeasants({ grain: "45" }), help.grain.populationCap({ maxPopulation: "77" }), help.grain.seasonLasts({ duration: stepSeconds(1200) })] },
-	{ name: "year-round average feeding", topic: "grain", using: economy({ grainPerFarmer: 0.03, grainPerPerson: 0.01, seasonYield: { spring: 0.5, summer: 1, autumn: 0.5, winter: 0 } }), has: [help.grain.peasantsEat({ rate: "0.1/s", idleRate: "0.04/s", feeds: "1.5" })] },
+	{ name: "year-round average feeding", topic: "grain", using: yearRoundFeeding, has: [help.grain.peasantsEat({ rate: "0.1/s", idleRate: idleFeedingRate, feeds: "1.5" })] },
 	{ name: "season of eating cost and famine length", topic: "grain", using: economy({ grainPerPerson: 0.02, ticksPerSeason: 500 }), has: [help.grain.noHarvestCost({ grain: "10" }), help.grain.famine({ duration: stepSeconds(500) })] },
 	{ name: "a barren season is named", topic: "grain", using: barren(0), has: [help.grain.seasonLastsWithBarren({ duration: stepSeconds(1200), seasons: "Autumn" })] },
 	{ name: "no barren season, no warning", topic: "grain", using: barren(1), has: [help.grain.seasonLasts({ duration: stepSeconds(1200) })] },
