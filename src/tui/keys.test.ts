@@ -4,17 +4,16 @@ import { copy } from "../core/copy";
 import { Job } from "../core/realm";
 import { ARCHIVE_PANEL, CONJURING, PALETTE_UNLOCK } from "../core/unlocks";
 import {
-  actionForKey,
   FocusRing,
   type KeyAction,
-  keyHints,
   type PeasantAction,
   peasantActionForKey,
 } from "./keys";
+import { keymap } from "./village-panels";
 
 const everything = [ARCHIVE_PANEL, PALETTE_UNLOCK, CONJURING];
 
-describe("actionForKey", () => {
+describe("Keymap.actionForKey", () => {
   const palette: KeyAction = { kind: "line", prefill: "" };
   // biome-ignore format: one case per line keeps the table scannable
   const cases: [
@@ -49,34 +48,34 @@ describe("actionForKey", () => {
 		["an inherited object property does nothing", key("constructor"), everything, null],
 	];
   test.each(cases)("%s", (_name, pressed, unlocks, expected) => {
-    expect(actionForKey(pressed, unlocks)).toEqual(expected);
+    expect(keymap.actionForKey(pressed, unlocks)).toEqual(expected);
   });
 
   test("mutating a returned action does not change later results", () => {
-    const first = actionForKey(key("p"), everything);
+    const first = keymap.actionForKey(key("p"), everything);
     if (first?.kind === "focus") first.panel = "court";
 
-    expect(actionForKey(key("p"), everything)).toEqual({
+    expect(keymap.actionForKey(key("p"), everything)).toEqual({
       kind: "focus",
       panel: "peasants",
     });
   });
 
   test("every key advertised in the global hints is bound", () => {
-    const advertised = keyHints(everything).flatMap((hint) =>
-      hint.keys.split("/"),
-    );
+    const advertised = keymap
+      .keyHints(everything)
+      .flatMap((hint) => hint.keys.split("/"));
 
     for (const name of advertised) {
-      expect(actionForKey(key(name), everything)).not.toBeNull();
+      expect(keymap.actionForKey(key(name), everything)).not.toBeNull();
     }
   });
 });
 
 describe("FocusRing", () => {
   test("the Ledger leads the reading order once conjuring is owned and is absent before", () => {
-    const owned = new FocusRing([CONJURING]);
-    const unowned = new FocusRing([]);
+    const owned = new FocusRing([CONJURING], keymap);
+    const unowned = new FocusRing([], keymap);
 
     expect(owned.target({ kind: "cycle", delta: 1 }, null)).toBe("ledger");
     expect(owned.target({ kind: "cycle", delta: 1 }, "ledger")).toBe(

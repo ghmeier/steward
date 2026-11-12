@@ -14,18 +14,9 @@ import {
 } from "../core/unlocks";
 import { describePolicy, percent, plain } from "./decree-format";
 import { capitalize } from "./format";
-import {
-  FOCUS_IDS,
-  type KeyPress,
-  keyFor,
-  keyHints,
-  panelHintKey,
-  panelKeyHints,
-  peasantKeyFor,
-  plainKeyName,
-} from "./keys";
+import { type KeyPress, peasantKeyFor, plainKeyName } from "./keys";
 import type { MenuContext, MenuRender } from "./menu";
-import type { PanelSize } from "./village-panels";
+import { keymap, type PanelSize } from "./village-panels";
 import { wrapLine } from "./wrap";
 
 function perSecond(perTick: number, tuning: Tuning): string {
@@ -52,10 +43,11 @@ function rulingsTouching(
 }
 
 function keysLines(context: MenuContext): string[] {
-  const hints = keyHints(context.view.unlocks);
-  const panelHints = FOCUS_IDS.map((id) => ({
+  const hints = keymap.keyHints(context.view.unlocks);
+  const panelHints = keymap.focusIds.map((id) => ({
     keys: copy.help.keys.panelRowLabel({ panel: capitalize(id) }),
-    label: panelKeyHints(id)
+    label: keymap
+      .panelKeyHints(id)
       .map((hint) => `${hint.keys} ${hint.label}`)
       .join(", "),
   }));
@@ -144,7 +136,10 @@ function coinLines(context: MenuContext): string[] {
     lines.push("", copy.help.coin.spentOn);
   }
   if (context.view.archive.open) {
-    lines.push("", copy.help.coin.archiveBuys({ key: keyFor("archive") }));
+    lines.push(
+      "",
+      copy.help.coin.archiveBuys({ key: keymap.keyFor("archive") }),
+    );
   }
   return lines;
 }
@@ -180,7 +175,7 @@ function decreeLines(context: MenuContext): string[] {
     copy.help.decrees.ruleOrder,
     copy.help.decrees.grainSeasonsMeaning,
     "",
-    copy.help.decrees.howToIssue({ key: keyFor("decrees") }),
+    copy.help.decrees.howToIssue({ key: keymap.keyFor("decrees") }),
     copy.help.decrees.harvestExample,
     copy.help.decrees.exampleAboveThree,
     copy.help.decrees.exampleBetween,
@@ -188,7 +183,7 @@ function decreeLines(context: MenuContext): string[] {
     copy.help.decrees.exampleSwapped,
     "",
     copy.help.decrees.withdraw({
-      key: panelHintKey("decrees", copy.keys.panelActions.repeal),
+      key: keymap.panelHintKey("decrees", copy.keys.panelActions.repeal),
     }),
     ...(owned.length === 0 ? [] : ["", ...owned]),
   ];
@@ -232,7 +227,7 @@ function deskLines(tuning: Tuning): string[] {
     copy.help.desk.merchantsAndTravellers,
     copy.help.desk.disputeDropped,
     "",
-    copy.help.desk.openDesk({ key: keyFor("court") }),
+    copy.help.desk.openDesk({ key: keymap.keyFor("court") }),
   ];
 }
 
@@ -262,7 +257,7 @@ function crownLines(tuning: Tuning): string[] {
       longestGap: seconds(maxTicks, tuning),
     }),
     "",
-    copy.help.crown.deliver({ key: keyFor("crown") }),
+    copy.help.crown.deliver({ key: keymap.keyFor("crown") }),
     copy.help.crown.reward({ reward: percent(crown.reward) }),
     copy.help.crown.collection,
     copy.help.crown.missAndStep({
@@ -313,13 +308,13 @@ function illusionLines({ tuning, view }: MenuContext): string[] {
   return [
     copy.help.illusion.teaches({ lot: plain(illusion.lot) }),
     "",
-    copy.help.illusion.conjure({ key: keyFor("ledger") }),
+    copy.help.illusion.conjure({ key: keymap.keyFor("ledger") }),
     copy.help.illusion.outsiders,
     copy.help.illusion.fades({ fade: perSeason(illusion.fadePerTick, -1) }),
     "",
     copy.help.illusion.debt({
       growth: perSeason(illusion.interestPerTick, 1),
-      forgeKey: panelHintKey("crown", copy.keys.panelActions.forge),
+      forgeKey: keymap.panelHintKey("crown", copy.keys.panelActions.forge),
     }),
     copy.help.illusion.ceiling({
       ceiling: plain(illusion.ceilingPerPeasant),
@@ -332,7 +327,7 @@ function illusionLines({ tuning, view }: MenuContext): string[] {
     }),
     "",
     copy.help.illusion.repay({
-      key: panelHintKey("ledger", copy.keys.panelActions.repay),
+      key: keymap.panelHintKey("ledger", copy.keys.panelActions.repay),
     }),
     ...debtPrecisionLines(tuning, view.unlocks),
     "",
@@ -373,12 +368,12 @@ function governorLines({ tuning, view }: MenuContext): string[] {
       largest: plain(governors.village.max),
     }),
     copy.help.governors.candidates({
-      key: keyFor("court"),
+      key: keymap.keyFor("court"),
       cheapest: plain(governors.price.min),
       dearest: plain(governors.price.max),
     }),
     copy.help.governors.assigning({
-      key: keyFor("peasants"),
+      key: keymap.keyFor("peasants"),
       farmKey: peasantKeyFor(Job.FARM),
       forestKey: peasantKeyFor(Job.FOREST),
       mineKey: peasantKeyFor(Job.MINE),

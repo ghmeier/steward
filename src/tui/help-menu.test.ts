@@ -18,7 +18,8 @@ import {
 import { describePolicy, plain } from "./decree-format";
 import { capitalize } from "./format";
 import type { HelpTopicId } from "./help-menu";
-import { keyFor, keyHints, peasantKeyFor } from "./keys";
+import { peasantKeyFor } from "./keys";
+import { keymap } from "./village-panels";
 
 const economy = (changes: Partial<Tuning["economy"]>): Tuning => ({
   ...tuning,
@@ -122,8 +123,8 @@ const rows: Row[] = [
 	{ name: "ore rulings", topic: "woodAndOre", using: rulingsWith({ ore: -1 }), has: [help.woodAndOre.orePays], lacks: [help.woodAndOre.oreNoUse] },
 	{ name: "coin rulings", topic: "coin", using: rulingsWith({ coin: -2 }), has: [help.coin.spentOn], lacks: [help.coin.merchantsPay] },
 	{ name: "coin fines", topic: "coin", using: rulingsWith({ coin: 2 }), has: [help.coin.merchantsPay], lacks: [help.coin.spentOn] },
-	{ name: "the Archive once open", topic: "coin", unlocks: [ARCHIVE_PANEL], has: [help.coin.archiveBuys({ key: keyFor("archive") })] },
-	{ name: "no Archive before it opens", topic: "coin", lacks: [help.coin.archiveBuys({ key: keyFor("archive") })] },
+	{ name: "the Archive once open", topic: "coin", unlocks: [ARCHIVE_PANEL], has: [help.coin.archiveBuys({ key: keymap.keyFor("archive") })] },
+	{ name: "no Archive before it opens", topic: "coin", lacks: [help.coin.archiveBuys({ key: keymap.keyFor("archive") })] },
 	{ name: "rough debt and the Archive's precision entries before they are bought", topic: "illusion", has: [help.illusion.roughDebt({ step: "10" }), precisionSale], lacks: [help.illusion.exactDebt] },
 	{ name: "exact books once owned, with true reports still on sale", topic: "illusion", unlocks: [EXACT_DEBT], has: [help.illusion.exactDebt], lacks: [help.illusion.roughDebt({ step: "10" })] },
 	{ name: "no precision sale once both entries are owned", topic: "illusion", unlocks: [EXACT_DEBT, TRUE_REPORTS], lacks: [precisionSale] },
@@ -133,7 +134,7 @@ const rows: Row[] = [
 	{ name: "saved decrees once owned", topic: "decrees", unlocks: [SAVED_DECREES_UNLOCK], has: [help.decrees.saved] },
 	{ name: "the lot, the ceiling and the fade read from tuning", topic: "illusion", using: illusion({ lot: 40, ceilingPerPeasant: 12, fadePerTick: 0.00115 }), has: [help.illusion.teaches({ lot: "40" }), help.illusion.ceiling({ ceiling: "12", grainAndWoodPrice: plain(tuning.economy.grainPrice), oreAndCoinPrice: plain(tuning.economy.orePrice) }), help.illusion.fades({ fade: "50%" })] },
 	{ name: "the audit timings and the deeper illusion read from tuning", topic: "illusion", using: illusion({ audit: { ...tuning.illusion.audit, debtShare: 0.4, ageTicks: 1200, warningTicks: 300, deadlineTicks: 600, deepenCost: 0.25, deepenGrowth: 2 } }), has: [help.illusion.auditors({ debtShare: "40%", seasons: "2", warning: "30 s", deadline: "60 s" }), help.illusion.outcomes({ cost: "25%", growth: "2" })] },
-	{ name: "the cap, village sizes and candidate prices read from tuning", topic: "governors", using: governors({ cap: 6, village: { min: 4, max: 12 }, price: { min: 30, max: 90 } }), has: [help.governors.what({ cap: "6", smallest: "4", largest: "12" }), help.governors.candidates({ key: keyFor("court"), cheapest: "30", dearest: "90" })] },
+	{ name: "the cap, village sizes and candidate prices read from tuning", topic: "governors", using: governors({ cap: 6, village: { min: 4, max: 12 }, price: { min: 30, max: 90 } }), has: [help.governors.what({ cap: "6", smallest: "4", largest: "12" }), help.governors.candidates({ key: keymap.keyFor("court"), cheapest: "30", dearest: "90" })] },
 	{ name: "each trait's factors and the empire-builder limit read from tuning", topic: "governors", using: governors({ empireBuilderLimit: 20, traits: { ...tuning.governors.traits, diligent: { output: 1.3, report: 1 }, braggart: { output: 1, report: 1.5 } } }), has: [traitLine("diligent", { outputChange: "30%", reportRise: "0%", limit: "20" }), traitLine("braggart", { outputChange: "0%", reportRise: "50%", limit: "20" }), traitLine("empire-builder", { outputChange: "0%", reportRise: "20%", limit: "20" })] },
 	{ name: "the term range and death chance read from tuning", topic: "governors", using: governors({ term: { minTicks: 600, maxTicks: 1200 }, deathPerMille: 50 }), has: [help.governors.terms({ shortest: stepSeconds(600), longest: stepSeconds(1200), death: "5%" }), help.governors.dismissal] },
 	{ name: "the true reports sale until it is owned", topic: "governors", has: [help.governors.reports.hidden({ label: archiveEntry(TRUE_REPORTS).label, cost: plain(archiveEntry(TRUE_REPORTS).cost) })], lacks: [help.governors.reports.shown] },
@@ -162,10 +163,10 @@ describe("help topics", () => {
           idleKey: peasantKeyFor(Job.IDLE),
         }),
       ],
-      ["desk", help.desk.openDesk({ key: keyFor("court") })],
-      ["crown", help.crown.deliver({ key: keyFor("crown") })],
-      ["decrees", help.decrees.howToIssue({ key: keyFor("decrees") })],
-      ["illusion", help.illusion.conjure({ key: keyFor("ledger") })],
+      ["desk", help.desk.openDesk({ key: keymap.keyFor("court") })],
+      ["crown", help.crown.deliver({ key: keymap.keyFor("crown") })],
+      ["decrees", help.decrees.howToIssue({ key: keymap.keyFor("decrees") })],
+      ["illusion", help.illusion.conjure({ key: keymap.keyFor("ledger") })],
     ] as const;
 
     for (const [topic, line] of named) {
@@ -178,7 +179,7 @@ describe("help topics", () => {
 
     const lines = topicLines("keys", tuning, owned);
 
-    const columns = keyHints(owned).map((hint) => {
+    const columns = keymap.keyHints(owned).map((hint) => {
       const row = lines.find((line) => line.startsWith(hint.keys));
       expect(row?.trimEnd().endsWith(hint.label)).toBe(true);
       return (row?.trimEnd().length ?? 0) - hint.label.length;
