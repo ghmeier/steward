@@ -1,11 +1,11 @@
 ---
 title: "Governors playtest: tech tree, illusion relief, pacing and polish"
 status: active
-last_pr: 33
+last_pr: 34
 tags: [playtest]
 created: 2026-11-12
 updated: 2026-11-12
-next_step: PR #31 (village-polish) open; others in refactor or implementation
+next_step: Wave 1 PRs #31-#34 open for review; tech-tree-foundation still in implementation
 ---
 # Governors playtest: tech tree, illusion relief, pacing and polish
 
@@ -254,3 +254,4 @@ Objective: tune costs and thresholds so wood and ore are worth producing, and th
 - 2026-11-12: `village-polish` opened as #31 after the refactor pass (dafb249). 1166 tests pass.
 - 2026-11-12: `pacing` opened as #32 (69829ba). The refactor removed the pass-through death-chance getter, so PR 6 adds the modifier where `deathPerMille` is read. Idle eaten now shows 0.04/s.
 - 2026-11-12: `court-missives` opened as #33 (97655b9). The golden file was stale on main since a53687c, because the update script grants every Archive entry, so it was regenerated here. Traveller text now reads correctly for one newcomer or several.
+- 2026-11-12: `illusion-relief` opened as #34 (21109c0). It adds `EconomyManager.seasonEnds`, used by governors too, so expect a small conflict with #32 at merge. The crown's `reservedOf(resource)` is now the single reserve rule.
