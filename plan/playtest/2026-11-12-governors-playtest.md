@@ -5,7 +5,7 @@ last_pr: 37
 tags: [playtest]
 created: 2026-11-12
 updated: 2026-11-12
-next_step: #37 (tech-tree-upgrades) open for review; then PR 7 balance and crown pressure
+next_step: decree-full-condition (is-full decree condition) in implementation as its own PR; then PR 7 balance
 ---
 # Governors playtest: tech tree, illusion relief, pacing and polish
 
@@ -272,3 +272,4 @@ Objective: tune costs and thresholds so wood and ore are worth producing, and th
 - 2026-11-12: #36 merged. `tech-tree-upgrades` was told to rebase onto main and target main.
 - 2026-11-12: `tech-tree-upgrades` built (517322d), 1252 tests. Base caps are grain 500, wood 300, ore 150; existing stock above a cap is kept, with no schema bump. 22 upgrades in three tiers. A farm-first village only reveals tier 1 after promotion, because its labor puts nobody on wood or ore. `lenders.favor` and `court.friends` reveal only once you borrow or are audited. In refactor.
 - 2026-11-12: `tech-tree-upgrades` opened as #37 (ed8207a), 1250 tests. Zod now rejects unknown modifiers, `uncappedContext` is a shared test helper, and the reachability test asserts that no tier-1 upgrade goes unseen.
+- 2026-11-12: #37 merged. Garret asked for a way to sell or feed when stores are full. A '<resource> is full' decree condition is in progress as its own PR, `decree-full-condition`.
