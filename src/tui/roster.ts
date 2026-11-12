@@ -45,7 +45,7 @@ export class Roster {
         copy.village.governorVillage({ village: governor.village }),
         copy.governors.traitRowList({ traits: governor.traits }),
         ...output,
-      ].filter((phrase) => phrase !== ""),
+      ],
       width,
       2,
     );

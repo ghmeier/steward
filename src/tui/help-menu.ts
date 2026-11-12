@@ -352,9 +352,10 @@ function illusionLines({ tuning, view }: MenuContext): string[] {
 function governorLines({ tuning, view }: MenuContext): string[] {
   const { governors } = tuning;
   const { reports } = copy.help.governors;
+  // The tuning schema requires every unlock named in code to be an Archive entry.
   const trueReports = tuning.archive.entries.find(
     ({ id }) => id === TRUE_REPORTS,
-  );
+  ) as ArchiveEntry;
   const traitLines = TRAITS.map((trait) => {
     const { output, report } = governors.traits[trait];
     const line = copy.help.governors.trait[trait]({
@@ -387,7 +388,7 @@ function governorLines({ tuning, view }: MenuContext): string[] {
     ...traitLines,
     "",
     reports.inflated,
-    view.unlocks.includes(TRUE_REPORTS) || trueReports === undefined
+    view.unlocks.includes(TRUE_REPORTS)
       ? reports.shown
       : reports.hidden({
           label: trueReports.label,

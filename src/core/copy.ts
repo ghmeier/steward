@@ -12,7 +12,6 @@ import type { Job, Trait } from "./realm";
  * so a rebinding never leaves a stale letter in a sentence.
  */
 
-// Adjectives, so a list of them reads in the sentences that describe a candidate as well as on a governor's row.
 /** The numbers a trait's help line quotes, each already formatted from tuning. */
 export type TraitFigures = {
   outputChange: string;
@@ -20,6 +19,7 @@ export type TraitFigures = {
   limit: string;
 };
 
+// Adjectives, so a list of them reads both in the sentences that describe a candidate and on a governor's row.
 const TRAIT_WORDS: Record<Trait, string> = {
   braggart: "boastful",
   diligent: "diligent",

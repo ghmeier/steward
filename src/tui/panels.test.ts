@@ -248,7 +248,7 @@ describe("createPanels", () => {
   describe("governors in the Peasants panel", () => {
     function governedVillage(): { view: GameView; names: string[] } {
       const game = Game.create(1, tuning);
-      setRoster(game, { idle: 20 });
+      setRoster(game, { idle: 12 });
       const governors = addGovernors(
         game,
         governorOf({ job: Job.MINE, traits: ["braggart"] }),
@@ -262,37 +262,28 @@ describe("createPanels", () => {
       };
     }
 
-    test("a selected governor stays on screen at the smallest terminal, below their heading", async () => {
+    test("governors sit under their heading above the peasants, and a selected governor stays on screen at the smallest terminal", async () => {
       const { view, names } = governedVillage();
 
-      const frame = await draw([view], {
+      const roomy = (
+        await draw([view], { size: { width: 160, height: 45 } })
+      ).split("\n");
+      const cramped = await draw([view], {
         focus: "peasants",
         size: { width: 80, height: 24 },
         selectedIndex: 3,
       });
 
-      const lines = frame.split("\n");
-      const selected = lines.findIndex((line) =>
-        line.includes(`> ${names[3]}`),
-      );
-      expect(selected).toBeGreaterThan(-1);
-      expect(frame).toContain("(P)easants");
-    });
-
-    test("the roster shows the governors heading above the first governor", async () => {
-      const { view, names } = governedVillage();
-
-      const frame = await draw([view], { size: { width: 160, height: 45 } });
-
-      const lines = frame.split("\n");
-      const heading = lines.findIndex((line) =>
+      const heading = roomy.findIndex((line) =>
         line.includes(copy.village.governorsHeading),
       );
-      const first = lines.findIndex((line) =>
+      const first = roomy.findIndex((line) =>
         line.includes(names[0] as string),
       );
       expect(heading).toBeGreaterThan(-1);
       expect(first).toBeGreaterThan(heading);
+      expect(cramped).toContain(`> ${names[3]}`);
+      expect(cramped).toContain("(P)easants");
     });
   });
 

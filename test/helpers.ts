@@ -183,15 +183,14 @@ export function rosterOf(counts: RosterCounts): Delegate[] {
 
 let governorCount = 0;
 
-/** A governor of the first of the village's names not used by `rosterOf`, so names stay unique alongside a small peasant roster, wrapping once every name has been used in one process. */
+/** A governor of the first of the village's names not used by `rosterOf`, so names stay unique alongside a small peasant roster, wrapping around once a process has used every name. */
 export function governorOf(fields: Partial<Governor> = {}): Governor {
   governorCount += 1;
   return {
     id: 1000 + governorCount,
-    name: villageJson.names[
-      (villageJson.names.length - (governorCount % villageJson.names.length)) %
-        villageJson.names.length
-    ] as string,
+    name: villageJson.names.at(
+      -(governorCount % villageJson.names.length),
+    ) as string,
     kind: "governor",
     job: Job.FARM,
     grudgeUntil: 0,
