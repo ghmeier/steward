@@ -302,6 +302,8 @@ export const copy = {
     free: "free",
     sulks: ({ sulker }: { sulker: string }) =>
       `(${sulker} will sulk for a season)`,
+    brings: ({ count }: { count: number }) =>
+      `(brings ${count} ${count === 1 ? "peasant" : "peasants"})`,
     defaultIfIgnored: "(the default if ignored)",
   },
   menus: {

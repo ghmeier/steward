@@ -5,6 +5,10 @@
     "maxTicks": 1800
   },
   "grudgeTicks": 600,
+  "scale": {
+    "perPopulation": 10,
+    "newcomersPer": 15
+  },
   "kinds": {
     "dispute": {
       "weight": 3,
@@ -180,6 +184,146 @@
           ],
           "expiry": "mend",
           "expired": "The fence was mended. {second}'s pigs have already noted the weak point."
+        },
+        {
+          "id": "well-bucket",
+          "text": "{first} says {second} draws water with a bucket twice the usual size, and that the well has noticed.",
+          "options": [
+            {
+              "id": "regulate",
+              "label": "Fix a bucket size and pay for the new rope",
+              "resources": {
+                "wood": -4
+              }
+            },
+            {
+              "id": "for-first",
+              "label": "Rule for {first} and have the bucket cut down",
+              "resources": {
+                "coin": -2
+              },
+              "grudge": "second"
+            },
+            {
+              "id": "for-second",
+              "label": "Rule that water is water",
+              "grudge": "first"
+            }
+          ],
+          "expiry": "regulate",
+          "expired": "A bucket size was fixed by decree. {second} found that two smaller buckets hold exactly as much, and {first} has taken it personally."
+        },
+        {
+          "id": "gleaning",
+          "text": "{first} says {second} gleaned the field before the reapers had finished. {second} says the reapers were slow.",
+          "options": [
+            {
+              "id": "share",
+              "label": "Hand {first} a sheaf from the stores to settle it",
+              "resources": {
+                "grain": -7
+              }
+            },
+            {
+              "id": "for-first",
+              "label": "Order {second} to return the gleanings, with a fine on top",
+              "resources": {
+                "coin": 4
+              },
+              "grudge": "second"
+            },
+            {
+              "id": "for-second",
+              "label": "Rule that grain on the ground belongs to the quick",
+              "grudge": "first"
+            }
+          ],
+          "expiry": "share",
+          "expired": "A sheaf changed hands from the stores. {first} thinks it was too small and {second} thinks it was too late."
+        },
+        {
+          "id": "alehouse-tab",
+          "text": "{first} owes {second} a long tab at the alehouse and has offered an opinion of the ale in place of coin.",
+          "options": [
+            {
+              "id": "settle-tab",
+              "label": "Pay the tab from the treasury and call it civic hospitality",
+              "resources": {
+                "coin": -6
+              }
+            },
+            {
+              "id": "for-first",
+              "label": "Tell {second} that an opinion is worth something",
+              "grudge": "second"
+            },
+            {
+              "id": "for-second",
+              "label": "Make {first} work off the tab, and take a small fee for the trouble",
+              "resources": {
+                "coin": 2
+              },
+              "grudge": "first"
+            }
+          ],
+          "expiry": "settle-tab",
+          "expired": "The treasury paid the tab. The alehouse has since named a stew after the steward."
+        },
+        {
+          "id": "woodpile",
+          "text": "{first} and {second} both say the woodpile between their houses is theirs, and each has been burning it.",
+          "options": [
+            {
+              "id": "buy-out",
+              "label": "Buy what is left for the village",
+              "resources": {
+                "coin": -6
+              }
+            },
+            {
+              "id": "for-first",
+              "label": "Give the pile to {first} and take a tithe of it",
+              "resources": {
+                "wood": 3
+              },
+              "grudge": "second"
+            },
+            {
+              "id": "for-second",
+              "label": "Give the pile to {second} and say nothing of the tithe",
+              "grudge": "first"
+            }
+          ],
+          "expiry": "buy-out",
+          "expired": "The village bought the remains of the woodpile. It was mostly ash, and nobody will say who held the match."
+        },
+        {
+          "id": "rooster",
+          "text": "{first} calls {second}'s rooster a menace. {second} calls it a clock.",
+          "options": [
+            {
+              "id": "pay-off",
+              "label": "Pay {first} to stop complaining",
+              "resources": {
+                "coin": -4
+              }
+            },
+            {
+              "id": "for-first",
+              "label": "Order the rooster penned, at {second}'s cost",
+              "resources": {
+                "coin": 3
+              },
+              "grudge": "second"
+            },
+            {
+              "id": "for-second",
+              "label": "Rule that dawn is not an offence",
+              "grudge": "first"
+            }
+          ],
+          "expiry": "pay-off",
+          "expired": "{first} was paid to stop complaining. The rooster, unpaid, did not."
         }
       ]
     },
@@ -269,6 +413,118 @@
           ],
           "expiry": "decline",
           "expired": "The cart rolled on. Somewhere down the road, a steward is being very pleasant to a grain factor."
+        },
+        {
+          "id": "cooper",
+          "text": "A cooper with a barrel order and no oak will pay a full coin for each piece of wood, and would rather not discuss the barrels.",
+          "options": [
+            {
+              "id": "sell-load",
+              "label": "Sell him fifteen wood",
+              "resources": {
+                "coin": 15,
+                "wood": -15
+              }
+            },
+            {
+              "id": "sell-some",
+              "label": "Sell him five wood",
+              "resources": {
+                "coin": 5,
+                "wood": -5
+              }
+            },
+            {
+              "id": "decline",
+              "label": "Tell him to cut his own oak"
+            }
+          ],
+          "expiry": "decline",
+          "expired": "The cooper looked at the forest, then at the steward, and went to look at someone else's forest."
+        },
+        {
+          "id": "baker",
+          "text": "A baker from the market town needs grain for a wedding and has more coin than patience.",
+          "options": [
+            {
+              "id": "sell-sacks",
+              "label": "Sell him thirty grain",
+              "resources": {
+                "coin": 12,
+                "grain": -30
+              }
+            },
+            {
+              "id": "sell-sack",
+              "label": "Sell him fifteen grain",
+              "resources": {
+                "coin": 6,
+                "grain": -15
+              }
+            },
+            {
+              "id": "decline",
+              "label": "Say the stores are not for weddings"
+            }
+          ],
+          "expiry": "decline",
+          "expired": "The baker found grain elsewhere. The wedding went ahead and the bread was reported to be adequate."
+        },
+        {
+          "id": "pedlar",
+          "text": "A pedlar has a sack of ore that he swears fell off nothing in particular, and will part with it cheaply.",
+          "options": [
+            {
+              "id": "buy-sack",
+              "label": "Buy the sack: twelve ore",
+              "resources": {
+                "coin": -10,
+                "ore": 12
+              }
+            },
+            {
+              "id": "buy-half",
+              "label": "Buy half the sack: six ore",
+              "resources": {
+                "coin": -5,
+                "ore": 6
+              }
+            },
+            {
+              "id": "decline",
+              "label": "Ask where it fell from"
+            }
+          ],
+          "expiry": "decline",
+          "expired": "The pedlar shouldered his sack and left, muttering about stewards and their suspicions."
+        },
+        {
+          "id": "charcoal-burner",
+          "text": "A charcoal burner has run out of cordwood and will trade ore for it, without explaining what he intends to do with so much wood.",
+          "options": [
+            {
+              "id": "swap-load",
+              "label": "Swap twenty wood for eight ore",
+              "resources": {
+                "wood": -20,
+                "ore": 8
+              }
+            },
+            {
+              "id": "swap-some",
+              "label": "Swap ten wood for four ore",
+              "resources": {
+                "wood": -10,
+                "ore": 4
+              }
+            },
+            {
+              "id": "decline",
+              "label": "Keep the wood"
+            }
+          ],
+          "expiry": "decline",
+          "expired": "The charcoal burner left, black to the elbows and unbothered."
         }
       ]
     },
@@ -277,11 +533,11 @@
       "templates": [
         {
           "id": "stranger",
-          "text": "A stranger with a bedroll and no references asks to settle. She says she is good with her hands, and has not said which hands.",
+          "text": "A stranger with a bedroll and no references asks to settle, along with whoever is trailing behind. She says they are all good with their hands, and has not said which hands.",
           "options": [
             {
               "id": "admit",
-              "label": "Let her settle, and feed her first",
+              "label": "Let them settle, and feed them first",
               "resources": {
                 "grain": -25
               },
@@ -289,19 +545,19 @@
             },
             {
               "id": "turn-away",
-              "label": "Send her on her way"
+              "label": "Send them on their way"
             }
           ],
           "expiry": "turn-away",
-          "expired": "The stranger walked on, still unreferenced, still good with her hands."
+          "expired": "The stranger's party walked on, still unreferenced, still good with their hands."
         },
         {
           "id": "cartwright",
-          "text": "A cartwright says the last village was full, loudly and with some bitterness. He will farm for his keep if the first meal is on you.",
+          "text": "A cartwright says the last village was full, loudly and with some bitterness. He and anyone travelling with him will farm for their keep if the first meal is on you.",
           "options": [
             {
               "id": "admit",
-              "label": "Admit him and cover the first meal",
+              "label": "Admit them and cover the first meal",
               "resources": {
                 "grain": -30
               },
@@ -309,11 +565,71 @@
             },
             {
               "id": "turn-away",
-              "label": "Wish him luck at the next village"
+              "label": "Wish them luck at the next village"
             }
           ],
           "expiry": "turn-away",
-          "expired": "The cartwright shouldered his tools and went to find a village that was not full."
+          "expired": "The cartwright shouldered his tools, gathered whoever had come with him, and went to find a village that was not full."
+        },
+        {
+          "id": "pilgrim",
+          "text": "A pilgrim on her way to a shrine two provinces off asks for beds for herself and any fellow pilgrims. She has been on her way for six years.",
+          "options": [
+            {
+              "id": "admit",
+              "label": "Give them beds and a first meal",
+              "resources": {
+                "grain": -20
+              },
+              "newcomer": true
+            },
+            {
+              "id": "turn-away",
+              "label": "Point them toward the shrine"
+            }
+          ],
+          "expiry": "turn-away",
+          "expired": "The pilgrim thanked the village on behalf of all present and continued toward a shrine she would likely never reach."
+        },
+        {
+          "id": "tinker",
+          "text": "A tinker's wagon has lost a wheel and the tinker has lost the will to mend it. He, and whoever rides with him, would sooner mend your tools than their own.",
+          "options": [
+            {
+              "id": "admit",
+              "label": "Take them on and feed them while they work",
+              "resources": {
+                "grain": -28
+              },
+              "newcomer": true
+            },
+            {
+              "id": "turn-away",
+              "label": "Lend them a wheel and send them on"
+            }
+          ],
+          "expiry": "turn-away",
+          "expired": "The tinker patched the wagon with optimism and left. The wheel was seen on the road a mile on."
+        },
+        {
+          "id": "widow",
+          "text": "A widow with a handcart, a good deal of opinion and no remaining family asks if the village has a corner for her and any stragglers she has collected on the road.",
+          "options": [
+            {
+              "id": "admit",
+              "label": "Make room and cover their first meals",
+              "resources": {
+                "grain": -26
+              },
+              "newcomer": true
+            },
+            {
+              "id": "turn-away",
+              "label": "Say the village has no corner to spare"
+            }
+          ],
+          "expiry": "turn-away",
+          "expired": "The widow looked at the village, then at the steward, and made it clear which had disappointed her more."
         }
       ]
     },
@@ -401,6 +717,198 @@
             }
           ],
           "expired": "The examiner broke the seal himself, took what was behind it, and was not pleased by the rest."
+        }
+      ]
+    },
+    "petition": {
+      "weight": 2,
+      "unlock": "court.petitions",
+      "templates": [
+        {
+          "id": "cousin",
+          "text": "{first} asks leave to send for a cousin, who is said to be hardworking and, at worst, hungry.",
+          "options": [
+            {
+              "id": "send-for",
+              "label": "Send for the cousin and feed the journey",
+              "resources": {
+                "grain": -22
+              },
+              "newcomer": true
+            },
+            {
+              "id": "token",
+              "label": "Send a sack of grain for the cousin's trouble",
+              "resources": {
+                "grain": -3
+              }
+            },
+            {
+              "id": "refuse",
+              "label": "Tell {first} the village is full enough",
+              "grudge": "first"
+            }
+          ],
+          "expiry": "token",
+          "expired": "A sack of grain went to the cousin, who has since decided that the journey was not necessary."
+        },
+        {
+          "id": "thatch",
+          "text": "{first}'s roof has opened to the weather, and {first} asks for wood and the loan of a hand to put it right.",
+          "options": [
+            {
+              "id": "mend",
+              "label": "Send the wood and a hand, to be repaid in labor",
+              "resources": {
+                "wood": -8,
+                "grain": 6
+              }
+            },
+            {
+              "id": "token",
+              "label": "Send a few bundles of thatch and your sympathy",
+              "resources": {
+                "wood": -2
+              }
+            },
+            {
+              "id": "refuse",
+              "label": "Tell {first} that rain is good for the crops",
+              "grudge": "first"
+            }
+          ],
+          "expiry": "token",
+          "expired": "A few bundles of thatch arrived. {first} has made a bucket of the largest hole."
+        },
+        {
+          "id": "seed-loan",
+          "text": "{first} asks for coin to buy better seed, and promises to repay it at harvest with something over.",
+          "options": [
+            {
+              "id": "lend",
+              "label": "Lend the coin and wait for the harvest",
+              "resources": {
+                "coin": -6,
+                "grain": 14
+              }
+            },
+            {
+              "id": "token",
+              "label": "Lend a few coins, to be paid back in due course",
+              "resources": {
+                "coin": -2
+              }
+            },
+            {
+              "id": "refuse",
+              "label": "Tell {first} that seed is seed",
+              "grudge": "first"
+            }
+          ],
+          "expiry": "token",
+          "expired": "A few coins went out. {first} bought what seed it could and has not been seen near the treasury since."
+        },
+        {
+          "id": "feast",
+          "text": "{first} asks for grain for a name-day feast, and says the whole village will remember who made it possible.",
+          "options": [
+            {
+              "id": "feast",
+              "label": "Fund the feast and let the village remember",
+              "resources": {
+                "grain": -14,
+                "coin": 3
+              }
+            },
+            {
+              "id": "token",
+              "label": "Send a sack and a good wish",
+              "resources": {
+                "grain": -3
+              }
+            },
+            {
+              "id": "refuse",
+              "label": "Tell {first} that memory is not a harvest",
+              "grudge": "first"
+            }
+          ],
+          "expiry": "token",
+          "expired": "A sack and a good wish went out. The feast was small, and {first} will say so for some time."
+        }
+      ]
+    },
+    "omen": {
+      "weight": 1,
+      "unlock": "court.omens",
+      "templates": [
+        {
+          "id": "shoulder-bone",
+          "text": "A traveller who reads the shoulder-bones of sheep predicts a lean season, and would like to be thanked in advance.",
+          "options": [
+            {
+              "id": "reroof",
+              "label": "Pay for a granary roof against the damp",
+              "resources": {
+                "wood": -10,
+                "grain": 20
+              }
+            },
+            {
+              "id": "hoard",
+              "label": "Buy in an extra sack before prices rise",
+              "resources": {
+                "coin": -8,
+                "grain": 18
+              }
+            },
+            {
+              "id": "ignore",
+              "label": "Thank him and ignore him"
+            }
+          ],
+          "expiry": "ignore",
+          "expired": "The traveller left, offended, with his sheep. No one in the village mentions what the winter was like."
+        },
+        {
+          "id": "geese",
+          "text": "A drover says the geese flew south a month early and that, in his experience, geese are never wrong about winter.",
+          "options": [
+            {
+              "id": "reroof",
+              "label": "Patch the granary roof and stack the grain higher",
+              "resources": {
+                "wood": -12,
+                "grain": 24
+              }
+            },
+            {
+              "id": "ignore",
+              "label": "Say geese are cheap and so is advice"
+            }
+          ],
+          "expiry": "ignore",
+          "expired": "The drover drove on. The geese, wherever they were, were seen to be right."
+        },
+        {
+          "id": "moss",
+          "text": "A wandering friar reads the moss on the north walls and says the coming year will be a hungry one, and that he is sorry about it.",
+          "options": [
+            {
+              "id": "reroof",
+              "label": "Mend the granary roof and seal the bins",
+              "resources": {
+                "wood": -9,
+                "grain": 18
+              }
+            },
+            {
+              "id": "ignore",
+              "label": "Tell him to save his moss for the abbey"
+            }
+          ],
+          "expiry": "ignore",
+          "expired": "The friar blessed the village and left it to the moss."
         }
       ]
     }

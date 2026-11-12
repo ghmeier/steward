@@ -25,6 +25,9 @@ function optionLabel(option: DeskOptionView): string {
     ...(option.sulker === null
       ? []
       : [copy.court.sulks({ sulker: option.sulker })]),
+    ...(option.newcomers === 0
+      ? []
+      : [copy.court.brings({ count: option.newcomers })]),
     ...(option.expiry ? [copy.court.defaultIfIgnored] : []),
   ];
   return [`${option.label}: ${costText(option)}`, ...notes].join(" ");

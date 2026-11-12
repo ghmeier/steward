@@ -4,6 +4,7 @@ import { normalizeZero } from "./math";
 import { RESOURCES } from "./realm";
 import {
   name,
+  positive,
   positiveInteger,
   repeatIssues,
   textWithPlaceholders,
@@ -21,7 +22,9 @@ const optionResources = z
   })
   .exactOptional();
 
-const PARTY_PLACEHOLDERS = ["first", "second"];
+/** A desk entry's parties fill these placeholders in order. */
+export const PARTY_PLACEHOLDERS = ["first", "second"];
+const PETITIONER_PLACEHOLDERS = ["first"];
 const CANDIDATE_PLACEHOLDERS = ["name", "village", "price", "job", "traits"];
 const NO_PLACEHOLDERS: string[] = [];
 
@@ -39,9 +42,15 @@ const disputeOption = deskOption(PARTY_PLACEHOLDERS).extend({
 
 const merchantOption = deskOption(NO_PLACEHOLDERS);
 
-const travellerOption = merchantOption.extend({
-  newcomer: z.literal(true).exactOptional(),
+const newcomer = z.literal(true).exactOptional();
+
+// A petition names one peasant, so only the first party can sulk.
+const petitionOption = deskOption(PETITIONER_PLACEHOLDERS).extend({
+  grudge: z.literal("first").exactOptional(),
+  newcomer,
 });
+
+const travellerOption = merchantOption.extend({ newcomer });
 
 const computedCostOption = <Id extends string>(
   id: Id,
@@ -110,12 +119,18 @@ function deskTemplate(
     });
 }
 
+const kindGate = {
+  weight: positiveInteger,
+  // A kind with an unlock is only drawn once the player owns that unlock.
+  unlock: name.exactOptional(),
+};
+
 function deskKind(
   option: z.ZodType<DeskOption>,
   placeholders: readonly string[],
 ) {
   return z.strictObject({
-    weight: positiveInteger,
+    ...kindGate,
     templates: z
       .array(deskTemplate(option, placeholders))
       .min(1)
@@ -148,7 +163,7 @@ const candidateTemplate = z.strictObject({
 });
 
 const candidateKind = z.strictObject({
-  weight: positiveInteger,
+  ...kindGate,
   templates: z
     .array(candidateTemplate)
     .min(1)
@@ -178,10 +193,18 @@ export const deskTuningSchema = z.strictObject({
   slots: positiveInteger,
   arrival: tickRange,
   grudgeTicks: positiveInteger,
+  scale: z.strictObject({
+    /** Option amounts are multiplied by the realm's population over this, and never by less than one. */
+    perPopulation: positive,
+    /** A traveller brings one newcomer for each this many people in the realm, rounded up. */
+    newcomersPer: positive,
+  }),
   kinds: z.strictObject({
     dispute: deskKind(disputeOption, PARTY_PLACEHOLDERS),
     merchant: deskKind(merchantOption, NO_PLACEHOLDERS),
     traveller: deskKind(travellerOption, NO_PLACEHOLDERS),
+    petition: deskKind(petitionOption, PETITIONER_PLACEHOLDERS),
+    omen: deskKind(merchantOption, NO_PLACEHOLDERS),
     candidate: candidateKind,
     audit: auditKind,
   }),

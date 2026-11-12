@@ -2,20 +2,33 @@ import { z } from "zod";
 import type { CommandResult } from "./commands";
 import { copy } from "./copy";
 import { sortedKeys } from "./data";
-import type { DeskOption, DeskTemplate, DeskTuning } from "./desk-tuning";
+import {
+  type DeskOption,
+  type DeskTemplate,
+  type DeskTuning,
+  PARTY_PLACEHOLDERS,
+} from "./desk-tuning";
 import type { Game } from "./game";
 import type { CandidateDetails } from "./governors";
 import type { AddContext } from "./math";
 import { add } from "./math";
-import { type Resource, WORKING_JOBS } from "./realm";
+import { WORKING_JOBS } from "./realm";
 import { drawDelay, intBelow, type RngState } from "./rng";
-import { ascendingIdIssues, count, positiveCount, traitList } from "./schema";
+import {
+  ascendingIdIssues,
+  count,
+  positive,
+  positiveCount,
+  traitList,
+} from "./schema";
 
 /** A record keyed by kind is in this order, so the weighted draw walks the kinds in a fixed order. */
 export const DRAWN_KINDS = [
   "candidate",
   "dispute",
   "merchant",
+  "omen",
+  "petition",
   "traveller",
 ] as const;
 export type DrawnKind = (typeof DRAWN_KINDS)[number];
@@ -30,19 +43,39 @@ type EntryBase = {
   arrivedAt: number;
 };
 
-export type Dispute = EntryBase & {
+type ScaledBase = EntryBase & {
+  /** Option amounts are multiplied by this when the entry arrives, and it is kept so the numbers shown stay the numbers applied. */
+  scale?: number;
+};
+
+export type Dispute = ScaledBase & {
   kind: "dispute";
   parties: [number, number];
 };
 
-export type Offer = EntryBase & { kind: "merchant" | "traveller" };
+/** A peasant asking the steward for something; the petitioner is its only party, so it fills and sulks like a dispute. */
+export type Petition = ScaledBase & { kind: "petition"; parties: [number] };
+
+export type Offer = ScaledBase & { kind: "merchant" | "omen" };
+
+export type Traveller = ScaledBase & {
+  kind: "traveller";
+  /** Absent on travellers saved before arrivals scaled, which brought one. */
+  newcomers?: number;
+};
 
 /** A governor asking to be hired; what they offer is stored here so it survives a save. */
 export type Candidate = EntryBase & { kind: "candidate" } & CandidateDetails;
 
 export type Audit = EntryBase & { kind: "audit"; dueAt: number };
 
-export type DeskEntry = Dispute | Offer | Candidate | Audit;
+export type DeskEntry =
+  | Dispute
+  | Petition
+  | Offer
+  | Traveller
+  | Candidate
+  | Audit;
 
 /** The option that hires a candidate; the template schema requires it. */
 export const HIRE = "hire";
@@ -60,15 +93,27 @@ const deskEntryBase = {
   arrivedAt: count,
 };
 
+const scaledEntryBase = { ...deskEntryBase, scale: positive.exactOptional() };
+
 const deskEntry = z.discriminatedUnion("kind", [
   z.strictObject({
-    ...deskEntryBase,
+    ...scaledEntryBase,
     kind: z.literal("dispute"),
     parties: z.tuple([positiveCount, positiveCount]),
   }),
   z.strictObject({
-    ...deskEntryBase,
-    kind: z.enum(DRAWN_KINDS).exclude(["dispute", "candidate"]),
+    ...scaledEntryBase,
+    kind: z.literal("petition"),
+    parties: z.tuple([positiveCount]),
+  }),
+  z.strictObject({
+    ...scaledEntryBase,
+    kind: z.enum(["merchant", "omen"]),
+  }),
+  z.strictObject({
+    ...scaledEntryBase,
+    kind: z.literal("traveller"),
+    newcomers: positiveCount.exactOptional(),
   }),
   z.strictObject({
     ...deskEntryBase,
@@ -117,6 +162,8 @@ export type DeskOptionView = {
   expiry: boolean;
   /** Resource deltas, keys sorted. */
   resources: Record<string, number>;
+  /** How many peasants choosing the option adds; zero when it adds none. */
+  newcomers: number;
   sulker: string | null;
 };
 export type DeskEntryView = {
@@ -179,6 +226,8 @@ export class DeskManager {
           affordable: this.shortfall(entry, option) === null,
           expiry: option.id === template.expiry,
           resources: this.sortedDeltas(entry, option),
+          newcomers:
+            option.newcomer === undefined ? 0 : this.newcomersOf(entry),
           sulker: this.sulker(entry, option),
         })),
       };
@@ -223,7 +272,12 @@ export class DeskManager {
     return peasant.name;
   }
 
-  /** Fills a template's placeholders from the entry: the parties of a dispute or the details of a candidate. */
+  /** The peasants an entry names, in placeholder order: a dispute's two parties or a petition's petitioner. */
+  partiesOf(entry: DeskEntry): readonly number[] {
+    return "parties" in entry ? entry.parties : [];
+  }
+
+  /** Fills a template's placeholders from the entry: the parties it names or the details of a candidate. */
   fill(entry: DeskEntry, text: string): string {
     if (entry.kind === "candidate") {
       return text
@@ -236,11 +290,11 @@ export class DeskManager {
           copy.governors.traitList({ traits: entry.traits }),
         );
     }
-    if (entry.kind !== "dispute") return text;
-    const [first, second] = entry.parties;
-    return text
-      .replaceAll("{first}", this.nameOf(first))
-      .replaceAll("{second}", this.nameOf(second));
+    return this.partiesOf(entry).reduce(
+      (filled, party, index) =>
+        filled.replaceAll(`{${PARTY_PLACEHOLDERS[index]}}`, this.nameOf(party)),
+      text,
+    );
   }
 
   /** What choosing the option adds and removes; an audit's is worked out from the books and a hire's from the entry, not the template. */
@@ -249,7 +303,24 @@ export class DeskManager {
     if (entry.kind === "candidate") {
       return option.id === HIRE ? { coin: -entry.price } : {};
     }
-    return option.resources ?? {};
+    const scale = entry.scale ?? 1;
+    return Object.fromEntries(
+      Object.entries(option.resources ?? {}).map(([resource, amount]) => [
+        resource,
+        Math.round(amount * scale),
+      ]),
+    );
+  }
+
+  private newcomersOf(entry: DeskEntry): number {
+    return entry.kind === "traveller" ? (entry.newcomers ?? 1) : 1;
+  }
+
+  private admitNewcomers(entry: DeskEntry): void {
+    for (let i = 0; i < this.newcomersOf(entry); i++) {
+      if (!this.game.economy.hasRoom) return;
+      this.game.economy.admitNewcomer();
+    }
   }
 
   get hasAudit(): boolean {
@@ -290,13 +361,14 @@ export class DeskManager {
   }
 
   private applyResources(
+    entry: DeskEntry,
     option: DeskOption,
     context: AddContext,
     clampLosses: boolean,
   ): void {
-    const resources = option.resources ?? {};
+    const resources = this.deltasOf(entry, option);
     for (const resource of sortedKeys(resources)) {
-      let delta = resources[resource as Resource] ?? 0;
+      let delta = resources[resource] ?? 0;
       if (clampLosses) {
         delta = Math.max(delta, -this.game.illusion.apparent(resource));
       }
@@ -309,8 +381,8 @@ export class DeskManager {
   }
 
   private grudgedParty(entry: DeskEntry, option: DeskOption): number | null {
-    if (option.grudge === undefined || entry.kind !== "dispute") return null;
-    return entry.parties[option.grudge === "first" ? 0 : 1];
+    if (option.grudge === undefined) return null;
+    return this.partiesOf(entry)[option.grudge === "first" ? 0 : 1] ?? null;
   }
 
   sulker(entry: DeskEntry, option: DeskOption): string | null {
@@ -378,15 +450,19 @@ export class DeskManager {
     } else if (entry.kind === "candidate") {
       if (option.id === HIRE) this.game.governors.hire(entry, context);
     } else {
-      this.applyResources(option, context, false);
+      this.applyResources(entry, option, context, false);
     }
     this.applyGrudge(entry, option);
-    if (option.newcomer !== undefined) this.game.economy.admitNewcomer();
+    if (option.newcomer !== undefined) this.admitNewcomers(entry);
     entries.splice(index, 1);
     return { ok: true };
   }
 
   private isEligible(kind: DrawnKind): boolean {
+    const { unlock } = this.tuning.desk.kinds[kind];
+    if (unlock !== undefined && !this.game.unlocks.enabled(unlock)) {
+      return false;
+    }
     switch (kind) {
       case "candidate":
         return this.game.governors.canOffer;
@@ -394,9 +470,18 @@ export class DeskManager {
         return this.game.delegates.peasants.length >= 2;
       case "traveller":
         return this.game.economy.hasRoom;
+      case "petition":
+        return this.game.delegates.peasants.length >= 1;
       case "merchant":
+      case "omen":
         return true;
     }
+  }
+
+  /** Grows with the realm so a reward or a price keeps pace with what the village earns; never below the written amount. */
+  private get scale(): number {
+    const { perPopulation } = this.tuning.desk.scale;
+    return Math.max(1, this.game.delegates.population / perPopulation);
   }
 
   private drawKind(): DrawnKind {
@@ -411,6 +496,15 @@ export class DeskManager {
       if (roll < 0) return kind;
     }
     throw new Error("desk kind draw landed outside its range");
+  }
+
+  private drawPetitioner(): [number] {
+    const peasants = this.game.delegates.peasants;
+    const drawn = peasants[intBelow(this.stream, peasants.length)];
+    if (drawn === undefined) {
+      throw new Error("petitioner draw landed outside its range");
+    }
+    return [drawn.id];
   }
 
   private drawParties(): [number, number] {
@@ -439,9 +533,13 @@ export class DeskManager {
       template: template.id,
       arrivedAt: this.state.tick,
     };
+    const scaled = { ...base, scale: this.scale };
     switch (kind) {
       case "dispute":
-        desk.disputes.push({ ...base, kind, parties: this.drawParties() });
+        desk.disputes.push({ ...scaled, kind, parties: this.drawParties() });
+        break;
+      case "petition":
+        desk.disputes.push({ ...scaled, kind, parties: this.drawPetitioner() });
         break;
       case "candidate":
         desk.disputes.push({
@@ -451,8 +549,18 @@ export class DeskManager {
         });
         break;
       case "merchant":
+      case "omen":
+        desk.disputes.push({ ...scaled, kind });
+        break;
       case "traveller":
-        desk.disputes.push({ ...base, kind });
+        desk.disputes.push({
+          ...scaled,
+          kind,
+          newcomers: Math.ceil(
+            this.game.delegates.population /
+              this.tuning.desk.scale.newcomersPer,
+          ),
+        });
         break;
     }
     desk.nextDisputeId += 1;
@@ -486,7 +594,7 @@ export class DeskManager {
     } else {
       const option = this.optionOf(template, template.expiry ?? "");
       if (option === undefined) throw new Error("expiry option is missing");
-      this.applyResources(option, context, true);
+      this.applyResources(entry, option, context, true);
     }
     this.expiredThisStep.push(this.fill(entry, template.expired));
   }
@@ -494,10 +602,8 @@ export class DeskManager {
   private dropStaleDisputes(): void {
     const { desk, delegates } = this.posting;
     const living = new Set(delegates.map((delegate) => delegate.id));
-    desk.disputes = desk.disputes.filter(
-      (entry) =>
-        entry.kind !== "dispute" ||
-        entry.parties.every((party) => living.has(party)),
+    desk.disputes = desk.disputes.filter((entry) =>
+      this.partiesOf(entry).every((party) => living.has(party)),
     );
   }
 

@@ -135,10 +135,13 @@ function rosterIssues(posting: PostingState, ctx: z.RefinementCtx): void {
 
   const living = new Set(posting.delegates.map(({ id }) => id));
   for (const [index, entry] of posting.desk.disputes.entries()) {
-    if (entry.kind !== "dispute") continue;
-    const [first, second] = entry.parties;
-    if (first === second || !living.has(first) || !living.has(second)) {
-      addIssue(ctx, "must be two distinct peasants in the roster", [
+    if (!("parties" in entry)) continue;
+    const { parties } = entry;
+    if (
+      new Set(parties).size !== parties.length ||
+      !parties.every((party) => living.has(party))
+    ) {
+      addIssue(ctx, "must be distinct peasants in the roster", [
         "desk",
         "disputes",
         index,
