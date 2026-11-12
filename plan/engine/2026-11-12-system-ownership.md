@@ -124,7 +124,7 @@ Acceptance: `bun run check` passes with no test behavior changes.
 
 ## Progress
 
-- PR 5 `decree-grammar`: built at 090c5ee, 1143 pass, golden unchanged. `command-line.ts` 1015 to 464 lines; the grammar is in `decree-grammar.ts` and the parsing cursor in `command-cursor.ts` (keeping it in `command-line.ts` would have made an import cycle); `entryLabel` moved to `menu.ts`. Decree tests stay in `command-line.test.ts` because they share tables with other verbs. Refactor pass running.
+- PR 5 `decree-grammar`: built at 090c5ee, 1143 pass, golden unchanged. `command-line.ts` 1015 to 464 lines; the grammar is in `decree-grammar.ts` and the parsing cursor in `command-cursor.ts` (keeping it in `command-line.ts` would have made an import cycle); `entryLabel` moved to `menu.ts`. Decree tests stay in `command-line.test.ts` because they share tables with other verbs. #26 open at 090c5ee; the refactor pass found nothing to change. Module-level helpers in `decree-grammar.ts` were left as they were to keep the move pure.
 - PR 4 `notice-list`: built at 784ad64, 1144 pass, golden unchanged. `src/tui/notices.ts` holds the `Notice` type and the ordered list; promotion moved to `promotion-notice.ts`; crown and audit notices now take the whole view. Notices are unit-tested only; the manual run only confirmed the TUI boots. Refactor pass running.
 
 ## Notes and decisions
