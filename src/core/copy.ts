@@ -50,6 +50,8 @@ export const copy = {
       `the village holds no ${resource}`,
   },
   illusion: {
+    conjureDone: ({ amount, resource }: { amount: string; resource: string }) =>
+      `You conjure ${amount} ${resource}. It will fool the crown, the Archive and the Court, not the peasants.`,
     cannotConjureYet: "you cannot conjure yet",
     cannotBeConjured: ({ resource }: { resource: string }) =>
       `${resource} cannot be conjured`,
@@ -191,7 +193,8 @@ export const copy = {
   },
   ledger: {
     time: ({ time }: { time: string }) => `Time  ${time}`,
-    conjured: ({ amount }: { amount: string }) => `(${amount} conjured)`,
+    conjured: ({ amount }: { amount: string }) =>
+      `(+${amount} conjured, fading)`,
     eaten: ({ rate }: { rate: string }) => `(${rate}/s eaten)`,
     titleLabel: "Title",
     title: ({ title, village }: { title: string; village: string }) =>
@@ -552,8 +555,16 @@ export const copy = {
         "Only outsiders accept it: the crown, merchants and the Archive. Peasants cannot eat it and decrees cannot sell it. A payment uses conjured stock first, then real stock.",
       fades: ({ fade }: { fade: string }) =>
         `It fades, by about ${fade} a season.`,
-      debt: ({ growth, forgeKey }: { growth: string; forgeKey: string }) =>
-        `Whatever is passed off to an outsider becomes debt, and debt grows by about ${growth} a season. Press ${forgeKey} in the Crown panel to forge a report: it marks what is still owed as delivered, in any resource, and the forged amount becomes debt. The command line takes forge.`,
+      debt: ({
+        interest,
+        forgeKey,
+        forgeMissingKey,
+      }: {
+        interest: string;
+        forgeKey: string;
+        forgeMissingKey: string;
+      }) =>
+        `Whatever is passed off to an outsider becomes debt, and each season the debt grows by ${interest} of what was passed off, never more. Press ${forgeKey} in the Crown panel to forge a report: it marks what is still owed as delivered, in any resource, and the forged amount becomes debt. Press ${forgeMissingKey} to deliver what the stores hold first and forge only the rest. The command line takes forge and forge missing.`,
       ceiling: ({
         ceiling,
         grainAndWoodPrice,
@@ -587,19 +598,21 @@ export const copy = {
       auditors: ({
         debtShare,
         seasons,
+        gap,
         warning,
         deadline,
       }: {
         debtShare: string;
         seasons: string;
+        gap: string;
         warning: string;
         deadline: string;
       }) =>
-        `Auditors are sent when debt reaches ${debtShare} of the ceiling, or when any debt is ${seasons} seasons old. They arrive ${warning} after the warning and wait ${deadline} on the desk.`,
-      outcomes: ({ cost, growth }: { cost: string; growth: string }) =>
-        `The desk offers three outcomes: back the debt from real stock, a deeper illusion that costs real coin worth ${cost} of the debt and multiplies it by ${growth}, or let the deadline pass.`,
+        `Auditors are sent when debt reaches ${debtShare} of the ceiling, or when any debt is ${seasons} seasons old, but never within ${gap} seasons of the last audit. They arrive ${warning} after the warning and wait ${deadline} on the desk.`,
+      outcomes: ({ cost, fee }: { cost: string; fee: string }) =>
+        `The desk offers three outcomes: back the debt from real stock, a deeper illusion that costs real coin worth ${cost} of the debt and adds ${fee} of what was passed off to the debt, or let the deadline pass.`,
       deadlinePasses:
-        "If the deadline passes, the auditors seize real stock toward the debt and the debt is cleared. If the stores cannot cover it, the crown counts a missed demand.",
+        "If the deadline passes, the auditors seize real stock toward the debt and the debt is cleared; they leave the grain the village needs for a season. If the stores cannot cover it, the crown counts a missed demand.",
     },
     governors: {
       what: ({
@@ -696,6 +709,7 @@ export const copy = {
       repeal: "repeal",
       deliver: "deliver",
       forge: "forge",
+      forgeMissing: "forge missing",
       back: "back",
     },
     barHints: "(?)Help (N)ew village (Q)uit",
@@ -788,6 +802,7 @@ export const copy = {
       assign: "give a peasant a job",
       deliver: "hand the crown what it demands from the stores",
       conjure: "add stock that does not exist, grain or coin only",
+      forgeMissing: "deliver what the stores hold, then forge the rest",
       forge: "report the open crown demand as delivered, on paper",
       back: "repay one resource's debt from real stock",
     },

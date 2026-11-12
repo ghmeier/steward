@@ -135,6 +135,14 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
       loadTuning(),
     );
   },
+  // Interest is now charged on principal, so existing debt is treated as all principal. No audit
+  // has closed yet, so none is held back by the minimum gap.
+  15: (state) => {
+    if (!isRecord(state.posting) || !isRecord(state.posting.illusion)) return;
+    const { illusion } = state.posting;
+    illusion.principal = isRecord(illusion.debt) ? { ...illusion.debt } : {};
+    illusion.lastAuditClosedAt = 0;
+  },
 };
 
 function upgrade(record: Record<string, unknown>): void {

@@ -2,14 +2,15 @@
   "lot": 25,
   "ceilingPerPeasant": 40,
   "fadePerTick": 0.00115,
-  "interestPerTick": 0.00016,
+  "interestPerSeason": 0.05,
   "audit": {
     "debtShare": 0.5,
     "ageTicks": 2400,
+    "minGapTicks": 1200,
     "warningTicks": 600,
     "deadlineTicks": 900,
     "deepenCost": 0.2,
-    "deepenGrowth": 1.5
+    "deepenFee": 0.1
   },
   "books": { "strained": 0.33, "rotten": 0.66 }
 }

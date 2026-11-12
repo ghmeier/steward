@@ -114,6 +114,7 @@ const favor = z
     warm: z.strictObject({
       ceilingFactor: positive,
       rewardFactor: positive,
+      auditGapTicks: nonNegative,
     }),
   })
   .superRefine((value, ctx) => {
@@ -198,6 +199,10 @@ export class CrownManager {
     return this.band === "warm" ? this.tuning.favor.warm.ceilingFactor : 1;
   }
 
+  get auditGapBonus(): number {
+    return this.band === "warm" ? this.tuning.favor.warm.auditGapTicks : 0;
+  }
+
   get rewardFactor(): number {
     return this.band === "warm" ? this.tuning.favor.warm.rewardFactor : 1;
   }
@@ -270,12 +275,19 @@ export class CrownManager {
    * Only real grain is protected; conjured grain is not food, so it can always be handed over.
    */
   private get available(): number {
-    if (this.crown.demand.resource !== "grain") return this.held;
-    const reserve =
-      this.tuning.grainReserveSeasons *
-      this.game.economy.grainUpkeepPerSeason();
-    const real = this.resources.grain ?? 0;
-    return this.held - Math.min(real, reserve);
+    return this.held - this.reservedOf(this.crown.demand.resource);
+  }
+
+  /** The real stock of a resource that neither the crown nor failed auditors may take, so the village can still eat. */
+  reservedOf(resource: ResourceId): number {
+    if (resource !== "grain") return 0;
+    return Math.min(this.resources.grain ?? 0, this.grainReserve);
+  }
+
+  get grainReserve(): number {
+    return (
+      this.tuning.grainReserveSeasons * this.game.economy.grainUpkeepPerSeason()
+    );
   }
 
   private drawResource(): Resource {

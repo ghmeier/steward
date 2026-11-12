@@ -469,3 +469,31 @@ describe("version 14 upgrade", () => {
     expect(second.posting.name).toBe(first.posting.name);
   });
 });
+
+describe("version 15 upgrade", () => {
+  test("a version 15 save treats its existing debt as principal and has no closed audit", () => {
+    const game = Game.create(42, loadTuning());
+    game.state.posting.illusion.debt = { coin: 0, grain: 40, ore: 0, wood: 7 };
+    game.state.tick = 5;
+    game.state.posting.illusion.debtSince = 1;
+    const state = structuredClone(game.state) as unknown as {
+      posting: { illusion: Record<string, unknown> };
+    };
+    const {
+      principal: _,
+      lastAuditClosedAt: __,
+      ...illusion
+    } = state.posting.illusion;
+    writeSave(15, {
+      ...state,
+      schemaVersion: 15,
+      posting: { ...state.posting, illusion },
+    });
+
+    const { illusion: upgraded } = loaded(dir).posting;
+
+    expect(upgraded.principal).toEqual(upgraded.debt);
+    expect(upgraded.principal.grain).toBe(40);
+    expect(upgraded.lastAuditClosedAt).toBe(0);
+  });
+});

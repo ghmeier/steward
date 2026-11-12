@@ -344,6 +344,7 @@ export class CrownPanel extends VillagePanel {
     hints: [
       { keys: "enter", label: copy.keys.panelActions.deliver },
       { keys: "f", label: copy.keys.panelActions.forge },
+      { keys: "F", label: copy.keys.panelActions.forgeMissing },
       { keys: "esc", label: copy.keys.panelActions.back },
     ],
   };
@@ -397,6 +398,7 @@ export class CrownPanel extends VillagePanel {
     if (name === "return" || name === "enter")
       return step([{ type: "deliver" }]);
     if (name === "f") return step([{ type: "forge" }]);
+    if (name === "F") return step([{ type: "forgeMissing" }]);
     return null;
   }
 }

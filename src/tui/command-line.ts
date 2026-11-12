@@ -306,6 +306,13 @@ const VERBS: readonly Verb[] = [
     parse: () => ({ type: "forge" }),
   },
   {
+    word: "forge missing",
+    bare: true,
+    description: copy.commandLine.verbHelp.forgeMissing,
+    ...conjuringVerb("forge missing"),
+    parse: () => ({ type: "forgeMissing" }),
+  },
+  {
     word: "back",
     description: copy.commandLine.verbHelp.back,
     ...conjuringVerb("back"),

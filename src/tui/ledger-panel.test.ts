@@ -130,7 +130,9 @@ describe("the Ledger panel", () => {
         })),
       });
 
-      const frame = await drawPanels([conjuredView("strained")]);
+      const frame = await drawPanels([conjuredView("strained")], {
+        size: { width: 160, height: 30 },
+      });
       const plainFrame = await drawPanels([before]);
 
       expect(frame).toContain(formatAmount(grain));
