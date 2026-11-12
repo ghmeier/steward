@@ -1,6 +1,6 @@
 import { copy } from "../core/copy";
+import type { IllusionView } from "../core/illusion";
 import type { Tuning } from "../core/tuning";
-import type { IllusionView } from "../core/view";
 import { formatTicksRoughly } from "./format";
 
 /**

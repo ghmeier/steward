@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { tuning } from "../../test/helpers";
 import { copy } from "../core/copy";
-import type { CrownDemandView, CrownView } from "../core/view";
+import type { CrownDemandView, CrownView } from "../core/crown";
 import { crownNotice } from "./crown-notices";
 
 const { lines } = tuning.crown;

@@ -1,7 +1,7 @@
 import { copy } from "../core/copy";
+import type { CrownView } from "../core/crown";
 import type { Resource } from "../core/realm";
 import type { Tuning } from "../core/tuning";
-import type { CrownView } from "../core/view";
 import { plain } from "./decree-format";
 
 /**

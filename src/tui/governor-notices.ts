@@ -1,5 +1,6 @@
 import { copy } from "../core/copy";
-import type { FormerGovernorView, GameView } from "../core/view";
+import type { FormerGovernorView } from "../core/governors";
+import type { GameView } from "../core/view";
 import { formatAmount } from "./format";
 
 function departureLine(departure: FormerGovernorView): string {

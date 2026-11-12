@@ -1,21 +1,14 @@
-import type { FavorBand } from "./crown";
+import type { CrownView } from "./crown";
 import { compareKeys, sortedKeys } from "./data";
 import type { Decree } from "./decree";
-import type { DeskKind } from "./desk";
+import type { DeskEntryView } from "./desk";
 import type { Game } from "./game";
-import type { DepartureReason } from "./governors";
-import type { Books, DebtLine } from "./illusion";
-import {
-  type Job,
-  RESOURCES,
-  type Resource,
-  type Season,
-  type Trait,
-} from "./realm";
+import type { FormerGovernorView, GovernorView } from "./governors";
+import type { IllusionView } from "./illusion";
+import { type Job, RESOURCES, type Season } from "./realm";
 import type { ResourceId } from "./state";
 import {
   ARCHIVE_PANEL,
-  CONJURING,
   CROWN_PANEL,
   TRUE_REPORTS,
   type UnlockId,
@@ -29,41 +22,6 @@ export type LedgerLine = {
   conjured: number;
   ratePerSecond: number;
 };
-export type DeskOptionView = {
-  id: string;
-  label: string;
-  affordable: boolean;
-  expiry: boolean;
-  /** Resource deltas, keys sorted. */
-  resources: Record<string, number>;
-  sulker: string | null;
-};
-export type DeskEntryView = {
-  id: number;
-  kind: DeskKind;
-  label: string;
-  /** Ticks until the entry expires on its own deadline; null for an entry that has none. */
-  ticksLeft: number | null;
-  options: DeskOptionView[];
-};
-export type GovernorView = {
-  id: number;
-  name: string;
-  job: Job;
-  village: number;
-  traits: Trait[];
-  /** What the governor claims to bring in each second of their job's resource; real output scaled by their report factor. */
-  reportedPerSecond: number;
-  /** What the governor really brings in and how far the report overshoots it; null until true reports are bought. */
-  truth: { realPerSecond: number; gapPerSecond: number } | null;
-};
-/** A governor who has left, oldest first, so a change in the list's length is a new departure. */
-export type FormerGovernorView = {
-  name: string;
-  reason: DepartureReason;
-  /** Coin the governor kept back and handed over on leaving; 0 for one who kept none. */
-  handedOver: number;
-};
 export type DelegateView = {
   id: number;
   name: string;
@@ -71,37 +29,6 @@ export type DelegateView = {
   grudgeTicks: number;
 };
 export type PanelId = "archive" | "crown" | "ledger" | "peasants";
-export type CrownDemandView = {
-  resource: ResourceId;
-  amount: number;
-  delivered: number;
-  ticksLeft: number;
-  herald: string;
-};
-/** What the Crown panel shows; null before promotion, when the crown has made no demands. */
-export type CrownView = {
-  /** The crown's mood toward the steward; the score behind it is never shown. */
-  favor: FavorBand;
-  demand: CrownDemandView | null;
-  /** Ticks until the next demand while none is open; null while one is open. */
-  nextDemandTicks: number | null;
-  met: number;
-  missed: number;
-};
-/** What the steward sees of the illusion; null until conjuring is unlocked. */
-export type IllusionView = {
-  books: Books;
-  /** Coin value of illusion that can still be added before the ceiling. */
-  room: number;
-  /** Debt per resource, rounded up to the nearest ten unless exact books are owned. */
-  debt: Record<ResourceId, DebtLine>;
-  /** Debt is shown to the decimal rather than rounded. */
-  debtIsExact: boolean;
-  /** Announced auditors have not yet reached the desk. */
-  auditOnTheRoad: boolean;
-  /** Ticks until announced auditors arrive; null when none are on the road or exact books are not owned. */
-  auditInTicks: number | null;
-};
 export type GameView = {
   tick: number;
   elapsedSeconds: number;
@@ -200,13 +127,11 @@ export class ViewManager {
         const saved = this.career.savedDecrees[name];
         return saved === undefined ? [] : [structuredClone(saved)];
       }),
-      desk: this.deskEntries(),
-      governors: this.governorViews(),
-      formerGovernors: this.posting.formerStaff.map(
-        ({ name, reason, handedOver }) => ({ name, reason, handedOver }),
-      ),
-      crown: this.crownView(),
-      illusion: this.illusionView(),
+      desk: this.game.desk.view(),
+      governors: this.game.governors.view(),
+      formerGovernors: this.game.governors.formerView(),
+      crown: this.game.crown.view(),
+      illusion: this.game.illusion.view(),
       promotion: {
         target: this.tuning.village.promotionPopulation,
         promotedAt: this.career.promotedAt,
@@ -238,100 +163,10 @@ export class ViewManager {
     };
   }
 
-  private governorViews(): GovernorView[] {
-    const trueReports = this.game.unlocks.enabled(TRUE_REPORTS);
-    const perSecond = (perTick: number) =>
-      (perTick * 1000) / this.tuning.stepMs;
-    return this.game.delegates.governors.map((governor) => {
-      const reported = this.game.governors.reportedOutput(
-        governor,
-        this.tick + 1,
-      );
-      const real = this.game.governors.realOutput(governor, this.tick + 1);
-      return {
-        id: governor.id,
-        name: governor.name,
-        job: governor.job,
-        village: governor.village,
-        traits: [...governor.traits],
-        reportedPerSecond: perSecond(reported),
-        truth: trueReports
-          ? {
-              realPerSecond: perSecond(real),
-              gapPerSecond: perSecond(reported - real),
-            }
-          : null,
-      };
-    });
-  }
-
   private lockedPanels(): PanelId[] {
     const locked: PanelId[] = [];
     if (!this.game.unlocks.enabled(ARCHIVE_PANEL)) locked.push("archive");
     if (!this.game.unlocks.enabled(CROWN_PANEL)) locked.push("crown");
     return locked;
   }
-
-  private illusionView(): IllusionView | null {
-    if (!this.game.unlocks.enabled(CONJURING)) return null;
-    const { books, room, auditInTicks, showsExactDebt } = this.game.illusion;
-    return {
-      books,
-      room,
-      debt: this.game.illusion.debtLines(),
-      debtIsExact: showsExactDebt,
-      auditOnTheRoad: auditInTicks !== null,
-      auditInTicks: showsExactDebt ? auditInTicks : null,
-    };
-  }
-
-  private crownView(): CrownView | null {
-    if (!this.game.unlocks.enabled(CROWN_PANEL)) return null;
-    const { demand, nextDemandTick, met, missed } = this.posting.crown;
-    const open = this.game.crown.isOpen;
-    return {
-      demand: open
-        ? {
-            resource: demand.resource,
-            amount: demand.amount,
-            delivered: demand.delivered,
-            ticksLeft: demand.dueAt - this.tick,
-            herald: this.tuning.crown.lines[
-              demand.resource as Resource
-            ].herald.replaceAll("{amount}", String(demand.amount)),
-          }
-        : null,
-      nextDemandTicks: open ? null : nextDemandTick - this.tick,
-      met,
-      missed,
-      favor: this.game.crown.band,
-    };
-  }
-
-  private deskEntries(): DeskEntryView[] {
-    const { desk } = this.game;
-    return this.posting.desk.disputes.map((entry) => {
-      const template = desk.templateOf(entry);
-      return {
-        id: entry.id,
-        kind: entry.kind,
-        label: desk.fill(entry, template.text),
-        ticksLeft: entry.kind === "audit" ? entry.dueAt - this.tick : null,
-        options: template.options.map((option) => ({
-          id: option.id,
-          label: desk.fill(entry, option.label),
-          affordable: desk.shortfall(entry, option) === null,
-          expiry: option.id === template.expiry,
-          resources: sortedResources(desk.deltasOf(entry, option)),
-          sulker: desk.sulker(entry, option),
-        })),
-      };
-    });
-  }
-}
-
-function sortedResources(resources: Record<string, number>) {
-  const sorted: Record<string, number> = {};
-  for (const key of sortedKeys(resources)) sorted[key] = resources[key] ?? 0;
-  return sorted;
 }
