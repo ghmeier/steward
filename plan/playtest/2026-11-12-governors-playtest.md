@@ -5,7 +5,7 @@ last_pr: 35
 tags: [playtest]
 created: 2026-11-12
 updated: 2026-11-12
-next_step: Fix the opening dead end on #35 (Decrees revealed with the Archive, priced in grain) pending Garret; then PR 6
+next_step: trim-strategy-tests and tech-tree-upgrades (stacked on it) in implementation
 ---
 # Governors playtest: tech tree, illusion relief, pacing and polish
 
@@ -200,7 +200,15 @@ Objective: small screen and copy fixes from the playtest.
   - Update the ledger, roster and panels tests.
   - Add a test that founding a village with a typed name saves it.
 
-### 6. `tech-tree-upgrades` (wave 2: after 1 to 5)
+### 5b. `trim-strategy-tests` (added 2026-11-12, before PR 6)
+
+Objective: drop the strategy tests that compare hand-written play styles, because they were re-tuned more often than they caught anything.
+
+- Keep: the simulator, `StrategyPlayer`, the record-and-replay determinism test, and a progress check that honest play (`reference`) never starves and reaches promotion.
+- Remove: the comparison gates (borrower, conjurer, crown-aware, the never-retuning strategy, naive, none), the timing limits, and every strategy file only those tests use.
+- Balance exploration uses the sim CLI's summary output, not assertions.
+
+### 6. `tech-tree-upgrades` (wave 2: stacked on `trim-strategy-tests`)
 
 Objective: give wood and ore something to buy, and fill the tree. Every upgrade changes a number through its owning system's tuning getter, keyed by a factor declared in the entry's data.
 
@@ -227,9 +235,8 @@ Objective: give wood and ore something to buy, and fill the tree. Every upgrade 
 
 Objective: tune costs and thresholds so wood and ore are worth producing, and the first hour paces well.
 
-- Strategies buy the tree.
-- Add a `builder` strategy that buys yield and cap upgrades greedily.
-- Gate: on seeds 1, 7 and 42, the builder reaches promotion and buys the charter within N years, and the existing exit gate still holds.
+- Re-pressure the crown so forging matters again: larger demands or shorter early deadlines.
+- Use the sim CLI's summaries to explore. Assert only progress invariants, for example that every tier can be reached by farming alone.
 - Garret plays it by hand before merge.
 
 ## Acceptance
@@ -260,3 +267,4 @@ Objective: tune costs and thresholds so wood and ore are worth producing, and th
 - 2026-11-12: The first `tech-tree-foundation` refactor attempt died on a rate limit with nothing committed. It was re-dispatched.
 - 2026-11-12: `tech-tree-foundation` opened as #35 (9b9e7b0). There is now one `COMMAND_UNLOCKS` table, and the TUI keys read `PANEL_UNLOCKS`. Garret found that a new village dead-ends: Decrees is the only way to grow or earn coin, and it is hidden until you hold 10 wood. The proposed fix reveals Decrees with the Archive, priced in grain.
 - 2026-11-12: Fixed the opening dead end on #35 (4f08b9c). Decrees costs 50 grain and is seen at once, behind the Archive's grain-above-70 gate. A regression test covers a new village that keeps farming. The seasonal quiet limit is back to 4 seasons. The first-birth limit is now 5 minutes, measured at 4.06.
+- 2026-11-12: #35 merged. Garret agreed the strategy comparison tests are circular, so a new `trim-strategy-tests` PR removes them. PR 6 is stacked on it, and PR 7 becomes a tuning pass with progress invariants only.
