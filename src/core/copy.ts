@@ -49,18 +49,23 @@ export const copy = {
     villageHoldsNone: ({ resource }: { resource: string }) =>
       `the village holds no ${resource}`,
   },
+  archive: {
+    cannotAfford: ({ label, resource }: { label: string; resource: string }) =>
+      `you do not have enough ${resource} to purchase ${label}`,
+    notOffered: ({ label }: { label: string }) =>
+      `the Archive is not offering ${label} yet`,
+  },
   illusion: {
     conjureDone: ({ amount, resource }: { amount: string; resource: string }) =>
       `You conjure ${amount} ${resource}. It will fool the crown, the Archive and the Court, not the peasants.`,
-    cannotConjureYet: "you cannot conjure yet",
+    cannotConjureYet: "you have not bought conjuring from the Archive",
     cannotBeConjured: ({ resource }: { resource: string }) =>
       `${resource} cannot be conjured`,
     conjureAmountMustBePositive: "the amount to conjure must be positive",
     ceilingLeavesRoomFor: ({ coin }: { coin: string }) =>
       `the ceiling leaves room for only ${coin} coin of illusion`,
-    cannotForgeYet: "you cannot forge reports yet",
+    cannotForgeYet: "you have not bought forging from the Archive",
     ceilingLeavesNoRoom: "the ceiling leaves no room for a report",
-    nothingToBackYet: "you have no illusions to back yet",
     noDebtToBack: ({ resource }: { resource: string }) =>
       `there is no ${resource} debt to back`,
     villageHoldsNoneToBack: ({ resource }: { resource: string }) =>
@@ -127,9 +132,19 @@ export const copy = {
   },
   notices: {
     archiveOpens: ({ key }: { key: string }) =>
-      `The Archive opens. Press ${key} to buy.`,
+      `The Archive opens. Press ${key} to see what it sells.`,
+    courtOpens: ({ key }: { key: string }) =>
+      `The Court opens. Press ${key} to hear what is waiting.`,
+    decreesOpen: ({ key }: { key: string }) =>
+      `You may now write decrees. Press ${key} to begin.`,
+    charterOpens: ({ key }: { key: string }) =>
+      `The Crown charter is yours. Press ${key} to focus the Crown, which will soon make its first demand.`,
+    forgingOpens: ({ key }: { key: string }) =>
+      `You have learned forging. Press ${key} in the Crown panel to report a demand as delivered on paper.`,
     conjuringOpens: ({ key }: { key: string }) =>
-      `You have learned conjuring. Press ${key} to focus the Ledger, which will believe anything you tell it.`,
+      `You have learned conjuring. Press ${key} to focus the Ledger, then enter to add stock it will believe.`,
+    governorsOpen:
+      "Governors may now be hired. Candidates will arrive on the Court's desk.",
     bought: ({ label }: { label: string }) => `Bought ${label}.`,
     unlocked: ({ label }: { label: string }) => `${label} unlocked.`,
     oneSeasonLeft: ({
@@ -270,8 +285,8 @@ export const copy = {
     governorSeasonsLeft: ({ seasons }: { seasons: number }) =>
       `${seasons} ${plural(seasons, "season", "seasons")} left`,
     archiveTitle: "The Archive",
-    archiveOwned: "owned",
-    archiveCost: ({ cost }: { cost: string }) => `${cost} coin`,
+    archiveEmpty: "Nothing more to learn, for now.",
+    costJoin: " · ",
     noDecreeInForce: ({ petition }: { petition: string }) =>
       `No ${petition} decree is in force.`,
     crownProgress: ({
@@ -419,7 +434,7 @@ export const copy = {
       merchantsPay: "Merchants and some rulings pay coin as well.",
       spentOn: "Coin is spent on rulings and on merchants' wares.",
       archiveBuys: ({ key }: { key: string }) =>
-        `Coin also buys entries from the Archive (press ${key}).`,
+        `Coin, grain, wood and ore buy entries from the Archive (press ${key}), including the Court, decrees, the Crown charter and each control you will come to need.`,
     },
     woodAndOre: {
       woodCut: ({ rate }: { rate: string }) =>
@@ -510,7 +525,7 @@ export const copy = {
     },
     promotion: {
       reach: ({ population }: { population: string }) =>
-        `Reach ${population} peasants and the crown notices you.`,
+        `Reach ${population} peasants and the crown notices you: the Archive then offers a Crown charter, which you need to keep advancing.`,
       once: "Promotion happens once, and it is not taken back.",
     },
     crown: {
@@ -521,7 +536,7 @@ export const copy = {
         shortestWait: string;
         longestWait: string;
       }) =>
-        `After promotion the crown makes one demand at a time, the first ${shortestWait} to ${longestWait} later: an amount of grain, wood, ore or coin, never the same resource twice running.`,
+        `Once you buy the Crown charter from the Archive, the crown makes one demand at a time, the first ${shortestWait} to ${longestWait} later: an amount of grain, wood, ore or coin, never the same resource twice running.`,
       deadline: ({
         shortestDeadline,
         longestDeadline,
@@ -543,12 +558,12 @@ export const copy = {
       missAndStep: ({ surcharge, step }: { surcharge: string; step: string }) =>
         `A miss adds ${surcharge} of the shortfall to the next demand, and every demand met raises later amounts by ${step} of the base.`,
       correspondence: ({ label, cost }: { label: string; cost: string }) =>
-        `${label} (Archive, ${cost} coin) lets decrees read what is owed, as in "owed ore above 0".`,
+        `${label} (Archive, ${cost}) lets decrees read what is owed, as in "owed ore above 0".`,
       commandLine: "The command line also takes deliver.",
     },
     illusion: {
       teaches: ({ lot }: { lot: string }) =>
-        `The crown's first demand teaches conjuring: stock the Ledger counts and the stores do not hold. Only grain and coin can be conjured, ${lot} at a time.`,
+        `Conjuring and forging are bought from the Archive once you hold the Crown charter. Conjuring adds stock the Ledger counts and the stores do not hold. Only grain and coin can be conjured, ${lot} at a time.`,
       conjure: ({ key }: { key: string }) =>
         `Press ${key} to focus the Ledger, then enter to conjure a lot of the selected resource. The command line takes conjure <grain or coin> <amount>.`,
       outsiders:
@@ -594,7 +609,7 @@ export const copy = {
         reportsLabel: string;
         reportsCost: string;
       }) =>
-        `The Archive sells precision: ${exactLabel} (${exactCost} coin) shows exact debt and the time to an audit, and lets decrees read debt. ${reportsLabel} (${reportsCost} coin) strips governors' exaggeration from the Ledger's rates.`,
+        `The Archive sells precision: ${exactLabel} (${exactCost}) shows exact debt and the time to an audit, and lets decrees read debt. ${reportsLabel} (${reportsCost}) strips governors' exaggeration from the Ledger's rates.`,
       auditors: ({
         debtShare,
         seasons,
@@ -624,7 +639,7 @@ export const copy = {
         smallest: string;
         largest: string;
       }) =>
-        `After promotion you can take on governors, up to ${cap} at a time. A governor is a named character who runs a village of ${smallest} to ${largest} peasants at one job, and that village counts toward your population.`,
+        `Once you have bought governors from the Archive, which needs the Crown charter, you can take on governors, up to ${cap} at a time. A governor is a named character who runs a village of ${smallest} to ${largest} peasants at one job, and that village counts toward your population.`,
       candidates: ({
         key,
         cheapest,
@@ -634,7 +649,7 @@ export const copy = {
         cheapest: string;
         dearest: string;
       }) =>
-        `Candidates arrive on the desk (press ${key}) only after promotion, and only while hiring every one waiting would stay within the cap. Each asks ${cheapest} to ${dearest} coin. Declining, or letting one leave, costs nothing.`,
+        `Candidates arrive on the desk (press ${key}) only once governors are bought, and only while hiring every one waiting would stay within the cap. Each asks ${cheapest} to ${dearest} coin. Declining, or letting one leave, costs nothing.`,
       assigning: ({
         key,
         farmKey,
@@ -666,7 +681,7 @@ export const copy = {
         inflated:
           "A governor's report may exceed what their village really brings in. The Ledger's rates include the report, so they can outrun what lands in the stores.",
         hidden: ({ label, cost }: { label: string; cost: string }) =>
-          `${label} (Archive, ${cost} coin) shows each governor's real output and the gap on their row, and removes the exaggeration from the Ledger's rates.`,
+          `${label} (Archive, ${cost}) shows each governor's real output and the gap on their row, and removes the exaggeration from the Ledger's rates.`,
         shown:
           "True reports are owned, so each governor's row shows their real output and how far their report is off.",
       },
@@ -758,18 +773,21 @@ export const copy = {
     noDecreesInForce: "no decrees are in force",
     noDecreesSaved: "no decrees are saved",
     noSavedDecreesToForget: "there are no saved decrees to forget",
-    ownEverything: "you own everything in the Archive",
     nothingToBuyYet: "nothing in the Archive can be bought yet",
     alreadyOwn: ({ label }: { label: string }) => `you already own ${label}`,
     needsFirst: ({ label, missing }: { label: string; missing: string }) =>
       `${label} needs ${missing} first`,
     needsArchive: ({ verb }: { verb: string }) =>
-      `${verb} needs the Archive, which opens when the treasury first holds coin`,
+      `${verb} needs the Archive, which opens once the granary has filled past its first harvest`,
     needsEntry: ({ verb, label }: { verb: string; label: string }) =>
       `${verb} needs "${label}" from the Archive`,
     needsConjuring: ({ verb }: { verb: string }) =>
-      `${verb} needs conjuring, which the crown teaches you with its first demand`,
-    needsCrown: "deliver needs the Crown, which opens at promotion",
+      `${verb} needs conjuring from the Archive, once you hold the Crown charter`,
+    needsForging: ({ verb }: { verb: string }) =>
+      `${verb} needs forging from the Archive, once you hold the Crown charter`,
+    needsDebt: "back needs a debt to repay",
+    needsCrown: ({ verb }: { verb: string }) =>
+      `${verb} needs the Crown charter from the Archive`,
     archiveEntryHelp: ({
       label,
       cost,
@@ -778,7 +796,7 @@ export const copy = {
       label: string;
       cost: string;
       description: string;
-    }) => `${label}, ${cost} coin: ${description}`,
+    }) => `${label}, ${cost}: ${description}`,
     archiveEntryShortHelp: ({
       label,
       cost,
@@ -789,7 +807,7 @@ export const copy = {
       cost: string;
       description: string;
       shortfall: string;
-    }) => `${label}, ${cost} coin: ${description} (need ${shortfall} coin)`,
+    }) => `${label}, ${cost}: ${description} (need ${shortfall})`,
     namedDecreeHelp: ({ petition }: { petition: string }) =>
       `what the ${petition} decree chose`,
     verbHelp: {

@@ -8,12 +8,13 @@ import {
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
   CROWN_CORRESPONDENCE,
+  costLines,
   EXACT_DEBT,
   SAVED_DECREES_UNLOCK,
   TRUE_REPORTS,
 } from "../core/unlocks";
 import { describePolicy, percent } from "./decree-format";
-import { capitalize, plain } from "./format";
+import { capitalize, formatCost, plain } from "./format";
 import { type KeyPress, peasantKeyFor, plainKeyName } from "./keys";
 import type { MenuContext, MenuRender } from "./menu";
 import { keymap, type PanelSize } from "./village-panels";
@@ -273,7 +274,7 @@ function crownLines(tuning: Tuning): string[] {
     "",
     copy.help.crown.correspondence({
       label: entry.label,
-      cost: plain(entry.cost),
+      cost: formatCost(costLines(entry)),
     }),
     copy.help.crown.commandLine,
   ];
@@ -297,9 +298,9 @@ function debtPrecisionLines(
       : [
           illusion.precision({
             exactLabel: exact.label,
-            exactCost: plain(exact.cost),
+            exactCost: formatCost(costLines(exact)),
             reportsLabel: reports.label,
-            reportsCost: plain(reports.cost),
+            reportsCost: formatCost(costLines(reports)),
           }),
         ]),
   ];
@@ -399,7 +400,7 @@ function governorLines({ tuning, view }: MenuContext): string[] {
       ? reports.shown
       : reports.hidden({
           label: trueReports.label,
-          cost: plain(trueReports.cost),
+          cost: formatCost(costLines(trueReports)),
         }),
     "",
     copy.help.governors.terms({

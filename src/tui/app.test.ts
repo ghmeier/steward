@@ -11,6 +11,7 @@ import { dirname, join } from "node:path";
 import { createTestRenderer } from "@opentui/core/testing";
 import {
   grantUnlocks,
+  priceOf,
   quietOptions,
   setFamineDue,
   setRoster,
@@ -24,7 +25,10 @@ import { Job } from "../core/realm";
 import {
   ARCHIVE_PANEL,
   CONJURING,
+  COURT_PANEL,
   CROWN_PANEL,
+  DECREES_PANEL,
+  FORGING,
   PALETTE_UNLOCK,
 } from "../core/unlocks";
 import { stateHash } from "../save/hash";
@@ -68,12 +72,12 @@ async function launch(
 ) {
   const saveDir = options.saveDir ?? tempDir();
   const setup = await createTestRenderer({
-    width: 120,
+    width: 150,
     height: 30,
     exitOnCtrlC: false,
     kittyKeyboard: options.kittyKeyboard ?? false,
   });
-  const game = options.game ?? Game.create(5, tuning);
+  const game = options.game ?? owning();
   let nowMs = 0;
   const app = startApp({
     renderer: setup.renderer,
@@ -194,14 +198,16 @@ describe("prepareStartup", () => {
   });
 });
 
+/** The panels most tests drive, so only the tests about buying or locking a panel start without them. */
+const STARTING_PANELS = [COURT_PANEL, DECREES_PANEL];
 const withRoster = (peasants: number): Game => {
-  const game = Game.create(5, tuning);
+  const game = owning();
   setRoster(game, { idle: peasants });
   return game;
 };
 const owning = (...ids: string[]): Game => {
   const game = Game.create(5, tuning);
-  grantUnlocks(game, ids);
+  grantUnlocks(game, [...STARTING_PANELS, ...ids]);
   return game;
 };
 type Harness = Awaited<ReturnType<typeof launch>>;
@@ -220,6 +226,18 @@ describe("lifecycle", () => {
       expect(screen).toContain(title);
     }
     expect(barRow(screen)).toContain(copy.notices.startedNewGame);
+  });
+
+  test("a new village shows only the Ledger and the Peasants", async () => {
+    const harness = await launch({ game: Game.create(5, tuning) });
+
+    const screen = await harness.screen();
+
+    expect(screen).toContain("(L)edger");
+    expect(screen).toContain("(P)easants");
+    for (const title of ["(C)ourt", "(D)ecrees", "(A)rchive", "C(r)own"]) {
+      expect(screen).not.toContain(title);
+    }
   });
 
   test("assignment keys act on the peasant under the cursor, a repeat shows the rejection and s saves", async () => {
@@ -462,7 +480,7 @@ describe("doors", () => {
   });
 
   test("f in the focused Crown forges a report and does nothing while the Crown is not focused", async () => {
-    const game = owning(CROWN_PANEL, CONJURING);
+    const game = owning(CROWN_PANEL, FORGING);
     const { posting } = game.state;
     const demand = {
       id: 1,
@@ -500,9 +518,9 @@ describe("doors", () => {
       }
     };
 
-    test("l focuses it once conjuring is owned and does nothing before", async () => {
+    test("l focuses it once the charter is owned and does nothing before", async () => {
       const locked = await launch();
-      const owned = await launch({ game: owning(CONJURING) });
+      const owned = await launch({ game: owning(CROWN_PANEL) });
 
       await locked.mockInput.typeText("l");
       await owned.mockInput.typeText("l");
@@ -512,7 +530,7 @@ describe("doors", () => {
     });
 
     test("enter conjures a lot of the selected resource and ore is refused with the core's reason", async () => {
-      const game = owning(CONJURING);
+      const game = owning(CROWN_PANEL, CONJURING);
       const { illusion } = game.state.posting;
       const harness = await launch({ game });
 
@@ -534,7 +552,7 @@ describe("doors", () => {
     });
 
     test("b backs the selected resource's debt from real stock", async () => {
-      const game = owning(CONJURING);
+      const game = owning(CROWN_PANEL, CONJURING);
       const { posting } = game.state;
       posting.resources.grain = 100;
       posting.illusion.debt.grain = 40;
@@ -652,9 +670,12 @@ describe("focus", () => {
   });
 
   test("buying from the Archive panel spends the coin and owns the entry", async () => {
-    const harness = await launch({ game: owning(ARCHIVE_PANEL) });
+    const game = owning(ARCHIVE_PANEL);
+    game.state.career.seen[PALETTE_UNLOCK] = 0;
+    const harness = await launch({ game });
     const palette = tuning.archive.entries.find((e) => e.id === PALETTE_UNLOCK);
-    harness.game.state.posting.resources.coin = (palette?.cost ?? 0) + 1;
+    harness.game.state.posting.resources.coin =
+      (palette ? priceOf(palette) : 0) + 1;
 
     await harness.mockInput.typeText("a");
     harness.mockInput.pressEnter();
@@ -662,13 +683,11 @@ describe("focus", () => {
 
     expect(harness.game.state.career.unlocks[PALETTE_UNLOCK]).toBeDefined();
     expect(harness.game.state.posting.resources.coin).toBeLessThan(2);
-    expect(await harness.screen()).toContain(
-      `${palette?.label}  ${copy.village.archiveOwned}`,
-    );
+    expect(await harness.screen()).toContain(copy.village.archiveEmpty);
   });
 
   test("x in the Decrees panel repeals the selected decree and says so when none is in force", async () => {
-    const game = Game.create(5, tuning);
+    const game = owning();
     game.decrees.enact(granary);
     const harness = await launch({ game });
 
@@ -687,7 +706,7 @@ describe("focus", () => {
 describe("new village", () => {
   test("n asks for confirmation, warning about Archive purchases only once the player owns any", async () => {
     const withUnlocks = await launch({ game: owning(ARCHIVE_PANEL) });
-    const plain = await launch();
+    const plain = await launch({ game: Game.create(5, tuning) });
 
     await withUnlocks.mockInput.typeText("n");
     await plain.mockInput.typeText("n");
@@ -835,9 +854,9 @@ describe("notices", () => {
     expect(await fed.screen()).not.toContain(notice);
   });
 
-  test("the Archive notice appears once when coin first appears, and not after a restart", async () => {
+  test("the Archive notice appears once when grain first passes its threshold, and not after a restart", async () => {
     const harness = await launch();
-    harness.game.state.posting.resources.coin = 5;
+    harness.game.state.posting.resources.grain = 500;
 
     const archiveOpens = copy.notices.archiveOpens({
       key: keymap.keyFor("archive"),
@@ -903,9 +922,12 @@ describe("notices", () => {
   });
 
   test("a purchase is announced once", async () => {
-    const harness = await launch({ game: owning(ARCHIVE_PANEL) });
+    const game = owning(ARCHIVE_PANEL);
+    game.state.career.seen[PALETTE_UNLOCK] = 0;
+    const harness = await launch({ game });
     const palette = tuning.archive.entries.find((e) => e.id === PALETTE_UNLOCK);
-    harness.game.state.posting.resources.coin = (palette?.cost ?? 0) + 1;
+    harness.game.state.posting.resources.coin =
+      (palette ? priceOf(palette) : 0) + 1;
 
     await harness.mockInput.typeText("a");
     harness.mockInput.pressEnter();

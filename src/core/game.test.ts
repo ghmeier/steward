@@ -126,9 +126,8 @@ describe("parseTuning", () => {
 		["no chaining entry", "archive.entries", without("decree.chaining"), 'tuning.archive.entries: must include "decree.chaining"'],
 		["a duplicate id across entries", "archive.entries.1.id", entries[0]?.id, "tuning.archive: repeats id"],
 		["a requires naming an unknown id", "archive.entries.0.requires", ["control.nothing"], 'requires unknown id "control.nothing"'],
-		["a requires cycle", "archive.entries.0.requires", ["control.savedDecrees"], "tuning.archive.entries: requires cycle"],
+		["a requires cycle", "archive.entries.3.requires", ["control.savedDecrees"], "tuning.archive.entries: requires cycle"],
 		["no Archive panel play unlock", "archive.play", [], "tuning.archive.play: must include"],
-		["a repeated need hook control", "archive.needs.1.control", t.archive.needs[0]?.control, "tuning.archive.needs: repeats control"],
 	];
 
   test.each(crossFieldRejections)(

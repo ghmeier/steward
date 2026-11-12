@@ -9,11 +9,7 @@ import type { Tuning } from "../core/tuning";
 import { loadTuning } from "../save/content";
 import { stateHash } from "../save/hash";
 import { readSaveFile, writeSaveFile } from "../save/save";
-import {
-  createStrategyPlayer,
-  parseStrategy,
-  type StrategyPlayer,
-} from "./strategy";
+import { parseStrategy, StrategyPlayer } from "./strategy";
 
 export type SimIo = {
   stdout(line: string): void;
@@ -190,7 +186,7 @@ export function runSim(
         tuning.decrees,
       );
       strategyName = strategy.name;
-      player = createStrategyPlayer(strategy);
+      player = new StrategyPlayer(strategy);
     }
   } catch (error) {
     return reportError(io, null, error);
@@ -206,7 +202,7 @@ export function runSim(
   let crownMissed = state.posting.crown.missed;
   let peakDebt = 0;
   let stepsDone = 0;
-  const commandSource = player === null ? undefined : player.next;
+  const commandSource = player === null ? undefined : player.next.bind(player);
   // A full schema parse of the state costs far more than the step it checks, so validating every step dominates long runs.
   const validateEvery = options.validateEvery ?? tuning.economy.ticksPerSeason;
   try {

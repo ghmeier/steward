@@ -14,7 +14,7 @@ import {
   tickRange,
 } from "./schema";
 import type { ResourceId } from "./state";
-import { CONJURING, CROWN_PANEL } from "./unlocks";
+import { CROWN_PANEL } from "./unlocks";
 
 export type Demand = {
   id: number;
@@ -312,8 +312,6 @@ export class CrownManager {
     };
     crown.surcharge = 0;
     crown.lastResource = resource;
-    const { unlocks } = this.game.state.career;
-    if (!this.game.unlocks.enabled(CONJURING)) unlocks[CONJURING] = this.tick;
   }
 
   private close(): void {

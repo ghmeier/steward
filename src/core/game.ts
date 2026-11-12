@@ -113,7 +113,7 @@ export class Game {
         career: {
           unlocks: {},
           savedDecrees: {},
-          needed: {},
+          seen: {},
           followers: [],
           promotedAt: 0,
         },

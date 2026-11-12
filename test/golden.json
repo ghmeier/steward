@@ -3,13 +3,19 @@
   "steps": 10000,
   "commands": "test/fixtures/command-log.json",
   "grant": [
+    "panel.court",
+    "panel.decrees",
+    "panel.crown",
     "control.palette",
     "control.savedDecrees",
     "decree.compound",
     "decree.chaining",
     "decree.crownCorrespondence",
     "precision.exact",
-    "precision.reports"
+    "precision.reports",
+    "control.conjuring",
+    "control.forging",
+    "control.governors"
   ],
-  "hash": "afd3f4ac8004b254826154c99c5faa6810796dc321ba8cb4370708b750d1a6d3"
+  "hash": "d18c081c6ce5c6fc9906c3561c1949297e9df872056e364a534effae524ef90e"
 }

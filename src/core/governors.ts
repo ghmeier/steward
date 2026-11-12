@@ -21,7 +21,7 @@ import {
   tickRange,
   traitList,
 } from "./schema";
-import { TRUE_REPORTS } from "./unlocks";
+import { GOVERNORS, TRUE_REPORTS } from "./unlocks";
 
 export type DepartureReason = "retired" | "died" | "dismissed";
 
@@ -153,10 +153,10 @@ export class GovernorManager {
     return this.roster.length < this.tuning.cap;
   }
 
-  /** Candidates arrive only after promotion, and only while hiring them all would stay within the cap. */
+  /** Candidates arrive only once governors are bought, and only while hiring them all would stay within the cap. */
   get canOffer(): boolean {
     return (
-      this.game.state.career.promotedAt !== 0 &&
+      this.game.unlocks.enabled(GOVERNORS) &&
       this.roster.length + this.game.desk.candidates.length < this.tuning.cap
     );
   }

@@ -1,9 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { setRoster, tuning } from "../../test/helpers";
+import { grantUnlocks, priceOf, setRoster, tuning } from "../../test/helpers";
 import type { Command } from "../core/commands";
 import type { Condition } from "../core/decree";
 import { Game } from "../core/game";
-import { createStrategyPlayer, parseStrategy, type Reaction } from "./strategy";
+import { Job } from "../core/realm";
+import { ARCHIVE_PANEL, CROWN_PANEL, DECREES_PANEL } from "../core/unlocks";
+import {
+  parseStrategy,
+  type Reaction,
+  type SetupStep,
+  StrategyPlayer,
+} from "./strategy";
 
 const noop: Command = { type: "noop" };
 const sell: Command = {
@@ -33,6 +40,7 @@ describe("parseStrategy", () => {
       parse({
         name: "s",
         setup: [],
+        purchases: [],
         reactions: [
           {
             when: {
@@ -54,10 +62,15 @@ describe("parseStrategy", () => {
 });
 
 function playerWith(...reactions: Reaction[]) {
-  return createStrategyPlayer({ name: "s", setup: [sell], reactions });
+  return new StrategyPlayer({
+    name: "s",
+    setup: [noop],
+    purchases: [],
+    reactions,
+  });
 }
 
-describe("createStrategyPlayer", () => {
+describe("StrategyPlayer", () => {
   function observeWith(
     player: ReturnType<typeof playerWith>,
     population: number,
@@ -73,8 +86,8 @@ describe("createStrategyPlayer", () => {
     const [handed] = player.next();
     const second = player.next();
 
-    expect(handed).toEqual(sell);
-    expect(handed).not.toBe(sell);
+    expect(handed).toEqual(noop);
+    expect(handed).not.toBe(noop);
     expect(second).toEqual([]);
   });
 
@@ -99,7 +112,7 @@ describe("createStrategyPlayer", () => {
   });
 
   test("reactions that fire together hand out commands in file order", () => {
-    const other: Command = { type: "repealDecree", id: "granary" };
+    const other: Command = { type: "assignPeasant", peasant: 1, job: Job.FARM };
     const player = playerWith(
       { when: populationAbove, commands: [noop] },
       { when: populationAbove, commands: [other] },
@@ -121,9 +134,68 @@ describe("createStrategyPlayer", () => {
 
     expect(player.stats()).toEqual({
       setupCommands: 1,
+      purchaseCommands: 0,
       reactionCommands: 2,
       actingTicks: 2,
       longestQuietTicks: 3,
     });
+  });
+});
+
+describe("StrategyPlayer with locked panels", () => {
+  function playerFor(setup: SetupStep[], purchases: string[] = []) {
+    return new StrategyPlayer({ name: "s", setup, purchases, reactions: [] });
+  }
+
+  test("a setup command that needs the Decrees panel waits until the panel is owned", () => {
+    const player = playerFor([sell]);
+    const game = Game.create(1, tuning);
+
+    player.observe(game);
+    const whileLocked = player.next();
+    grantUnlocks(game, [DECREES_PANEL]);
+    player.observe(game);
+    const onceOwned = player.next();
+
+    expect(whileLocked).toEqual([]);
+    expect(onceOwned).toEqual([sell]);
+  });
+
+  test("a setup command with a condition is released once the condition has held, even if it stops holding", () => {
+    const player = playerFor([{ when: grainAbove, command: noop }]);
+    const game = Game.create(1, tuning);
+
+    player.observe(game);
+    const before = player.next();
+    game.state.posting.resources.grain = 500;
+    player.observe(game);
+    game.state.posting.resources.grain = 0;
+    const after = player.next();
+
+    expect(before).toEqual([]);
+    expect(after).toEqual([noop]);
+  });
+
+  test("a purchase is issued once it is on offer and affordable, and the next one waits for it", () => {
+    const player = playerFor([], [DECREES_PANEL, CROWN_PANEL]);
+    const game = Game.create(1, tuning);
+    grantUnlocks(game, [ARCHIVE_PANEL]);
+    game.state.career.seen[DECREES_PANEL] = 0;
+    game.state.career.seen[CROWN_PANEL] = 0;
+
+    const decrees = tuning.archive.entries.find(
+      (entry) => entry.id === DECREES_PANEL,
+    );
+    if (decrees === undefined) throw new Error("no decrees entry");
+    game.state.posting.resources.grain = 0;
+
+    player.observe(game);
+    const unaffordable = player.next();
+    game.state.posting.resources.grain = priceOf(decrees, "grain");
+    player.observe(game);
+    const affordable = player.next();
+
+    expect(unaffordable).toEqual([]);
+    expect(affordable).toEqual([{ type: "buyUnlock", id: DECREES_PANEL }]);
   });
 });

@@ -10,7 +10,7 @@ import type { Command } from "./commands";
 import type { FavorBand } from "./crown";
 import { Game } from "./game";
 import type { Resource } from "./realm";
-import { CONJURING, CROWN_PANEL } from "./unlocks";
+import { CONJURING, CROWN_PANEL, FORGING } from "./unlocks";
 
 const { crown: crownTuning, illusion: illusionTuning } = tuning;
 const { favor: favorTuning } = crownTuning;
@@ -19,7 +19,7 @@ const { audit: auditTuning } = illusionTuning;
 function village(favor = 0): Game {
   const game = Game.create(1, tuning);
   setRoster(game, { idle: tuning.village.promotionPopulation });
-  grantUnlocks(game, [CONJURING]);
+  grantUnlocks(game, [CONJURING, FORGING]);
   game.state.posting.crown.favor = favor;
   return game;
 }

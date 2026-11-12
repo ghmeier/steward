@@ -2,6 +2,11 @@
   "name": "governor",
   "setup": [
     {
+      "type": "assignPeasant",
+      "peasant": 1,
+      "job": "farm"
+    },
+    {
       "type": "enactDecree",
       "decree": {
         "id": "granary",
@@ -62,6 +67,15 @@
               "value": 0
             },
             "policy": "stockpile"
+          },
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "wood",
+              "comparison": "below",
+              "value": 170
+            },
+            "policy": "stockpile"
           }
         ],
         "otherwise": "sell"
@@ -103,14 +117,14 @@
           {
             "when": {
               "kind": "compare",
-              "quantity": "owedGrain",
-              "comparison": "above",
-              "value": 0
+              "quantity": "population",
+              "comparison": "below",
+              "value": 20
             },
             "policy": "farm"
           }
         ],
-        "otherwise": "farm"
+        "otherwise": "farming"
       }
     }
   ],
@@ -237,5 +251,6 @@
         }
       ]
     }
-  ]
+  ],
+  "purchases": ["panel.court", "panel.crown", "control.governors"]
 }

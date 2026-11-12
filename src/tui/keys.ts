@@ -1,6 +1,11 @@
 import { copy } from "../core/copy";
 import { Job } from "../core/realm";
-import { PALETTE_UNLOCK, type UnlockId } from "../core/unlocks";
+import {
+  PALETTE_UNLOCK,
+  PANEL_UNLOCKS,
+  type PanelId,
+  type UnlockId,
+} from "../core/unlocks";
 
 export type KeyPress = {
   name: string;
@@ -10,13 +15,7 @@ export type KeyPress = {
   /** The text the terminal sent for this key, which is what a text field appends. */
   sequence: string;
 };
-export type FocusId =
-  | "ledger"
-  | "peasants"
-  | "archive"
-  | "court"
-  | "decrees"
-  | "crown";
+export type FocusId = PanelId;
 
 /** What a global key asks for; the focused panel owns every other key, including peasant assignment. */
 export type KeyAction =
@@ -42,8 +41,8 @@ export type PanelKeys = {
   id: FocusId;
   /** The key that focuses the panel. */
   focusKey: string;
-  /** The unlock that must be owned before the panel can be focused; undefined for a panel every village has. */
-  needs: UnlockId | undefined;
+  /** Set only when focusing needs more than the unlock that shows the panel, because the panel has nothing to act on before then. */
+  focusNeeds?: UnlockId;
   /** What the focus key is shown to do in the bottom bar and Help. */
   focusLabel: string;
   /** Shown on the focused panel's bottom border and listed in Help; esc is handled by every panel. */
@@ -83,13 +82,20 @@ export class Keymap {
   constructor(private readonly panels: readonly PanelKeys[]) {
     this.bindings = {
       ...Object.fromEntries(
-        panels.map(({ id, focusKey, needs }): [string, Binding] => [
-          focusKey,
-          { action: { kind: "focus", panel: id }, needs },
+        panels.map((panel): [string, Binding] => [
+          panel.focusKey,
+          {
+            action: { kind: "focus", panel: panel.id },
+            needs: Keymap.focusNeeds(panel),
+          },
         ]),
       ),
       ...GLOBAL_BINDINGS,
     };
+  }
+
+  private static focusNeeds(panel: PanelKeys): UnlockId | undefined {
+    return panel.focusNeeds ?? PANEL_UNLOCKS[panel.id];
   }
 
   /** The focusable panels in reading order, as the arrow keys step through them. */
@@ -126,18 +132,19 @@ export class Keymap {
   /** The panels the player owns, in reading order. */
   ownedPanels(unlocks: readonly string[]): FocusId[] {
     return this.panels
-      .filter(({ needs }) => needs === undefined || unlocks.includes(needs))
+      .filter((panel) => {
+        const needs = Keymap.focusNeeds(panel);
+        return needs === undefined || unlocks.includes(needs);
+      })
       .map(({ id }) => id);
   }
 
   keyHints(unlocks: readonly string[]): ShownHint[] {
-    const panelRows: KeyHint[] = this.panels.map(
-      ({ focusKey, focusLabel, needs }) => ({
-        keys: focusKey,
-        label: focusLabel,
-        needs,
-      }),
-    );
+    const panelRows: KeyHint[] = this.panels.map((panel) => ({
+      keys: panel.focusKey,
+      label: panel.focusLabel,
+      needs: Keymap.focusNeeds(panel),
+    }));
     return [...panelRows, ...GLOBAL_HINTS]
       .filter(
         (hint) => hint.needs === undefined || unlocks.includes(hint.needs),

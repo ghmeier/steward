@@ -2,6 +2,11 @@
   "name": "naive",
   "setup": [
     {
+      "type": "assignPeasant",
+      "peasant": 1,
+      "job": "farm"
+    },
+    {
       "type": "enactDecree",
       "decree": {
         "id": "granary",
@@ -20,5 +25,6 @@
       }
     }
   ],
-  "reactions": []
+  "reactions": [],
+  "purchases": []
 }

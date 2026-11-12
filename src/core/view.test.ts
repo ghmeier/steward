@@ -81,7 +81,7 @@ describe("view.compute", () => {
       starved: 7,
     });
     expect(view.elapsedSeconds).toBe((game.state.tick * 250) / 1000);
-    expect(view.lockedPanels).toEqual(["archive", "crown"]);
+    expect(view.lockedPanels).toEqual(["court", "decrees", "archive", "crown"]);
     expect(view.promotion).toEqual({
       target: tuning.village.promotionPopulation,
       promotedAt: 7,

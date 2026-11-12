@@ -9,6 +9,7 @@ import { type Job, RESOURCES, type Season } from "./realm";
 import type { ResourceId } from "./state";
 import {
   ARCHIVE_PANEL,
+  type ArchiveCostPart,
   CROWN_PANEL,
   type PanelId,
   TRUE_REPORTS,
@@ -53,15 +54,14 @@ export type GameView = {
   unlocks: UnlockId[];
   archive: { open: boolean; entries: ArchiveEntryView[] };
 };
+/** Only entries on offer appear. */
 export type ArchiveEntryView = {
   id: UnlockId;
   label: string;
   description: string;
-  cost: number;
-  owned: boolean;
+  cost: ArchiveCostPart[];
+  /** Every part of the cost is covered. */
   affordable: boolean;
-  /** Every prerequisite is owned. */
-  available: boolean;
 };
 
 export class ViewManager {
@@ -144,17 +144,16 @@ export class ViewManager {
       unlocks: this.game.unlocks.purchased,
       archive: {
         open: this.game.unlocks.enabled(ARCHIVE_PANEL),
-        entries: this.tuning.archive.entries.map((entry) => ({
-          id: entry.id,
-          label: entry.label,
-          description: entry.description,
-          cost: entry.cost,
-          owned: this.game.unlocks.enabled(entry.id),
-          affordable: this.game.illusion.apparent("coin") >= entry.cost,
-          available: entry.requires.every((id) =>
-            this.game.unlocks.enabled(id),
-          ),
-        })),
+        entries: this.game.unlocks.offered().map((entry) => {
+          const cost = this.game.unlocks.costParts(entry);
+          return {
+            id: entry.id,
+            label: entry.label,
+            description: entry.description,
+            cost,
+            affordable: cost.every((part) => part.affordable),
+          };
+        }),
       },
     };
   }

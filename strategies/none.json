@@ -1,1 +1,6 @@
-{ "name": "none", "setup": [], "reactions": [] }
+{
+  "name": "none",
+  "setup": [],
+  "reactions": [],
+  "purchases": []
+}

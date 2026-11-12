@@ -2,6 +2,11 @@
   "name": "seasonal",
   "setup": [
     {
+      "type": "assignPeasant",
+      "peasant": 1,
+      "job": "farm"
+    },
+    {
       "type": "enactDecree",
       "decree": {
         "id": "granary",
@@ -55,5 +60,6 @@
         }
       ]
     }
-  ]
+  ],
+  "purchases": []
 }

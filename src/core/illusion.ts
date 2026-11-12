@@ -8,7 +8,7 @@ import { type AddContext, add, normalizeZero } from "./math";
 import { RESOURCES, type Resource } from "./realm";
 import { count, nonNegative, positive, positiveInteger } from "./schema";
 import type { ResourceId } from "./state";
-import { CONJURING, EXACT_DEBT } from "./unlocks";
+import { CONJURING, EXACT_DEBT, FORGING } from "./unlocks";
 
 /** Only these can be conjured; the stores of ore and wood are never faked. */
 export const CONJURABLE = ["coin", "grain"] as const;
@@ -174,12 +174,16 @@ export class IllusionManager {
     return this.game.state.posting.resources;
   }
 
-  private get isUnlocked(): boolean {
+  private get canConjure(): boolean {
     return this.game.unlocks.enabled(CONJURING);
   }
 
+  private get canForge(): boolean {
+    return this.game.unlocks.enabled(FORGING);
+  }
+
   view(): IllusionView | null {
-    if (!this.isUnlocked) return null;
+    if (!this.canConjure && !this.canForge) return null;
     const { books, room, auditInTicks, showsExactDebt } = this;
     return {
       books,
@@ -299,7 +303,7 @@ export class IllusionManager {
   }
 
   conjure(resource: Resource, amount: number): CommandResult {
-    if (!this.isUnlocked) {
+    if (!this.canConjure) {
       return { ok: false, reason: copy.illusion.cannotConjureYet };
     }
     if (!(CONJURABLE as readonly string[]).includes(resource)) {
@@ -331,7 +335,7 @@ export class IllusionManager {
   }
 
   private get forgeRefusal(): CommandResult | null {
-    if (!this.isUnlocked) {
+    if (!this.canForge) {
       return { ok: false, reason: copy.illusion.cannotForgeYet };
     }
     if (!this.game.crown.isOpen) {
@@ -387,9 +391,6 @@ export class IllusionManager {
 
   /** Repays debt from real stock alone, as far as the stock reaches. */
   back(resource: Resource, context: AddContext): CommandResult {
-    if (!this.isUnlocked) {
-      return { ok: false, reason: copy.illusion.nothingToBackYet };
-    }
     const owed = this.debtOf(resource);
     if (owed <= 0) {
       return { ok: false, reason: copy.illusion.noDebtToBack({ resource }) };

@@ -10,6 +10,8 @@ import {
   ARCHIVE_PANEL,
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
+  COURT_PANEL,
+  DECREES_PANEL,
   PALETTE_UNLOCK,
   SAVED_DECREES_UNLOCK,
 } from "./unlocks";
@@ -35,7 +37,8 @@ const granary: Decree = {
 /** Everything the player can see of a control, built from a real state holding exactly these unlocks. */
 function surfaces(unlocks: readonly string[]) {
   const game = Game.create(1, tuning);
-  grantUnlocks(game, unlocks);
+  // The decree verb needs the Decrees panel, so every row starts with it owned.
+  grantUnlocks(game, [DECREES_PANEL, ...unlocks]);
   game.decrees.enact(granary);
   const context = { view: game.view.compute(), tuning };
   const owned = context.view.unlocks;
@@ -64,6 +67,10 @@ const gated: [string, string, (s: Surfaces) => Checks][] = [
 	["panel.archive", ARCHIVE_PANEL, (s) => ({
 		key: s.action("a")?.kind === "focus", hint: s.hints.includes(copy.keys.hints.archive),
 		help: s.keysHelp.some((line) => line.endsWith(copy.keys.hints.archive)), buyVerb: s.verbs.includes("buy"),
+	})],
+	["panel.court", COURT_PANEL, (s) => ({
+		key: s.action("c")?.kind === "focus", hint: s.hints.includes(copy.keys.hints.court),
+		help: s.keysHelp.some((line) => line.endsWith(copy.keys.hints.court)),
 	})],
 	["control.palette", PALETTE_UNLOCK, (s) => ({
 		colon: s.action(":")?.kind === "line", semicolon: s.action(";", { shift: true })?.kind === "line",

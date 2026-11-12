@@ -10,13 +10,14 @@ import {
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
   CONJURING,
+  costLines,
   EXACT_DEBT,
   PALETTE_UNLOCK,
   SAVED_DECREES_UNLOCK,
   TRUE_REPORTS,
 } from "../core/unlocks";
 import { describePolicy } from "./decree-format";
-import { capitalize, plain } from "./format";
+import { capitalize, formatCost, plain } from "./format";
 import type { HelpTopicId } from "./help-menu";
 import { peasantKeyFor } from "./keys";
 import { keymap } from "./village-panels";
@@ -98,11 +99,12 @@ type Row = {
 const { help } = copy;
 const archiveEntry = (id: string) =>
   tuning.archive.entries.find((entry) => entry.id === id) as ArchiveEntry;
+const costText = (entry: ArchiveEntry) => formatCost(costLines(entry));
 const precisionSale = help.illusion.precision({
   exactLabel: archiveEntry(EXACT_DEBT).label,
-  exactCost: plain(archiveEntry(EXACT_DEBT).cost),
+  exactCost: costText(archiveEntry(EXACT_DEBT)),
   reportsLabel: archiveEntry(TRUE_REPORTS).label,
-  reportsCost: plain(archiveEntry(TRUE_REPORTS).cost),
+  reportsCost: costText(archiveEntry(TRUE_REPORTS)),
 });
 const traitLine = (trait: Trait, figures: TraitFigures) =>
   `  ${capitalize(copy.governors.traitWords[trait])}: ${help.governors.trait[trait](figures)}`;
@@ -141,8 +143,8 @@ const rows: Row[] = [
 	{ name: "the cap, village sizes and candidate prices read from tuning", topic: "governors", using: governors({ cap: 6, village: { min: 4, max: 12 }, price: { min: 30, max: 90 } }), has: [help.governors.what({ cap: "6", smallest: "4", largest: "12" }), help.governors.candidates({ key: keymap.keyFor("court"), cheapest: "30", dearest: "90" })] },
 	{ name: "each trait's factors and the empire-builder limit read from tuning", topic: "governors", using: governors({ empireBuilderLimit: 20, traits: { ...tuning.governors.traits, diligent: { output: 1.3, report: 1 }, braggart: { output: 1, report: 1.5 } } }), has: [traitLine("diligent", { outputChange: "30%", reportRise: "0%", limit: "20" }), traitLine("braggart", { outputChange: "0%", reportRise: "50%", limit: "20" }), traitLine("empire-builder", { outputChange: "0%", reportRise: "20%", limit: "20" })] },
 	{ name: "the term range and death chance read from tuning", topic: "governors", using: governors({ term: { minTicks: 600, maxTicks: 1200 }, deathPerMille: 50 }), has: [help.governors.terms({ shortest: stepSeconds(600), longest: stepSeconds(1200), death: "5%" }), help.governors.dismissal] },
-	{ name: "the true reports sale until it is owned", topic: "governors", has: [help.governors.reports.hidden({ label: archiveEntry(TRUE_REPORTS).label, cost: plain(archiveEntry(TRUE_REPORTS).cost) })], lacks: [help.governors.reports.shown] },
-	{ name: "what true reports show once owned", topic: "governors", unlocks: [TRUE_REPORTS], has: [help.governors.reports.shown], lacks: [help.governors.reports.hidden({ label: archiveEntry(TRUE_REPORTS).label, cost: plain(archiveEntry(TRUE_REPORTS).cost) })] },
+	{ name: "the true reports sale until it is owned", topic: "governors", has: [help.governors.reports.hidden({ label: archiveEntry(TRUE_REPORTS).label, cost: costText(archiveEntry(TRUE_REPORTS)) })], lacks: [help.governors.reports.shown] },
+	{ name: "what true reports show once owned", topic: "governors", unlocks: [TRUE_REPORTS], has: [help.governors.reports.shown], lacks: [help.governors.reports.hidden({ label: archiveEntry(TRUE_REPORTS).label, cost: costText(archiveEntry(TRUE_REPORTS)) })] },
 ];
 
 describe("help topics", () => {
