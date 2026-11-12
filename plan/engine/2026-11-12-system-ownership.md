@@ -1,10 +1,10 @@
 ---
 title: "Let each system own its schemas, view and panel declarations"
-status: draft
+status: active
 tags: [refactor, modularity]
 created: 2026-11-12
 updated: 2026-11-12
-next_step: Garret approves the PR breakdown
+next_step: PRs 1, 3, 4, 5 dispatched in parallel; PR 2 waits on PR 1
 ---
 # Let each system own its schemas, view and panel declarations
 
