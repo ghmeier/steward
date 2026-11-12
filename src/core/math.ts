@@ -35,6 +35,8 @@ export type AbsorbedAdditionLog = Record<
 export type AddContext = {
   tick: number;
   maxValue: number;
+  /** The most of a resource the stores can hold; an addition past it is lost. */
+  capOf: (resource: string) => number;
   absorbed: AbsorbedAdditionLog | null;
 };
 
@@ -45,12 +47,22 @@ export function add(
   context: AddContext,
 ): void {
   const current = resources[resource] ?? 0;
-  const next = clampFinite(current + delta, context.maxValue);
+  // Stock already above the cap, such as a save from before caps existed, is kept until spent;
+  // an addition never pulls it down, it only stops growing.
+  const ceiling = Math.min(
+    context.maxValue,
+    Math.max(context.capOf(resource), current),
+  );
+  const next = clampFinite(
+    Math.min(current + delta, ceiling),
+    context.maxValue,
+  );
   resources[resource] = next;
 
-  // A value pinned at the clamp also leaves the stored number unchanged, but that is
+  // A value pinned at the clamp or the cap also leaves the stored number unchanged, but that is
   // saturation, not floating-point absorption, so it is not logged.
-  const pinned = next === context.maxValue || next === -context.maxValue;
+  const pinned =
+    next === ceiling || next === context.maxValue || next === -context.maxValue;
   if (delta === 0 || next !== current || pinned || context.absorbed === null) {
     return;
   }

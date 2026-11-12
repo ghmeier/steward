@@ -42,6 +42,7 @@ export const economyTestTuning: Tuning = {
     laborMovesPerTick: 1,
     initialPopulation: 10,
     initialResources: { coin: 0, grain: 60, ore: 0, wood: 0 },
+    caps: { grain: 500, wood: 300, ore: 150 },
     laborAllocations: {
       balanced: { farm: 0.5, forest: 0.3, mine: 0.2 },
       farming: { farm: 0.7, forest: 0.2, mine: 0.1 },
@@ -263,7 +264,12 @@ export function setRoster(game: Game, counts: RosterCounts): void {
 }
 
 export function contextFor(game: Game): AddContext {
-  return { tick: game.state.tick, maxValue: 1e300, absorbed: null };
+  return {
+    tick: game.state.tick,
+    maxValue: 1e300,
+    capOf: (resource) => game.economy.capOf(resource),
+    absorbed: null,
+  };
 }
 
 export function grantUnlocks(game: Game, ids: readonly string[]): void {

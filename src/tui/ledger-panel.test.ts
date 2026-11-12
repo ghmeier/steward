@@ -23,6 +23,32 @@ import { keymap, Village } from "./village-panels";
 disposeDrawnPanels();
 
 describe("the Ledger panel", () => {
+  test("a stored resource shows its amount against its cap and coin shows the amount alone", async () => {
+    const view = emptyView({
+      ledger: [
+        { resource: "coin", amount: 40, conjured: 0, ratePerSecond: 0 },
+        {
+          resource: "wood",
+          amount: 120,
+          cap: 300,
+          conjured: 0,
+          ratePerSecond: 0,
+        },
+      ],
+    });
+
+    const frame = await drawPanels([view], {
+      size: { width: 160, height: 45 },
+    });
+
+    expect(frame).toContain(
+      copy.ledger.stored({ amount: formatAmount(120), cap: formatAmount(300) }),
+    );
+    expect(frame).not.toContain(
+      copy.ledger.stored({ amount: formatAmount(40), cap: formatAmount(40) }),
+    );
+  });
+
   test("the ledger shows the time, resources in shared columns, then the realm after a blank line", async () => {
     const view = emptyView({
       elapsedSeconds: 185,

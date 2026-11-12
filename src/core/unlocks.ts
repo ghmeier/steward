@@ -18,8 +18,32 @@ export type UnlockId = string;
 export type ArchiveCost = Partial<Record<Resource, number>>;
 /** Reveals an entry once the village is promoted, which no stock condition can express. */
 const PROMOTION = "promotion";
+/** Reveals an entry once a governor has been hired, which no stock condition can express. */
+const GOVERNOR_HIRED = "governor";
 /** An entry with no `shown` is on offer from the start. */
-export type ArchiveShown = Condition | typeof PROMOTION;
+export type ArchiveShown = Condition | typeof PROMOTION | typeof GOVERNOR_HIRED;
+
+/**
+ * Every number an upgrade can change, and how owned upgrades combine on it. A factor multiplies the
+ * tuned figure and starts at 1; a gap is added to it and starts at 0. The owning manager applies the
+ * result in its own getter, so no other code reads these.
+ */
+export const MODIFIERS = {
+  grainCap: "gap",
+  woodCap: "gap",
+  oreCap: "gap",
+  farmYield: "factor",
+  forestYield: "factor",
+  mineYield: "factor",
+  sellPrice: "factor",
+  interest: "factor",
+  auditGap: "gap",
+  governorDeath: "factor",
+  governorSlots: "gap",
+} as const;
+export type ModifierId = keyof typeof MODIFIERS;
+export type ArchiveEffects = Partial<Record<ModifierId, number>>;
+
 export type ArchiveEntry = {
   id: UnlockId;
   label: string;
@@ -27,7 +51,13 @@ export type ArchiveEntry = {
   cost: ArchiveCost;
   requires: UnlockId[];
   shown?: ArchiveShown | undefined;
+  effects?: ArchiveEffects | undefined;
 };
+
+/** The sum of every entry's gap, for limits that must hold however much the player buys. */
+export function totalGap(entries: readonly ArchiveEntry[], id: ModifierId) {
+  return entries.reduce((sum, entry) => sum + (entry.effects?.[id] ?? 0), 0);
+}
 export type ArchiveCostPart = {
   resource: Resource;
   amount: number;
@@ -111,6 +141,18 @@ export function costLines(
 export class UnlockManager {
   constructor(private game: Game) {}
 
+  /** What the owned upgrades make of a modifier: the product of their factors, or the sum of their gaps. */
+  modifier(id: ModifierId): number {
+    const isFactor = MODIFIERS[id] === "factor";
+    let total = isFactor ? 1 : 0;
+    for (const entry of this.game.tuning.archive.entries) {
+      const value = entry.effects?.[id];
+      if (value === undefined || !this.enabled(entry.id)) continue;
+      total = isFactor ? total * value : total + value;
+    }
+    return total;
+  }
+
   enabled(id: UnlockId) {
     return Object.hasOwn(this.game.state.career.unlocks, id);
   }
@@ -163,6 +205,9 @@ export class UnlockManager {
   private isRevealed(shown: ArchiveShown | undefined): boolean {
     if (shown === undefined) return true;
     if (shown === PROMOTION) return this.game.state.career.promotedAt !== 0;
+    if (shown === GOVERNOR_HIRED) {
+      return this.game.delegates.governors.length > 0;
+    }
     return this.game.conditions.evaluate(shown, {});
   }
 
@@ -285,7 +330,10 @@ const archiveEntry: z.ZodType<ArchiveEntry> = z.strictObject({
   description: name,
   cost: archiveCost,
   requires: z.array(name),
-  shown: z.union([simpleCondition, z.literal(PROMOTION)]).optional(),
+  shown: z
+    .union([simpleCondition, z.literal(PROMOTION), z.literal(GOVERNOR_HIRED)])
+    .optional(),
+  effects: z.record(z.string(), positive).optional(),
 });
 const playUnlock: z.ZodType<PlayUnlock> = z.strictObject({
   id: name,
@@ -319,6 +367,13 @@ function archiveIssues(archive: ArchiveTuning, ctx: z.RefinementCtx): void {
 
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
   for (const entry of entries) {
+    for (const modifier of Object.keys(entry.effects ?? {})) {
+      if (!Object.hasOwn(MODIFIERS, modifier)) {
+        addIssue(ctx, `"${entry.id}" changes unknown modifier "${modifier}"`, [
+          "entries",
+        ]);
+      }
+    }
     for (const required of entry.requires) {
       if (!byId.has(required)) {
         addIssue(ctx, `"${entry.id}" requires unknown id "${required}"`, [

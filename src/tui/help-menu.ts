@@ -74,23 +74,19 @@ function keysLines(context: MenuContext): string[] {
   ];
 }
 
-function grainLines(tuning: Tuning): string[] {
+function grainLines({ tuning, view }: MenuContext): string[] {
   const { economy } = tuning;
+  const { live } = view;
   const yields = SEASONS.map((season) =>
     copy.help.grain.seasonYield({
       season,
-      rate: perSecond(
-        economy.grainPerFarmer * economy.seasonYield[season],
-        tuning,
-      ),
+      rate: perSecond(live.yields.grain * economy.seasonYield[season], tuning),
     }),
   ).join(", ");
   const meanYield =
     SEASONS.reduce((sum, season) => sum + economy.seasonYield[season], 0) /
     SEASONS.length;
-  const feeds = plain(
-    (economy.grainPerFarmer * meanYield) / economy.grainPerPerson,
-  );
+  const feeds = plain((live.yields.grain * meanYield) / economy.grainPerPerson);
   const barren = SEASONS.filter((season) => economy.seasonYield[season] === 0);
   const seasonLength = seconds(economy.ticksPerSeason, tuning);
   return [
@@ -121,6 +117,7 @@ function grainLines(tuning: Tuning): string[] {
       maxPopulation: plain(economy.maxPopulation),
     }),
     copy.help.grain.feedingThroughDecree,
+    copy.help.grain.storeCap({ cap: plain(live.caps.grain) }),
   ];
 }
 
@@ -128,9 +125,9 @@ function coinLines(context: MenuContext): string[] {
   const { tuning } = context;
   const lines = [
     copy.help.coin.steadySource({
-      grainPrice: plain(tuning.economy.grainPrice),
-      woodPrice: plain(tuning.economy.woodPrice),
-      orePrice: plain(tuning.economy.orePrice),
+      grainPrice: plain(context.view.live.prices.grain),
+      woodPrice: plain(context.view.live.prices.wood),
+      orePrice: plain(context.view.live.prices.ore),
     }),
     copy.help.coin.sellingThroughDecree,
   ];
@@ -149,12 +146,12 @@ function coinLines(context: MenuContext): string[] {
   return lines;
 }
 
-function woodAndOreLines(tuning: Tuning): string[] {
-  const { economy } = tuning;
+function woodAndOreLines({ tuning, view }: MenuContext): string[] {
+  const { live } = view;
   const { woodAndOre } = copy.help;
   return [
-    woodAndOre.woodCut({ rate: perSecond(economy.woodPerWorker, tuning) }),
-    woodAndOre.oreDug({ rate: perSecond(economy.orePerWorker, tuning) }),
+    woodAndOre.woodCut({ rate: perSecond(live.yields.wood, tuning) }),
+    woodAndOre.oreDug({ rate: perSecond(live.yields.ore, tuning) }),
     "",
     rulingsTouching(tuning, "wood", "costs")
       ? woodAndOre.woodPays
@@ -163,8 +160,12 @@ function woodAndOreLines(tuning: Tuning): string[] {
       ? woodAndOre.orePays
       : woodAndOre.oreNoUse,
     woodAndOre.prices({
-      woodPrice: plain(economy.woodPrice),
-      orePrice: plain(economy.orePrice),
+      woodPrice: plain(live.prices.wood),
+      orePrice: plain(live.prices.ore),
+    }),
+    woodAndOre.storeCap({
+      woodCap: plain(live.caps.wood),
+      oreCap: plain(live.caps.ore),
     }),
   ];
 }
@@ -320,7 +321,7 @@ function illusionLines({ tuning, view }: MenuContext): string[] {
     copy.help.illusion.fades({ fade: perSeason(illusion.fadePerTick, -1) }),
     "",
     copy.help.illusion.debt({
-      interest: percent(illusion.interestPerSeason),
+      interest: percent(view.live.interestPerSeason),
       forgeKey: keymap.panelHintKey("crown", copy.keys.panelActions.forge),
       forgeMissingKey: keymap.panelHintKey(
         "crown",
@@ -329,8 +330,8 @@ function illusionLines({ tuning, view }: MenuContext): string[] {
     }),
     copy.help.illusion.ceiling({
       ceiling: plain(illusion.ceilingPerPeasant),
-      grainAndWoodPrice: plain(economy.grainPrice),
-      oreAndCoinPrice: plain(economy.orePrice),
+      grainAndWoodPrice: plain(view.live.prices.grain),
+      oreAndCoinPrice: plain(view.live.prices.ore),
     }),
     copy.help.illusion.books({
       strained: percent(books.strained),
@@ -345,7 +346,7 @@ function illusionLines({ tuning, view }: MenuContext): string[] {
     copy.help.illusion.auditors({
       debtShare: percent(audit.debtShare),
       seasons: plain(audit.ageTicks / season),
-      gap: plain(audit.minGapTicks / season),
+      gap: plain(view.live.auditGapTicks / season),
       warning: seconds(audit.warningTicks, tuning),
       deadline: seconds(audit.deadlineTicks, tuning),
     }),
@@ -375,7 +376,7 @@ function governorLines({ tuning, view }: MenuContext): string[] {
   });
   return [
     copy.help.governors.what({
-      cap: plain(governors.cap),
+      cap: plain(view.live.governorCap),
       smallest: plain(governors.village.min),
       largest: plain(governors.village.max),
     }),
@@ -406,7 +407,7 @@ function governorLines({ tuning, view }: MenuContext): string[] {
     copy.help.governors.terms({
       shortest: seconds(governors.term.minTicks, tuning),
       longest: seconds(governors.term.maxTicks, tuning),
-      death: percent(governors.deathPerMille / 1000),
+      death: percent(view.live.governorDeathPerMille / 1000),
     }),
     copy.help.governors.dismissal,
   ];
@@ -419,9 +420,9 @@ const TOPICS: readonly {
   lines: (context: MenuContext) => string[];
 }[] = [
   { id: "keys", lines: keysLines },
-  { id: "grain", lines: (c) => grainLines(c.tuning) },
+  { id: "grain", lines: grainLines },
   { id: "coin", lines: coinLines },
-  { id: "woodAndOre", lines: (c) => woodAndOreLines(c.tuning) },
+  { id: "woodAndOre", lines: woodAndOreLines },
   { id: "decrees", lines: decreeLines },
   { id: "harvestAndLabor", lines: (c) => harvestAndLaborLines(c.tuning) },
   { id: "desk", lines: (c) => deskLines(c.tuning) },

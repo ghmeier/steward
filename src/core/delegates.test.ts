@@ -9,7 +9,12 @@ import { Game } from "./game";
 import type { AddContext } from "./math";
 import { Job } from "./realm";
 
-const context: AddContext = { tick: 1, maxValue: 1e300, absorbed: null };
+const context: AddContext = {
+  tick: 1,
+  maxValue: 1e300,
+  capOf: () => Number.POSITIVE_INFINITY,
+  absorbed: null,
+};
 
 const namesOf = (game: Game) => game.delegates.all.map((d) => d.name);
 const idsOf = (game: Game) => game.delegates.all.map((d) => d.id);

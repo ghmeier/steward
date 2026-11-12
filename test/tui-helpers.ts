@@ -123,6 +123,15 @@ export function emptyView(overrides: Partial<GameView> = {}): GameView {
     lockedPanels: [],
     unlocks: [],
     archive: { open: false, entries: [] },
+    live: {
+      yields: { grain: 0.025, wood: 0.02, ore: 0.01 },
+      prices: { grain: 0.5, wood: 0.5, ore: 1 },
+      caps: { grain: 500, wood: 300, ore: 150 },
+      interestPerSeason: 0.05,
+      auditGapTicks: 1200,
+      governorCap: 4,
+      governorDeathPerMille: 10,
+    },
     ...overrides,
   };
 }

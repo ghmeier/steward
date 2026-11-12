@@ -211,6 +211,8 @@ export const copy = {
     conjured: ({ amount }: { amount: string }) =>
       `(+${amount} conjured, fading)`,
     eaten: ({ rate }: { rate: string }) => `(${rate}/s eaten)`,
+    stored: ({ amount, cap }: { amount: string; cap: string }) =>
+      `${amount} / ${cap}`,
     titleLabel: "Title",
     title: ({ title, village }: { title: string; village: string }) =>
       `${title} of ${village}`,
@@ -417,6 +419,8 @@ export const copy = {
         `up to ${maxPopulation} peasants. Only grain can be fed.`,
       feedingThroughDecree:
         "Feeding happens through a harvest decree (see Harvest and labor).",
+      storeCap: ({ cap }: { cap: string }) =>
+        `The granary holds ${cap} grain. Harvest past that is lost, so sell or feed the surplus; the Archive sells bigger stores.`,
     },
     coin: {
       steadySource: ({
@@ -440,6 +444,8 @@ export const copy = {
       woodCut: ({ rate }: { rate: string }) =>
         `Foresters cut wood at ${rate} each.`,
       oreDug: ({ rate }: { rate: string }) => `Miners dig ore at ${rate} each.`,
+      storeCap: ({ woodCap, oreCap }: { woodCap: string; oreCap: string }) =>
+        `The woodshed holds ${woodCap} wood and the ore store ${oreCap} ore. Whatever is cut or dug past that is lost; the Archive sells bigger stores.`,
       woodPays: "Wood pays for some rulings and merchants' wares.",
       woodNoUse: "Wood has no use yet.",
       orePays: "Ore pays for some rulings and merchants' wares.",

@@ -143,11 +143,15 @@ describe("runSim output", () => {
   });
 
   describe("a state that fails validation", () => {
-    // With no cap, one forester at 1e308 per tick overflows to Infinity on the second tick.
+    // With no overflow guard and no stockpile cap, one forester at 1e308 per tick overflows to Infinity on the second tick.
     const overflowing = {
       ...tuning,
       maxResourceValue: Number.POSITIVE_INFINITY,
-      economy: { ...tuning.economy, woodPerWorker: 1e308 },
+      economy: {
+        ...tuning.economy,
+        woodPerWorker: 1e308,
+        caps: { grain: 1e308, wood: Number.POSITIVE_INFINITY, ore: 1e308 },
+      },
     };
 
     function runOverflowing(extraFlags: string[]) {

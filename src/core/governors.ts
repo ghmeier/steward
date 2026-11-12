@@ -149,15 +149,27 @@ export class GovernorManager {
     return stream;
   }
 
+  /** Governors the village may employ at once, counting the slots upgrades add. */
+  get cap(): number {
+    return this.tuning.cap + this.game.unlocks.modifier("governorSlots");
+  }
+
+  /** Chance in a thousand that a governor dies at a season's end. */
+  get deathPerMille(): number {
+    return Math.round(
+      this.tuning.deathPerMille * this.game.unlocks.modifier("governorDeath"),
+    );
+  }
+
   get hasRoom(): boolean {
-    return this.roster.length < this.tuning.cap;
+    return this.roster.length < this.cap;
   }
 
   /** Candidates arrive only once governors are bought, and only while hiring them all would stay within the cap. */
   get canOffer(): boolean {
     return (
       this.game.unlocks.enabled(GOVERNORS) &&
-      this.roster.length + this.game.desk.candidates.length < this.tuning.cap
+      this.roster.length + this.game.desk.candidates.length < this.cap
     );
   }
 
@@ -356,7 +368,7 @@ export class GovernorManager {
       this.keepBack(governor, tick);
       if (tick >= governor.termEndsAt) {
         this.depart(governor, "retired", context);
-      } else if (seasonEnds && chance(this.stream, this.tuning.deathPerMille)) {
+      } else if (seasonEnds && chance(this.stream, this.deathPerMille)) {
         this.depart(governor, "died", context, this.pick(this.tuning.causes));
       } else if (
         seasonEnds &&
