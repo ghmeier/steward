@@ -124,6 +124,9 @@ Acceptance: `bun run check` passes with no test behavior changes.
 
 ## Progress
 
+- PR 5 `decree-grammar`: built at 090c5ee, 1143 pass, golden unchanged. `command-line.ts` 1015 to 464 lines; the grammar is in `decree-grammar.ts` and the parsing cursor in `command-cursor.ts` (keeping it in `command-line.ts` would have made an import cycle); `entryLabel` moved to `menu.ts`. Decree tests stay in `command-line.test.ts` because they share tables with other verbs. Refactor pass running.
+- PR 4 `notice-list`: built at 784ad64, 1144 pass, golden unchanged. `src/tui/notices.ts` holds the `Notice` type and the ordered list; promotion moved to `promotion-notice.ts`; crown and audit notices now take the whole view. Notices are unit-tested only; the manual run only confirmed the TUI boots. Refactor pass running.
+
 ## Notes and decisions
 
 - 2026-11-12: Garret: separate systems and modules to minimize coupling, not a fixed per-feature rule. One mechanical PR for state and tuning schemas, all seven seams, keep `career.followers` and `career.needed`, split `panels.test.ts`.
