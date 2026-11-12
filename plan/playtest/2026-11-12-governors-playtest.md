@@ -5,7 +5,7 @@ last_pr: 36
 tags: [playtest]
 created: 2026-11-12
 updated: 2026-11-12
-next_step: tech-tree-upgrades in implementation, rebasing onto main after #36 merged
+next_step: tech-tree-upgrades in refactor pass; then PR 7 balance
 ---
 # Governors playtest: tech tree, illusion relief, pacing and polish
 
@@ -270,3 +270,4 @@ Objective: tune costs and thresholds so wood and ore are worth producing, and th
 - 2026-11-12: #35 merged. Garret agreed the strategy comparison tests are circular, so a new `trim-strategy-tests` PR removes them. PR 6 is stacked on it, and PR 7 becomes a tuning pass with progress invariants only.
 - 2026-11-12: `trim-strategy-tests` opened as #36 (ba891d1). It deletes six strategy files and about 1170 lines, and bun test drops from 10.9s to between 2 and 3.5s. What stays is seasonal replay and reference never-starves-and-promotes. `tech-tree-upgrades` was dispatched, stacked on it.
 - 2026-11-12: #36 merged. `tech-tree-upgrades` was told to rebase onto main and target main.
+- 2026-11-12: `tech-tree-upgrades` built (517322d), 1252 tests. Base caps are grain 500, wood 300, ore 150; existing stock above a cap is kept, with no schema bump. 22 upgrades in three tiers. A farm-first village only reveals tier 1 after promotion, because its labor puts nobody on wood or ore. `lenders.favor` and `court.friends` reveal only once you borrow or are audited. In refactor.
