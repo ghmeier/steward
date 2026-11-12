@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { compareKeys, isRecord, sortedKeys } from "./data";
 import { addIssue, type IssuePath, parseWith } from "./errors";
+import { LaborSplit } from "./labor-split";
 import { normalizeZero } from "./math";
 import { type Resource, SEASONS, type Season } from "./realm";
 import type { Tuning } from "./tuning";
@@ -322,9 +323,10 @@ export function decreePolicyProblem(
 ): string | null {
   const used = [...decree.rules.map((rule) => rule.policy), decree.otherwise];
   for (const policy of used) {
-    if (!allowed.includes(policy)) {
-      return `policy "${policy}" is not a ${decree.petition} policy`;
-    }
+    if (allowed.includes(policy)) continue;
+    const split = decree.petition === "labor" && LaborSplit.fromPolicy(policy);
+    if (!split) return `policy "${policy}" is not a ${decree.petition} policy`;
+    if (!split.ok) return split.problem;
   }
   return null;
 }

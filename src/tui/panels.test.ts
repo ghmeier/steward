@@ -3,6 +3,7 @@ import { createTestRenderer } from "@opentui/core/testing";
 import { tuning } from "../../test/helpers";
 import { barRow, settledFrame } from "../../test/tui-helpers";
 import { copy } from "../core/copy";
+import type { Decree } from "../core/decree";
 import { Job, RESOURCES } from "../core/realm";
 import {
   ARCHIVE_PANEL,
@@ -605,6 +606,29 @@ describe("createPanels", () => {
     expect(frame).toMatch(/wood {5}otherwise stockpile/);
     expect(frame).toContain(`ore      ${none}`);
     expect(frame).toContain(`labor    ${none}`);
+  });
+
+  test("the decrees panel shows a labor split as jobs and shares in a rule and in otherwise", async () => {
+    const labor = (rules: Decree["rules"], otherwise: string) =>
+      emptyView({
+        decrees: [{ id: "workforce", petition: "labor", rules, otherwise }],
+      });
+    const winter: Decree["rules"] = [
+      {
+        when: { kind: "season", season: "winter" },
+        policy: "forest 1 mine 1",
+      },
+    ];
+    const size = { width: 160, height: 30 };
+
+    const ruleFrame = await draw([labor(winter, "balanced")], { size });
+    const otherwiseFrame = await draw(
+      [labor([], "farm 60 forest 30 mine 10")],
+      { size },
+    );
+
+    expect(ruleFrame).toContain("forest 1 · mine 1 when it is winter");
+    expect(otherwiseFrame).toContain("otherwise farm 60 · forest 30 · mine 10");
   });
 
   test("the archive panel shows each entry's price and owned state, and the selected entry's description only while focused", async () => {

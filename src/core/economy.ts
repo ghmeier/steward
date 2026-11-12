@@ -1,6 +1,7 @@
 import type { ResourcePetition } from "./decree";
 import type { Game } from "./game";
 import { NO_LABOR_POLICY } from "./labor";
+import { LaborSplit } from "./labor-split";
 import { type AddContext, add } from "./math";
 import {
   Job,
@@ -237,11 +238,12 @@ export class EconomyManager {
 
   laborTargetFor(policy: string): Record<Job, number> {
     const allocations = this.tuning.economy.laborAllocations;
-    const shares = Object.hasOwn(allocations, policy)
-      ? allocations[policy]
-      : undefined;
-    if (!shares) throw new Error(`unknown labor policy "${policy}"`);
-    return this.laborTargets(shares);
+    if (Object.hasOwn(allocations, policy) && allocations[policy]) {
+      return this.laborTargets(allocations[policy]);
+    }
+    const split = LaborSplit.fromPolicy(policy);
+    if (!split?.ok) throw new Error(`unknown labor policy "${policy}"`);
+    return this.laborTargets(split.split.shares());
   }
 
   laborTargets(

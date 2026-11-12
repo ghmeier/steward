@@ -25,6 +25,17 @@ export function plural(count: number, one: string, many: string): string {
 }
 
 export const copy = {
+  laborSplit: {
+    unpaired:
+      "a labor split names each job with a number, such as farm 60 forest 30",
+    badWeight: ({ job, text }: { job: string; text: string }) =>
+      `"${text}" is not a share for ${job}; use a number that is not negative, such as 60`,
+    unknownJob: ({ job }: { job: string }) =>
+      `"${job}" is not a job; a labor split uses farm, forest and mine`,
+    duplicateJob: ({ job }: { job: string }) =>
+      `${job} appears twice in the labor split`,
+    allZero: "a labor split needs at least one job with a share above zero",
+  },
   crown: {
     noDemand: "the crown has made no demand",
     villageHoldsNone: ({ resource }: { resource: string }) =>
@@ -384,6 +395,8 @@ export const copy = {
         `Labor: each tick, ${moves} ${plural(moves, "peasant moves", "peasants move")} toward a split of farm, forest and mine:`,
       laborChangesOnly:
         "  A labor decree moves peasants when its policy changes, and your hand assignments stay until then.",
+      laborSplit:
+        "  Or give a split of your own, with a number for each job: farm 60 forest 30 mine 10. The numbers are relative, so farm 2 mine 1 works, and a job left out gets none.",
       laborExample:
         "Example, a labor decree: decree labor mine when it is winter otherwise farm",
     },
