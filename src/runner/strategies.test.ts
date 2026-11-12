@@ -145,16 +145,18 @@ describe("repaying illusion", () => {
     ]);
   }
 
-  // Crown-aware meets every demand at the current spacing, so borrowing has nothing to win and the
-  // two strategies tie; the test only holds that borrowing and repaying costs no favor or demands.
+  // Crown-aware meets every demand at the current spacing, so borrowing has nothing to win. The two
+  // strategies also reach the charter at different ticks, so a fixed window holds a different number
+  // of demands for each, and totals of favor or demands met don't compare. The test only holds that
+  // borrowing and repaying never costs a demand or an audit.
   test.each(SEEDS)(
-    "seed %i: a borrower that forges to bridge grain demands and then backs its debt ends with at least as much favor and as many demands met as crown-aware, and fails no audits",
+    "seed %i: a borrower that forges to bridge grain demands and then backs its debt misses no more demands than crown-aware and fails no audits",
     (seed) => {
       const borrower = playSeed("borrower", seed);
       const careful = playSeed("crown-aware", seed);
 
-      expect(borrower.crown.favor).toBeGreaterThanOrEqual(careful.crown.favor);
-      expect(borrower.crown.met).toBeGreaterThanOrEqual(careful.crown.met);
+      expect(borrower.crown.met).toBeGreaterThan(0);
+      expect(borrower.crown.missed).toBeLessThanOrEqual(careful.crown.missed);
       expect(borrower.illusion.audits.failed).toBe(0);
     },
   );
