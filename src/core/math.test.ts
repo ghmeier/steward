@@ -12,7 +12,13 @@ function contextWith(
   absorbed: AbsorbedAdditionLog | null,
   overrides: Partial<AddContext> = {},
 ): AddContext {
-  return { tick: 7, maxValue: 1e30, absorbed, ...overrides };
+  return {
+    tick: 7,
+    maxValue: 1e30,
+    capOf: () => Number.POSITIVE_INFINITY,
+    absorbed,
+    ...overrides,
+  };
 }
 
 describe("powInt", () => {
@@ -86,6 +92,24 @@ describe("add", () => {
     add(resources, "food", 50, contextWith(null, { maxValue: 100 }));
 
     expect(resources.food).toBe(100);
+  });
+
+  test("an addition past the cap is lost, unlogged, and stock above the cap is kept", () => {
+    const absorbed: AbsorbedAdditionLog = {};
+    const capped = contextWith(absorbed, { capOf: () => 100 });
+    const nearFull = { food: 95 };
+    const full = { food: 100 };
+    const overFull = { food: 130 };
+
+    add(nearFull, "food", 20, capped);
+    add(full, "food", 1, capped);
+    add(overFull, "food", 20, capped);
+    add(overFull, "food", -10, capped);
+
+    expect(nearFull.food).toBe(100);
+    expect(full.food).toBe(100);
+    expect(overFull.food).toBe(120);
+    expect(absorbed).toEqual({});
   });
 
   test("never stores negative zero", () => {

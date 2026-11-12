@@ -451,7 +451,12 @@ export class LedgerPanel extends VillagePanel {
   ): string[] {
     const rows = view.ledger.map((line) => [
       capitalize(line.resource),
-      formatAmount(line.amount),
+      line.cap === undefined
+        ? formatAmount(line.amount)
+        : copy.ledger.stored({
+            amount: formatAmount(line.amount),
+            cap: formatAmount(line.cap),
+          }),
       formatRate(line.ratePerSecond),
     ]);
     const widths = [0, 1, 2].map((column) =>

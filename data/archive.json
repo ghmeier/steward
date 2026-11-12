@@ -169,6 +169,389 @@
         "wood": 150
       },
       "requires": ["panel.crown"]
+    },
+    {
+      "id": "store.granary1",
+      "label": "Granary",
+      "description": "A proper granary for the harvest, holding 400 more grain before the surplus spoils.",
+      "cost": {
+        "wood": 80
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "grain",
+        "comparison": "above",
+        "value": 250
+      },
+      "effects": {
+        "grainCap": 400
+      }
+    },
+    {
+      "id": "store.woodshed1",
+      "label": "Woodshed",
+      "description": "A roof and four walls for the timber, holding 300 more wood.",
+      "cost": {
+        "wood": 100
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "wood",
+        "comparison": "above",
+        "value": 150
+      },
+      "effects": {
+        "woodCap": 300
+      }
+    },
+    {
+      "id": "store.oreStore1",
+      "label": "Ore store",
+      "description": "A dry cellar for the ore, holding 150 more of it.",
+      "cost": {
+        "wood": 40,
+        "ore": 40
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "ore",
+        "comparison": "above",
+        "value": 25
+      },
+      "effects": {
+        "oreCap": 150
+      }
+    },
+    {
+      "id": "tools.plough1",
+      "label": "Iron-shod ploughs",
+      "description": "Farmers coax a quarter more grain from the same field.",
+      "cost": {
+        "wood": 60,
+        "ore": 20
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "grain",
+        "comparison": "above",
+        "value": 150
+      },
+      "effects": {
+        "farmYield": 1.25
+      }
+    },
+    {
+      "id": "tools.axes1",
+      "label": "Sharper axes",
+      "description": "Foresters fell a quarter more wood in a day.",
+      "cost": {
+        "wood": 50,
+        "ore": 15
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "wood",
+        "comparison": "above",
+        "value": 40
+      },
+      "effects": {
+        "forestYield": 1.25
+      }
+    },
+    {
+      "id": "tools.picks1",
+      "label": "Stronger picks",
+      "description": "Miners bring up a quarter more ore, and break fewer picks doing it.",
+      "cost": {
+        "wood": 40,
+        "ore": 25
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "ore",
+        "comparison": "above",
+        "value": 20
+      },
+      "effects": {
+        "mineYield": 1.25
+      }
+    },
+    {
+      "id": "market.rights",
+      "label": "Market rights",
+      "description": "The reeve may haggle in the market square, and sold goods fetch a quarter more.",
+      "cost": {
+        "wood": 120,
+        "ore": 40
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "wood",
+        "comparison": "above",
+        "value": 100
+      },
+      "effects": {
+        "sellPrice": 1.25
+      }
+    },
+    {
+      "id": "court.petitions",
+      "label": "Petitions",
+      "description": "Peasants may bring requests to the Court, some of which are worth granting.",
+      "cost": {
+        "wood": 60,
+        "ore": 20
+      },
+      "requires": ["panel.court"],
+      "shown": {
+        "kind": "compare",
+        "quantity": "population",
+        "comparison": "above",
+        "value": 8
+      }
+    },
+    {
+      "id": "store.granary2",
+      "label": "Larger granary",
+      "description": "Another wing for the granary, holding 800 more grain.",
+      "cost": {
+        "wood": 200,
+        "ore": 60
+      },
+      "requires": ["store.granary1", "panel.crown"],
+      "shown": {
+        "kind": "compare",
+        "quantity": "grain",
+        "comparison": "above",
+        "value": 600
+      },
+      "effects": {
+        "grainCap": 800
+      }
+    },
+    {
+      "id": "store.woodshed2",
+      "label": "Larger woodshed",
+      "description": "A second shed, holding 600 more wood.",
+      "cost": {
+        "wood": 250,
+        "ore": 50
+      },
+      "requires": ["store.woodshed1", "panel.crown"],
+      "shown": {
+        "kind": "compare",
+        "quantity": "wood",
+        "comparison": "above",
+        "value": 350
+      },
+      "effects": {
+        "woodCap": 600
+      }
+    },
+    {
+      "id": "store.oreStore2",
+      "label": "Deeper ore store",
+      "description": "A deeper cellar, holding 300 more ore.",
+      "cost": {
+        "wood": 100,
+        "ore": 120
+      },
+      "requires": ["store.oreStore1", "panel.crown"],
+      "shown": {
+        "kind": "compare",
+        "quantity": "ore",
+        "comparison": "above",
+        "value": 100
+      },
+      "effects": {
+        "oreCap": 300
+      }
+    },
+    {
+      "id": "tools.plough2",
+      "label": "Heavy ploughs",
+      "description": "Two oxen to the plough, and another quarter more grain from the field.",
+      "cost": {
+        "wood": 200,
+        "ore": 80
+      },
+      "requires": ["tools.plough1", "panel.crown"],
+      "shown": {
+        "kind": "compare",
+        "quantity": "grain",
+        "comparison": "above",
+        "value": 400
+      },
+      "effects": {
+        "farmYield": 1.25
+      }
+    },
+    {
+      "id": "tools.axes2",
+      "label": "Felling wedges",
+      "description": "Iron wedges and two-man saws, for another quarter more wood.",
+      "cost": {
+        "wood": 150,
+        "ore": 60
+      },
+      "requires": ["tools.axes1", "panel.crown"],
+      "shown": {
+        "kind": "compare",
+        "quantity": "wood",
+        "comparison": "above",
+        "value": 200
+      },
+      "effects": {
+        "forestYield": 1.25
+      }
+    },
+    {
+      "id": "tools.picks2",
+      "label": "Iron-bound props",
+      "description": "Timbered galleries let miners dig deeper, for another quarter more ore.",
+      "cost": {
+        "wood": 120,
+        "ore": 100
+      },
+      "requires": ["tools.picks1", "panel.crown"],
+      "shown": {
+        "kind": "compare",
+        "quantity": "ore",
+        "comparison": "above",
+        "value": 80
+      },
+      "effects": {
+        "mineYield": 1.25
+      }
+    },
+    {
+      "id": "lenders.favor",
+      "label": "Moneylender's favor",
+      "description": "A word to the moneylender, and debt grows by a third less each season.",
+      "cost": {
+        "coin": 100,
+        "wood": 100,
+        "ore": 60
+      },
+      "requires": ["panel.crown"],
+      "shown": {
+        "kind": "compare",
+        "quantity": "debt",
+        "comparison": "above",
+        "value": 0
+      },
+      "effects": {
+        "interest": 0.67
+      }
+    },
+    {
+      "id": "court.friends",
+      "label": "Friends at court",
+      "description": "A few gifts to the right clerks, and auditors wait half a season longer between visits.",
+      "cost": {
+        "coin": 150,
+        "wood": 150,
+        "ore": 100
+      },
+      "requires": ["panel.crown"],
+      "shown": {
+        "kind": "compare",
+        "quantity": "auditors",
+        "comparison": "above",
+        "value": 0
+      },
+      "effects": {
+        "auditGap": 300
+      }
+    },
+    {
+      "id": "court.omens",
+      "label": "Court omens",
+      "description": "A seer takes a seat at the Court, and warns you of lean seasons for a fee.",
+      "cost": {
+        "wood": 100,
+        "ore": 60
+      },
+      "requires": ["panel.court", "panel.crown"],
+      "shown": "promotion"
+    },
+    {
+      "id": "store.granary3",
+      "label": "Great granary",
+      "description": "A granary the size of a cathedral, holding 1600 more grain.",
+      "cost": {
+        "wood": 400,
+        "ore": 150
+      },
+      "requires": ["store.granary2"],
+      "shown": "governor",
+      "effects": {
+        "grainCap": 1600
+      }
+    },
+    {
+      "id": "store.woodshed3",
+      "label": "Great woodshed",
+      "description": "A timber yard under roof, holding 1200 more wood.",
+      "cost": {
+        "wood": 500,
+        "ore": 120
+      },
+      "requires": ["store.woodshed2"],
+      "shown": "governor",
+      "effects": {
+        "woodCap": 1200
+      }
+    },
+    {
+      "id": "store.oreStore3",
+      "label": "Great ore store",
+      "description": "A vault cut into the hillside, holding 600 more ore.",
+      "cost": {
+        "wood": 300,
+        "ore": 250
+      },
+      "requires": ["store.oreStore2"],
+      "shown": "governor",
+      "effects": {
+        "oreCap": 600
+      }
+    },
+    {
+      "id": "governors.physician",
+      "label": "Village physician",
+      "description": "A learned man in every governor's village, who halves the chance that one dies in a season.",
+      "cost": {
+        "wood": 200,
+        "ore": 100
+      },
+      "requires": ["control.governors"],
+      "shown": "governor",
+      "effects": {
+        "governorDeath": 0.5
+      }
+    },
+    {
+      "id": "governors.slots",
+      "label": "Provincial seats",
+      "description": "The crown allows two more provinces to be given to governors.",
+      "cost": {
+        "coin": 400,
+        "wood": 400,
+        "ore": 200
+      },
+      "requires": ["control.governors"],
+      "shown": "governor",
+      "effects": {
+        "governorSlots": 2
+      }
     }
   ],
   "play": [

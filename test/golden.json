@@ -15,7 +15,29 @@
     "precision.reports",
     "control.conjuring",
     "control.forging",
-    "control.governors"
+    "control.governors",
+    "store.granary1",
+    "store.woodshed1",
+    "store.oreStore1",
+    "tools.plough1",
+    "tools.axes1",
+    "tools.picks1",
+    "market.rights",
+    "court.petitions",
+    "store.granary2",
+    "store.woodshed2",
+    "store.oreStore2",
+    "tools.plough2",
+    "tools.axes2",
+    "tools.picks2",
+    "lenders.favor",
+    "court.friends",
+    "court.omens",
+    "store.granary3",
+    "store.woodshed3",
+    "store.oreStore3",
+    "governors.physician",
+    "governors.slots"
   ],
-  "hash": "d18c081c6ce5c6fc9906c3561c1949297e9df872056e364a534effae524ef90e"
+  "hash": "6b8caed75f1fa9aaa18856384ffd5af40900c22a09e7f77d2173e8f4e482262f"
 }

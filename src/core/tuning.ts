@@ -23,13 +23,18 @@ const tuningSchema = z
     governors: governorTuningSchema,
   })
   .superRefine((tuning, ctx) => {
-    // Governors and open candidates are named from the same pool as peasants.
+    // Governors and open candidates are named from the same pool as peasants, and the pool must
+    // cover the governor cap with every slot upgrade bought.
+    const mostGovernors = tuning.archive.entries.reduce(
+      (cap, { effects }) => cap + (effects?.governorSlots ?? 0),
+      tuning.governors.cap,
+    );
     const max =
-      tuning.economy.maxPopulation + tuning.governors.cap + tuning.desk.slots;
+      tuning.economy.maxPopulation + mostGovernors + tuning.desk.slots;
     if (tuning.village.names.length < max) {
       addIssue(
         ctx,
-        `needs at least maxPopulation plus the governor cap plus the desk slots (${max}) names, got ${tuning.village.names.length}`,
+        `needs at least maxPopulation plus the most governors the Archive allows plus the desk slots (${max}) names, got ${tuning.village.names.length}`,
         ["village", "names"],
       );
     }

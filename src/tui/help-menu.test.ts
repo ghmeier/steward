@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { topicLines, tuning } from "../../test/helpers";
+import { effectOf, topicLines, tuning } from "../../test/helpers";
 import { copy, type TraitFigures } from "../core/copy";
 import { policiesFor } from "../core/decree";
 import { Job, type Trait } from "../core/realm";
@@ -16,7 +16,7 @@ import {
   SAVED_DECREES_UNLOCK,
   TRUE_REPORTS,
 } from "../core/unlocks";
-import { describePolicy } from "./decree-format";
+import { describePolicy, percent } from "./decree-format";
 import { capitalize, formatCost, plain } from "./format";
 import type { HelpTopicId } from "./help-menu";
 import { peasantKeyFor } from "./keys";
@@ -191,5 +191,38 @@ describe("help topics", () => {
       return (row?.trimEnd().length ?? 0) - hint.label.length;
     });
     expect(new Set(columns).size).toBe(1);
+  });
+});
+
+describe("help quotes the tuning that owned upgrades have changed", () => {
+  const ids = ["lenders.favor", "store.granary1", "governors.physician"];
+
+  test("the interest, grain store and governor death figures follow the upgrades the village owns", () => {
+    const interest =
+      tuning.illusion.interestPerSeason * effectOf("lenders.favor", "interest");
+    const grainCap =
+      tuning.economy.caps.grain + effectOf("store.granary1", "grainCap");
+    const death =
+      (tuning.governors.deathPerMille *
+        effectOf("governors.physician", "governorDeath")) /
+      1000;
+
+    const illusionText = topicLines("illusion", tuning, ids).join("\n");
+    const grainText = topicLines("grain", tuning, ids).join("\n");
+    const governorText = topicLines("governors", tuning, ids).join("\n");
+
+    expect(illusionText).toContain(percent(interest));
+    expect(grainText).toContain(`${plain(grainCap)} grain`);
+    expect(governorText).toContain(`${percent(death)} chance`);
+  });
+
+  test("without the upgrades the same topics quote the base figures", () => {
+    const illusionText = topicLines("illusion").join("\n");
+    const governorText = topicLines("governors").join("\n");
+
+    expect(illusionText).toContain(percent(tuning.illusion.interestPerSeason));
+    expect(governorText).toContain(
+      `${percent(tuning.governors.deathPerMille / 1000)} chance`,
+    );
   });
 });

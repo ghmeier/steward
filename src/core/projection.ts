@@ -20,6 +20,7 @@ export class ProjectionManager {
     const { eaten } = next.steps.runFlows({
       tick: next.state.tick,
       maxValue: this.game.tuning.maxResourceValue,
+      capOf: (resource) => this.game.economy.capOf(resource),
       absorbed: null,
     });
 

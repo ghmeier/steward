@@ -42,6 +42,7 @@ export class StepManager {
     const context: AddContext = {
       tick: this.game.state.tick,
       maxValue: this.game.tuning.maxResourceValue,
+      capOf: (resource) => this.game.economy.capOf(resource),
       absorbed: options.absorbed,
     };
     const results = commands.map((command) =>

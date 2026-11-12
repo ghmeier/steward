@@ -1,15 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
+  uncappedContext as context,
   type RosterCounts,
   setFamineDue,
   setRoster,
   economyTestTuning as tuning,
 } from "../../test/helpers";
 import { Game } from "./game";
-import type { AddContext } from "./math";
 import { Job } from "./realm";
-
-const context: AddContext = { tick: 1, maxValue: 1e300, absorbed: null };
 
 const namesOf = (game: Game) => game.delegates.all.map((d) => d.name);
 const idsOf = (game: Game) => game.delegates.all.map((d) => d.id);

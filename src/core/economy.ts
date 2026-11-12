@@ -87,6 +87,8 @@ export const economyTuningSchema = z
     laborMovesPerTick: positiveInteger,
     initialPopulation: z.int().min(0),
     initialResources: z.record(z.enum(RESOURCES), nonNegative),
+    /** What the stores hold before any upgrade; coin has no store and so no cap. */
+    caps: z.strictObject({ grain: positive, wood: positive, ore: positive }),
     laborAllocations,
   })
   .superRefine((value, ctx) => {
@@ -118,6 +120,12 @@ export type VillageTuning = z.infer<typeof villageTuningSchema>;
 
 export type EconomyRun = { flows: EconomyFlows; eaten: number };
 export type EconomyFlows = Readonly<Record<ResourcePetition, number>>;
+
+const CAP_MODIFIER = {
+  grain: "grainCap",
+  wood: "woodCap",
+  ore: "oreCap",
+} as const;
 
 const PRICE_KEY = {
   grain: "grainPrice",
@@ -162,10 +170,6 @@ export class EconomyManager {
     return this.tuning.economy.grainPerPerson;
   }
 
-  private get grainPerFarmer() {
-    return this.tuning.economy.grainPerFarmer;
-  }
-
   private get seasonYield() {
     return this.tuning.economy.seasonYield;
   }
@@ -207,12 +211,34 @@ export class EconomyManager {
     return grain / upkeepPerSeason;
   }
 
-  private grainProduced(): number {
-    const season = this.seasonAt(this.tick);
+  /** The most of a resource the stores hold; coin is never stored, so it is never capped. */
+  capOf(resource: string): number {
+    if (!Object.hasOwn(CAP_MODIFIER, resource)) return Number.POSITIVE_INFINITY;
+    const kind = resource as keyof typeof CAP_MODIFIER;
     return (
-      this.game.delegates.workingCountsAt(this.tick).farm *
-      this.grainPerFarmer *
-      this.seasonYield[season]
+      this.tuning.economy.caps[kind] +
+      this.game.unlocks.modifier(CAP_MODIFIER[kind])
+    );
+  }
+
+  /** Grain one farmer yields in a tick before the season's multiplier. */
+  get grainPerFarmer(): number {
+    return (
+      this.tuning.economy.grainPerFarmer *
+      this.game.unlocks.modifier("farmYield")
+    );
+  }
+
+  get woodPerWorker(): number {
+    return (
+      this.tuning.economy.woodPerWorker *
+      this.game.unlocks.modifier("forestYield")
+    );
+  }
+
+  get orePerWorker(): number {
+    return (
+      this.tuning.economy.orePerWorker * this.game.unlocks.modifier("mineYield")
     );
   }
 
@@ -228,12 +254,16 @@ export class EconomyManager {
           amount: this.grainPerFarmer * this.seasonYield[this.seasonAt(tick)],
         };
       case Job.FOREST:
-        return { resource: "wood", amount: this.tuning.economy.woodPerWorker };
+        return { resource: "wood", amount: this.woodPerWorker };
       case Job.MINE:
-        return { resource: "ore", amount: this.tuning.economy.orePerWorker };
+        return { resource: "ore", amount: this.orePerWorker };
       case Job.IDLE:
         return null;
     }
+  }
+
+  private producedBy(job: WorkingJob, workers: number): number {
+    return workers * (this.yieldPerWorker(job, this.tick)?.amount ?? 0);
   }
 
   // Idle peasants die first so that a starving village loses its workers last; among
@@ -265,23 +295,24 @@ export class EconomyManager {
   }
 
   run(context: AddContext): EconomyRun {
-    const settings = this.tuning.economy;
     const resources = this.posting.resources;
     const { economy } = this.posting;
     const working = this.game.delegates.workingCountsAt(this.tick);
 
-    const produced = this.grainProduced();
-    add(resources, "grain", produced, context);
-    const woodCut = working.forest * settings.woodPerWorker;
-    const oreDug = working.mine * settings.orePerWorker;
+    const produced = this.producedBy(Job.FARM, working.farm);
+    const woodCut = this.producedBy(Job.FOREST, working.forest);
+    const oreDug = this.producedBy(Job.MINE, working.mine);
     add(resources, "wood", woodCut, context);
     add(resources, "ore", oreDug, context);
 
     const upkeep = this.grainUpkeepPerTick();
     const grain = resources.grain ?? 0;
-    const eaten = Math.min(grain, upkeep);
-    if (grain >= upkeep) {
+    const eaten = Math.min(grain + produced, upkeep);
+    if (grain + produced >= upkeep) {
+      // Eat before storing the harvest: storing first would let a full granary turn away grain the
+      // village then eats, showing a drain that is not there.
       add(resources, "grain", -upkeep, context);
+      add(resources, "grain", produced, context);
       economy.famine = { startPopulation: 0, ticks: 0, deaths: 0 };
     } else {
       add(resources, "grain", -grain, context);
@@ -300,7 +331,10 @@ export class EconomyManager {
 
   /** What a unit of the resource sells for at market, in coin. */
   priceOf(resource: Resource): number {
-    return resource === "coin" ? 1 : this.tuning.economy[PRICE_KEY[resource]];
+    return resource === "coin"
+      ? 1
+      : this.tuning.economy[PRICE_KEY[resource]] *
+          this.game.unlocks.modifier("sellPrice");
   }
 
   sellResource(

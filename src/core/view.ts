@@ -23,6 +23,8 @@ export type LedgerLine = {
   /** The conjured part of `amount`. */
   conjured: number;
   ratePerSecond: number;
+  /** What the stores can hold of this resource; absent for coin, which is not stored. */
+  cap?: number | undefined;
 };
 export type GameView = {
   tick: number;
@@ -53,6 +55,18 @@ export type GameView = {
   lockedPanels: PanelId[];
   unlocks: UnlockId[];
   archive: { open: boolean; entries: ArchiveEntryView[] };
+  /** The figures upgrades have adjusted, so that help and displays quote what the village really lives by. */
+  live: LiveTuning;
+};
+export type LiveTuning = {
+  /** Yields are per worker per tick; farming is before the season's multiplier. */
+  yields: { grain: number; wood: number; ore: number };
+  prices: { grain: number; wood: number; ore: number };
+  caps: { grain: number; wood: number; ore: number };
+  interestPerSeason: number;
+  auditGapTicks: number;
+  governorCap: number;
+  governorDeathPerMille: number;
 };
 /** Only entries on offer appear. */
 export type ArchiveEntryView = {
@@ -92,6 +106,31 @@ export class ViewManager {
     return crowned ? titles.crowned : titles.promoted;
   }
 
+  private live(): LiveTuning {
+    const { economy, illusion, governors } = this.game;
+    return {
+      yields: {
+        grain: economy.grainPerFarmer,
+        wood: economy.woodPerWorker,
+        ore: economy.orePerWorker,
+      },
+      prices: {
+        grain: economy.priceOf("grain"),
+        wood: economy.priceOf("wood"),
+        ore: economy.priceOf("ore"),
+      },
+      caps: {
+        grain: economy.capOf("grain"),
+        wood: economy.capOf("wood"),
+        ore: economy.capOf("ore"),
+      },
+      interestPerSeason: illusion.interestPerSeason,
+      auditGapTicks: illusion.auditGapTicks,
+      governorCap: governors.cap,
+      governorDeathPerMille: governors.deathPerMille,
+    };
+  }
+
   // The UI reads only this view, never GameState, so what the player is shown can
   // differ from the underlying truth without touching any renderer.
   compute(): GameView {
@@ -100,10 +139,12 @@ export class ViewManager {
     const gap = this.game.unlocks.enabled(TRUE_REPORTS)
       ? null
       : this.game.governors.reportGap(this.tick + 1);
+    const live = this.live();
     const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
       resource,
       amount: this.game.illusion.apparent(resource),
       conjured: this.game.illusion.conjuredOf(resource),
+      ...(resource === "coin" ? {} : { cap: live.caps[resource] }),
       ratePerSecond:
         ((rates[resource] + (gap?.[resource] ?? 0)) * 1000) /
         this.tuning.stepMs,
@@ -142,6 +183,7 @@ export class ViewManager {
       grainEatenPerSecond: (eatenPerTick * 1000) / this.tuning.stepMs,
       lockedPanels: this.game.unlocks.lockedPanels(),
       unlocks: this.game.unlocks.purchased,
+      live,
       archive: {
         open: this.game.unlocks.enabled(ARCHIVE_PANEL),
         entries: this.game.unlocks.offered().map((entry) => {

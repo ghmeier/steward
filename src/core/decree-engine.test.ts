@@ -1,14 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
+  uncappedContext as context,
   grantUnlocks,
   setRoster,
   economyTestTuning as tuning,
 } from "../../test/helpers";
 import { type Condition, decreeSetProblem, type Petition } from "./decree";
 import { Game } from "./game";
-import type { AddContext } from "./math";
 
-const context: AddContext = { tick: 1, maxValue: 1e300, absorbed: null };
 const none = { harvest: 0, wood: 0, ore: 0 };
 const surplus = { harvest: 3, wood: 0, ore: 0 };
 

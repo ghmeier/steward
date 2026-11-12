@@ -1,14 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
+  uncappedContext as context,
   tuning as realTuning,
   setRoster,
   economyTestTuning as tuning,
 } from "../../test/helpers";
 import { Game } from "./game";
-import type { AddContext } from "./math";
 import { Job, type Season, type WorkingJob } from "./realm";
 
-const context: AddContext = { tick: 1, maxValue: 1e300, absorbed: null };
 const perSeason = tuning.economy.ticksPerSeason;
 const winter = 3 * perSeason + 1;
 

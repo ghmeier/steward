@@ -497,7 +497,17 @@ export class IllusionManager {
 
   /** The shortest time between one audit closing and the next being announced. */
   get auditGapTicks(): number {
-    return this.tuning.audit.minGapTicks + this.game.crown.auditGapBonus;
+    return (
+      this.tuning.audit.minGapTicks +
+      this.game.crown.auditGapBonus +
+      this.game.unlocks.modifier("auditGap")
+    );
+  }
+
+  get interestPerSeason(): number {
+    return (
+      this.tuning.interestPerSeason * this.game.unlocks.modifier("interest")
+    );
   }
 
   private get isInAuditGap(): boolean {
@@ -557,7 +567,7 @@ export class IllusionManager {
       conjured[resource] = this.conjuredOf(resource) * keep;
     }
     if (this.game.economy.seasonEnds) {
-      this.chargeOnPrincipal(this.tuning.interestPerSeason);
+      this.chargeOnPrincipal(this.interestPerSeason);
     }
     this.runAudit();
   }

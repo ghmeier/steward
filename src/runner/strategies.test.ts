@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { archiveUpgrades, quietOptions, tuning } from "../../test/helpers";
+import { Game } from "../core/game";
+import { Job } from "../core/realm";
 import { runSim } from "./sim";
+import { StrategyPlayer } from "./strategy";
 
 const STEPS = "24000";
 
@@ -42,6 +46,70 @@ describe("scripted strategies over ten game years", () => {
 
     expect(summary.starved).toBe(0);
     expect(summary.promotedAt).toBeGreaterThan(0);
+  });
+
+  test("a village that farms, feeds and sets its labor reveals every first-tier upgrade within the run", () => {
+    const game = Game.create(1, tuning);
+    const player = new StrategyPlayer({
+      name: "farming",
+      setup: [
+        { type: "assignPeasant", peasant: 1, job: Job.FARM },
+        {
+          type: "enactDecree",
+          decree: {
+            id: "granary",
+            petition: "harvest",
+            rules: [
+              {
+                when: {
+                  kind: "compare",
+                  quantity: "grainSeasons",
+                  comparison: "above",
+                  value: 2,
+                },
+                policy: "feed",
+              },
+            ],
+            otherwise: "stockpile",
+          },
+        },
+        {
+          type: "enactDecree",
+          decree: {
+            id: "workforce",
+            petition: "labor",
+            rules: [
+              {
+                when: {
+                  kind: "compare",
+                  quantity: "population",
+                  comparison: "below",
+                  value: tuning.village.promotionPopulation,
+                },
+                policy: "farm",
+              },
+            ],
+            otherwise: "farming",
+          },
+        },
+      ],
+      purchases: [],
+      reactions: [],
+    });
+    const firstTier = archiveUpgrades.filter(
+      ({ shown, requires }) =>
+        typeof shown === "object" && !requires.includes("panel.crown"),
+    );
+
+    while (game.state.tick < Number(STEPS)) {
+      game.steps.step(player.next(), quietOptions);
+      player.observe(game);
+    }
+
+    const unseen = firstTier
+      .map(({ id }) => id)
+      .filter((id) => !game.unlocks.isSeen(id));
+    expect(unseen).toEqual([]);
   });
 
   test("a recorded seasonal run replays to the same hash", () => {
