@@ -246,3 +246,6 @@ Objective: tune costs and thresholds so wood and ore are worth producing, and th
 ## Notes and decisions
 
 - 2026-11-12: Plan drafted from four research passes. Garret answered the four questions above.
+- 2026-11-12: `village-polish` built: save schema now 15 (`UPGRADES[14]`). The title line shows from the start ("Reeve of X"). Old saves get a name picked from their seed. In refactor.
+- 2026-11-12: `court-missives` built: scale factor stored on the entry, no schema bump. The golden file picked up `precision.*` unlocks; the refactor pass is checking why. In refactor.
+- 2026-11-12: `pacing` built: with wider gaps, crown-aware never misses a demand, so the strategies gate was loosened (no missed check, borrower favor `>=`, conjurer test runs 20 years). PR 7 must re-pressure the crown, through amounts or early deadlines. In refactor.
