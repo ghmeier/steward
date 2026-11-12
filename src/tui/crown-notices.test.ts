@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { noticeFrame, tuning } from "../../test/helpers";
+import { noticeFrame, tuning, viewWith } from "../../test/helpers";
 import { copy } from "../core/copy";
-import type { CrownDemandView, CrownView, GameView } from "../core/view";
+import type { CrownDemandView, GameView } from "../core/view";
 import { crownNotice } from "./crown-notices";
 
 const { lines } = tuning.crown;
@@ -14,17 +14,18 @@ const demand: CrownDemandView = {
   ticksLeft: tuning.crown.deadlineTicks,
   herald: "The crown requires 80 ore for the armory.",
 };
-const viewOf = (crown: CrownView | null) => ({ crown }) as GameView;
 const crown = (
   open: Partial<CrownDemandView> | null,
   tally: { met?: number; missed?: number } = {},
 ): GameView =>
-  viewOf({
-    demand: open === null ? null : { ...demand, ...open },
-    nextDemandTicks: open === null ? 1200 : null,
-    favor: "neutral",
-    met: tally.met ?? 0,
-    missed: tally.missed ?? 0,
+  viewWith({
+    crown: {
+      demand: open === null ? null : { ...demand, ...open },
+      nextDemandTicks: open === null ? 1200 : null,
+      favor: "neutral",
+      met: tally.met ?? 0,
+      missed: tally.missed ?? 0,
+    },
   });
 
 describe("crownNotice", () => {
@@ -67,7 +68,9 @@ describe("crownNotice", () => {
   });
 
   test("nothing is reported before promotion or when the crown stays quiet", () => {
-    expect(crownNotice(viewOf(null), crown(null), noticeFrame)).toBeNull();
+    expect(
+      crownNotice(viewWith({ crown: null }), crown(null), noticeFrame),
+    ).toBeNull();
     expect(crownNotice(crown(null), crown(null), noticeFrame)).toBeNull();
   });
 });

@@ -1,11 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { noticeFrame } from "../../test/helpers";
-import { CONJURING } from "../core/unlocks";
-import type { GameView } from "../core/view";
+import { noticeFrame, viewWith } from "../../test/helpers";
+import { CONJURING, type UnlockId } from "../core/unlocks";
 import { unlockNotice } from "./unlock-notices";
 
-const viewOwning = (...unlocks: string[]) =>
-  ({ unlocks }) as unknown as GameView;
+const viewOwning = (...unlocks: UnlockId[]) => viewWith({ unlocks });
 
 describe("unlockNotice", () => {
   test("conjuring is announced on the frame it is first owned and never for a save that already owned it", () => {

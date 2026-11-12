@@ -9,7 +9,7 @@ import { HelpPage } from "./help-menu";
 import { actionForKey, type FocusId, FocusRing, isInterrupt } from "./keys";
 import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
 import { newGameMenu } from "./new-game-menu";
-import { notices } from "./notices";
+import { latestNotice } from "./notices";
 import { BAR_LINES, createPanels } from "./panels";
 import { Session } from "./session";
 import { type PanelStep, Village } from "./village-panels";
@@ -226,13 +226,11 @@ export function startApp(options: {
     if (lastRejection !== undefined) message = lastRejection.reason;
     const previous = lastView;
     lastView = session.view();
-    for (const notice of notices) {
-      const line = notice(previous, lastView, {
-        tuning,
-        expired: result.expired,
-      });
-      if (line !== null) message = line;
-    }
+    const notice = latestNotice(previous, lastView, {
+      tuning,
+      expired: result.expired,
+    });
+    if (notice !== null) message = notice;
     if (result.viewChanged || message !== drawnMessage) redraw();
   }
 

@@ -18,7 +18,7 @@ export type Notice = (
   frame: { tuning: Tuning; expired: readonly string[] },
 ) => string | null;
 
-/** The order is the priority: when several notices speak in one frame, the last one is shown. */
+/** The order is the priority: the message bar shows only one line, so the last notice to return text wins. */
 export const notices: readonly Notice[] = [
   starvationNotice,
   deskNotice,
@@ -28,3 +28,15 @@ export const notices: readonly Notice[] = [
   unlockNotice,
   promotionNotice,
 ];
+
+export function latestNotice(
+  previous: GameView,
+  next: GameView,
+  frame: Parameters<Notice>[2],
+): string | null {
+  return (
+    notices
+      .map((notice) => notice(previous, next, frame))
+      .findLast((line) => line !== null) ?? null
+  );
+}
