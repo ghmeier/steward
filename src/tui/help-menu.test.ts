@@ -17,7 +17,7 @@ import {
   TRUE_REPORTS,
 } from "../core/unlocks";
 import { describePolicy } from "./decree-format";
-import { capitalize, plain, formatCost } from "./format";
+import { capitalize, formatCost, plain } from "./format";
 import type { HelpTopicId } from "./help-menu";
 import { peasantKeyFor } from "./keys";
 import { keymap } from "./village-panels";
