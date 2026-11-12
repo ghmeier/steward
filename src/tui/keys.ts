@@ -79,10 +79,8 @@ const GLOBAL_HINTS: readonly KeyHint[] = [
  */
 export class Keymap {
   private readonly bindings: Readonly<Record<string, Binding>>;
-  private readonly byId: ReadonlyMap<FocusId, PanelKeys>;
 
   constructor(private readonly panels: readonly PanelKeys[]) {
-    this.byId = new Map(panels.map((panel) => [panel.id, panel]));
     this.bindings = {
       ...Object.fromEntries(
         panels.map(({ id, focusKey, needs }): [string, Binding] => [
@@ -100,9 +98,7 @@ export class Keymap {
   }
 
   private declared(panel: FocusId): PanelKeys {
-    const declared = this.byId.get(panel);
-    if (declared === undefined) throw new Error(`${panel} declares no keys`);
-    return declared;
+    return this.panels.find(({ id }) => id === panel) as PanelKeys;
   }
 
   /** The key bound to focus a panel, so prose and notices name the letter the bindings actually use. */

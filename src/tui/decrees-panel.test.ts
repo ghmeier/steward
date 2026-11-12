@@ -68,9 +68,10 @@ describe("the Decrees panel", () => {
       otherwise: "stockpile",
     };
 
-    test("enter opens the decree line for the selected petition and j moves to the next", () => {
+    test("enter opens the decree line for the selected petition and the repeal key repeals its decree or says there is none", () => {
       const panel = new Village().focusable.decrees;
       const context = { view: emptyView(), tuning };
+      const withDecree = { view: emptyView({ decrees: [decree] }), tuning };
       panel.enter(context);
 
       const first = panel.key(key("enter"), context);
@@ -83,16 +84,10 @@ describe("the Decrees panel", () => {
       expect(second?.requests).toEqual([
         { kind: "openLine", text: `decree ${PETITIONS[1]} ` },
       ]);
-    });
 
-    test("the repeal key repeals the selected petition's decree and says so when there is none", () => {
-      const panel = new Village().focusable.decrees;
-      const withDecree = { view: emptyView({ decrees: [decree] }), tuning };
-      const without = { view: emptyView(), tuning };
-      panel.enter(withDecree);
-
+      panel.key(key("k"), context);
       const repealed = panel.key(key("x"), withDecree);
-      const missing = panel.key(key("x"), without);
+      const missing = panel.key(key("x"), context);
 
       expect(repealed?.commands).toEqual([
         { type: "repealDecree", id: decree.id },

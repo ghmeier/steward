@@ -4,12 +4,7 @@ import { PETITIONS } from "../core/decree";
 import { DebtFigure } from "../core/illusion";
 import type { Resource } from "../core/realm";
 import type { Tuning } from "../core/tuning";
-import {
-  ARCHIVE_PANEL,
-  CONJURING,
-  CROWN_PANEL,
-  type UnlockId,
-} from "../core/unlocks";
+import { ARCHIVE_PANEL, CONJURING, CROWN_PANEL } from "../core/unlocks";
 import type {
   ArchiveEntryView,
   CrownDemandView,
@@ -64,19 +59,24 @@ export function titleWithKey(name: string, key = name.charAt(0)): string {
   return `${name.slice(0, at)}(${name.charAt(at)})${name.slice(at + 1)}`;
 }
 
-export abstract class VillagePanel implements PanelKeys {
-  abstract readonly id: FocusId;
-  abstract readonly focusKey: string;
-  abstract readonly needs: UnlockId | undefined;
-  abstract readonly focusLabel: string;
-  abstract readonly hints: PanelKeys["hints"];
+export abstract class VillagePanel {
+  /** TypeScript has no abstract statics, so each subclass overrides this declaration with its own keys. */
+  declare static readonly keys: PanelKeys;
+
+  get keys(): PanelKeys {
+    return (this.constructor as typeof VillagePanel).keys;
+  }
+
+  get id(): FocusId {
+    return this.keys.id;
+  }
 
   get name(): string {
     return capitalize(this.id);
   }
 
   get title(): string {
-    return titleWithKey(this.name, this.focusKey);
+    return titleWithKey(this.name, this.keys.focusKey);
   }
 
   /** Called when the panel gains focus, so it never shows state left over from an earlier visit. */
@@ -100,15 +100,17 @@ function step(
 }
 
 export class PeasantsPanel extends VillagePanel {
-  readonly id = "peasants";
-  readonly focusKey = "p";
-  readonly needs = undefined;
-  readonly focusLabel = copy.keys.hints.peasants;
-  readonly hints = [
-    { keys: "j/k", label: copy.keys.panelActions.select },
-    { keys: "f/w/m/i", label: copy.keys.panelActions.assign },
-    { keys: "esc", label: copy.keys.panelActions.back },
-  ];
+  static override readonly keys: PanelKeys = {
+    id: "peasants",
+    focusKey: "p",
+    needs: undefined,
+    focusLabel: copy.keys.hints.peasants,
+    hints: [
+      { keys: "j/k", label: copy.keys.panelActions.select },
+      { keys: "f/w/m/i", label: copy.keys.panelActions.assign },
+      { keys: "esc", label: copy.keys.panelActions.back },
+    ],
+  };
   private cursor: Cursor | null = null;
 
   /** Keeps the selection on the same peasant as the roster changes. */
@@ -196,15 +198,17 @@ abstract class MenuPanel extends VillagePanel {
 }
 
 export class CourtPanel extends MenuPanel {
-  readonly id = "court";
-  readonly focusKey = "c";
-  readonly needs = undefined;
-  readonly focusLabel = copy.keys.hints.court;
-  readonly hints = [
-    { keys: "j/k", label: copy.keys.panelActions.select },
-    { keys: "enter", label: copy.keys.panelActions.choose },
-    { keys: "esc", label: copy.keys.panelActions.back },
-  ];
+  static override readonly keys: PanelKeys = {
+    id: "court",
+    focusKey: "c",
+    needs: undefined,
+    focusLabel: copy.keys.hints.court,
+    hints: [
+      { keys: "j/k", label: copy.keys.panelActions.select },
+      { keys: "enter", label: copy.keys.panelActions.choose },
+      { keys: "esc", label: copy.keys.panelActions.back },
+    ],
+  };
   protected readonly root = courtMenu;
 
   protected unfocusedLines({ view, tuning }: MenuContext): string[] {
@@ -238,15 +242,17 @@ const archiveScreen: ScreenBuilder = ({ view }) => ({
 });
 
 export class ArchivePanel extends MenuPanel {
-  readonly id = "archive";
-  readonly focusKey = "a";
-  readonly needs = ARCHIVE_PANEL;
-  readonly focusLabel = copy.keys.hints.archive;
-  readonly hints = [
-    { keys: "j/k", label: copy.keys.panelActions.select },
-    { keys: "enter", label: copy.keys.panelActions.buy },
-    { keys: "esc", label: copy.keys.panelActions.back },
-  ];
+  static override readonly keys: PanelKeys = {
+    id: "archive",
+    focusKey: "a",
+    needs: ARCHIVE_PANEL,
+    focusLabel: copy.keys.hints.archive,
+    hints: [
+      { keys: "j/k", label: copy.keys.panelActions.select },
+      { keys: "enter", label: copy.keys.panelActions.buy },
+      { keys: "esc", label: copy.keys.panelActions.back },
+    ],
+  };
   protected readonly root = archiveScreen;
 
   protected unfocusedLines({ view }: MenuContext): string[] {
@@ -255,16 +261,18 @@ export class ArchivePanel extends MenuPanel {
 }
 
 export class DecreesPanel extends VillagePanel {
-  readonly id = "decrees";
-  readonly focusKey = "d";
-  readonly needs = undefined;
-  readonly focusLabel = copy.keys.hints.decrees;
-  readonly hints = [
-    { keys: "j/k", label: copy.keys.panelActions.select },
-    { keys: "enter", label: copy.keys.panelActions.write },
-    { keys: "x", label: copy.keys.panelActions.repeal },
-    { keys: "esc", label: copy.keys.panelActions.back },
-  ];
+  static override readonly keys: PanelKeys = {
+    id: "decrees",
+    focusKey: "d",
+    needs: undefined,
+    focusLabel: copy.keys.hints.decrees,
+    hints: [
+      { keys: "j/k", label: copy.keys.panelActions.select },
+      { keys: "enter", label: copy.keys.panelActions.write },
+      { keys: "x", label: copy.keys.panelActions.repeal },
+      { keys: "esc", label: copy.keys.panelActions.back },
+    ],
+  };
   private static readonly labelWidth = Math.max(
     ...PETITIONS.map((petition) => petition.length),
   );
@@ -331,15 +339,17 @@ export class DecreesPanel extends VillagePanel {
 }
 
 export class CrownPanel extends VillagePanel {
-  readonly id = "crown";
-  readonly focusKey = "r";
-  readonly needs = CROWN_PANEL;
-  readonly focusLabel = copy.keys.hints.crown;
-  readonly hints = [
-    { keys: "enter", label: copy.keys.panelActions.deliver },
-    { keys: "f", label: copy.keys.panelActions.forge },
-    { keys: "esc", label: copy.keys.panelActions.back },
-  ];
+  static override readonly keys: PanelKeys = {
+    id: "crown",
+    focusKey: "r",
+    needs: CROWN_PANEL,
+    focusLabel: copy.keys.hints.crown,
+    hints: [
+      { keys: "enter", label: copy.keys.panelActions.deliver },
+      { keys: "f", label: copy.keys.panelActions.forge },
+      { keys: "esc", label: copy.keys.panelActions.back },
+    ],
+  };
 
   enter(): void {}
 
@@ -395,17 +405,19 @@ export class CrownPanel extends VillagePanel {
 }
 
 export class LedgerPanel extends VillagePanel {
-  readonly id = "ledger";
-  readonly focusKey = "l";
-  readonly needs = CONJURING;
-  readonly focusLabel = copy.keys.hints.ledger;
   private static readonly repayKey = "b";
-  readonly hints = [
-    { keys: "j/k", label: copy.keys.panelActions.select },
-    { keys: "enter", label: copy.keys.panelActions.conjure },
-    { keys: LedgerPanel.repayKey, label: copy.keys.panelActions.repay },
-    { keys: "esc", label: copy.keys.panelActions.back },
-  ];
+  static override readonly keys: PanelKeys = {
+    id: "ledger",
+    focusKey: "l",
+    needs: CONJURING,
+    focusLabel: copy.keys.hints.ledger,
+    hints: [
+      { keys: "j/k", label: copy.keys.panelActions.select },
+      { keys: "enter", label: copy.keys.panelActions.conjure },
+      { keys: LedgerPanel.repayKey, label: copy.keys.panelActions.repay },
+      { keys: "esc", label: copy.keys.panelActions.back },
+    ],
+  };
   private selected = 0;
 
   enter(): void {
@@ -582,22 +594,26 @@ export class LedgerPanel extends VillagePanel {
   }
 }
 
+/** The focusable panels in reading order, which is the order of the focus keys and of the rows in Help. */
+const PANELS = [
+  LedgerPanel,
+  PeasantsPanel,
+  ArchivePanel,
+  CourtPanel,
+  DecreesPanel,
+  CrownPanel,
+];
+
 /** The village's panels, built once per app so each focusable one keeps its own selection. */
 export class Village {
-  readonly peasants = new PeasantsPanel();
-  /** The order here is the reading order of the focus keys and of the rows in Help. */
-  readonly focusable: Readonly<Record<FocusId, VillagePanel>> = {
-    ledger: new LedgerPanel(),
-    peasants: this.peasants,
-    archive: new ArchivePanel(),
-    court: new CourtPanel(),
-    decrees: new DecreesPanel(),
-    crown: new CrownPanel(),
-  };
+  readonly focusable = Object.fromEntries(
+    PANELS.map((panel) => [panel.keys.id, new panel()]),
+  ) as unknown as Record<FocusId, VillagePanel>;
+
+  get peasants(): PeasantsPanel {
+    return this.focusable.peasants as PeasantsPanel;
+  }
 }
 
-/**
- * The key tables for the village's panels. Their declared keys and hints never vary between villages,
- * so one table built from a throwaway village serves the interface, the help text and the notices.
- */
-export const keymap = new Keymap(Object.values(new Village().focusable));
+/** Declared keys and hints are static, so the key tables are built once from the classes without constructing any panel. */
+export const keymap = new Keymap(PANELS.map((panel) => panel.keys));

@@ -15,7 +15,7 @@ import { keymap, Village } from "./village-panels";
 disposeDrawnPanels();
 
 describe("the Crown panel", () => {
-  describe("the Crown panel", () => {
+  describe("the herald and demand lines", () => {
     const demand = {
       resource: "ore" as const,
       amount: 80,
@@ -102,7 +102,7 @@ describe("the Crown panel", () => {
     const panel = new Village().focusable.crown;
     const context = { view: emptyView(), tuning };
 
-    test("enter delivers, the forge key forges and a key the panel does not own falls through", () => {
+    test("enter delivers, the forge key forges, an unowned key falls through and the title marks the focus key", () => {
       expect(panel.key(key("enter"), context)?.commands).toEqual([
         { type: "deliver" },
       ]);
@@ -110,9 +110,6 @@ describe("the Crown panel", () => {
         { type: "forge" },
       ]);
       expect(panel.key(key("z"), context)).toBeNull();
-    });
-
-    test("the title marks the declared focus key", () => {
       expect(panel.title).toBe("C(r)own");
     });
   });

@@ -130,7 +130,7 @@ describe("the Peasants panel", () => {
     const view = emptyView({ delegates: [ada] });
     const context = { view, tuning };
 
-    test("a job key assigns the selected peasant and asks for a selection when there is none", () => {
+    test("a job key assigns the selected peasant or asks for a selection, and escape and unowned keys behave", () => {
       const panel = new PeasantsPanel();
       const empty = { view: emptyView(), tuning };
       panel.reset(view);
@@ -146,11 +146,6 @@ describe("the Peasants panel", () => {
       expect(unselected?.requests).toEqual([
         { kind: "message", text: copy.village.noPeasantSelected },
       ]);
-    });
-
-    test("escape gives up focus and a key the panel does not own falls through", () => {
-      const panel = new PeasantsPanel();
-
       expect(panel.key(key("escape"), context)?.requests).toEqual([
         { kind: "unfocus" },
       ]);

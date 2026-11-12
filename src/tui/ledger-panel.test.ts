@@ -427,35 +427,25 @@ describe("the Ledger panel", () => {
     });
     const context = { view, tuning };
 
-    test("enter conjures a lot of the selected resource and the repay key pays it back", () => {
+    test("enter conjures a lot, the repay key pays it back, escape gives up focus and an unowned key falls through", () => {
       const panel = new Village().focusable.ledger;
       panel.enter(context);
       panel.key(key("j"), context);
 
       const conjure = panel.key(key("enter"), context);
-      const repay = panel.key(key("b"), context);
+      const repay = panel.key(
+        key(keymap.panelHintKey("ledger", copy.keys.panelActions.repay)),
+        context,
+      );
+      const escaped = panel.key(key("escape"), context);
+      const other = panel.key(key("z"), context);
 
       expect(conjure?.commands).toEqual([
         { type: "conjure", resource: "grain", amount: tuning.illusion.lot },
       ]);
       expect(repay?.commands).toEqual([{ type: "back", resource: "grain" }]);
-    });
-
-    test("escape gives up focus and a key the panel does not own falls through", () => {
-      const panel = new Village().focusable.ledger;
-      panel.enter(context);
-
-      const escaped = panel.key(key("escape"), context);
-      const other = panel.key(key("z"), context);
-
       expect(escaped?.requests).toEqual([{ kind: "unfocus" }]);
       expect(other).toBeNull();
-    });
-
-    test("the repay hint shows the key the panel handles", () => {
-      expect(keymap.panelHintKey("ledger", copy.keys.panelActions.repay)).toBe(
-        "b",
-      );
     });
   });
 });
