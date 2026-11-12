@@ -1,6 +1,6 @@
 ---
 title: "Phase 8 merged: governors, crown favor, debt and precision"
-status: open
+status: picked-up
 tags: [phase-8]
 branch: main
 created: 2026-11-12
