@@ -100,7 +100,7 @@ describe("scripted strategies over ten game years", () => {
     );
     expect(summary.strategy.reactionCommands).toBeGreaterThan(0);
     expect(summary.strategy.longestQuietTicks).toBeLessThan(
-      8 * tuning.economy.ticksPerSeason,
+      4 * tuning.economy.ticksPerSeason,
     );
   });
 
@@ -176,7 +176,7 @@ describe("repaying illusion", () => {
 });
 
 describe("promotion under the reference strategy", () => {
-  test("reference has its first birth within seven minutes, is promoted within ten years at the first tick the village reaches the target, and stays promoted", () => {
+  test("reference has its first birth within five minutes, is promoted within ten years at the first tick the village reaches the target, and stays promoted", () => {
     const strategy = parseStrategy(
       JSON.parse(readFileSync("strategies/reference.json", "utf8")),
       tuning.decrees,
@@ -214,9 +214,9 @@ describe("promotion under the reference strategy", () => {
       player.next.bind(player),
     );
 
-    const sevenMinutesInTicks = (7 * 60 * 1000) / tuning.stepMs;
+    const fiveMinutesInTicks = (5 * 60 * 1000) / tuning.stepMs;
     expect(firstBirth).toBeGreaterThan(0);
-    expect(firstBirth).toBeLessThanOrEqual(sevenMinutesInTicks);
+    expect(firstBirth).toBeLessThanOrEqual(fiveMinutesInTicks);
     expect(game.state.career.promotedAt).toBeGreaterThan(0);
     expect(game.state.career.promotedAt).toBe(firstAtTarget);
     expect(unpromotedAfter).toBe(false);

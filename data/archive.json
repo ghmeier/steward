@@ -21,15 +21,9 @@
       "label": "Decrees",
       "description": "Opens the Decrees panel, where standing orders are written to answer petitions without you.",
       "cost": {
-        "wood": 40
+        "grain": 50
       },
-      "requires": [],
-      "shown": {
-        "kind": "compare",
-        "quantity": "wood",
-        "comparison": "above",
-        "value": 10
-      }
+      "requires": []
     },
     {
       "id": "panel.crown",

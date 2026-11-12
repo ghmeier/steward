@@ -7,19 +7,6 @@
       "job": "farm"
     },
     {
-      "when": {
-        "kind": "compare",
-        "quantity": "grain",
-        "comparison": "above",
-        "value": 70
-      },
-      "command": {
-        "type": "assignPeasant",
-        "peasant": 1,
-        "job": "forest"
-      }
-    },
-    {
       "type": "enactDecree",
       "decree": {
         "id": "granary",

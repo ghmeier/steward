@@ -9,9 +9,11 @@ import {
   tuning,
 } from "../../test/helpers";
 import { stateHash } from "../save/hash";
+import type { Command } from "./commands";
 import { NO_DEMAND_TICK } from "./crown";
 import type { Condition } from "./decree";
 import { Game } from "./game";
+import { Job } from "./realm";
 import {
   ARCHIVE_PANEL,
   CHAINING_UNLOCK,
@@ -259,23 +261,65 @@ describe("play unlocks", () => {
   });
 });
 
+describe("a new village's first purchase", () => {
+  const decrees = entry(DECREES_PANEL);
+  const twoYearsInTicks = 2 * 4 * tuning.economy.ticksPerSeason;
+
+  const farmCommand: Command = {
+    type: "assignPeasant",
+    peasant: 1,
+    job: Job.FARM,
+  };
+
+  function untilDecreesAffordable(game: Game): number | undefined {
+    for (let tick = 0; tick < twoYearsInTicks; tick++) {
+      game.steps.step(tick === 0 ? [farmCommand] : [], quietOptions);
+      if (game.unlocks.canBuy(decrees)) return game.state.tick;
+    }
+    return undefined;
+  }
+  test("with its one peasant farming and no other input, the Archive offers Decrees for grain within two years without a famine", () => {
+    const game = Game.create(1, tuning);
+
+    const affordableAt = untilDecreesAffordable(game);
+
+    expect(affordableAt).toBeDefined();
+    expect(game.state.posting.economy.famine.ticks).toBe(0);
+  });
+
+  test("with its peasant idle, the Archive never offers anything affordable", () => {
+    const game = Game.create(1, tuning);
+
+    game.steps.runSteps(
+      twoYearsInTicks,
+      [],
+      { absorbed: null, validateEvery: 0 },
+      () => {},
+    );
+
+    expect(game.unlocks.offered().some((e) => game.unlocks.canBuy(e))).toBe(
+      false,
+    );
+  });
+});
+
 describe("revealing entries", () => {
-  const woodAt = (game: Game, tick: number, wood: number) => {
+  const coinAt = (game: Game, tick: number, coin: number) => {
     game.state.tick = tick;
-    game.state.posting.resources.wood = wood;
+    game.state.posting.resources.coin = coin;
     game.unlocks.run();
   };
 
   test("an entry is revealed on the first tick its condition holds and stays revealed after the stock falls back", () => {
     const game = Game.create(1, tuning);
 
-    woodAt(game, 2, 0);
-    const before = game.unlocks.isSeen(DECREES_PANEL);
-    woodAt(game, 3, 500);
-    woodAt(game, 4, 0);
+    coinAt(game, 2, 0);
+    const before = game.unlocks.isSeen(palette.id);
+    coinAt(game, 3, 500);
+    coinAt(game, 4, 0);
 
     expect(before).toBe(false);
-    expect(game.state.career.seen[DECREES_PANEL]).toBe(3);
+    expect(game.state.career.seen[palette.id]).toBe(3);
   });
 
   test("an entry with no condition is revealed at once", () => {

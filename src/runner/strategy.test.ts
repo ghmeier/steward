@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { grantUnlocks, setRoster, tuning } from "../../test/helpers";
+import { grantUnlocks, priceOf, setRoster, tuning } from "../../test/helpers";
 import type { Command } from "../core/commands";
 import type { Condition } from "../core/decree";
 import { Game } from "../core/game";
@@ -183,9 +183,15 @@ describe("StrategyPlayer with locked panels", () => {
     game.state.career.seen[DECREES_PANEL] = 0;
     game.state.career.seen[CROWN_PANEL] = 0;
 
+    const decrees = tuning.archive.entries.find(
+      (entry) => entry.id === DECREES_PANEL,
+    );
+    if (decrees === undefined) throw new Error("no decrees entry");
+    game.state.posting.resources.grain = 0;
+
     player.observe(game);
     const unaffordable = player.next();
-    game.state.posting.resources.wood = 40;
+    game.state.posting.resources.grain = priceOf(decrees, "grain");
     player.observe(game);
     const affordable = player.next();
 
