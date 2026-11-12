@@ -11,6 +11,7 @@ import type { AddContext } from "../src/core/math";
 import { JOBS, Job } from "../src/core/realm";
 import { parseTuning, type Tuning } from "../src/core/tuning";
 import { ARCHIVE_PANEL } from "../src/core/unlocks";
+import type { GameView } from "../src/core/view";
 import { type HelpTopicId, helpSections } from "../src/tui/help-menu";
 
 export const fullTuningJson = {
@@ -24,6 +25,12 @@ export const fullTuningJson = {
 };
 
 export const tuning = parseTuning(fullTuningJson);
+
+/** A partial view for tests of code that reads only the fields given. */
+export const viewWith = (fields: Partial<GameView>) => fields as GameView;
+
+/** The shared third argument of every notice, for a frame with nothing expired. */
+export const noticeFrame = { tuning, expired: [] as readonly string[] };
 
 // Balancing edits data/tuning.json, so tests that assert hand-computed economy numbers use these literals.
 export const economyTestTuning: Tuning = {
