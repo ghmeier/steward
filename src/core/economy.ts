@@ -1,16 +1,27 @@
+import { z } from "zod";
 import type { ResourcePetition } from "./decree";
+import { addIssue } from "./errors";
 import type { Game } from "./game";
 import { NO_LABOR_POLICY } from "./labor";
 import { LaborSplit } from "./labor-split";
 import { type AddContext, add } from "./math";
 import {
   Job,
+  RESOURCES,
   type Resource,
   SEASONS,
   type Season,
   WORKING_JOBS,
   type WorkingJob,
 } from "./realm";
+import {
+  count,
+  name,
+  nonNegative,
+  positive,
+  positiveInteger,
+  repeatIssues,
+} from "./schema";
 
 export type Famine = {
   startPopulation: number;
@@ -23,6 +34,75 @@ export type EconomyState = {
   growth: number;
   starved: number;
 };
+
+export const economyStateSchema: z.ZodType<EconomyState> = z.strictObject({
+  famine: z.strictObject({
+    startPopulation: count,
+    ticks: count,
+    deaths: count,
+  }),
+  growth: z.number().min(0),
+  starved: count,
+});
+
+export function emptyEconomyState(): EconomyState {
+  return {
+    famine: { startPopulation: 0, ticks: 0, deaths: 0 },
+    growth: 0,
+    starved: 0,
+  };
+}
+
+const laborAllocations = z
+  .record(
+    z.string(),
+    z.record(z.enum(WORKING_JOBS), nonNegative).superRefine((shares, ctx) => {
+      let total = 0;
+      for (const job of WORKING_JOBS) total += shares[job];
+      if (Math.abs(total - 1) > 1e-9) {
+        addIssue(ctx, "shares must sum to 1");
+      }
+    }),
+  )
+  .superRefine((allocations, ctx) => {
+    if (Object.keys(allocations).length === 0) {
+      addIssue(ctx, "must not be empty");
+    }
+  });
+
+export const economyTuningSchema = z
+  .strictObject({
+    ticksPerSeason: positiveInteger,
+    seasonYield: z.record(z.enum(SEASONS), nonNegative),
+    grainPerFarmer: nonNegative,
+    woodPerWorker: nonNegative,
+    orePerWorker: nonNegative,
+    grainPerPerson: nonNegative,
+    grainPrice: nonNegative,
+    woodPrice: nonNegative,
+    orePrice: nonNegative,
+    grainPerPeasant: positive,
+    maxPopulation: positiveInteger,
+    laborMovesPerTick: positiveInteger,
+    initialPopulation: z.int().min(0),
+    initialResources: z.record(z.enum(RESOURCES), nonNegative),
+    laborAllocations,
+  })
+  .superRefine((value, ctx) => {
+    if (value.initialPopulation > value.maxPopulation) {
+      addIssue(ctx, "must not exceed maxPopulation", ["initialPopulation"]);
+    }
+  });
+
+export const villageTuningSchema = z.strictObject({
+  names: z
+    .array(name)
+    .superRefine((names, ctx) => repeatIssues(names, "name", ctx)),
+  promotionPopulation: positiveInteger,
+});
+
+export type EconomyTuning = z.infer<typeof economyTuningSchema>;
+export type VillageTuning = z.infer<typeof villageTuningSchema>;
 
 export type EconomyRun = { flows: EconomyFlows; eaten: number };
 export type EconomyFlows = Readonly<Record<ResourcePetition, number>>;

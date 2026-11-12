@@ -1,32 +1,20 @@
-import archiveJson from "../data/archive.json";
-import crownJson from "../data/crown.json";
-import deskJson from "../data/desk.json";
-import governorsJson from "../data/governors.json";
-import illusionJson from "../data/illusion.json";
-import tuningJson from "../data/tuning.json";
-import villageJson from "../data/village.json";
 import type { Delegate, Governor } from "../src/core/delegates";
 import { Game } from "../src/core/game";
 import type { AddContext } from "../src/core/math";
 import { JOBS, Job } from "../src/core/realm";
 import { parseTuning, type Tuning } from "../src/core/tuning";
 import { ARCHIVE_PANEL } from "../src/core/unlocks";
+import { readTuningJson } from "../src/save/content";
 import { type HelpTopicId, helpSections } from "../src/tui/help-menu";
 
-export const fullTuningJson = {
-  ...tuningJson,
-  village: villageJson,
-  desk: deskJson,
-  archive: archiveJson,
-  crown: crownJson,
-  illusion: illusionJson,
-  governors: governorsJson,
-};
+// The shipped data parses to itself (`game.test.ts` checks it), so the parsed type describes the raw JSON too.
+export const fullTuningJson = readTuningJson() as Tuning;
 
 export const tuning = parseTuning(fullTuningJson);
 
-// Balancing edits data/tuning.json, so tests that assert hand-computed economy numbers use these literals.
+// Balancing edits the data files, so tests that assert hand-computed economy numbers override just the sections they compute by hand.
 export const economyTestTuning: Tuning = {
+  ...tuning,
   stepMs: 100,
   maxResourceValue: 1e300,
   decrees: { maxRules: 4, maxConditionNodes: 8, maxConditionDepth: 3 },
@@ -51,7 +39,7 @@ export const economyTestTuning: Tuning = {
     },
   },
   village: {
-    names: villageJson.names,
+    names: tuning.village.names,
     promotionPopulation: 12,
   },
   desk: {
@@ -153,10 +141,6 @@ export const economyTestTuning: Tuning = {
       },
     },
   },
-  archive: tuning.archive,
-  crown: tuning.crown,
-  illusion: tuning.illusion,
-  governors: tuning.governors,
 };
 
 export const quietOptions = { absorbed: null, validateEvery: 0 } as const;
@@ -171,7 +155,7 @@ export function rosterOf(counts: RosterCounts): Delegate[] {
       const id = delegates.length + 1;
       delegates.push({
         id,
-        name: villageJson.names[id - 1] as string,
+        name: tuning.village.names[id - 1] as string,
         kind: "peasant",
         job,
         grudgeUntil: 0,
@@ -188,8 +172,8 @@ export function governorOf(fields: Partial<Governor> = {}): Governor {
   governorCount += 1;
   return {
     id: 1000 + governorCount,
-    name: villageJson.names.at(
-      -(governorCount % villageJson.names.length),
+    name: tuning.village.names.at(
+      -(governorCount % tuning.village.names.length),
     ) as string,
     kind: "governor",
     job: Job.FARM,

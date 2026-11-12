@@ -3,6 +3,11 @@ import { tuning } from "../../test/helpers";
 import { stateHash } from "../save/hash";
 import { Game } from "./game";
 import { canonicalStringify } from "./serialize";
+import type { GameState } from "./state";
+
+function reversedKeys(value: object): object {
+  return Object.fromEntries(Object.entries(value).reverse());
+}
 
 describe("canonicalStringify", () => {
   test("produces identical bytes regardless of key insertion order", () => {
@@ -55,25 +60,9 @@ describe("stateHash", () => {
   test("is equal for equal states built in different key orders", () => {
     const { state } = Game.create(3, tuning);
     const reordered = {
-      posting: {
-        economy: state.posting.economy,
-        delegates: state.posting.delegates,
-        nextDelegateId: state.posting.nextDelegateId,
-        formerStaff: state.posting.formerStaff,
-        decrees: state.posting.decrees,
-        labor: state.posting.labor,
-        resources: state.posting.resources,
-        desk: state.posting.desk,
-        crown: state.posting.crown,
-        illusion: state.posting.illusion,
-        rng: state.posting.rng,
-        seed: state.posting.seed,
-        postingId: state.posting.postingId,
-      },
-      career: state.career,
-      tick: state.tick,
-      schemaVersion: state.schemaVersion,
-    };
+      ...reversedKeys(state),
+      posting: reversedKeys(state.posting),
+    } as GameState;
 
     expect(stateHash(reordered)).toBe(stateHash(state));
   });

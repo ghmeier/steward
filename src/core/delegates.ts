@@ -1,6 +1,8 @@
+import { z } from "zod";
 import type { Game } from "./game";
-import { Job, type Trait } from "./realm";
+import { JOBS, Job, type Trait } from "./realm";
 import { intBelow } from "./rng";
+import { count, positiveCount, traitList } from "./schema";
 
 type DelegateBase = {
   id: number;
@@ -23,6 +25,29 @@ export type Governor = DelegateBase & {
 };
 
 export type Delegate = Peasant | Governor;
+
+const delegateBase = {
+  id: positiveCount,
+  name: z.string().min(1),
+  job: z.enum(JOBS),
+  grudgeUntil: count,
+};
+
+export const delegateSchema: z.ZodType<Delegate> = z.discriminatedUnion(
+  "kind",
+  [
+    z.strictObject({ ...delegateBase, kind: z.literal("peasant") }),
+    z.strictObject({
+      ...delegateBase,
+      kind: z.literal("governor"),
+      village: positiveCount,
+      traits: traitList,
+      hiredAt: count,
+      termEndsAt: count,
+      hoard: z.number().min(0),
+    }),
+  ],
+);
 
 type DelegateCounts = Record<Job, number> & { idle: number };
 

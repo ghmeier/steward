@@ -3,14 +3,14 @@ import { ConditionManager } from "./conditions";
 import { CrownManager, emptyCrownState } from "./crown";
 import { DecreeEngine } from "./decree-engine";
 import { DelegateManager } from "./delegates";
-import { DeskManager } from "./desk";
-import { EconomyManager } from "./economy";
+import { DeskManager, initialDeskState } from "./desk";
+import { EconomyManager, emptyEconomyState } from "./economy";
 import { GovernorManager } from "./governors";
 import { emptyIllusionState, IllusionManager } from "./illusion";
-import { LaborSettling, NO_LABOR_POLICY } from "./labor";
+import { emptyLaborState, LaborSettling } from "./labor";
 import { ProjectionManager } from "./projection";
 import { RESOURCES } from "./realm";
-import { drawDelay, type RngState, seedStream } from "./rng";
+import { type RngState, seedStream } from "./rng";
 import { SavedDecreeManager } from "./saved-decrees";
 import {
   type GameState,
@@ -85,21 +85,13 @@ export class Game {
       seed,
       rng,
       resources,
-      economy: {
-        famine: { startPopulation: 0, ticks: 0, deaths: 0 },
-        growth: 0,
-        starved: 0,
-      },
+      economy: emptyEconomyState(),
       delegates: [],
       nextDelegateId: 1,
       formerStaff: [],
       decrees: {},
-      labor: { policy: NO_LABOR_POLICY, settling: false },
-      desk: {
-        nextDisputeId: 1,
-        nextArrivalTick: drawDelay(arrivals, tuning.desk.arrival),
-        disputes: [],
-      },
+      labor: emptyLaborState(),
+      desk: initialDeskState(arrivals, tuning.desk),
       crown: emptyCrownState(),
       illusion: emptyIllusionState(),
     };

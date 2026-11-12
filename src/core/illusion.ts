@@ -1,9 +1,12 @@
+import { z } from "zod";
 import { formatAmount, withThousandsSeparators } from "./amount";
 import type { CommandResult } from "./commands";
 import { copy } from "./copy";
+import { addIssue } from "./errors";
 import type { Game } from "./game";
-import { type AddContext, add } from "./math";
+import { type AddContext, add, normalizeZero } from "./math";
 import { RESOURCES, type Resource } from "./realm";
+import { count, nonNegative, positive, positiveInteger } from "./schema";
 import type { ResourceId } from "./state";
 import { CONJURING, EXACT_DEBT } from "./unlocks";
 
@@ -63,6 +66,24 @@ export type IllusionState = {
   audits: { backed: number; deepened: number; failed: number };
 };
 
+const nonNegativeNumber = z.number().min(0);
+
+export const illusionStateSchema: z.ZodType<IllusionState> = z.strictObject({
+  conjured: z.strictObject({
+    coin: nonNegativeNumber,
+    grain: nonNegativeNumber,
+  }),
+  debt: z.strictObject({
+    coin: nonNegativeNumber,
+    grain: nonNegativeNumber,
+    ore: nonNegativeNumber,
+    wood: nonNegativeNumber,
+  }),
+  debtSince: count,
+  auditAt: count,
+  audits: z.strictObject({ backed: count, deepened: count, failed: count }),
+});
+
 /**
  * Stands for "no debt is owed". State validation and `canonicalStringify` reject null, so the
  * absence of debt is stored as a tick no debt can have rise at; ticks start at 1.
@@ -81,6 +102,30 @@ export function emptyIllusionState(): IllusionState {
     audits: { backed: 0, deepened: 0, failed: 0 },
   };
 }
+
+export const illusionTuningSchema = z
+  .strictObject({
+    lot: positive,
+    ceilingPerPeasant: positive,
+    fadePerTick: z.number().min(0).max(1).transform(normalizeZero),
+    interestPerTick: nonNegative,
+    audit: z.strictObject({
+      debtShare: positive,
+      ageTicks: positiveInteger,
+      warningTicks: positiveInteger,
+      deadlineTicks: positiveInteger,
+      deepenCost: nonNegative,
+      deepenGrowth: z.number().min(1),
+    }),
+    books: z.strictObject({ strained: positive, rotten: positive }),
+  })
+  .superRefine((value, ctx) => {
+    if (value.books.strained >= value.books.rotten) {
+      addIssue(ctx, "must be below rotten", ["books", "strained"]);
+    }
+  });
+
+export type IllusionTuning = z.infer<typeof illusionTuningSchema>;
 
 export class IllusionManager {
   constructor(private game: Game) {}
