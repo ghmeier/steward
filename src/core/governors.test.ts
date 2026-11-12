@@ -264,6 +264,7 @@ describe("reported output", () => {
       job: Job.MINE,
       village: 10,
       traits: ["braggart"],
+      resource: "ore",
       reportedPerSecond:
         (10 * 1.4 * tuning.economy.orePerWorker * 1000) / tuning.stepMs,
       truth: null,

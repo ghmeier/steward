@@ -232,8 +232,8 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
     makeSlot(id, panels[id].title, weight);
   const slots: Record<FocusId, PanelSlot> = {
     ledger: slotOf("ledger", 1),
-    peasants: slotOf("peasants", 1),
-    archive: slotOf("archive", 2),
+    peasants: slotOf("peasants", 2),
+    archive: slotOf("archive", 1),
     court: slotOf("court", 1),
     decrees: slotOf("decrees", 1),
     crown: slotOf("crown", 1),

@@ -72,7 +72,7 @@ describe("the Ledger panel", () => {
     expect(frame).toContain(copy.ledger.season({ season: "Summer" }));
   });
 
-  test("the ledger shows grain eaten under the grain row only while something is eaten", async () => {
+  test("the ledger shows grain eaten on the grain row only while something is eaten", async () => {
     const withEaten = (grainEatenPerSecond: number) =>
       emptyView({
         grainEatenPerSecond,
@@ -81,10 +81,13 @@ describe("the Ledger panel", () => {
         ],
       });
 
-    const eating = await drawPanels([withEaten(1.5)]);
-    const idle = await drawPanels([withEaten(0)]);
+    const size = { width: 160, height: 30 };
+    const eating = await drawPanels([withEaten(1.5)], { size });
+    const idle = await drawPanels([withEaten(0)], { size });
 
-    expect(eating).toContain(copy.ledger.eaten({ rate: formatAmount(1.5) }));
+    const eatenText = copy.ledger.eaten({ rate: formatAmount(1.5) });
+    const grainRow = eating.split("\n").find((line) => line.includes("Grain"));
+    expect(grainRow).toContain(eatenText);
     expect(idle).not.toContain(copy.ledger.eaten({ rate: formatAmount(0) }));
   });
 
@@ -356,30 +359,32 @@ describe("the Ledger panel", () => {
   });
 
   test.each([
-    [
-      "before promotion",
-      { target: 20, promotedAt: 0, promotedAtSeconds: 0 },
-      14,
-      [copy.ledger.promotionProgress({ population: 14, target: 20 })],
-      [copy.ledger.promotedOn({ time: formatGameTime(120) })],
-    ],
-    [
-      "after promotion",
-      { target: 20, promotedAt: 1200, promotedAtSeconds: 120 },
-      14,
-      [copy.ledger.promotedOn({ time: formatGameTime(120) })],
-      [copy.ledger.promotionProgress({ population: 14, target: 20 })],
-    ],
-  ])("the ledger %s", async (_name, promotion, population, has, lacks) => {
-    const view = emptyView({ promotion, realm: realmOf({ population }) });
+    ["before promotion", 0, "Reeve", true],
+    ["after promotion", 1200, "Steward", false],
+  ])(
+    "the ledger %s shows the title and village name, and the promotion progress only before",
+    async (_name, promotedAt, title, showsProgress) => {
+      const view = emptyView({
+        promotion: { target: 20, promotedAt },
+        title,
+        villageName: "Larkhill",
+        realm: realmOf({ population: 14 }),
+      });
+      const progress = copy.ledger.promotionProgress({
+        population: 14,
+        target: 20,
+      });
 
-    const frame = await drawPanels([view], {
-      size: { width: 160, height: 30 },
-    });
+      const frame = await drawPanels([view], {
+        size: { width: 160, height: 30 },
+      });
 
-    for (const shown of has) expect(frame).toContain(shown);
-    for (const gone of lacks) expect(frame).not.toContain(gone);
-  });
+      expect(frame).toContain(
+        copy.ledger.title({ title, village: "Larkhill" }),
+      );
+      expect(frame.includes(progress)).toBe(showsProgress);
+    },
+  );
 
   describe("the next peasant line", () => {
     const progress = copy.ledger.nextPeasantProgress({

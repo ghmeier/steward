@@ -110,6 +110,8 @@ export type GovernorView = {
   job: Job;
   village: number;
   traits: Trait[];
+  /** What the governor's job yields; null for one with no work. */
+  resource: Resource | null;
   /** What the governor claims to bring in each second of their job's resource; real output scaled by their report factor. */
   reportedPerSecond: number;
   /** What the governor really brings in and how far the report overshoots it; null until true reports are bought. */
@@ -207,6 +209,9 @@ export class GovernorManager {
         job: governor.job,
         village: governor.village,
         traits: [...governor.traits],
+        resource:
+          this.game.economy.yieldPerWorker(governor.job, tick)?.resource ??
+          null,
         reportedPerSecond: perSecond(reported),
         truth: trueReports
           ? {

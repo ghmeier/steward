@@ -206,6 +206,7 @@ const resources = z
 const posting: z.ZodType<PostingState> = z
   .strictObject({
     postingId: z.string(),
+    name: z.string().trim().min(1),
     seed: uint32,
     rng: z.record(z.string(), rngStream),
     resources,

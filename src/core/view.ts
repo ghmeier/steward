@@ -9,6 +9,7 @@ import { type Job, RESOURCES, type Season } from "./realm";
 import type { ResourceId } from "./state";
 import {
   ARCHIVE_PANEL,
+  CROWN_PANEL,
   type PanelId,
   TRUE_REPORTS,
   type UnlockId,
@@ -41,7 +42,10 @@ export type GameView = {
   formerGovernors: FormerGovernorView[];
   crown: CrownView | null;
   illusion: IllusionView | null;
-  promotion: { target: number; promotedAt: number; promotedAtSeconds: number };
+  villageName: string;
+  /** The steward's rank, which climbs with promotion and then with the crown's charter and a governor in service. */
+  title: string;
+  promotion: { target: number; promotedAt: number };
   growth: { stored: number; needed: number; perSecond: number; full: boolean };
   /** Grain the peasants eat each second, whatever the harvest brings in. */
   grainEatenPerSecond: number;
@@ -79,6 +83,15 @@ export class ViewManager {
     return this.game.tuning;
   }
 
+  private title(): string {
+    const { titles } = this.tuning.village;
+    if (this.career.promotedAt === 0) return titles.start;
+    const crowned =
+      this.game.unlocks.enabled(CROWN_PANEL) &&
+      this.game.delegates.governors.length > 0;
+    return crowned ? titles.crowned : titles.promoted;
+  }
+
   // The UI reads only this view, never GameState, so what the player is shown can
   // differ from the underlying truth without touching any renderer.
   compute(): GameView {
@@ -114,10 +127,11 @@ export class ViewManager {
       formerGovernors: this.game.governors.formerView(),
       crown: this.game.crown.view(),
       illusion: this.game.illusion.view(),
+      villageName: this.posting.name,
+      title: this.title(),
       promotion: {
         target: this.tuning.village.promotionPopulation,
         promotedAt: this.career.promotedAt,
-        promotedAtSeconds: (this.career.promotedAt * this.tuning.stepMs) / 1000,
       },
       growth: {
         stored: this.posting.economy.growth,

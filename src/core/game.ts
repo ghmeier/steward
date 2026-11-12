@@ -63,8 +63,18 @@ export class Game {
     this.view = new ViewManager(this);
   }
 
+  /** Picks from the seed rather than a random stream, so the same seed always founds the same village name. */
+  static defaultVillageName(seed: number, tuning: Tuning): string {
+    const { villageNames } = tuning.village;
+    return villageNames[seed % villageNames.length] as string;
+  }
+
   /** Starts a new game: seeds every random stream and gathers the initial village. */
-  static create(seed: number, tuning: Tuning): Game {
+  static create(
+    seed: number,
+    tuning: Tuning,
+    name: string = Game.defaultVillageName(seed, tuning),
+  ): Game {
     if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
       throw new RangeError(`seed must be a uint32, got ${seed}`);
     }
@@ -82,6 +92,7 @@ export class Game {
       throw new Error("the disputes stream is missing");
     const posting: PostingState = {
       postingId: "posting-1",
+      name,
       seed,
       rng,
       resources,

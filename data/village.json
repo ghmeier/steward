@@ -60,5 +60,32 @@
     "Yvette",
     "Godwin"
   ],
-  "promotionPopulation": 20
+  "promotionPopulation": 20,
+  "villageNames": [
+    "Ashford",
+    "Brackenmoor",
+    "Coldbrook",
+    "Dunmere",
+    "Elmsworth",
+    "Fallowfield",
+    "Greywater",
+    "Hollowdene",
+    "Ironbridge",
+    "Kettlewick",
+    "Larkhill",
+    "Millbourne",
+    "Northcombe",
+    "Oakhaven",
+    "Pennyroyal",
+    "Quarrydale",
+    "Ravensholt",
+    "Stonebarrow",
+    "Thistledown",
+    "Westmarsh"
+  ],
+  "titles": {
+    "start": "Reeve",
+    "promoted": "Steward",
+    "crowned": "High steward"
+  }
 }

@@ -48,6 +48,8 @@ export const economyTestTuning: Tuning = {
   village: {
     names: tuning.village.names,
     promotionPopulation: 12,
+    villageNames: tuning.village.villageNames,
+    titles: tuning.village.titles,
   },
   desk: {
     slots: 3,

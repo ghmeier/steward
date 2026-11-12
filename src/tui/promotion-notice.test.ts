@@ -5,7 +5,7 @@ import { promotionNotice } from "./promotion-notice";
 
 const promotedAt = (tick: number) =>
   viewWith({
-    promotion: { target: 0, promotedAt: tick, promotedAtSeconds: tick },
+    promotion: { target: 0, promotedAt: tick },
   });
 
 describe("promotionNotice", () => {

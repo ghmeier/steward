@@ -16,8 +16,7 @@ import { Roster } from "./roster";
 import { PeasantsPanel } from "./village-panels";
 
 const WIDE = { width: 100, height: 20 };
-const perSecond = (amount: number | undefined) =>
-  `${formatAmount(amount ?? 0)}/s`;
+const amountOf = (amount: number | undefined) => formatAmount(amount ?? 0);
 
 function village(peasants: number, unlocks: string[] = []) {
   const game = Game.create(1, tuning);
@@ -69,9 +68,12 @@ describe("Roster", () => {
       copy.governors.traitRowList({ traits: braggart?.traits ?? [] }),
     );
     expect(text).toContain(
-      copy.village.governorReports({ rate: perSecond(row?.reportedPerSecond) }),
+      copy.village.governorReports({
+        rate: amountOf(row?.reportedPerSecond),
+        resource: "ore",
+      }),
     );
-    expect(text).not.toContain("makes");
+    expect(text).not.toContain("brings in");
   });
 
   test("shows real output and the gap with true reports, and calls an honest report fair", () => {
@@ -81,22 +83,19 @@ describe("Roster", () => {
     const text = new Roster(view).render(null, WIDE).join("\n");
 
     expect(text).toContain(
-      copy.village.governorMakes({
-        real: perSecond(braggart?.truth?.realPerSecond),
+      copy.village.governorBringsIn({
+        real: amountOf(braggart?.truth?.realPerSecond),
+        resource: "ore",
+        gap: amountOf(braggart?.truth?.gapPerSecond),
       }),
     );
     expect(text).toContain(
-      copy.village.governorOverstates({
-        gap: perSecond(braggart?.truth?.gapPerSecond),
+      copy.village.governorHonest({
+        real: amountOf(honest?.truth?.realPerSecond),
+        resource: "grain",
       }),
     );
-    expect(text).toContain(
-      copy.village.governorMakes({
-        real: perSecond(honest?.truth?.realPerSecond),
-      }),
-    );
-    expect(text).toContain(copy.village.governorHonest);
-    expect(text).not.toMatch(/reports [\d.,]+\/s$/m);
+    expect(text).not.toContain("reports");
   });
 
   test("a village without governors has no headings", () => {

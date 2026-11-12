@@ -7,7 +7,9 @@
     "control.savedDecrees",
     "decree.compound",
     "decree.chaining",
-    "decree.crownCorrespondence"
+    "decree.crownCorrespondence",
+    "precision.exact",
+    "precision.reports"
   ],
-  "hash": "64724a45fa653c5740e0a6400e89a6205da3e65337e2fe4d314594df52ab2840"
+  "hash": "e39b99467da2449fec7bc0f3086fcc9248e80188e0078a24e5ea2faca388b214"
 }

@@ -47,7 +47,7 @@ describe("createPanels", () => {
     },
   );
 
-  test("the top row splits one to one to two and the bottom row into thirds", async () => {
+  test("the top row splits one to two to one and the bottom row into thirds", async () => {
     const frame = await drawPanels([emptyView()], {
       size: { width: 160, height: 30 },
     });
@@ -61,7 +61,7 @@ describe("createPanels", () => {
     const near = (actual: number, expected: number) =>
       expect(Math.abs(actual - expected)).toBeLessThanOrEqual(2);
     near(offset(lines[top] ?? "", "(P)easants", "(L)edger"), 40);
-    near(offset(lines[top] ?? "", "(A)rchive", "(L)edger"), 80);
+    near(offset(lines[top] ?? "", "(A)rchive", "(L)edger"), 120);
     near(offset(lines[bottom] ?? "", "(D)ecrees", "(C)ourt"), 160 / 3);
     near(offset(lines[bottom] ?? "", "C(r)own", "(C)ourt"), (2 * 160) / 3);
   });
@@ -214,6 +214,7 @@ describe("createPanels", () => {
   test("a focused panel too narrow for its full hints shows the bare keys instead", async () => {
     const frame = await drawPanels([emptyView({ delegates: [ada] })], {
       focus: "peasants",
+      size: { width: 60, height: 30 },
     });
 
     expect(frame).toContain(keymap.panelHintsText("peasants", 0));

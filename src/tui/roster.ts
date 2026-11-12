@@ -13,8 +13,26 @@ export class Roster {
     return [...this.view.governors, ...this.view.delegates];
   }
 
-  private static perSecond(amount: number): string {
-    return `${formatAmount(amount)}/s`;
+  private static outputPhrase({
+    resource,
+    truth,
+    reportedPerSecond,
+  }: GovernorView): string {
+    if (resource === null) return copy.village.governorIdle;
+    if (truth === null) {
+      return copy.village.governorReports({
+        rate: formatAmount(reportedPerSecond),
+        resource,
+      });
+    }
+    const real = formatAmount(truth.realPerSecond);
+    return truth.gapPerSecond > 0
+      ? copy.village.governorBringsIn({
+          real,
+          resource,
+          gap: formatAmount(truth.gapPerSecond),
+        })
+      : copy.village.governorHonest({ real, resource });
   }
 
   private static governorLines(
@@ -22,30 +40,12 @@ export class Roster {
     marker: string,
     width: number,
   ): string[] {
-    const { truth } = governor;
-    const output =
-      truth === null
-        ? [
-            copy.village.governorReports({
-              rate: Roster.perSecond(governor.reportedPerSecond),
-            }),
-          ]
-        : [
-            copy.village.governorMakes({
-              real: Roster.perSecond(truth.realPerSecond),
-            }),
-            truth.gapPerSecond > 0
-              ? copy.village.governorOverstates({
-                  gap: Roster.perSecond(truth.gapPerSecond),
-                })
-              : copy.village.governorHonest,
-          ];
     return wrapPhrases(
       [
         `${marker} ${governor.name}  ${governor.job}`,
         copy.village.governorVillage({ village: governor.village }),
         copy.governors.traitRowList({ traits: governor.traits }),
-        ...output,
+        Roster.outputPhrase(governor),
       ],
       width,
       2,

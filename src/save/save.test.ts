@@ -448,3 +448,24 @@ describe("version 13 upgrade", () => {
     ]);
   });
 });
+
+describe("version 14 upgrade", () => {
+  function version14Save(): Record<string, unknown> {
+    const state = structuredClone(Game.create(42, loadTuning()).state) as {
+      posting: { name?: string };
+    };
+    delete state.posting.name;
+    return { ...state, schemaVersion: 14 };
+  }
+
+  test("a version 14 save gains a village name from the list, the same one each time it loads", () => {
+    writeSave(14, version14Save());
+
+    const first = loaded(dir);
+    const second = loaded(dir);
+
+    expect(first.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(loadTuning().village.villageNames).toContain(first.posting.name);
+    expect(second.posting.name).toBe(first.posting.name);
+  });
+});

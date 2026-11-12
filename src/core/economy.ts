@@ -99,6 +99,17 @@ export const villageTuningSchema = z.strictObject({
     .array(name)
     .superRefine((names, ctx) => repeatIssues(names, "name", ctx)),
   promotionPopulation: positiveInteger,
+  /** Names a new village may be given by default; distinct from the peasants' names. */
+  villageNames: z
+    .array(name)
+    .min(1)
+    .superRefine((names, ctx) => repeatIssues(names, "village name", ctx)),
+  /** The ranks the steward climbs, by the milestone that earns each. */
+  titles: z.strictObject({
+    start: name,
+    promoted: name,
+    crowned: name,
+  }),
 });
 
 export type EconomyTuning = z.infer<typeof economyTuningSchema>;

@@ -8,7 +8,7 @@ import type { IllusionState } from "./illusion";
 import type { LaborState } from "./labor";
 import type { RngState } from "./rng";
 
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 export type ResourceId = string;
 
@@ -24,6 +24,7 @@ export type CareerState = {
 
 export type PostingState = {
   postingId: string;
+  name: string;
   seed: number;
   rng: Record<string, RngState>;
   resources: Record<ResourceId, number>;

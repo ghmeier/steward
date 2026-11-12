@@ -187,6 +187,9 @@ export const copy = {
     time: ({ time }: { time: string }) => `Time  ${time}`,
     conjured: ({ amount }: { amount: string }) => `(${amount} conjured)`,
     eaten: ({ rate }: { rate: string }) => `(${rate}/s eaten)`,
+    titleLabel: "Title",
+    title: ({ title, village }: { title: string; village: string }) =>
+      `${title} of ${village}`,
     books: ({ books }: { books: string }) => `Books: ${books}`,
     owed: ({ figure }: { figure: string }) => `(owed ${figure})`,
     repayAll: ({ key }: { key: string }) => `(${key} repays it all)`,
@@ -215,8 +218,6 @@ export const copy = {
       population: number;
       target: number;
     }) => `${population} / ${target} peasants`,
-    promotedOn: ({ time }: { time: string }) =>
-      `Promoted to steward on ${time}`,
     nextPeasantLabel: "Next peasant",
     nextPeasantProgress: ({
       stored,
@@ -243,10 +244,20 @@ export const copy = {
     peasantsHeading: "Peasants",
     governorVillage: ({ village }: { village: number }) =>
       `village of ${village}`,
-    governorReports: ({ rate }: { rate: string }) => `reports ${rate}`,
-    governorMakes: ({ real }: { real: string }) => `makes ${real}`,
-    governorOverstates: ({ gap }: { gap: string }) => `reports ${gap} too much`,
-    governorHonest: "reports it fairly",
+    governorReports: ({ rate, resource }: { rate: string; resource: string }) =>
+      `reports ${rate} ${resource}/s`,
+    governorIdle: "has no work",
+    governorBringsIn: ({
+      real,
+      resource,
+      gap,
+    }: {
+      real: string;
+      resource: string;
+      gap: string;
+    }) => `brings in ${real} ${resource}/s, claims ${gap} more`,
+    governorHonest: ({ real, resource }: { real: string; resource: string }) =>
+      `brings in ${real} ${resource}/s, claims only what they bring in`,
     archiveTitle: "The Archive",
     archiveOwned: "owned",
     archiveCost: ({ cost }: { cost: string }) => `${cost} coin`,
@@ -298,6 +309,8 @@ export const copy = {
     newVillageKeepsBackup: "The previous save stays as the backup file.",
     keepVillage: "No, keep this village",
     foundVillage: "Yes, found a new village",
+    namePromptTitle: "Name your village",
+    namePromptHints: "type a name · enter found the village · esc cancel",
     cannotReadSave: ({ error, path }: { error: string; path: string }) =>
       `Steward cannot read its save: ${error}\nThe save at ${path} was left untouched. Fix or move it, then start again.`,
     couldNotSave: ({ error }: { error: string }) =>
