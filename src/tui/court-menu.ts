@@ -1,5 +1,5 @@
 import { copy } from "../core/copy";
-import type { DeskEntryView, DeskOptionView } from "../core/view";
+import type { DeskEntryView, DeskOptionView } from "../core/desk";
 import { formatTicks } from "./format";
 import type { MenuContext, MenuItem, Screen, ScreenBuilder } from "./menu";
 

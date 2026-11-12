@@ -110,6 +110,24 @@ function show(amount: number): string {
   return String(Math.floor(amount * 10) / 10);
 }
 
+export type DeskOptionView = {
+  id: string;
+  label: string;
+  affordable: boolean;
+  expiry: boolean;
+  /** Resource deltas, keys sorted. */
+  resources: Record<string, number>;
+  sulker: string | null;
+};
+export type DeskEntryView = {
+  id: number;
+  kind: DeskKind;
+  label: string;
+  /** Ticks until the entry expires on its own deadline; null for an entry that has none. */
+  ticksLeft: number | null;
+  options: DeskOptionView[];
+};
+
 export class DeskManager {
   // Not saved: the lines only feed the TUI's notice, which reads them after each step.
   private expiredThisStep: string[] = [];
@@ -144,6 +162,34 @@ export class DeskManager {
     const stream = this.posting.rng.disputes;
     if (stream === undefined) throw new Error("the disputes stream is missing");
     return stream;
+  }
+
+  view(): DeskEntryView[] {
+    return this.posting.desk.disputes.map((entry) => {
+      const template = this.templateOf(entry);
+      return {
+        id: entry.id,
+        kind: entry.kind,
+        label: this.fill(entry, template.text),
+        ticksLeft:
+          entry.kind === "audit" ? entry.dueAt - this.state.tick : null,
+        options: template.options.map((option) => ({
+          id: option.id,
+          label: this.fill(entry, option.label),
+          affordable: this.shortfall(entry, option) === null,
+          expiry: option.id === template.expiry,
+          resources: this.sortedDeltas(entry, option),
+          sulker: this.sulker(entry, option),
+        })),
+      };
+    });
+  }
+
+  private sortedDeltas(entry: DeskEntry, option: DeskOption) {
+    const deltas = this.deltasOf(entry, option);
+    const sorted: Record<string, number> = {};
+    for (const key of sortedKeys(deltas)) sorted[key] = deltas[key] ?? 0;
+    return sorted;
   }
 
   templatesOf(kind: DeskKind): readonly DeskTemplate[] {

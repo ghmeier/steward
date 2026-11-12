@@ -9,6 +9,12 @@ export function sortedKeys(value: object): string[] {
   return Object.keys(value).sort(compareKeys);
 }
 
+export function sortedValues<T>(value: Record<string, T>): T[] {
+  return Object.entries(value)
+    .sort(([a], [b]) => compareKeys(a, b))
+    .map(([, entry]) => entry);
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

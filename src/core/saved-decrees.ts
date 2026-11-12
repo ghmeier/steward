@@ -1,4 +1,4 @@
-import { isRecord, sortedKeys } from "./data";
+import { isRecord, sortedKeys, sortedValues } from "./data";
 import {
   DECREE_ID_PATTERN,
   type Decree,
@@ -73,6 +73,12 @@ export class SavedDecreeManager {
       .find((decree) => decree?.petition === found.petition);
     const id = active?.id ?? found.petition;
     this.game.decrees.enact({ ...structuredClone(found), id });
+  }
+
+  view(): Decree[] {
+    return sortedValues(this.game.state.career.savedDecrees).map((decree) =>
+      structuredClone(decree),
+    );
   }
 
   forget(name: string): void {

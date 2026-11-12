@@ -1,5 +1,5 @@
 import { copy } from "../core/copy";
-import type { FormerGovernorView } from "../core/view";
+import type { FormerGovernorView } from "../core/governors";
 import { formatAmount } from "./format";
 import type { Notice } from "./notices";
 

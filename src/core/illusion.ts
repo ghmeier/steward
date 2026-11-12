@@ -127,6 +127,21 @@ export const illusionTuningSchema = z
 
 export type IllusionTuning = z.infer<typeof illusionTuningSchema>;
 
+/** What the steward sees of the illusion; null until conjuring is unlocked. */
+export type IllusionView = {
+  books: Books;
+  /** Coin value of illusion that can still be added before the ceiling. */
+  room: number;
+  /** Debt per resource, rounded up to the nearest ten unless exact books are owned. */
+  debt: Record<ResourceId, DebtLine>;
+  /** Debt is shown to the decimal rather than rounded. */
+  debtIsExact: boolean;
+  /** Announced auditors have not yet reached the desk. */
+  auditOnTheRoad: boolean;
+  /** Ticks until announced auditors arrive; null when none are on the road or exact books are not owned. */
+  auditInTicks: number | null;
+};
+
 export class IllusionManager {
   constructor(private game: Game) {}
 
@@ -144,6 +159,19 @@ export class IllusionManager {
 
   private get isUnlocked(): boolean {
     return this.game.unlocks.enabled(CONJURING);
+  }
+
+  view(): IllusionView | null {
+    if (!this.isUnlocked) return null;
+    const { books, room, auditInTicks, showsExactDebt } = this;
+    return {
+      books,
+      room,
+      debt: this.debtLines(),
+      debtIsExact: showsExactDebt,
+      auditOnTheRoad: auditInTicks !== null,
+      auditInTicks: showsExactDebt ? auditInTicks : null,
+    };
   }
 
   conjuredOf(resource: ResourceId): number {

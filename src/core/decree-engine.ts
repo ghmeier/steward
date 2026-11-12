@@ -1,4 +1,4 @@
-import { compareKeys, sortedKeys } from "./data";
+import { compareKeys, sortedKeys, sortedValues } from "./data";
 import {
   type Condition,
   choseConditions,
@@ -35,6 +35,10 @@ export class DecreeEngine {
 
   get limits() {
     return this.game.tuning.decrees;
+  }
+
+  view(): Decree[] {
+    return sortedValues(this.enacted).map((decree) => structuredClone(decree));
   }
 
   enact(value: unknown): void {

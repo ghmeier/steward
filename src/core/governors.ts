@@ -14,6 +14,7 @@ import {
 } from "./realm";
 import { chance, drawDelay, intBelow, type RngState } from "./rng";
 import { count, positive, positiveInteger, traitList } from "./schema";
+import { TRUE_REPORTS } from "./unlocks";
 
 export type DepartureReason = "retired" | "died" | "dismissed";
 
@@ -103,6 +104,25 @@ class TraitSet {
   }
 }
 
+export type GovernorView = {
+  id: number;
+  name: string;
+  job: Job;
+  village: number;
+  traits: Trait[];
+  /** What the governor claims to bring in each second of their job's resource; real output scaled by their report factor. */
+  reportedPerSecond: number;
+  /** What the governor really brings in and how far the report overshoots it; null until true reports are bought. */
+  truth: { realPerSecond: number; gapPerSecond: number } | null;
+};
+/** A governor who has left, oldest first, so a change in the list's length is a new departure. */
+export type FormerGovernorView = {
+  name: string;
+  reason: DepartureReason;
+  /** Coin the governor kept back and handed over on leaving; 0 for one who kept none. */
+  handedOver: number;
+};
+
 export class GovernorManager {
   constructor(private game: Game) {}
 
@@ -170,6 +190,38 @@ export class GovernorManager {
     return yielded === null
       ? 0
       : this.reportedWorkersOf(governor) * yielded.amount;
+  }
+
+  view(): GovernorView[] {
+    const trueReports = this.game.unlocks.enabled(TRUE_REPORTS);
+    const { stepMs } = this.game.tuning;
+    const perSecond = (perTick: number) => (perTick * 1000) / stepMs;
+    // The projection runs the next tick, so output is read at that tick too.
+    const tick = this.game.state.tick + 1;
+    return this.roster.map((governor) => {
+      const reported = this.reportedOutput(governor, tick);
+      const real = this.realOutput(governor, tick);
+      return {
+        id: governor.id,
+        name: governor.name,
+        job: governor.job,
+        village: governor.village,
+        traits: [...governor.traits],
+        reportedPerSecond: perSecond(reported),
+        truth: trueReports
+          ? {
+              realPerSecond: perSecond(real),
+              gapPerSecond: perSecond(reported - real),
+            }
+          : null,
+      };
+    });
+  }
+
+  formerView(): FormerGovernorView[] {
+    return this.game.state.posting.formerStaff.map(
+      ({ name, reason, handedOver }) => ({ name, reason, handedOver }),
+    );
   }
 
   /** Reported minus real output per tick for each resource, which the ledger adds to its displayed rates. */

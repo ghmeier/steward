@@ -1,5 +1,6 @@
 import { copy } from "../core/copy";
-import type { GameView, GovernorView } from "../core/view";
+import type { GovernorView } from "../core/governors";
+import type { GameView } from "../core/view";
 import { rowWindow } from "./cursor";
 import { formatAmount } from "./format";
 import { wrapPhrases } from "./wrap";

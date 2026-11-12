@@ -14,7 +14,7 @@ import {
   textWithPlaceholders,
 } from "./schema";
 import type { ResourceId } from "./state";
-import { CONJURING } from "./unlocks";
+import { CONJURING, CROWN_PANEL } from "./unlocks";
 
 export type Demand = {
   id: number;
@@ -143,6 +143,24 @@ export const crownTuningSchema = z.strictObject({
 
 export type CrownTuning = z.infer<typeof crownTuningSchema>;
 
+export type CrownDemandView = {
+  resource: ResourceId;
+  amount: number;
+  delivered: number;
+  ticksLeft: number;
+  herald: string;
+};
+/** What the Crown panel shows; null before promotion, when the crown has made no demands. */
+export type CrownView = {
+  /** The crown's mood toward the steward; the score behind it is never shown. */
+  favor: FavorBand;
+  demand: CrownDemandView | null;
+  /** Ticks until the next demand while none is open; null while one is open. */
+  nextDemandTicks: number | null;
+  met: number;
+  missed: number;
+};
+
 export class CrownManager {
   constructor(private game: Game) {}
 
@@ -200,6 +218,28 @@ export class CrownManager {
 
   get isOpen(): boolean {
     return this.crown.demand.id !== NO_DEMAND.id;
+  }
+
+  view(): CrownView | null {
+    if (!this.game.unlocks.enabled(CROWN_PANEL)) return null;
+    const { demand, nextDemandTick, met, missed } = this.crown;
+    return {
+      demand: this.isOpen
+        ? {
+            resource: demand.resource,
+            amount: demand.amount,
+            delivered: demand.delivered,
+            ticksLeft: demand.dueAt - this.tick,
+            herald: this.tuning.lines[
+              demand.resource as Resource
+            ].herald.replaceAll("{amount}", String(demand.amount)),
+          }
+        : null,
+      nextDemandTicks: this.isOpen ? null : nextDemandTick - this.tick,
+      met,
+      missed,
+      favor: this.band,
+    };
   }
 
   /** What is still owed on the open demand; zero when none is open. */

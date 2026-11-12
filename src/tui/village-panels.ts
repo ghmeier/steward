@@ -1,15 +1,11 @@
 import type { Command } from "../core/commands";
 import { copy } from "../core/copy";
+import type { CrownDemandView, CrownView } from "../core/crown";
 import { PETITIONS } from "../core/decree";
 import { DebtFigure } from "../core/illusion";
 import type { Resource } from "../core/realm";
 import type { Tuning } from "../core/tuning";
-import type {
-  ArchiveEntryView,
-  CrownDemandView,
-  CrownView,
-  GameView,
-} from "../core/view";
+import type { ArchiveEntryView, GameView } from "../core/view";
 import { courtEntryLabel, courtMenu } from "./court-menu";
 import { type Cursor, moveCursor, reconcileCursor, stepIndex } from "./cursor";
 import { formatPolicy, formatRule, plain } from "./decree-format";

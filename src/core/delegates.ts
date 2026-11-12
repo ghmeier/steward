@@ -49,6 +49,13 @@ export const delegateSchema: z.ZodType<Delegate> = z.discriminatedUnion(
   ],
 );
 
+export type DelegateView = {
+  id: number;
+  name: string;
+  job: Job | "idle";
+  grudgeTicks: number;
+};
+
 type DelegateCounts = Record<Job, number> & { idle: number };
 
 export class DelegateManager {
@@ -111,6 +118,15 @@ export class DelegateManager {
       }
     }
     return counts;
+  }
+
+  view(): DelegateView[] {
+    return this.peasants.map((delegate) => ({
+      id: delegate.id,
+      name: delegate.name,
+      job: delegate.job,
+      grudgeTicks: Math.max(0, delegate.grudgeUntil - this.game.state.tick),
+    }));
   }
 
   firstWithJob(job: Job): Peasant | undefined {
