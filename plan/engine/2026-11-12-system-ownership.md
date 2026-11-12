@@ -135,3 +135,4 @@ Acceptance: `bun run check` passes with no test behavior changes.
 ## Notes and decisions
 
 - 2026-11-12: Garret: separate systems and modules to minimize coupling, not a fixed per-feature rule. One mechanical PR for state and tuning schemas, all seven seams, keep `career.followers` and `career.needed`, split `panels.test.ts`.
+- 2026-11-12: #26 and #27 merged. Merged main into `system-schemas` (3773450, conflict in `test/helpers.ts` imports and the new notice helpers, kept both; 1155 pass), `panel-declarations` (c3eb79e, conflicts in `app.ts` and `unlock-notices.ts` imports, now using `keymap` and the `Notice` type; 1151 pass, no cycles), and the updated `system-schemas` into `system-views` (7f80eef, import-only conflicts in the notice modules; 1155 pass, golden unchanged, no cycles). #28 and #29 also merge cleanly with each other.
