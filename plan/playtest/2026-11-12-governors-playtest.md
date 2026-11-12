@@ -1,10 +1,11 @@
 ---
 title: "Governors playtest: tech tree, illusion relief, pacing and polish"
 status: active
+last_pr: 31
 tags: [playtest]
 created: 2026-11-12
 updated: 2026-11-12
-next_step: Wave 1 (PRs 1-5) dispatched to implementers
+next_step: PR #31 (village-polish) open; others in refactor or implementation
 ---
 # Governors playtest: tech tree, illusion relief, pacing and polish
 
@@ -250,3 +251,4 @@ Objective: tune costs and thresholds so wood and ore are worth producing, and th
 - 2026-11-12: `court-missives` built: scale factor stored on the entry, no schema bump. The golden file picked up `precision.*` unlocks; the refactor pass is checking why. In refactor.
 - 2026-11-12: `pacing` built: with wider gaps, crown-aware never misses a demand, so the strategies gate was loosened (no missed check, borrower favor `>=`, conjurer test runs 20 years). PR 7 must re-pressure the crown, through amounts or early deadlines. In refactor.
 - 2026-11-12: `illusion-relief` built: save schema 15 (`UPGRADES[14]`), which collides with `village-polish`. `favor.failed` went from -25 to -30 so the conjurer still ends cold, because audits are rarer and seizure keeps the reserve. `forgeMissing` is its own command. In refactor.
+- 2026-11-12: `village-polish` opened as #31 after the refactor pass (dafb249). 1166 tests pass.
