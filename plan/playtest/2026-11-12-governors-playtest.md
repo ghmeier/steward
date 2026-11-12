@@ -1,10 +1,10 @@
 ---
 title: "Governors playtest: tech tree, illusion relief, pacing and polish"
-status: draft
+status: active
 tags: [playtest]
 created: 2026-11-12
 updated: 2026-11-12
-next_step: Get Garret's approval on the PR breakdown, then dispatch wave 1
+next_step: Wave 1 (PRs 1-5) dispatched to implementers
 ---
 # Governors playtest: tech tree, illusion relief, pacing and polish
 

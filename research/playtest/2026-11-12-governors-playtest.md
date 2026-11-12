@@ -1,6 +1,6 @@
 ---
 title: "Governors playtest feedback: what each item touches"
-status: draft
+status: final
 tags: [playtest]
 created: 2026-11-12
 updated: 2026-11-12
