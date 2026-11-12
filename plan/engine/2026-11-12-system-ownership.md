@@ -1,10 +1,11 @@
 ---
 title: "Let each system own its schemas, view and panel declarations"
 status: active
+last_pr: 30
 tags: [refactor, modularity]
 created: 2026-11-12
 updated: 2026-11-12
-next_step: PRs 1, 3, 4, 5 dispatched in parallel; PR 2 waits on PR 1
+next_step: Garret reviews #26, #27, #28, #29, then #30 (retarget to main after #28 merges); #27 and #29 conflict lightly in app.ts
 ---
 # Let each system own its schemas, view and panel declarations
 
@@ -125,7 +126,7 @@ Acceptance: `bun run check` passes with no test behavior changes.
 ## Progress
 
 - PR 1 `system-schemas`: built at b744bac, 1153 pass, golden unchanged, no value-import cycles before or after (checked with a graph script that skips type-only imports). Shared Zod primitives in new `src/core/schema.ts`; desk tuning in new `src/core/desk-tuning.ts`; `decreeLimitsSchema` moved to `decree.ts`. `career`, `rngStream`, `resources` and `decreeRecord` stay in `validate.ts` as root-level fields. #28 open at b744bac; the refactor pass found nothing to change. Its commit trailer names Claude Sonnet 5.5 instead of Opus 5.5; fixing it needs a force-push, raised with Garret. PR 2 `system-views` dispatched from `system-schemas`.
-- PR 2 `system-views`: built at 18b7f29, 1153 pass, golden unchanged, no cycles. Crown, illusion, governors and desk build their own view slices; `view.ts` 337 to 172 lines. The delegates, decrees and `lockedPanels` slices were still inline, so the refactor pass moves them too; the archive entries and realm block stay because they span systems. `projection.ts` left alone (routing it through `DelegateManager` would change which delegates count).
+- PR 2 `system-views`: built at 18b7f29, 1153 pass, golden unchanged, no cycles. Crown, illusion, governors and desk build their own view slices; `view.ts` 337 to 172 lines. The delegates, decrees and `lockedPanels` slices were still inline, so the refactor pass moves them too; the archive entries and realm block stay because they span systems. `projection.ts` left alone (routing it through `DelegateManager` would change which delegates count). #30 open against `system-schemas` at e896cca, 1153 pass; the refactor pass moved delegates, decrees, saved decrees and `lockedPanels` (with `PanelId`, now in `unlocks.ts`) too, so `view.ts` is 147 lines.
 - PR 3 `panel-declarations`: built at 002dd62, 1154 pass, golden and frames unchanged, manual run confirmed focus keys, hints and Help. A `Keymap` class in `keys.ts` replaces four tables; panels declare `focusKey`, `needs`, `focusLabel` and `hints`; `panels.test.ts` went from 1110 to about 300 lines with six per-panel test files. `FocusId` stays a literal union and `PanelId` in the core is untouched. Small expected conflict with #27 in `app.ts` and `unlock-notices.ts`. #29 open at 89ac39e, 1149 pass. Panels declare a static `keys`; a `PANELS` record of classes, checked with `satisfies Record<FocusId, ...>`, builds the keymap without constructing panels, and `Village` is an exhaustive typed record with no casts. Adding a panel takes five edits (`FocusId`, the class, `PANELS`, `Village`, a slot), each enforced by the compiler.
 
 - PR 5 `decree-grammar`: built at 090c5ee, 1143 pass, golden unchanged. `command-line.ts` 1015 to 464 lines; the grammar is in `decree-grammar.ts` and the parsing cursor in `command-cursor.ts` (keeping it in `command-line.ts` would have made an import cycle); `entryLabel` moved to `menu.ts`. Decree tests stay in `command-line.test.ts` because they share tables with other verbs. #26 open at 090c5ee; the refactor pass found nothing to change. Module-level helpers in `decree-grammar.ts` were left as they were to keep the move pure.
