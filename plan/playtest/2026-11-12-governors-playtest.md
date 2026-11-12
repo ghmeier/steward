@@ -1,11 +1,11 @@
 ---
 title: "Governors playtest: tech tree, illusion relief, pacing and polish"
 status: active
-last_pr: 34
+last_pr: 35
 tags: [playtest]
 created: 2026-11-12
 updated: 2026-11-12
-next_step: tech-tree-foundation in refactor pass; then PR 6 (tech-tree-upgrades)
+next_step: Fix the opening dead end on #35 (Decrees revealed with the Archive, priced in grain) pending Garret; then PR 6
 ---
 # Governors playtest: tech tree, illusion relief, pacing and polish
 
@@ -258,3 +258,4 @@ Objective: tune costs and thresholds so wood and ore are worth producing, and th
 - 2026-11-12: #31, #32, #33 and #34 merged. Garret rebased `tech-tree-foundation` onto main (schema 17, `UPGRADES[16]`).
 - 2026-11-12: After the rebase, the borrower gate failed on seed 1 (favor 14 against 21). Neither strategy forges. The borrower reaches the charter later, so the fixed window holds fewer of its demands. The test now asserts that the borrower misses no more demands than crown-aware and fails no audits (6ccf47f). The borrower gate is now nearly vacuous, and PR 7 must restore a real one once the crown pressures again.
 - 2026-11-12: The first `tech-tree-foundation` refactor attempt died on a rate limit with nothing committed. It was re-dispatched.
+- 2026-11-12: `tech-tree-foundation` opened as #35 (9b9e7b0). There is now one `COMMAND_UNLOCKS` table, and the TUI keys read `PANEL_UNLOCKS`. Garret found that a new village dead-ends: Decrees is the only way to grow or earn coin, and it is hidden until you hold 10 wood. The proposed fix reveals Decrees with the Archive, priced in grain.
