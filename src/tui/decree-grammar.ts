@@ -13,7 +13,7 @@ import {
   QUANTITIES,
   type Quantity,
 } from "../core/decree";
-import { CAPPED_RESOURCES, SEASONS } from "../core/realm";
+import { CAPPED_RESOURCES, type CappedResource, SEASONS } from "../core/realm";
 import {
   CHAINING_UNLOCK,
   COMPOUND_UNLOCK,
@@ -47,7 +47,12 @@ const COMPARISONS: readonly Choice<"above" | "below">[] = [
 type Subject =
   | { kind: "not" }
   | { kind: "season" }
-  | { kind: "named"; quantity: Quantity | null; id: string | null };
+  | {
+      kind: "named";
+      quantity: Quantity | null;
+      resource: CappedResource | null;
+      id: string | null;
+    };
 
 function subjects(scope: Scope): Choice<Subject>[] {
   const byText = new Map<string, Choice<Subject>>();
@@ -58,7 +63,12 @@ function subjects(scope: Scope): Choice<Subject>[] {
     byText.set(words(quantity), {
       text: words(quantity),
       description: copy.commandLine.quantityHelp[quantity],
-      value: { kind: "named", quantity, id: null },
+      value: {
+        kind: "named",
+        quantity,
+        resource: CAPPED_RESOURCES.find((value) => value === quantity) ?? null,
+        id: null,
+      },
     });
   }
   byText.set("it is", {
@@ -84,7 +94,12 @@ function subjects(scope: Scope): Choice<Subject>[] {
         byText.set(decree.id, {
           text: decree.id,
           description,
-          value: { kind: "named", quantity: null, id: decree.id },
+          value: {
+            kind: "named",
+            quantity: null,
+            resource: null,
+            id: decree.id,
+          },
         });
       } else if (
         existing.value.kind === "named" &&
@@ -129,8 +144,7 @@ function parseBase(
       })),
     );
   }
-  const capped = CAPPED_RESOURCES.find((value) => value === subject.quantity);
-  if (capped !== undefined) {
+  if (subject.resource !== null) {
     verbs.push({
       text: "is full",
       description: copy.commandLine.keywordHelp.isFull,
@@ -145,19 +159,19 @@ function parseBase(
     });
   }
   const next = cursor.expect(
-    capped === undefined
+    subject.resource === null
       ? copy.commandLine.expected.comparisonOrChose
       : copy.commandLine.expected.comparisonOrFullOrChose,
     verbs,
     {
       unmatched: (word) =>
-        word === "is" && subject.quantity !== null && capped === undefined
+        word === "is" && subject.quantity !== null && subject.resource === null
           ? copy.commandLine.notStored({ quantity: words(subject.quantity) })
           : null,
     },
   );
-  if (next.value === "full" && capped !== undefined) {
-    return { kind: "full", resource: capped };
+  if (next.value === "full" && subject.resource !== null) {
+    return { kind: "full", resource: subject.resource };
   }
   if (next.value === "compare" && subject.quantity !== null) {
     return {

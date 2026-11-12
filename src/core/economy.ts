@@ -6,6 +6,7 @@ import { NO_LABOR_POLICY } from "./labor";
 import { LaborSplit } from "./labor-split";
 import { type AddContext, add } from "./math";
 import {
+  CAPPED_RESOURCES,
   type CappedResource,
   Job,
   RESOURCES,
@@ -89,7 +90,7 @@ export const economyTuningSchema = z
     initialPopulation: z.int().min(0),
     initialResources: z.record(z.enum(RESOURCES), nonNegative),
     /** What the stores hold before any upgrade; coin has no store and so no cap. */
-    caps: z.strictObject({ grain: positive, wood: positive, ore: positive }),
+    caps: z.record(z.enum(CAPPED_RESOURCES), positive),
     laborAllocations,
   })
   .superRefine((value, ctx) => {
@@ -214,11 +215,11 @@ export class EconomyManager {
 
   /** The most of a resource the stores hold; coin is never stored, so it is never capped. */
   capOf(resource: string): number {
-    if (!Object.hasOwn(CAP_MODIFIER, resource)) return Number.POSITIVE_INFINITY;
-    const kind = resource as keyof typeof CAP_MODIFIER;
+    const capped = CAPPED_RESOURCES.find((value) => value === resource);
+    if (capped === undefined) return Number.POSITIVE_INFINITY;
     return (
-      this.tuning.economy.caps[kind] +
-      this.game.unlocks.modifier(CAP_MODIFIER[kind])
+      this.tuning.economy.caps[capped] +
+      this.game.unlocks.modifier(CAP_MODIFIER[capped])
     );
   }
 
