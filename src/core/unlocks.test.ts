@@ -304,22 +304,23 @@ describe("a new village's first purchase", () => {
 });
 
 describe("revealing entries", () => {
-  const coinAt = (game: Game, tick: number, coin: number) => {
+  const granary = entry("store.granary2");
+  const grainAt = (game: Game, tick: number, grain: number) => {
     game.state.tick = tick;
-    game.state.posting.resources.coin = coin;
+    game.state.posting.resources.grain = grain;
     game.unlocks.run();
   };
 
   test("an entry is revealed on the first tick its condition holds and stays revealed after the stock falls back", () => {
     const game = Game.create(1, tuning);
 
-    coinAt(game, 2, 0);
-    const before = game.unlocks.isSeen(palette.id);
-    coinAt(game, 3, 500);
-    coinAt(game, 4, 0);
+    grainAt(game, 2, 0);
+    const before = game.unlocks.isSeen(granary.id);
+    grainAt(game, 3, 5000);
+    grainAt(game, 4, 0);
 
     expect(before).toBe(false);
-    expect(game.state.career.seen[palette.id]).toBe(3);
+    expect(game.state.career.seen[granary.id]).toBe(3);
   });
 
   test("an entry with no condition is revealed at once", () => {

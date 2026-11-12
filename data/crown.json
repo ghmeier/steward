@@ -12,12 +12,12 @@
     "maxTicks": 4200
   },
   "baseAmounts": {
-    "coin": 100,
-    "grain": 625,
+    "coin": 180,
+    "grain": 400,
     "ore": 80,
-    "wood": 150
+    "wood": 160
   },
-  "step": 0.3,
+  "step": 0.15,
   "grainReserveSeasons": 1,
   "surcharge": 0.5,
   "reward": 0.1,
@@ -30,7 +30,7 @@
     "missed": -15,
     "backed": 3,
     "deepened": -3,
-    "failed": -30,
+    "failed": -25,
     "cold": {
       "debtShareFactor": 0.7,
       "warningFactor": 0.5,

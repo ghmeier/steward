@@ -48,7 +48,7 @@ describe("scripted strategies over ten game years", () => {
     expect(summary.promotedAt).toBeGreaterThan(0);
   });
 
-  test("a village that farms, feeds and sets its labor reveals every first-tier upgrade within the run", () => {
+  test("a village that farms, feeds and sets its labor reveals every first-tier upgrade before promotion", () => {
     const game = Game.create(1, tuning);
     const player = new StrategyPlayer({
       name: "farming",
@@ -101,11 +101,15 @@ describe("scripted strategies over ten game years", () => {
         typeof shown === "object" && !requires.includes("panel.crown"),
     );
 
-    while (game.state.tick < Number(STEPS)) {
+    while (
+      game.state.career.promotedAt === 0 &&
+      game.state.tick < Number(STEPS)
+    ) {
       game.steps.step(player.next(), quietOptions);
       player.observe(game);
     }
 
+    expect(game.state.career.promotedAt).toBeGreaterThan(0);
     const unseen = firstTier
       .map(({ id }) => id)
       .filter((id) => !game.unlocks.isSeen(id));

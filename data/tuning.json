@@ -18,7 +18,7 @@
     "laborMovesPerTick": 1,
     "initialPopulation": 1,
     "initialResources": { "coin": 0, "grain": 60, "ore": 0, "wood": 0 },
-    "caps": { "grain": 500, "wood": 300, "ore": 150 },
+    "caps": { "grain": 500, "wood": 200, "ore": 100 },
     "laborAllocations": {
       "balanced": { "farm": 0.5, "forest": 0.3, "mine": 0.2 },
       "farming": { "farm": 0.7, "forest": 0.2, "mine": 0.1 },
