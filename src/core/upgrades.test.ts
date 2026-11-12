@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
   addGovernors,
+  archiveEntry,
+  archiveUpgrades,
   contextFor,
+  effectOf,
   fullTuningJson,
   governorOf,
   grantUnlocks,
@@ -11,19 +14,7 @@ import {
 import { Game } from "./game";
 import { Job } from "./realm";
 import { parseTuning } from "./tuning";
-import { type ArchiveEntry, MODIFIERS, type ModifierId } from "./unlocks";
-
-function entry(id: string): ArchiveEntry {
-  const found = tuning.archive.entries.find((candidate) => candidate.id === id);
-  if (found === undefined) throw new Error(`no archive entry ${id}`);
-  return found;
-}
-
-function effectOf(id: string, modifier: ModifierId): number {
-  const value = entry(id).effects?.[modifier];
-  if (value === undefined) throw new Error(`${id} does not change ${modifier}`);
-  return value;
-}
+import { MODIFIERS, type ModifierId } from "./unlocks";
 
 function villageOwning(...ids: string[]): Game {
   const game = Game.create(1, tuning);
@@ -71,20 +62,16 @@ describe("modifier", () => {
     expect(game.unlocks.modifier("farmYield")).toBe(1);
   });
 
-  test("the tuning rejects an entry that changes a modifier no manager reads", () => {
-    const json = structuredClone(fullTuningJson);
-    const first = json.archive.entries[0] as { effects?: object };
-    first.effects = { luck: 2 };
+  test("the tuning rejects an effect on an unknown modifier or one that is not positive", () => {
+    const withEffects = (effects: object) => {
+      const json = structuredClone(fullTuningJson);
+      Object.assign(json.archive.entries[0] as object, { effects });
+      return json;
+    };
 
-    expect(() => parseTuning(json)).toThrow('unknown modifier "luck"');
-  });
-
-  test("the tuning rejects an effect that is not a positive number", () => {
-    const json = structuredClone(fullTuningJson);
-    const first = json.archive.entries[0] as { effects?: object };
-    first.effects = { grainCap: 0 };
-
-    expect(() => parseTuning(json)).toThrow();
+    expect(() => parseTuning(withEffects({ luck: 2 }))).toThrow("luck");
+    expect(() => parseTuning(withEffects({ grainCap: 0 }))).toThrow();
+    expect(() => parseTuning(withEffects({ grainCap: 2 }))).not.toThrow();
   });
 });
 
@@ -95,7 +82,6 @@ describe("each manager's getter reflects an owned upgrade", () => {
     modifier: ModifierId;
     read: (game: Game) => number;
     base: number;
-    combine: (base: number, effect: number) => number;
   }[] = [
     {
       name: "grain cap",
@@ -103,7 +89,6 @@ describe("each manager's getter reflects an owned upgrade", () => {
       modifier: "grainCap",
       read: (game) => game.economy.capOf("grain"),
       base: tuning.economy.caps.grain,
-      combine: (base, effect) => base + effect,
     },
     {
       name: "wood cap",
@@ -111,7 +96,6 @@ describe("each manager's getter reflects an owned upgrade", () => {
       modifier: "woodCap",
       read: (game) => game.economy.capOf("wood"),
       base: tuning.economy.caps.wood,
-      combine: (base, effect) => base + effect,
     },
     {
       name: "ore cap",
@@ -119,7 +103,6 @@ describe("each manager's getter reflects an owned upgrade", () => {
       modifier: "oreCap",
       read: (game) => game.economy.capOf("ore"),
       base: tuning.economy.caps.ore,
-      combine: (base, effect) => base + effect,
     },
     {
       name: "grain per farmer",
@@ -127,7 +110,6 @@ describe("each manager's getter reflects an owned upgrade", () => {
       modifier: "farmYield",
       read: (game) => game.economy.grainPerFarmer,
       base: tuning.economy.grainPerFarmer,
-      combine: (base, effect) => base * effect,
     },
     {
       name: "wood per worker",
@@ -135,7 +117,6 @@ describe("each manager's getter reflects an owned upgrade", () => {
       modifier: "forestYield",
       read: (game) => game.economy.woodPerWorker,
       base: tuning.economy.woodPerWorker,
-      combine: (base, effect) => base * effect,
     },
     {
       name: "ore per worker",
@@ -143,7 +124,6 @@ describe("each manager's getter reflects an owned upgrade", () => {
       modifier: "mineYield",
       read: (game) => game.economy.orePerWorker,
       base: tuning.economy.orePerWorker,
-      combine: (base, effect) => base * effect,
     },
     {
       name: "sell price",
@@ -151,7 +131,6 @@ describe("each manager's getter reflects an owned upgrade", () => {
       modifier: "sellPrice",
       read: (game) => game.economy.priceOf("wood"),
       base: tuning.economy.woodPrice,
-      combine: (base, effect) => base * effect,
     },
     {
       name: "interest per season",
@@ -159,7 +138,6 @@ describe("each manager's getter reflects an owned upgrade", () => {
       modifier: "interest",
       read: (game) => game.illusion.interestPerSeason,
       base: tuning.illusion.interestPerSeason,
-      combine: (base, effect) => base * effect,
     },
     {
       name: "audit gap",
@@ -167,7 +145,6 @@ describe("each manager's getter reflects an owned upgrade", () => {
       modifier: "auditGap",
       read: (game) => game.illusion.auditGapTicks,
       base: tuning.illusion.audit.minGapTicks,
-      combine: (base, effect) => base + effect,
     },
     {
       name: "governor deaths",
@@ -175,7 +152,6 @@ describe("each manager's getter reflects an owned upgrade", () => {
       modifier: "governorDeath",
       read: (game) => game.governors.deathPerMille,
       base: tuning.governors.deathPerMille,
-      combine: (base, effect) => Math.round(base * effect),
     },
     {
       name: "governor slots",
@@ -183,17 +159,19 @@ describe("each manager's getter reflects an owned upgrade", () => {
       modifier: "governorSlots",
       read: (game) => game.governors.cap,
       base: tuning.governors.cap,
-      combine: (base, effect) => base + effect,
     },
   ];
 
-  test.each(rows)("$name", ({ entry: id, modifier, read, base, combine }) => {
-    const before = read(villageOwning());
+  test.each(rows)("$name", ({ entry: id, modifier, read, base }) => {
+    const effect = effectOf(id, modifier);
 
+    const before = read(villageOwning());
     const after = read(villageOwning(id));
 
     expect(before).toBe(base);
-    expect(after).toBe(combine(base, effectOf(id, modifier)));
+    expect(after).toBe(
+      MODIFIERS[modifier] === "gap" ? base + effect : base * effect,
+    );
   });
 
   test("the wood yield an upgrade raises is the one a governor's output is built on", () => {
@@ -277,8 +255,9 @@ describe("tiers appear progressively", () => {
   }
 
   test("a stock-gated upgrade appears once its stock passes the threshold and not before", () => {
-    const threshold = (entry("store.granary1").shown as { value: number })
-      .value;
+    const threshold = (
+      archiveEntry("store.granary1").shown as { value: number }
+    ).value;
     const game = Game.create(1, tuning);
 
     game.state.posting.resources.grain = threshold;
@@ -293,7 +272,7 @@ describe("tiers appear progressively", () => {
   test("a second tier is not offered until the first is owned and the charter is bought", () => {
     const game = villageOwning();
     game.state.career.seen["store.granary2"] = 0;
-    const second = entry("store.granary2");
+    const second = archiveEntry("store.granary2");
 
     const bare = game.unlocks.isOffered(second);
     grantUnlocks(game, ["store.granary1"]);
@@ -342,11 +321,7 @@ describe("tiers appear progressively", () => {
   });
 
   test("every upgrade costs some wood or ore, so those resources have a use", () => {
-    const upgrades = tuning.archive.entries.filter(
-      ({ effects, id }) => effects !== undefined || id.startsWith("court."),
-    );
-
-    for (const { cost } of upgrades) {
+    for (const { cost } of archiveUpgrades) {
       expect((cost.wood ?? 0) + (cost.ore ?? 0)).toBeGreaterThan(0);
     }
   });

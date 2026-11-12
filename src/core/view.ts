@@ -139,13 +139,12 @@ export class ViewManager {
     const gap = this.game.unlocks.enabled(TRUE_REPORTS)
       ? null
       : this.game.governors.reportGap(this.tick + 1);
+    const live = this.live();
     const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
       resource,
       amount: this.game.illusion.apparent(resource),
       conjured: this.game.illusion.conjuredOf(resource),
-      ...(resource === "coin"
-        ? {}
-        : { cap: this.game.economy.capOf(resource) }),
+      ...(resource === "coin" ? {} : { cap: live.caps[resource] }),
       ratePerSecond:
         ((rates[resource] + (gap?.[resource] ?? 0)) * 1000) /
         this.tuning.stepMs,
@@ -184,7 +183,7 @@ export class ViewManager {
       grainEatenPerSecond: (eatenPerTick * 1000) / this.tuning.stepMs,
       lockedPanels: this.game.unlocks.lockedPanels(),
       unlocks: this.game.unlocks.purchased,
-      live: this.live(),
+      live,
       archive: {
         open: this.game.unlocks.enabled(ARCHIVE_PANEL),
         entries: this.game.unlocks.offered().map((entry) => {

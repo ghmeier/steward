@@ -123,11 +123,12 @@ function grainLines({ tuning, view }: MenuContext): string[] {
 
 function coinLines(context: MenuContext): string[] {
   const { tuning } = context;
+  const { prices } = context.view.live;
   const lines = [
     copy.help.coin.steadySource({
-      grainPrice: plain(context.view.live.prices.grain),
-      woodPrice: plain(context.view.live.prices.wood),
-      orePrice: plain(context.view.live.prices.ore),
+      grainPrice: plain(prices.grain),
+      woodPrice: plain(prices.wood),
+      orePrice: plain(prices.ore),
     }),
     copy.help.coin.sellingThroughDecree,
   ];

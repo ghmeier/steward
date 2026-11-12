@@ -149,12 +149,10 @@ export class GovernorManager {
     return stream;
   }
 
-  /** Governors the village may employ at once, counting the slots upgrades add. */
   get cap(): number {
     return this.tuning.cap + this.game.unlocks.modifier("governorSlots");
   }
 
-  /** Chance in a thousand that a governor dies at a season's end. */
   get deathPerMille(): number {
     return Math.round(
       this.tuning.deathPerMille * this.game.unlocks.modifier("governorDeath"),

@@ -3,7 +3,11 @@ import { Game } from "../src/core/game";
 import type { AddContext } from "../src/core/math";
 import { JOBS, Job, type Resource } from "../src/core/realm";
 import { parseTuning, type Tuning } from "../src/core/tuning";
-import { ARCHIVE_PANEL, type ArchiveEntry } from "../src/core/unlocks";
+import {
+  ARCHIVE_PANEL,
+  type ArchiveEntry,
+  type ModifierId,
+} from "../src/core/unlocks";
 import type { GameView } from "../src/core/view";
 import { readTuningJson } from "../src/save/content";
 import { type HelpTopicId, helpSections } from "../src/tui/help-menu";
@@ -261,6 +265,31 @@ export function addGovernors(game: Game, ...governors: Governor[]): Governor[] {
 export function setRoster(game: Game, counts: RosterCounts): void {
   game.state.posting.delegates = rosterOf(counts);
   game.state.posting.nextDelegateId = game.state.posting.delegates.length + 1;
+}
+
+/** For tests that add to resources outside a game, where no store caps them. */
+export const uncappedContext: AddContext = {
+  tick: 1,
+  maxValue: 1e300,
+  capOf: () => Number.POSITIVE_INFINITY,
+  absorbed: null,
+};
+
+/** The Archive's upgrades, as against the panels and controls it also sells. */
+export const archiveUpgrades = tuning.archive.entries.filter(
+  ({ effects, id }) => effects !== undefined || id.startsWith("court."),
+);
+
+export function archiveEntry(id: string): ArchiveEntry {
+  const found = tuning.archive.entries.find((entry) => entry.id === id);
+  if (found === undefined) throw new Error(`no archive entry ${id}`);
+  return found;
+}
+
+export function effectOf(id: string, modifier: ModifierId): number {
+  const value = archiveEntry(id).effects?.[modifier];
+  if (value === undefined) throw new Error(`${id} does not change ${modifier}`);
+  return value;
 }
 
 export function contextFor(game: Game): AddContext {

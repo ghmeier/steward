@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { topicLines, tuning } from "../../test/helpers";
+import { effectOf, topicLines, tuning } from "../../test/helpers";
 import { copy, type TraitFigures } from "../core/copy";
 import { policiesFor } from "../core/decree";
 import { Job, type Trait } from "../core/realm";
@@ -195,13 +195,6 @@ describe("help topics", () => {
 });
 
 describe("help quotes the tuning that owned upgrades have changed", () => {
-  const effectOf = (
-    id: string,
-    modifier: "interest" | "grainCap" | "governorDeath",
-  ) =>
-    tuning.archive.entries.find((entry) => entry.id === id)?.effects?.[
-      modifier
-    ] as number;
   const ids = ["lenders.favor", "store.granary1", "governors.physician"];
 
   test("the interest, grain store and governor death figures follow the upgrades the village owns", () => {
@@ -218,7 +211,7 @@ describe("help quotes the tuning that owned upgrades have changed", () => {
     const grainText = topicLines("grain", tuning, ids).join("\n");
     const governorText = topicLines("governors", tuning, ids).join("\n");
 
-    expect(illusionText).toContain(`${percent(interest)}`);
+    expect(illusionText).toContain(percent(interest));
     expect(grainText).toContain(`${plain(grainCap)} grain`);
     expect(governorText).toContain(`${percent(death)} chance`);
   });

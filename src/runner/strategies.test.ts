@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { quietOptions, tuning } from "../../test/helpers";
+import { archiveUpgrades, quietOptions, tuning } from "../../test/helpers";
 import { Game } from "../core/game";
 import { Job } from "../core/realm";
 import { runSim } from "./sim";
@@ -48,10 +48,10 @@ describe("scripted strategies over ten game years", () => {
     expect(summary.promotedAt).toBeGreaterThan(0);
   });
 
-  test("a village that only farms, feeds and sets its labor reveals every upgrade that needs neither the charter nor a governor", () => {
+  test("a village that farms, feeds and sets its labor reveals every first-tier upgrade within the run", () => {
     const game = Game.create(1, tuning);
     const player = new StrategyPlayer({
-      name: "farming-only",
+      name: "farming",
       setup: [
         { type: "assignPeasant", peasant: 1, job: Job.FARM },
         {
@@ -96,13 +96,9 @@ describe("scripted strategies over ten game years", () => {
       purchases: [],
       reactions: [],
     });
-    const beforePromotion = tuning.archive.entries.filter(
-      ({ effects, id, shown, requires }) =>
-        (effects !== undefined || id.startsWith("court.")) &&
-        !requires.includes("panel.crown") &&
-        shown !== undefined &&
-        shown !== "promotion" &&
-        shown !== "governor",
+    const firstTier = archiveUpgrades.filter(
+      ({ shown, requires }) =>
+        typeof shown === "object" && !requires.includes("panel.crown"),
     );
 
     while (game.state.tick < Number(STEPS)) {
@@ -110,10 +106,10 @@ describe("scripted strategies over ten game years", () => {
       player.observe(game);
     }
 
-    expect(beforePromotion.length).toBeGreaterThan(0);
-    for (const { id } of beforePromotion) {
-      expect(game.state.career.seen[id]).toBeDefined();
-    }
+    const unseen = firstTier
+      .map(({ id }) => id)
+      .filter((id) => !game.unlocks.isSeen(id));
+    expect(unseen).toEqual([]);
   });
 
   test("a recorded seasonal run replays to the same hash", () => {

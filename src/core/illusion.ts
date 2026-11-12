@@ -504,7 +504,6 @@ export class IllusionManager {
     );
   }
 
-  /** The share of the principal that debt grows by at each season's end. */
   get interestPerSeason(): number {
     return (
       this.tuning.interestPerSeason * this.game.unlocks.modifier("interest")

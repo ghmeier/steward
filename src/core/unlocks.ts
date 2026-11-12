@@ -54,10 +54,6 @@ export type ArchiveEntry = {
   effects?: ArchiveEffects | undefined;
 };
 
-/** The sum of every entry's gap, for limits that must hold however much the player buys. */
-export function totalGap(entries: readonly ArchiveEntry[], id: ModifierId) {
-  return entries.reduce((sum, entry) => sum + (entry.effects?.[id] ?? 0), 0);
-}
 export type ArchiveCostPart = {
   resource: Resource;
   amount: number;
@@ -333,7 +329,12 @@ const archiveEntry: z.ZodType<ArchiveEntry> = z.strictObject({
   shown: z
     .union([simpleCondition, z.literal(PROMOTION), z.literal(GOVERNOR_HIRED)])
     .optional(),
-  effects: z.record(z.string(), positive).optional(),
+  effects: z
+    .partialRecord(
+      z.enum(Object.keys(MODIFIERS) as [ModifierId, ...ModifierId[]]),
+      positive,
+    )
+    .optional(),
 });
 const playUnlock: z.ZodType<PlayUnlock> = z.strictObject({
   id: name,
@@ -367,13 +368,6 @@ function archiveIssues(archive: ArchiveTuning, ctx: z.RefinementCtx): void {
 
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
   for (const entry of entries) {
-    for (const modifier of Object.keys(entry.effects ?? {})) {
-      if (!Object.hasOwn(MODIFIERS, modifier)) {
-        addIssue(ctx, `"${entry.id}" changes unknown modifier "${modifier}"`, [
-          "entries",
-        ]);
-      }
-    }
     for (const required of entry.requires) {
       if (!byId.has(required)) {
         addIssue(ctx, `"${entry.id}" requires unknown id "${required}"`, [

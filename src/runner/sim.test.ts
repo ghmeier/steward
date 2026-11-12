@@ -150,7 +150,7 @@ describe("runSim output", () => {
       economy: {
         ...tuning.economy,
         woodPerWorker: 1e308,
-        caps: { grain: 1e308, wood: Number.POSITIVE_INFINITY, ore: 1e308 },
+        caps: { ...tuning.economy.caps, wood: Number.POSITIVE_INFINITY },
       },
     };
 

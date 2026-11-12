@@ -94,25 +94,21 @@ describe("add", () => {
     expect(resources.food).toBe(100);
   });
 
-  test("an addition past the cap is lost and stock above the cap is kept", () => {
-    const capped = contextWith(null, { capOf: () => 100 });
+  test("an addition past the cap is lost, unlogged, and stock above the cap is kept", () => {
+    const absorbed: AbsorbedAdditionLog = {};
+    const capped = contextWith(absorbed, { capOf: () => 100 });
     const nearFull = { food: 95 };
+    const full = { food: 100 };
     const overFull = { food: 130 };
 
     add(nearFull, "food", 20, capped);
+    add(full, "food", 1, capped);
     add(overFull, "food", 20, capped);
     add(overFull, "food", -10, capped);
 
     expect(nearFull.food).toBe(100);
+    expect(full.food).toBe(100);
     expect(overFull.food).toBe(120);
-  });
-
-  test("an addition turned away by the cap is not recorded as absorbed", () => {
-    const resources = { food: 100 };
-    const absorbed: AbsorbedAdditionLog = {};
-
-    add(resources, "food", 1, contextWith(absorbed, { capOf: () => 100 }));
-
     expect(absorbed).toEqual({});
   });
 

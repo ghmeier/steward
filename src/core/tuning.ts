@@ -7,7 +7,7 @@ import { addIssue, parseWith } from "./errors";
 import { governorTuningSchema } from "./governors";
 import { illusionTuningSchema } from "./illusion";
 import { positive } from "./schema";
-import { archiveTuningSchema, totalGap } from "./unlocks";
+import { archiveTuningSchema } from "./unlocks";
 
 const tuningSchema = z
   .strictObject({
@@ -23,12 +23,14 @@ const tuningSchema = z
     governors: governorTuningSchema,
   })
   .superRefine((tuning, ctx) => {
-    // Governors and open candidates are named from the same pool as peasants.
+    // Governors and open candidates are named from the same pool as peasants, and the pool must
+    // cover the governor cap with every slot upgrade bought.
+    const mostGovernors = tuning.archive.entries.reduce(
+      (cap, { effects }) => cap + (effects?.governorSlots ?? 0),
+      tuning.governors.cap,
+    );
     const max =
-      tuning.economy.maxPopulation +
-      tuning.governors.cap +
-      totalGap(tuning.archive.entries, "governorSlots") +
-      tuning.desk.slots;
+      tuning.economy.maxPopulation + mostGovernors + tuning.desk.slots;
     if (tuning.village.names.length < max) {
       addIssue(
         ctx,

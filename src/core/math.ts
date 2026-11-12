@@ -61,8 +61,7 @@ export function add(
 
   // A value pinned at the clamp or the cap also leaves the stored number unchanged, but that is
   // saturation, not floating-point absorption, so it is not logged.
-  const pinned =
-    next === ceiling || next === context.maxValue || next === -context.maxValue;
+  const pinned = next === ceiling || next === -context.maxValue;
   if (delta === 0 || next !== current || pinned || context.absorbed === null) {
     return;
   }

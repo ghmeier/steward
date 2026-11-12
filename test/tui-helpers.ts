@@ -1,5 +1,6 @@
 import { afterEach } from "bun:test";
 import { createTestRenderer } from "@opentui/core/testing";
+import { Game } from "../src/core/game";
 import { Job } from "../src/core/realm";
 import type { GameView } from "../src/core/view";
 import type { FocusId, KeyPress } from "../src/tui/keys";
@@ -123,15 +124,7 @@ export function emptyView(overrides: Partial<GameView> = {}): GameView {
     lockedPanels: [],
     unlocks: [],
     archive: { open: false, entries: [] },
-    live: {
-      yields: { grain: 0.025, wood: 0.02, ore: 0.01 },
-      prices: { grain: 0.5, wood: 0.5, ore: 1 },
-      caps: { grain: 500, wood: 300, ore: 150 },
-      interestPerSeason: 0.05,
-      auditGapTicks: 1200,
-      governorCap: 4,
-      governorDeathPerMille: 10,
-    },
+    live: Game.create(1, tuning).view.compute().live,
     ...overrides,
   };
 }

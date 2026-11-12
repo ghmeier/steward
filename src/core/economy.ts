@@ -127,12 +127,6 @@ const CAP_MODIFIER = {
   ore: "oreCap",
 } as const;
 
-const YIELD_MODIFIER = {
-  [Job.FARM]: "farmYield",
-  [Job.FOREST]: "forestYield",
-  [Job.MINE]: "mineYield",
-} as const;
-
 const PRICE_KEY = {
   grain: "grainPrice",
   wood: "woodPrice",
@@ -231,25 +225,24 @@ export class EconomyManager {
   get grainPerFarmer(): number {
     return (
       this.tuning.economy.grainPerFarmer *
-      this.game.unlocks.modifier(YIELD_MODIFIER[Job.FARM])
+      this.game.unlocks.modifier("farmYield")
     );
   }
 
   get woodPerWorker(): number {
     return (
       this.tuning.economy.woodPerWorker *
-      this.game.unlocks.modifier(YIELD_MODIFIER[Job.FOREST])
+      this.game.unlocks.modifier("forestYield")
     );
   }
 
   get orePerWorker(): number {
     return (
-      this.tuning.economy.orePerWorker *
-      this.game.unlocks.modifier(YIELD_MODIFIER[Job.MINE])
+      this.tuning.economy.orePerWorker * this.game.unlocks.modifier("mineYield")
     );
   }
 
-  /** What one worker on the job yields in a tick at the given tick; null for idle. Every reading of output goes through here. */
+  /** What one worker on the job yields in a tick at the given tick; null for idle. */
   yieldPerWorker(
     job: Job,
     tick: number,
@@ -316,14 +309,13 @@ export class EconomyManager {
     const grain = resources.grain ?? 0;
     const eaten = Math.min(grain + produced, upkeep);
     if (grain + produced >= upkeep) {
-      // The village eats before the harvest is stored, so a full granary shows no false drain: only
-      // what the cap turns away is lost.
+      // Eat before storing the harvest: storing first would let a full granary turn away grain the
+      // village then eats, showing a drain that is not there.
       add(resources, "grain", -upkeep, context);
       add(resources, "grain", produced, context);
       economy.famine = { startPopulation: 0, ticks: 0, deaths: 0 };
     } else {
-      add(resources, "grain", produced, context);
-      add(resources, "grain", -(resources.grain ?? 0), context);
+      add(resources, "grain", -grain, context);
       this.advanceFamine();
     }
 
