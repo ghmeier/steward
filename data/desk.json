@@ -533,11 +533,11 @@
       "templates": [
         {
           "id": "stranger",
-          "text": "A stranger with a bedroll and no references asks to settle. She says she is good with her hands, and has not said which hands.",
+          "text": "A stranger with a bedroll and no references asks to settle, along with whoever is trailing behind. She says they are all good with their hands, and has not said which hands.",
           "options": [
             {
               "id": "admit",
-              "label": "Let her settle, and feed her first",
+              "label": "Let them settle, and feed them first",
               "resources": {
                 "grain": -25
               },
@@ -545,19 +545,19 @@
             },
             {
               "id": "turn-away",
-              "label": "Send her on her way"
+              "label": "Send them on their way"
             }
           ],
           "expiry": "turn-away",
-          "expired": "The stranger walked on, still unreferenced, still good with her hands."
+          "expired": "The stranger's party walked on, still unreferenced, still good with their hands."
         },
         {
           "id": "cartwright",
-          "text": "A cartwright says the last village was full, loudly and with some bitterness. He will farm for his keep if the first meal is on you.",
+          "text": "A cartwright says the last village was full, loudly and with some bitterness. He and anyone travelling with him will farm for their keep if the first meal is on you.",
           "options": [
             {
               "id": "admit",
-              "label": "Admit him and cover the first meal",
+              "label": "Admit them and cover the first meal",
               "resources": {
                 "grain": -30
               },
@@ -565,19 +565,19 @@
             },
             {
               "id": "turn-away",
-              "label": "Wish him luck at the next village"
+              "label": "Wish them luck at the next village"
             }
           ],
           "expiry": "turn-away",
-          "expired": "The cartwright shouldered his tools and went to find a village that was not full."
+          "expired": "The cartwright shouldered his tools, gathered whoever had come with him, and went to find a village that was not full."
         },
         {
           "id": "pilgrim",
-          "text": "A pilgrim on her way to a shrine two provinces off asks for a bed. She has been on her way for six years.",
+          "text": "A pilgrim on her way to a shrine two provinces off asks for beds for herself and any fellow pilgrims. She has been on her way for six years.",
           "options": [
             {
               "id": "admit",
-              "label": "Give her a bed and a first meal",
+              "label": "Give them beds and a first meal",
               "resources": {
                 "grain": -20
               },
@@ -585,19 +585,19 @@
             },
             {
               "id": "turn-away",
-              "label": "Point her toward the shrine"
+              "label": "Point them toward the shrine"
             }
           ],
           "expiry": "turn-away",
-          "expired": "The pilgrim thanked the village for its hospitality and continued toward a shrine she would likely never reach."
+          "expired": "The pilgrim thanked the village on behalf of all present and continued toward a shrine she would likely never reach."
         },
         {
           "id": "tinker",
-          "text": "A tinker's wagon has lost a wheel and the tinker has lost the will to mend it. He would sooner mend your tools than his own.",
+          "text": "A tinker's wagon has lost a wheel and the tinker has lost the will to mend it. He, and whoever rides with him, would sooner mend your tools than their own.",
           "options": [
             {
               "id": "admit",
-              "label": "Take him on and feed him while he works",
+              "label": "Take them on and feed them while they work",
               "resources": {
                 "grain": -28
               },
@@ -605,7 +605,7 @@
             },
             {
               "id": "turn-away",
-              "label": "Lend him a wheel and send him on"
+              "label": "Lend them a wheel and send them on"
             }
           ],
           "expiry": "turn-away",
@@ -613,11 +613,11 @@
         },
         {
           "id": "widow",
-          "text": "A widow with a handcart, a good deal of opinion and no remaining family asks if the village has a corner for her.",
+          "text": "A widow with a handcart, a good deal of opinion and no remaining family asks if the village has a corner for her and any stragglers she has collected on the road.",
           "options": [
             {
               "id": "admit",
-              "label": "Make room and cover her first meals",
+              "label": "Make room and cover their first meals",
               "resources": {
                 "grain": -26
               },

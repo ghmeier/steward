@@ -2,7 +2,12 @@ import { z } from "zod";
 import type { CommandResult } from "./commands";
 import { copy } from "./copy";
 import { sortedKeys } from "./data";
-import type { DeskOption, DeskTemplate, DeskTuning } from "./desk-tuning";
+import {
+  type DeskOption,
+  type DeskTemplate,
+  type DeskTuning,
+  PARTY_PLACEHOLDERS,
+} from "./desk-tuning";
 import type { Game } from "./game";
 import type { CandidateDetails } from "./governors";
 import type { AddContext } from "./math";
@@ -38,32 +43,39 @@ type EntryBase = {
   arrivedAt: number;
 };
 
-/** Option amounts are multiplied by this when the entry arrives, and it is kept so the numbers shown stay the numbers applied. */
-type Scaled = { scale?: number };
+type ScaledBase = EntryBase & {
+  /** Option amounts are multiplied by this when the entry arrives, and it is kept so the numbers shown stay the numbers applied. */
+  scale?: number;
+};
 
-export type Dispute = EntryBase &
-  Scaled & {
-    kind: "dispute";
-    parties: [number, number];
-  };
+export type Dispute = ScaledBase & {
+  kind: "dispute";
+  parties: [number, number];
+};
 
-/** A peasant asking the steward for something; refusing is what makes them sulk. */
-export type Petition = EntryBase &
-  Scaled & { kind: "petition"; peasant: number };
+/** A peasant asking the steward for something; the petitioner is its only party, so it fills and sulks like a dispute. */
+export type Petition = ScaledBase & { kind: "petition"; parties: [number] };
 
-export type Offer = EntryBase &
-  Scaled & {
-    kind: "merchant" | "omen" | "traveller";
-    /** How many peasants a traveller's admitting option brings; absent means one. */
-    newcomers?: number;
-  };
+export type Offer = ScaledBase & { kind: "merchant" | "omen" };
+
+export type Traveller = ScaledBase & {
+  kind: "traveller";
+  /** Absent on travellers saved before arrivals scaled, which brought one. */
+  newcomers?: number;
+};
 
 /** A governor asking to be hired; what they offer is stored here so it survives a save. */
 export type Candidate = EntryBase & { kind: "candidate" } & CandidateDetails;
 
 export type Audit = EntryBase & { kind: "audit"; dueAt: number };
 
-export type DeskEntry = Dispute | Petition | Offer | Candidate | Audit;
+export type DeskEntry =
+  | Dispute
+  | Petition
+  | Offer
+  | Traveller
+  | Candidate
+  | Audit;
 
 /** The option that hires a candidate; the template schema requires it. */
 export const HIRE = "hire";
@@ -81,23 +93,26 @@ const deskEntryBase = {
   arrivedAt: count,
 };
 
+const scaledEntryBase = { ...deskEntryBase, scale: positive.exactOptional() };
+
 const deskEntry = z.discriminatedUnion("kind", [
   z.strictObject({
-    ...deskEntryBase,
+    ...scaledEntryBase,
     kind: z.literal("dispute"),
     parties: z.tuple([positiveCount, positiveCount]),
-    scale: positive.exactOptional(),
   }),
   z.strictObject({
-    ...deskEntryBase,
+    ...scaledEntryBase,
     kind: z.literal("petition"),
-    peasant: positiveCount,
-    scale: positive.exactOptional(),
+    parties: z.tuple([positiveCount]),
   }),
   z.strictObject({
-    ...deskEntryBase,
-    kind: z.enum(DRAWN_KINDS).exclude(["dispute", "candidate", "petition"]),
-    scale: positive.exactOptional(),
+    ...scaledEntryBase,
+    kind: z.enum(["merchant", "omen"]),
+  }),
+  z.strictObject({
+    ...scaledEntryBase,
+    kind: z.literal("traveller"),
     newcomers: positiveCount.exactOptional(),
   }),
   z.strictObject({
@@ -257,7 +272,12 @@ export class DeskManager {
     return peasant.name;
   }
 
-  /** Fills a template's placeholders from the entry: the parties of a dispute or the details of a candidate. */
+  /** The peasants an entry names, in placeholder order: a dispute's two parties or a petition's petitioner. */
+  partiesOf(entry: DeskEntry): readonly number[] {
+    return "parties" in entry ? entry.parties : [];
+  }
+
+  /** Fills a template's placeholders from the entry: the parties it names or the details of a candidate. */
   fill(entry: DeskEntry, text: string): string {
     if (entry.kind === "candidate") {
       return text
@@ -270,14 +290,11 @@ export class DeskManager {
           copy.governors.traitList({ traits: entry.traits }),
         );
     }
-    if (entry.kind === "petition") {
-      return text.replaceAll("{first}", this.nameOf(entry.peasant));
-    }
-    if (entry.kind !== "dispute") return text;
-    const [first, second] = entry.parties;
-    return text
-      .replaceAll("{first}", this.nameOf(first))
-      .replaceAll("{second}", this.nameOf(second));
+    return this.partiesOf(entry).reduce(
+      (filled, party, index) =>
+        filled.replaceAll(`{${PARTY_PLACEHOLDERS[index]}}`, this.nameOf(party)),
+      text,
+    );
   }
 
   /** What choosing the option adds and removes; an audit's is worked out from the books and a hire's from the entry, not the template. */
@@ -287,11 +304,12 @@ export class DeskManager {
       return option.id === HIRE ? { coin: -entry.price } : {};
     }
     const scale = entry.scale ?? 1;
-    const scaled: Record<string, number> = {};
-    for (const [resource, amount] of Object.entries(option.resources ?? {})) {
-      scaled[resource] = Math.round(amount * scale);
-    }
-    return scaled;
+    return Object.fromEntries(
+      Object.entries(option.resources ?? {}).map(([resource, amount]) => [
+        resource,
+        Math.round(amount * scale),
+      ]),
+    );
   }
 
   private newcomersOf(entry: DeskEntry): number {
@@ -364,9 +382,7 @@ export class DeskManager {
 
   private grudgedParty(entry: DeskEntry, option: DeskOption): number | null {
     if (option.grudge === undefined) return null;
-    if (entry.kind === "petition") return entry.peasant;
-    if (entry.kind !== "dispute") return null;
-    return entry.parties[option.grudge === "first" ? 0 : 1];
+    return this.partiesOf(entry)[option.grudge === "first" ? 0 : 1] ?? null;
   }
 
   sulker(entry: DeskEntry, option: DeskOption): string | null {
@@ -482,13 +498,13 @@ export class DeskManager {
     throw new Error("desk kind draw landed outside its range");
   }
 
-  private drawPeasant(): number {
+  private drawPetitioner(): [number] {
     const peasants = this.game.delegates.peasants;
     const drawn = peasants[intBelow(this.stream, peasants.length)];
     if (drawn === undefined) {
       throw new Error("petitioner draw landed outside its range");
     }
-    return drawn.id;
+    return [drawn.id];
   }
 
   private drawParties(): [number, number] {
@@ -523,7 +539,7 @@ export class DeskManager {
         desk.disputes.push({ ...scaled, kind, parties: this.drawParties() });
         break;
       case "petition":
-        desk.disputes.push({ ...scaled, kind, peasant: this.drawPeasant() });
+        desk.disputes.push({ ...scaled, kind, parties: this.drawPetitioner() });
         break;
       case "candidate":
         desk.disputes.push({
@@ -586,11 +602,8 @@ export class DeskManager {
   private dropStaleDisputes(): void {
     const { desk, delegates } = this.posting;
     const living = new Set(delegates.map((delegate) => delegate.id));
-    desk.disputes = desk.disputes.filter(
-      (entry) =>
-        (entry.kind !== "dispute" ||
-          entry.parties.every((party) => living.has(party))) &&
-        (entry.kind !== "petition" || living.has(entry.peasant)),
+    desk.disputes = desk.disputes.filter((entry) =>
+      this.partiesOf(entry).every((party) => living.has(party)),
     );
   }
 

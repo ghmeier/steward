@@ -22,7 +22,8 @@ const optionResources = z
   })
   .exactOptional();
 
-const PARTY_PLACEHOLDERS = ["first", "second"];
+/** A desk entry's parties fill these placeholders in order. */
+export const PARTY_PLACEHOLDERS = ["first", "second"];
 const PETITIONER_PLACEHOLDERS = ["first"];
 const CANDIDATE_PLACEHOLDERS = ["name", "village", "price", "job", "traits"];
 const NO_PLACEHOLDERS: string[] = [];
@@ -41,15 +42,15 @@ const disputeOption = deskOption(PARTY_PLACEHOLDERS).extend({
 
 const merchantOption = deskOption(NO_PLACEHOLDERS);
 
+const newcomer = z.literal(true).exactOptional();
+
 // A petition names one peasant, so only the first party can sulk.
 const petitionOption = deskOption(PETITIONER_PLACEHOLDERS).extend({
   grudge: z.literal("first").exactOptional(),
-  newcomer: z.literal(true).exactOptional(),
+  newcomer,
 });
 
-const travellerOption = merchantOption.extend({
-  newcomer: z.literal(true).exactOptional(),
-});
+const travellerOption = merchantOption.extend({ newcomer });
 
 const computedCostOption = <Id extends string>(
   id: Id,
@@ -193,7 +194,7 @@ export const deskTuningSchema = z.strictObject({
   arrival: tickRange,
   grudgeTicks: positiveInteger,
   scale: z.strictObject({
-    /** Option amounts grow by one whole multiple for each this many people in the realm. */
+    /** Option amounts are multiplied by the realm's population over this, and never by less than one. */
     perPopulation: positive,
     /** A traveller brings one newcomer for each this many people in the realm, rounded up. */
     newcomersPer: positive,
