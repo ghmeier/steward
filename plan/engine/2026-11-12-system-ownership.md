@@ -1,11 +1,11 @@
 ---
 title: "Let each system own its schemas, view and panel declarations"
-status: active
-last_pr: 30
+status: completed
+last_pr: 28
 tags: [refactor, modularity]
 created: 2026-11-12
 updated: 2026-11-12
-next_step: merge #28 (carries #30); then the churn check and a handoff
+next_step: done; see handoff/engine/2026-11-12-system-ownership-done
 ---
 # Let each system own its schemas, view and panel declarations
 
