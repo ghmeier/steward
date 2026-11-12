@@ -3,7 +3,7 @@ import { compareKeys, sortedKeys } from "./data";
 import type { Decree } from "./decree";
 import type { DeskKind } from "./desk";
 import type { Game } from "./game";
-import type { Books } from "./illusion";
+import type { Books, DebtLine } from "./illusion";
 import {
   type Job,
   RESOURCES,
@@ -16,6 +16,7 @@ import {
   ARCHIVE_PANEL,
   CONJURING,
   CROWN_PANEL,
+  TRUE_REPORTS,
   type UnlockId,
 } from "./unlocks";
 
@@ -52,6 +53,8 @@ export type GovernorView = {
   traits: Trait[];
   /** What the governor claims to bring in each second of their job's resource; real output scaled by their report factor. */
   reportedPerSecond: number;
+  /** What the governor really brings in and how far the report overshoots it; null until true reports are bought. */
+  truth: { realPerSecond: number; gapPerSecond: number } | null;
 };
 export type DelegateView = {
   id: number;
@@ -82,7 +85,13 @@ export type IllusionView = {
   books: Books;
   /** Coin value of illusion that can still be added before the ceiling. */
   room: number;
-  /** Ticks until announced auditors arrive; null when none are on the road. */
+  /** Debt per resource, rounded up to the nearest ten unless exact books are owned. */
+  debt: Record<ResourceId, DebtLine>;
+  /** Debt is shown to the decimal rather than rounded. */
+  debtIsExact: boolean;
+  /** Announced auditors have not yet reached the desk. */
+  auditOnTheRoad: boolean;
+  /** Ticks until announced auditors arrive; null when none are on the road or exact books are not owned. */
   auditInTicks: number | null;
 };
 export type GameView = {
@@ -146,13 +155,16 @@ export class ViewManager {
   compute(): GameView {
     const { rates, growthPerTick, eatenPerTick } = this.game.projection.flows();
     // The projection runs the next tick, so the gap is read at that tick too.
-    const gap = this.game.governors.reportGap(this.tick + 1);
+    const gap = this.game.unlocks.enabled(TRUE_REPORTS)
+      ? null
+      : this.game.governors.reportGap(this.tick + 1);
     const ledger: LedgerLine[] = RESOURCES.map((resource) => ({
       resource,
       amount: this.game.illusion.apparent(resource),
       conjured: this.game.illusion.conjuredOf(resource),
       ratePerSecond:
-        ((rates[resource] + gap[resource]) * 1000) / this.tuning.stepMs,
+        ((rates[resource] + (gap?.[resource] ?? 0)) * 1000) /
+        this.tuning.stepMs,
     }));
     const { decrees } = this.posting;
     const labor = this.game.delegates.jobCounts();
@@ -215,16 +227,30 @@ export class ViewManager {
   }
 
   private governorViews(): GovernorView[] {
-    return this.game.delegates.governors.map((governor) => ({
-      id: governor.id,
-      name: governor.name,
-      job: governor.job,
-      village: governor.village,
-      traits: [...governor.traits],
-      reportedPerSecond:
-        (this.game.governors.reportedOutput(governor, this.tick + 1) * 1000) /
-        this.tuning.stepMs,
-    }));
+    const trueReports = this.game.unlocks.enabled(TRUE_REPORTS);
+    const perSecond = (perTick: number) =>
+      (perTick * 1000) / this.tuning.stepMs;
+    return this.game.delegates.governors.map((governor) => {
+      const reported = this.game.governors.reportedOutput(
+        governor,
+        this.tick + 1,
+      );
+      const real = this.game.governors.realOutput(governor, this.tick + 1);
+      return {
+        id: governor.id,
+        name: governor.name,
+        job: governor.job,
+        village: governor.village,
+        traits: [...governor.traits],
+        reportedPerSecond: perSecond(reported),
+        truth: trueReports
+          ? {
+              realPerSecond: perSecond(real),
+              gapPerSecond: perSecond(reported - real),
+            }
+          : null,
+      };
+    });
   }
 
   private lockedPanels(): PanelId[] {
@@ -236,8 +262,15 @@ export class ViewManager {
 
   private illusionView(): IllusionView | null {
     if (!this.game.unlocks.enabled(CONJURING)) return null;
-    const { books, room, auditInTicks } = this.game.illusion;
-    return { books, room, auditInTicks };
+    const { books, room, auditInTicks, showsExactDebt } = this.game.illusion;
+    return {
+      books,
+      room,
+      debt: this.game.illusion.debtLines(),
+      debtIsExact: showsExactDebt,
+      auditOnTheRoad: auditInTicks !== null,
+      auditInTicks: showsExactDebt ? auditInTicks : null,
+    };
   }
 
   private crownView(): CrownView | null {

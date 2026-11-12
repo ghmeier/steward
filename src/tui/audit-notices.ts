@@ -13,7 +13,9 @@ export function auditNotice(
   tuning: Tuning,
 ): string | null {
   if (previous === null || next === null) return null;
-  if (previous.auditInTicks !== null || next.auditInTicks === null) return null;
+  if (previous.auditOnTheRoad || !next.auditOnTheRoad) return null;
+  if (next.auditInTicks === null)
+    return copy.notices.auditorsOnTheRoadUnknownWait;
   const wait = formatTicksRoughly(next.auditInTicks, tuning.stepMs);
   return copy.notices.auditorsOnTheRoad({ wait });
 }

@@ -229,6 +229,8 @@ export function startApp(options: {
     if (finalExit !== null) return;
     const result = session.frame();
     const lastRejection = result.rejections.at(-1);
+    const lastReport = result.messages.at(-1);
+    if (lastReport !== undefined) message = lastReport;
     if (lastRejection !== undefined) message = lastRejection.reason;
     const starved = starvationNotice(lastView, session.view());
     if (starved !== null) message = starved;

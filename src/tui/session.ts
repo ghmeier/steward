@@ -7,6 +7,8 @@ export type Rejection = { tick: number; command: Command; reason: string };
 export type FrameResult = {
   steps: number;
   rejections: Rejection[];
+  /** What commands that worked reported back, in order. */
+  messages: string[];
   /** The flavor lines of desk entries that expired, in the order they expired. */
   expired: string[];
   viewChanged: boolean;
@@ -48,6 +50,7 @@ export class Session {
   frame(): FrameResult {
     const steps = this.clock.frame();
     const rejections: Rejection[] = [];
+    const messages: string[] = [];
     const expired: string[] = [];
     for (let i = 0; i < steps; i++) {
       const commands = this.queued;
@@ -57,18 +60,22 @@ export class Session {
       for (const [index, command] of commands.entries()) {
         this.commandLog.push({ tick, command });
         const result = results[index];
-        if (result !== undefined && !result.ok) {
+        if (result === undefined) continue;
+        if (!result.ok) {
           rejections.push({ tick, command, reason: result.reason });
+        } else if (result.message !== undefined) {
+          messages.push(result.message);
         }
       }
       expired.push(...this.game.desk.expired);
     }
-    if (steps === 0) return { steps, rejections, expired, viewChanged: false };
+    if (steps === 0)
+      return { steps, rejections, messages, expired, viewChanged: false };
     this.currentView = this.game.view.compute();
     const json = JSON.stringify(this.currentView);
     const viewChanged = json !== this.currentViewJson;
     this.currentViewJson = json;
-    return { steps, rejections, expired, viewChanged };
+    return { steps, rejections, messages, expired, viewChanged };
   }
 
   view(): GameView {

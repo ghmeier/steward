@@ -116,6 +116,12 @@ export class GovernorManager {
       : null;
   }
 
+  /** What the governor really brings in per tick of their job's resource. */
+  realOutput(governor: Governor, tick: number): number {
+    const yielded = this.yieldOf(governor, tick);
+    return yielded === null ? 0 : this.workersOf(governor) * yielded.amount;
+  }
+
   /** What the governor claims to bring in per tick of their job's resource. */
   reportedOutput(governor: Governor, tick: number): number {
     const yielded = this.yieldOf(governor, tick);

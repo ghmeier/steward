@@ -51,7 +51,10 @@ export const commandSchema = z.discriminatedUnion("type", [
 
 export type Command = z.infer<typeof commandSchema>;
 
-export type CommandResult = { ok: true } | { ok: false; reason: string };
+/** A command that worked may carry a line telling the steward what it did. */
+export type CommandResult =
+  | { ok: true; message?: string }
+  | { ok: false; reason: string };
 
 /**
  * An entry with `tick: T` is applied during the step that advances `state.tick`

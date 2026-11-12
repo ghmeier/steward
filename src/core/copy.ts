@@ -55,6 +55,20 @@ export const copy = {
       `there is no ${resource} debt to back`,
     villageHoldsNoneToBack: ({ resource }: { resource: string }) =>
       `the village holds no ${resource} to back it`,
+    figure: ({ amount, exact }: { amount: string; exact: boolean }) =>
+      exact ? amount : `~${amount}`,
+    repaidAll: ({ resource, repaid }: { resource: string; repaid: string }) =>
+      `Repaid ${repaid} ${resource}; none is owed now.`,
+    repaidPartly: ({
+      resource,
+      repaid,
+      left,
+    }: {
+      resource: string;
+      repaid: string;
+      left: string;
+    }) =>
+      `Repaid ${repaid} ${resource}, all the real stock held; ${left} is still owed.`,
   },
   governors: {
     noRoomForGovernor: "the crown allows no more governors in the village",
@@ -114,6 +128,8 @@ export const copy = {
     }) => `One season left to deliver ${amount} ${resource} to the crown.`,
     auditorsOnTheRoad: ({ wait }: { wait: string }) =>
       `Auditors are on the road and due in about ${wait}. Repay what you can before they count it.`,
+    auditorsOnTheRoadUnknownWait:
+      "Auditors are on the road, and you do not know when they arrive. Repay what you can before they count it.",
     startedNewGame: "Started a new game.",
     unsupportedSave: ({
       version,
@@ -153,6 +169,13 @@ export const copy = {
     conjured: ({ amount }: { amount: string }) => `(${amount} conjured)`,
     eaten: ({ rate }: { rate: string }) => `(${rate}/s eaten)`,
     books: ({ books }: { books: string }) => `Books: ${books}`,
+    owed: ({ figure }: { figure: string }) => `(owed ${figure})`,
+    repayAll: ({ key }: { key: string }) => `(${key} repays it all)`,
+    repayPart: ({ key, figure }: { key: string; figure: string }) =>
+      `(${key} repays ${figure}, all it holds)`,
+    repayNone: ({ resource }: { resource: string }) =>
+      `(no real ${resource} to repay with)`,
+    auditDue: ({ wait }: { wait: string }) => `Auditors due in ${wait}`,
     peasants: ({ population, idle }: { population: number; idle: number }) =>
       `Peasants ${population} (${idle} idle)`,
     labor: ({
@@ -477,7 +500,23 @@ export const copy = {
       books: ({ strained, rotten }: { strained: string; rotten: string }) =>
         `The Ledger shows the state of the books in one word: clean with nothing outstanding, thin, strained from ${strained} of the ceiling and rotten from ${rotten}.`,
       repay: ({ key }: { key: string }) =>
-        `To repay, select a resource in the Ledger and press ${key}, or type back <resource>. Debt is repaid from real stock, at any time.`,
+        `To repay, select a resource in the Ledger and press ${key}, or type back <resource>. Debt is repaid from real stock, at any time. If the stock falls short, it repays as much as it holds and the rest stays owed. The Ledger shows each resource's debt under its row and the command reports what it repaid.`,
+      roughDebt: ({ step }: { step: string }) =>
+        `The Ledger rounds debt up to the nearest ${step}, so a small debt never reads as none.`,
+      exactDebt:
+        "Exact books are owned: the Ledger shows debt to the decimal, and the time until announced auditors arrive.",
+      precision: ({
+        exactLabel,
+        exactCost,
+        reportsLabel,
+        reportsCost,
+      }: {
+        exactLabel: string;
+        exactCost: string;
+        reportsLabel: string;
+        reportsCost: string;
+      }) =>
+        `The Archive sells precision: ${exactLabel} (${exactCost} coin) shows exact debt and the time to an audit, and lets decrees read debt. ${reportsLabel} (${reportsCost} coin) strips governors' exaggeration from the Ledger's rates.`,
       auditors: ({
         debtShare,
         seasons,

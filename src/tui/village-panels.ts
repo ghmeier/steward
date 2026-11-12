@@ -1,7 +1,9 @@
 import type { Command } from "../core/commands";
 import { copy } from "../core/copy";
 import { PETITIONS } from "../core/decree";
+import { DebtFigure } from "../core/illusion";
 import type { Resource } from "../core/realm";
+import type { Tuning } from "../core/tuning";
 import type {
   ArchiveEntryView,
   CrownDemandView,
@@ -28,6 +30,7 @@ import {
 import {
   type FocusId,
   type KeyPress,
+  panelHintKey,
   peasantActionForKey,
   plainKeyName,
 } from "./keys";
@@ -364,6 +367,31 @@ export class LedgerPanel extends VillagePanel {
     this.selected = 0;
   }
 
+  /** The indented line naming what is owed, and while the row is selected, what the repay key would do. */
+  private owedLine(
+    view: GameView,
+    resource: string,
+    selected: boolean,
+    indent: string,
+  ): string[] {
+    const debt = view.illusion?.debt[resource];
+    if (view.illusion === null || debt === undefined || debt.owed <= 0) {
+      return [];
+    }
+    const { debtIsExact } = view.illusion;
+    const debtFigure = new DebtFigure(debtIsExact);
+    const figure = (amount: number) => debtFigure.text(amount);
+    const owed = copy.ledger.owed({ figure: figure(debt.owed) });
+    if (!selected) return [`${indent}${owed}`];
+    const key = panelHintKey("ledger", copy.keys.panelActions.repay);
+    const advice = debt.covered
+      ? copy.ledger.repayAll({ key })
+      : debt.repayable > 0
+        ? copy.ledger.repayPart({ key, figure: figure(debt.repayable) })
+        : copy.ledger.repayNone({ resource });
+    return [`${indent}${owed}`, `${indent}${advice}`];
+  }
+
   private resourceLines(view: GameView, focused: boolean): string[] {
     const rows = view.ledger.map((line) => [
       capitalize(line.resource),
@@ -389,14 +417,29 @@ export class LedgerPanel extends VillagePanel {
               `${indent}${copy.ledger.conjured({ amount: formatAmount(conjured) })}`,
             ]
           : []),
+        ...this.owedLine(
+          view,
+          view.ledger[index]?.resource ?? "",
+          focused && index === this.selected,
+          indent,
+        ),
       ];
     });
   }
 
-  private booksLines(view: GameView): string[] {
-    return view.illusion === null
-      ? []
-      : [copy.ledger.books({ books: view.illusion.books })];
+  private booksLines(view: GameView, tuning: Tuning): string[] {
+    if (view.illusion === null) return [];
+    const { books, auditInTicks } = view.illusion;
+    return [
+      copy.ledger.books({ books }),
+      ...(auditInTicks === null
+        ? []
+        : [
+            copy.ledger.auditDue({
+              wait: formatTicksRoughly(auditInTicks, tuning.stepMs),
+            }),
+          ]),
+    ];
   }
 
   /** One line when it fits the column, otherwise the label above its value, so neither is cut off. */
@@ -446,11 +489,15 @@ export class LedgerPanel extends VillagePanel {
     );
   }
 
-  body({ view }: MenuContext, size: PanelSize, focused: boolean): string {
+  body(
+    { view, tuning }: MenuContext,
+    size: PanelSize,
+    focused: boolean,
+  ): string {
     const { realm } = view;
     const rest = [
       ...this.resourceLines(view, focused),
-      ...this.booksLines(view),
+      ...this.booksLines(view, tuning),
       "",
       ...[
         copy.ledger.peasants({
