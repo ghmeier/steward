@@ -1,138 +1,26 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { createTestRenderer } from "@opentui/core/testing";
+import { describe, expect, test } from "bun:test";
+import { tuning } from "../../test/helpers";
 import {
-  addGovernors,
-  governorOf,
-  setRoster,
-  tuning,
-} from "../../test/helpers";
-import { barRow, settledFrame } from "../../test/tui-helpers";
+  ada,
+  barRow,
+  disposeDrawnPanels,
+  dispute,
+  drawPanels,
+  emptyView,
+  openRenderer,
+  settledFrame,
+} from "../../test/tui-helpers";
 import { copy } from "../core/copy";
-import type { Decree } from "../core/decree";
-import { Game } from "../core/game";
-import { Job, RESOURCES } from "../core/realm";
 import {
   ARCHIVE_PANEL,
-  CONJURING,
   CROWN_PANEL,
   PALETTE_UNLOCK,
   type UnlockId,
 } from "../core/unlocks";
-import type { GameView } from "../core/view";
-import {
-  formatAmount,
-  formatGameTime,
-  formatRate,
-  formatTicks,
-  formatTicksRoughly,
-} from "./format";
-import { type FocusId, panelHintKey, panelHintsText } from "./keys";
 import { createPanels } from "./panels";
-import { Village } from "./village-panels";
+import { keymap, Village } from "./village-panels";
 
-type Setup = Awaited<ReturnType<typeof createTestRenderer>>;
-const setups: Setup[] = [];
-
-afterEach(async () => {
-  for (const setup of setups.splice(0)) await setup.dispose();
-});
-
-type DrawOptions = {
-  size?: { width: number; height: number };
-  focus?: FocusId | null;
-  /** Index of the selected peasant in the roster; only shown while Peasants is focused. */
-  selectedIndex?: number;
-};
-
-async function draw(
-  views: GameView[],
-  {
-    size = { width: 100, height: 30 },
-    focus = null,
-    selectedIndex = 0,
-  }: DrawOptions = {},
-) {
-  const setup = await createTestRenderer({ ...size, exitOnCtrlC: false });
-  setups.push(setup);
-  const village = new Village();
-  const panels = createPanels(setup.renderer, village);
-  let frame = "";
-  for (const view of views) {
-    const context = { view, tuning };
-    village.peasants.reset(view);
-    if (focus !== null) village.focusable[focus].enter(context);
-    for (let step = 0; step < selectedIndex; step++) {
-      village.peasants.key(pressed("j"), context);
-    }
-    panels.update({ context, message: null, focus });
-    frame = await settledFrame(setup);
-  }
-  return frame;
-}
-
-const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-/** Matches a line produced by a template that takes one count, whatever the count is. */
-function countedLine(template: (args: { count: string }) => string): RegExp {
-  const [before = "", after = ""] = template({ count: "\u0000" }).split(
-    "\u0000",
-  );
-  return new RegExp(`${escaped(before)}\\d+${escaped(after)}`);
-}
-
-function pressed(name: string) {
-  return { name, ctrl: false, meta: false, shift: false, sequence: name };
-}
-
-function emptyView(overrides: Partial<GameView> = {}): GameView {
-  return {
-    tick: 0,
-    elapsedSeconds: 0,
-    ledger: [],
-    realm: {
-      population: 10,
-      labor: { farm: 0, forest: 0, mine: 0, idle: 10 },
-      season: "spring",
-      starved: 0,
-    },
-    delegates: [],
-    decrees: [],
-    savedDecrees: [],
-    desk: [],
-    governors: [],
-    formerGovernors: [],
-    crown: null,
-    illusion: null,
-    promotion: { target: 20, promotedAt: 0, promotedAtSeconds: 0 },
-    growth: { stored: 0, needed: 25, perSecond: 0, full: false },
-    grainEatenPerSecond: 0,
-    lockedPanels: [],
-    unlocks: [],
-    archive: { open: false, entries: [] },
-    ...overrides,
-  };
-}
-
-const ada = { id: 3, name: "Ada", job: Job.FARM, grudgeTicks: 0 };
-const dispute = {
-  id: 1,
-  kind: "dispute" as const,
-  label: "A squabble",
-  parties: ["Ada", "Bram"] as [string, string],
-  ticksLeft: null,
-  options: [],
-};
-const growth = (changes: Partial<GameView["growth"]>) => ({
-  stored: 12.4,
-  needed: 25,
-  perSecond: 0.5,
-  full: false,
-  ...changes,
-});
-const realmOf = (changes: Partial<GameView["realm"]>) => ({
-  ...emptyView().realm,
-  ...changes,
-});
+disposeDrawnPanels();
 
 describe("createPanels", () => {
   test.each([
@@ -141,7 +29,7 @@ describe("createPanels", () => {
   ])(
     "shows all six titles and the bar hints at $width x $height",
     async (size) => {
-      const frame = await draw([emptyView()], {
+      const frame = await drawPanels([emptyView()], {
         size,
       });
 
@@ -160,7 +48,7 @@ describe("createPanels", () => {
   );
 
   test("the top row splits one to one to two and the bottom row into thirds", async () => {
-    const frame = await draw([emptyView()], {
+    const frame = await drawPanels([emptyView()], {
       size: { width: 160, height: 30 },
     });
 
@@ -184,16 +72,19 @@ describe("createPanels", () => {
     const size = { width: 160, height: 30 };
 
     test("is not drawn and leaves the top row to the Ledger and Peasants", async () => {
-      const frame = await draw([emptyView({ lockedPanels: ["archive"] })], {
-        size,
-      });
+      const frame = await drawPanels(
+        [emptyView({ lockedPanels: ["archive"] })],
+        {
+          size,
+        },
+      );
 
       expect(frame).not.toContain("(A)rchive");
       expect(topTitleRow(frame).match(/\u250c/g)).toHaveLength(2);
     });
 
     test("appears in the top row once the panel is owned", async () => {
-      const frame = await draw(
+      const frame = await drawPanels(
         [
           emptyView({ lockedPanels: ["archive"] }),
           emptyView({ unlocks: [ARCHIVE_PANEL] }),
@@ -214,9 +105,12 @@ describe("createPanels", () => {
       frame.split("\n").find((line) => line.includes("(C)ourt")) ?? "";
 
     test("is not drawn and leaves the bottom row to a wider Court and Decrees", async () => {
-      const frame = await draw([emptyView({ lockedPanels: ["crown"], desk })], {
-        size,
-      });
+      const frame = await drawPanels(
+        [emptyView({ lockedPanels: ["crown"], desk })],
+        {
+          size,
+        },
+      );
 
       const row = bottomTitleRow(frame);
       expect(frame).not.toContain("C(r)own");
@@ -229,7 +123,7 @@ describe("createPanels", () => {
     });
 
     test("appears as the third column and narrows Court once the panel is owned", async () => {
-      const frame = await draw(
+      const frame = await drawPanels(
         [
           emptyView({ lockedPanels: ["crown"], desk }),
           emptyView({ unlocks: [CROWN_PANEL], desk }),
@@ -246,56 +140,13 @@ describe("createPanels", () => {
     });
   });
 
-  describe("governors in the Peasants panel", () => {
-    function governedVillage(): { view: GameView; names: string[] } {
-      const game = Game.create(1, tuning);
-      setRoster(game, { idle: 12 });
-      const governors = addGovernors(
-        game,
-        governorOf({ job: Job.MINE, traits: ["braggart"] }),
-        governorOf({ job: Job.FARM, traits: ["diligent", "hoarder"] }),
-        governorOf({ job: Job.FOREST }),
-        governorOf({ job: Job.FARM }),
-      );
-      return {
-        view: game.view.compute(),
-        names: governors.map((governor) => governor.name),
-      };
-    }
-
-    test("governors sit under their heading above the peasants, and a selected governor stays on screen at the smallest terminal", async () => {
-      const { view, names } = governedVillage();
-
-      const roomy = (
-        await draw([view], { size: { width: 160, height: 45 } })
-      ).split("\n");
-      const cramped = await draw([view], {
-        focus: "peasants",
-        size: { width: 80, height: 24 },
-        selectedIndex: 3,
-      });
-
-      const heading = roomy.findIndex((line) =>
-        line.includes(copy.village.governorsHeading),
-      );
-      const first = roomy.findIndex((line) =>
-        line.includes(names[0] as string),
-      );
-      expect(heading).toBeGreaterThan(-1);
-      expect(first).toBeGreaterThan(heading);
-      expect(cramped).toContain(`> ${names[3]}`);
-      expect(cramped).toContain("(P)easants");
-    });
-  });
-
   describe("the bottom bar", () => {
     async function drawnBar(
       unlocks: UnlockId[],
       message: string | null,
       width = 100,
     ) {
-      const setup = await createTestRenderer({ width, height: 30 });
-      setups.push(setup);
+      const setup = await openRenderer(width, 30);
       const panels = createPanels(setup.renderer, new Village());
       panels.update({
         context: { view: emptyView({ unlocks }), tuning },
@@ -332,379 +183,10 @@ describe("createPanels", () => {
     );
   });
 
-  test("the ledger shows the time, resources in shared columns, then the realm after a blank line", async () => {
-    const view = emptyView({
-      elapsedSeconds: 185,
-      ledger: [
-        {
-          resource: "grain",
-          amount: 5,
-          conjured: 0,
-          ratePerSecond: 1,
-        },
-        {
-          resource: "timber",
-          amount: 1234567.8,
-          conjured: 0,
-          ratePerSecond: -22.5,
-        },
-      ],
-      realm: realmOf({
-        population: 12,
-        labor: { farm: 4, forest: 2, mine: 1, idle: 5 },
-        season: "summer",
-      }),
-    });
-
-    const frame = await draw([view], { size: { width: 160, height: 45 } });
-
-    const lines = frame.split("\n");
-    const row = (text: string) => lines.findIndex((l) => l.includes(text));
-    const line = (text: string) => lines[row(text)] ?? "";
-    const endOf = (text: string, part: string) =>
-      line(text).indexOf(part) + part.length;
-    const peasants = copy.ledger.peasants({ population: 12, idle: 5 });
-    expect(frame).toContain(copy.ledger.time({ time: formatGameTime(185) }));
-    expect(endOf("Grain", formatAmount(5))).toBe(
-      endOf("Timber", formatAmount(1234567.8)),
-    );
-    expect(endOf("Grain", formatRate(1))).toBe(
-      endOf("Timber", formatRate(-22.5)),
-    );
-    expect(line(peasants).indexOf(peasants)).toBe(
-      line("Grain").indexOf("Grain"),
-    );
-    expect(row(peasants)).toBe(row("Timber") + 2);
-    expect(frame).toContain(copy.ledger.labor({ farm: 4, forest: 2, mine: 1 }));
-    expect(frame).toContain(copy.ledger.season({ season: "Summer" }));
-  });
-
-  test("the ledger shows grain eaten under the grain row only while something is eaten", async () => {
-    const withEaten = (grainEatenPerSecond: number) =>
-      emptyView({
-        grainEatenPerSecond,
-        ledger: [
-          { resource: "grain", amount: 5, conjured: 0, ratePerSecond: -1 },
-        ],
-      });
-
-    const eating = await draw([withEaten(1.5)]);
-    const idle = await draw([withEaten(0)]);
-
-    expect(eating).toContain(copy.ledger.eaten({ rate: formatAmount(1.5) }));
-    expect(idle).not.toContain(copy.ledger.eaten({ rate: formatAmount(0) }));
-  });
-
-  describe("the Ledger once conjuring is owned", () => {
-    const grain = tuning.illusion.lot * 4;
-    const conjuredView = (books: "clean" | "thin" | "strained" | "rotten") =>
-      emptyView({
-        unlocks: [CONJURING],
-        illusion: {
-          books,
-          room: 100,
-          debt: {},
-          debtIsExact: false,
-          auditOnTheRoad: false,
-          auditInTicks: null,
-        },
-        ledger: [
-          {
-            resource: "coin",
-            amount: 9,
-            conjured: 0,
-            ratePerSecond: 0,
-          },
-          {
-            resource: "grain",
-            amount: grain,
-            conjured: 30,
-            ratePerSecond: 1,
-          },
-        ],
-      });
-
-    test("shows the conjured share under its row and the books word, and neither before the unlock", async () => {
-      const before = emptyView({
-        ledger: conjuredView("clean").ledger.map((line) => ({
-          ...line,
-          conjured: 0,
-        })),
-      });
-
-      const frame = await draw([conjuredView("strained")]);
-      const plainFrame = await draw([before]);
-
-      expect(frame).toContain(formatAmount(grain));
-      const conjured = copy.ledger.conjured({ amount: formatAmount(30) });
-      expect(frame).toContain(conjured);
-      expect(frame).toContain(copy.ledger.books({ books: "strained" }));
-      expect(frame.split(conjured)).toHaveLength(2);
-      expect(plainFrame).not.toContain(
-        copy.ledger.conjured({ amount: formatAmount(0) }),
-      );
-      for (const books of ["clean", "thin", "strained", "rotten"]) {
-        expect(plainFrame).not.toContain(copy.ledger.books({ books }));
-      }
-    });
-
-    test.each(["clean", "thin", "strained", "rotten"] as const)(
-      "names the books %s",
-      async (books) => {
-        expect(await draw([conjuredView(books)])).toContain(
-          copy.ledger.books({ books }),
-        );
-      },
-    );
-
-    test("marks the selected resource and shows its hints only while focused", async () => {
-      const view = conjuredView("thin");
-
-      const size = { width: 240, height: 45 };
-      const hints = panelHintsText("ledger", 1000);
-
-      const focused = await draw([view], { focus: "ledger", size });
-      const unfocused = await draw([view], { size });
-
-      expect(focused).toContain("> Coin");
-      expect(focused).not.toContain("> Grain");
-      expect(focused).toContain(hints);
-      expect(unfocused).not.toContain("> Coin");
-      expect(unfocused).not.toContain(hints);
-    });
-  });
-
-  describe("debt under the Ledger rows", () => {
-    const owing = (
-      debtIsExact: boolean,
-      grain: { owed: number; repayable: number; covered: boolean },
-      auditInTicks: number | null = null,
-    ) => {
-      const view = emptyView({
-        unlocks: [CONJURING],
-        illusion: {
-          books: "thin",
-          room: 100,
-          debt: { coin: { owed: 0, repayable: 0, covered: true }, grain },
-          debtIsExact,
-          auditOnTheRoad: auditInTicks !== null,
-          auditInTicks,
-        },
-        ledger: [
-          { resource: "grain", amount: 80, conjured: 0, ratePerSecond: 1 },
-          { resource: "coin", amount: 9, conjured: 0, ratePerSecond: 0 },
-        ],
-      });
-      return view;
-    };
-    const covered = { owed: 120, repayable: 120, covered: true };
-    const repayKey = panelHintKey("ledger", copy.keys.panelActions.repay);
-
-    test("names what is owed under the resource that owes it, and nothing under one that owes none", async () => {
-      const frame = await draw([owing(false, covered)]);
-
-      const owed = copy.ledger.owed({
-        figure: copy.illusion.figure({ amount: "120", exact: false }),
-      });
-      expect(frame).toContain(owed);
-      expect(frame.split("(owed")).toHaveLength(2);
-      expect(frame).toMatch(/│ {3}\(owed/);
-    });
-
-    test("drops the tilde for exact debt and shows the time until auditors arrive", async () => {
-      const exact = await draw([
-        owing(true, { ...covered, owed: 1234.5 }, 600),
-      ]);
-      const rough = await draw([owing(false, covered)]);
-
-      expect(exact).toContain(
-        copy.ledger.owed({
-          figure: copy.illusion.figure({
-            amount: formatAmount(1234.5),
-            exact: true,
-          }),
-        }),
-      );
-      expect(exact).toContain("(owed 1,234.5)");
-      expect(exact).toContain(
-        copy.ledger.auditDue({
-          wait: formatTicksRoughly(600, tuning.stepMs),
-        }),
-      );
-      expect(rough).not.toContain("Auditors due");
-    });
-
-    test("tells the selected row what the repay key would do with the real stock", async () => {
-      const size = { width: 240, height: 45 };
-      const short = { owed: 120, repayable: 50, covered: false };
-      const none = { owed: 120, repayable: 0, covered: false };
-      const press = (view: GameView) => draw([view], { focus: "ledger", size });
-
-      const all = await press(owing(false, covered));
-      const part = await press(owing(false, short));
-      const empty = await press(owing(false, none));
-
-      expect(all).toContain(copy.ledger.repayAll({ key: repayKey }));
-      expect(part).toContain(
-        copy.ledger.repayPart({
-          key: repayKey,
-          figure: copy.illusion.figure({ amount: "50", exact: false }),
-        }),
-      );
-      expect(empty).toContain(copy.ledger.repayNone({ resource: "grain" }));
-    });
-
-    test("shows no repay advice while the Ledger is not focused", async () => {
-      const frame = await draw([owing(false, covered)]);
-
-      expect(frame).toContain("(owed");
-      expect(frame).not.toContain(copy.ledger.repayAll({ key: repayKey }));
-    });
-  });
-
-  describe("an entry with a deadline of its own", () => {
-    const ticksLeft = 80 * (1000 / tuning.stepMs);
-
-    test("shows its time left in Court and an entry without one shows none", async () => {
-      const timed = { ...dispute, id: 2, label: "Counted.", ticksLeft };
-
-      const withDeadline = await draw([emptyView({ desk: [timed] })]);
-      const without = await draw([emptyView({ desk: [dispute] })]);
-
-      const wait = formatTicks(ticksLeft, tuning.stepMs);
-      expect(withDeadline).toContain(
-        copy.court.dueIn({ wait, label: timed.label }),
-      );
-      expect(without).toContain(dispute.label);
-      expect(without).not.toContain(
-        copy.court.dueIn({ wait, label: dispute.label }),
-      );
-    });
-  });
-
-  test("the ledger keeps promotion and next peasant on one line when wide and splits them when narrow", async () => {
-    const view = emptyView({
-      realm: realmOf({ population: 14 }),
-      growth: growth({}),
-    });
-
-    const wide = (
-      await draw([view], { size: { width: 160, height: 45 } })
-    ).split("\n");
-    const narrow = (await draw([view])).split("\n");
-
-    const column = (lines: string[], offset: number, label: string) => {
-      const ledgerWidth = (lines[0]?.length ?? 0) / 4;
-      const line = lines[lines.findIndex((l) => l.includes(label)) + offset];
-      return (line ?? "").slice(1, ledgerWidth).trim();
-    };
-    const promotionLabel = copy.ledger.promotionLabel;
-    const nextLabel = copy.ledger.nextPeasantLabel;
-    const promotion = copy.ledger.promotionProgress({
-      population: 14,
-      target: 20,
-    });
-    const progress = copy.ledger.nextPeasantProgress({
-      stored: formatAmount(12.4),
-      needed: "25",
-    });
-    const next = copy.ledger.nextPeasantEstimate({
-      progress,
-      wait: formatGameTime(26),
-    });
-    expect(column(wide, 0, promotionLabel)).toBe(
-      `${promotionLabel}  ${promotion}`,
-    );
-    expect(column(wide, 0, nextLabel)).toBe(`${nextLabel}  ${next}`);
-    expect(column(narrow, 0, promotionLabel)).toBe(promotionLabel);
-    expect(column(narrow, 1, promotionLabel)).toBe(promotion);
-    expect(column(narrow, 0, nextLabel)).toBe(nextLabel);
-    expect(column(narrow, 1, nextLabel)).toContain(progress);
-  });
-
-  test("the ledger gives up the time line only when the panel is too short for everything", async () => {
-    const view = emptyView({
-      ledger: RESOURCES.map((resource) => ({
-        resource,
-        amount: 1,
-        conjured: 0,
-        ratePerSecond: 0,
-      })),
-      growth: growth({}),
-    });
-
-    const tall = await draw([view], { size: { width: 160, height: 45 } });
-    const short = await draw([view]);
-
-    const time = copy.ledger.time({ time: formatGameTime(0) });
-    expect(tall).toContain(time);
-    expect(short).not.toContain(time);
-    expect(short).toContain(copy.ledger.nextPeasantLabel);
-  });
-
-  test("the ledger keeps the time line at 100 by 30 where the real panel has room for it", async () => {
-    const view = emptyView({
-      ledger: RESOURCES.map((resource) => ({
-        resource,
-        amount: 1,
-        conjured: 0,
-        ratePerSecond: 0,
-      })),
-      growth: growth({ full: true }),
-    });
-
-    const frame = await draw([view]);
-
-    expect(frame).toContain(copy.ledger.time({ time: formatGameTime(0) }));
-    expect(frame).toContain(copy.ledger.season({ season: "Spring" }));
-  });
-
-  test("an update replaces the values of the last view", async () => {
-    const grain = (amount: number) =>
-      emptyView({
-        ledger: [
-          {
-            resource: "grain",
-            amount,
-            conjured: 0,
-            ratePerSecond: 1,
-          },
-        ],
-      });
-
-    const frame = await draw([grain(111), grain(222_222)]);
-
-    expect(frame).not.toContain(formatAmount(111));
-    expect(frame).toContain(formatAmount(222_222));
-  });
-
-  test.each([
-    ["the desk", emptyView(), copy.court.deskClear],
-    [
-      "the roster",
-      emptyView({
-        realm: realmOf({
-          population: 0,
-          labor: { farm: 0, forest: 0, mine: 0, idle: 0 },
-        }),
-      }),
-      copy.village.emptyVillage,
-    ],
-  ])(
-    "%s shows a placeholder when it has nothing",
-    async (_name, view, words) => {
-      const frame = await draw([view], {
-        size: { width: 240, height: 30 },
-      });
-
-      expect(frame).toContain(words);
-    },
-  );
-
   test("entries replace the placeholders", async () => {
     const view = emptyView({ desk: [dispute], delegates: [ada] });
 
-    const frame = await draw([view]);
+    const frame = await drawPanels([view]);
 
     for (const shown of ["A squabble", "Ada"]) {
       expect(frame).toContain(shown);
@@ -714,115 +196,15 @@ describe("createPanels", () => {
     }
   });
 
-  test("an entry without parties shows its label like any other", async () => {
-    const merchant = {
-      id: 2,
-      kind: "merchant" as const,
-      label: "A smith wants ore",
-      parties: null,
-      ticksLeft: null,
-      options: [],
-    };
-    const view = emptyView({ desk: [merchant] });
-
-    const frame = await draw([view]);
-
-    expect(frame).toContain("A smith wants ore");
-    expect(frame).not.toContain(copy.court.deskClear);
-  });
-
-  test("the decrees panel lists every petition with its decree or none", async () => {
-    const view = emptyView({
-      decrees: [
-        {
-          id: "granary",
-          petition: "wood",
-          rules: [],
-          otherwise: "stockpile",
-        },
-      ],
-    });
-
-    const frame = await draw([view], { size: { width: 160, height: 30 } });
-
-    const none = copy.decrees.none;
-    expect(frame).toContain(`harvest  ${none}`);
-    expect(frame).toMatch(/wood {5}otherwise stockpile/);
-    expect(frame).toContain(`ore      ${none}`);
-    expect(frame).toContain(`labor    ${none}`);
-  });
-
-  test("the decrees panel shows a labor split as jobs and shares in a rule and in otherwise", async () => {
-    const labor = (rules: Decree["rules"], otherwise: string) =>
-      emptyView({
-        decrees: [{ id: "workforce", petition: "labor", rules, otherwise }],
-      });
-    const winter: Decree["rules"] = [
-      {
-        when: { kind: "season", season: "winter" },
-        policy: "forest 1 mine 1",
-      },
-    ];
-    const size = { width: 160, height: 30 };
-
-    const ruleFrame = await draw([labor(winter, "balanced")], { size });
-    const otherwiseFrame = await draw(
-      [labor([], "farm 60 forest 30 mine 10")],
-      { size },
-    );
-
-    expect(ruleFrame).toContain("forest 1 · mine 1 when it is winter");
-    expect(otherwiseFrame).toContain("otherwise farm 60 · forest 30 · mine 10");
-  });
-
-  test("the archive panel shows each entry's price and owned state, and the selected entry's description only while focused", async () => {
-    const view = emptyView({
-      archive: {
-        open: true,
-        entries: [
-          {
-            id: "a",
-            label: "Alpha",
-            description: "Opens the first door.",
-            cost: 100,
-            owned: false,
-            affordable: false,
-            available: true,
-          },
-          {
-            id: "b",
-            label: "Beta",
-            description: "Opens the second door.",
-            cost: 200,
-            owned: true,
-            affordable: true,
-            available: true,
-          },
-        ],
-      },
-    });
-
-    const unfocused = await draw([view]);
-    const focused = await draw([view], { focus: "archive" });
-
-    const alpha = `Alpha  ${copy.village.archiveCost({ cost: "100" })}`;
-    expect(unfocused).toContain(alpha);
-    expect(unfocused).toContain(`Beta  ${copy.village.archiveOwned}`);
-    expect(unfocused).not.toContain("Opens the first door.");
-    expect(focused).toContain(`> ${alpha}`);
-    expect(focused).toContain("Opens the first door.");
-    expect(focused).not.toContain("Opens the second door.");
-  });
-
   test("the focused panel gets a double border and its hints while the others show neither", async () => {
     const view = emptyView({ delegates: [ada] });
 
-    const frame = await draw([view], {
+    const frame = await drawPanels([view], {
       focus: "peasants",
       size: { width: 200, height: 30 },
     });
 
-    const hints = panelHintsText("peasants", 1000);
+    const hints = keymap.panelHintsText("peasants", 1000);
     const top = frame.split("\n").find((line) => line.includes("(P)easants"));
     expect(top).toContain("\u2554");
     expect(frame.match(/\u2554/g)?.length).toBe(1);
@@ -830,200 +212,13 @@ describe("createPanels", () => {
   });
 
   test("a focused panel too narrow for its full hints shows the bare keys instead", async () => {
-    const frame = await draw([emptyView({ delegates: [ada] })], {
+    const frame = await drawPanels([emptyView({ delegates: [ada] })], {
       focus: "peasants",
     });
 
-    expect(frame).toContain(panelHintsText("peasants", 0));
-    expect(frame).not.toContain(panelHintsText("peasants", 1000));
+    expect(frame).toContain(keymap.panelHintsText("peasants", 0));
+    expect(frame).not.toContain(keymap.panelHintsText("peasants", 1000));
   });
-
-  test("peasants show a cursor only while the panel is focused", async () => {
-    const view = emptyView({
-      delegates: [
-        ada,
-        { ...ada, id: 4, name: "Bram", job: Job.IDLE, grudgeTicks: 30 },
-      ],
-    });
-
-    const unfocused = await draw([view], { selectedIndex: 1 });
-    const focused = await draw([view], {
-      focus: "peasants",
-      selectedIndex: 1,
-    });
-
-    expect(unfocused).not.toContain("> ");
-    expect(focused).toContain("  Ada  farm");
-    expect(focused).toContain(`> Bram  idle ${copy.village.grudge}`);
-    expect(focused).not.toContain("> Ada");
-  });
-
-  describe("the Crown panel", () => {
-    const demand = {
-      resource: "ore" as const,
-      amount: 80,
-      delivered: 45,
-      ticksLeft: 80 * (1000 / tuning.stepMs),
-      herald: "The crown requires 80 ore for the armory.",
-    };
-    const crownView = (
-      crown: Omit<NonNullable<GameView["crown"]>, "favor"> &
-        Partial<Pick<NonNullable<GameView["crown"]>, "favor">>,
-    ) =>
-      emptyView({
-        crown: { favor: "neutral", ...crown },
-        unlocks: [CROWN_PANEL],
-      });
-
-    test("an open demand shows its whole herald, progress, time left, tally and the deliver hint", async () => {
-      const frame = await draw(
-        [crownView({ demand, nextDemandTicks: null, met: 3, missed: 1 })],
-        { focus: "crown", size: { width: 160, height: 30 } },
-      );
-
-      expect(frame).toContain(demand.herald);
-      expect(frame).toContain(
-        copy.village.crownProgress({
-          resource: "ore",
-          delivered: "45",
-          amount: "80",
-        }),
-      );
-      expect(frame).toContain(
-        copy.village.crownDueIn({
-          wait: formatTicks(demand.ticksLeft, tuning.stepMs),
-        }),
-      );
-      expect(frame).toContain(copy.village.crownTally({ met: 3, missed: 1 }));
-      expect(frame).toContain(panelHintsText("crown", 1000));
-    });
-
-    test("the panel names the crown's mood in words and never shows the favor number", async () => {
-      const frames = await Promise.all(
-        (["cold", "neutral", "warm"] as const).map((favor) =>
-          draw(
-            [
-              crownView({
-                demand: null,
-                nextDemandTicks: 10,
-                met: 0,
-                missed: 0,
-                favor,
-              }),
-            ],
-            {
-              size: { width: 160, height: 30 },
-            },
-          ),
-        ),
-      );
-
-      expect(frames[0]).toContain(copy.village.crownFavor.cold);
-      expect(frames[1]).toContain(copy.village.crownFavor.neutral);
-      expect(frames[2]).toContain(copy.village.crownFavor.warm);
-      expect(frames[0]).not.toContain(copy.village.crownFavor.warm);
-    });
-
-    test("between demands the panel says the crown is quiet and when the next one comes", async () => {
-      const nextDemandTicks = 120 * (1000 / tuning.stepMs);
-      const frame = await draw(
-        [crownView({ demand: null, nextDemandTicks, met: 0, missed: 0 })],
-        { size: { width: 160, height: 30 } },
-      );
-
-      const wait = formatTicksRoughly(nextDemandTicks, tuning.stepMs);
-      expect(frame).toContain(copy.village.crownQuiet({ wait }));
-      expect(frame).not.toContain(
-        copy.village.crownDueIn({
-          wait: formatTicks(nextDemandTicks, tuning.stepMs),
-        }),
-      );
-    });
-  });
-
-  test.each([
-    [
-      "before promotion",
-      { target: 20, promotedAt: 0, promotedAtSeconds: 0 },
-      14,
-      [copy.ledger.promotionProgress({ population: 14, target: 20 })],
-      [copy.ledger.promotedOn({ time: formatGameTime(120) })],
-    ],
-    [
-      "after promotion",
-      { target: 20, promotedAt: 1200, promotedAtSeconds: 120 },
-      14,
-      [copy.ledger.promotedOn({ time: formatGameTime(120) })],
-      [copy.ledger.promotionProgress({ population: 14, target: 20 })],
-    ],
-  ])("the ledger %s", async (_name, promotion, population, has, lacks) => {
-    const view = emptyView({ promotion, realm: realmOf({ population }) });
-
-    const frame = await draw([view], { size: { width: 160, height: 30 } });
-
-    for (const shown of has) expect(frame).toContain(shown);
-    for (const gone of lacks) expect(frame).not.toContain(gone);
-  });
-
-  describe("the next peasant line", () => {
-    const progress = copy.ledger.nextPeasantProgress({
-      stored: formatAmount(12.4),
-      needed: "25",
-    });
-    const estimate = copy.ledger.nextPeasantEstimate({
-      progress,
-      wait: formatGameTime(26),
-    });
-
-    test("a feeding village shows progress and time", async () => {
-      const frame = await draw([emptyView({ growth: growth({}) })], {
-        size: { width: 160, height: 45 },
-      });
-
-      expect(frame).toContain(estimate);
-    });
-
-    test("a village that is not feeding shows progress and no estimate", async () => {
-      const frame = await draw([
-        emptyView({ growth: growth({ perSecond: 0 }) }),
-      ]);
-
-      expect(frame).toContain(progress);
-      expect(frame).not.toContain(estimate);
-    });
-
-    test("a full village shows no line", async () => {
-      const frame = await draw([emptyView({ growth: growth({ full: true }) })]);
-
-      expect(frame).not.toContain(copy.ledger.nextPeasantLabel);
-    });
-  });
-
-  test.each([
-    [29, "> Peasant30", true, true],
-    [0, "> Peasant1", false, true],
-  ])(
-    "with 40 peasants and index %d selected, the list scrolls to it",
-    async (selectedIndex, selected, hasAbove, hasBelow) => {
-      const crowd = emptyView({
-        delegates: Array.from({ length: 40 }, (_, index) => ({
-          ...ada,
-          id: index + 1,
-          name: `Peasant${index + 1}`,
-          job: Job.IDLE,
-        })),
-      });
-
-      const frame = await draw([crowd], {
-        focus: "peasants",
-        selectedIndex,
-      });
-
-      expect(frame).toContain(selected);
-      expect(countedLine(copy.village.moreAbove).test(frame)).toBe(hasAbove);
-      expect(countedLine(copy.village.moreBelow).test(frame)).toBe(hasBelow);
-    },
-  );
 });
 
 describe("the command line in the bar", () => {
@@ -1039,8 +234,7 @@ describe("the command line in the bar", () => {
   });
 
   async function openBar() {
-    const setup = await createTestRenderer({ width: 160, height: 45 });
-    setups.push(setup);
+    const setup = await openRenderer(160, 45);
     const village = new Village();
     const panels = createPanels(setup.renderer, village);
     panels.update({
@@ -1099,8 +293,7 @@ describe("the command line in the bar", () => {
 
   test("a shorter terminal has a smaller suggestion budget", async () => {
     const budget = async (height: number) => {
-      const setup = await createTestRenderer({ width: 100, height });
-      setups.push(setup);
+      const setup = await openRenderer(100, height);
       return createPanels(setup.renderer, new Village()).lineSuggestionBudget;
     };
 

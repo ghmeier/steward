@@ -5,9 +5,9 @@ import {
   TextRenderable,
 } from "@opentui/core";
 import { copy } from "../core/copy";
-import { barCommandsText, type FocusId, panelHintsText } from "./keys";
+import { barCommandsText, type FocusId } from "./keys";
 import type { MenuContext, MenuRender } from "./menu";
-import type { PanelSize, Village } from "./village-panels";
+import { keymap, type PanelSize, type Village } from "./village-panels";
 import { wrapLine } from "./wrap";
 
 export type PanelsFrame = {
@@ -277,7 +277,7 @@ export function createPanels(renderer: CliRenderer, village: Village): Panels {
       slot.box.borderStyle = focused ? "double" : "single";
       slot.box.borderColor = focused ? FOCUS_COLOR : BORDER_COLOR;
       slot.box.bottomTitle = focused
-        ? panelHintsText(panel.id, size.width - 2)
+        ? keymap.panelHintsText(panel.id, size.width - 2)
         : undefined;
     }
     bar.show(view.unlocks, text ?? "");
