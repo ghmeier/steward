@@ -1,7 +1,7 @@
 ---
 title: "Governors playtest: tech tree, illusion relief, pacing and polish"
 status: active
-last_pr: 31
+last_pr: 33
 tags: [playtest]
 created: 2026-11-12
 updated: 2026-11-12
@@ -252,3 +252,5 @@ Objective: tune costs and thresholds so wood and ore are worth producing, and th
 - 2026-11-12: `pacing` built: with wider gaps, crown-aware never misses a demand, so the strategies gate was loosened (no missed check, borrower favor `>=`, conjurer test runs 20 years). PR 7 must re-pressure the crown, through amounts or early deadlines. In refactor.
 - 2026-11-12: `illusion-relief` built: save schema 15 (`UPGRADES[14]`), which collides with `village-polish`. `favor.failed` went from -25 to -30 so the conjurer still ends cold, because audits are rarer and seizure keeps the reserve. `forgeMissing` is its own command. In refactor.
 - 2026-11-12: `village-polish` opened as #31 after the refactor pass (dafb249). 1166 tests pass.
+- 2026-11-12: `pacing` opened as #32 (69829ba). The refactor removed the pass-through death-chance getter, so PR 6 adds the modifier where `deathPerMille` is read. Idle eaten now shows 0.04/s.
+- 2026-11-12: `court-missives` opened as #33 (97655b9). The golden file was stale on main since a53687c, because the update script grants every Archive entry, so it was regenerated here. Traveller text now reads correctly for one newcomer or several.
