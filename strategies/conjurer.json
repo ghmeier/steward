@@ -2,6 +2,24 @@
   "name": "conjurer",
   "setup": [
     {
+      "type": "assignPeasant",
+      "peasant": 1,
+      "job": "farm"
+    },
+    {
+      "when": {
+        "kind": "compare",
+        "quantity": "grain",
+        "comparison": "above",
+        "value": 70
+      },
+      "command": {
+        "type": "assignPeasant",
+        "peasant": 1,
+        "job": "forest"
+      }
+    },
+    {
       "type": "enactDecree",
       "decree": {
         "id": "granary",
@@ -34,6 +52,15 @@
               "value": 0
             },
             "policy": "stockpile"
+          },
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "ore",
+              "comparison": "below",
+              "value": 60
+            },
+            "policy": "stockpile"
           }
         ],
         "otherwise": "sell"
@@ -51,6 +78,15 @@
               "quantity": "owedWood",
               "comparison": "above",
               "value": 0
+            },
+            "policy": "stockpile"
+          },
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "wood",
+              "comparison": "below",
+              "value": 120
             },
             "policy": "stockpile"
           }
@@ -94,14 +130,14 @@
           {
             "when": {
               "kind": "compare",
-              "quantity": "owedGrain",
-              "comparison": "above",
-              "value": 0
+              "quantity": "population",
+              "comparison": "below",
+              "value": 20
             },
             "policy": "farm"
           }
         ],
-        "otherwise": "farm"
+        "otherwise": "farming"
       }
     }
   ],
@@ -142,5 +178,11 @@
         }
       ]
     }
+  ],
+  "purchases": [
+    "panel.decrees",
+    "panel.crown",
+    "control.conjuring",
+    "control.forging"
   ]
 }

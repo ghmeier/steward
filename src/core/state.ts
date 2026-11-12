@@ -8,15 +8,15 @@ import type { IllusionState } from "./illusion";
 import type { LaborState } from "./labor";
 import type { RngState } from "./rng";
 
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 export type ResourceId = string;
 
 export type CareerState = {
   unlocks: Record<string, number>;
   savedDecrees: Record<string, Decree>;
-  /** The first tick each control was needed, keyed by control; the tutorial reads it. */
-  needed: Record<string, number>;
+  /** The first tick each Archive entry was revealed. Revealing latches, because the stock that revealed it can fall back. */
+  seen: Record<string, number>;
   followers: string[];
   /** 0 until promotion; a promotion can only happen at tick 1 or later. */
   promotedAt: number;

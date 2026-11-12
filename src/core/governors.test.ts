@@ -3,6 +3,7 @@ import {
   addGovernors,
   contextFor,
   governorOf,
+  grantUnlocks,
   quietOptions,
   setRoster,
   tuning,
@@ -12,6 +13,7 @@ import type { Governor } from "./delegates";
 import type { Candidate } from "./desk";
 import { Game } from "./game";
 import { Job, type Trait } from "./realm";
+import { GOVERNORS } from "./unlocks";
 
 const ticksPerSeason = tuning.economy.ticksPerSeason;
 
@@ -449,10 +451,11 @@ describe("failed audits", () => {
 });
 
 describe("candidates", () => {
-  test("may be offered only after promotion and while governors and waiting candidates leave room under the cap", () => {
+  test("may be offered only once governors are bought and while governors and waiting candidates leave room under the cap", () => {
     const game = posted(3);
-    const beforePromotion = game.governors.canOffer;
     game.state.career.promotedAt = 1;
+    const beforePurchase = game.governors.canOffer;
+    grantUnlocks(game, [GOVERNORS]);
     addGovernors(
       game,
       ...Array.from({ length: tuning.governors.cap - 1 }, () => governorOf()),
@@ -461,14 +464,14 @@ describe("candidates", () => {
 
     candidateOf(game);
 
-    expect(beforePromotion).toBe(false);
+    expect(beforePurchase).toBe(false);
     expect(withOneSpare).toBe(true);
     expect(game.governors.canOffer).toBe(false);
   });
 
-  test("arrive on the desk with drawn details once the village is promoted", () => {
+  test("arrive on the desk with drawn details once governors are bought", () => {
     const game = posted(3);
-    game.state.career.promotedAt = 1;
+    grantUnlocks(game, [GOVERNORS]);
     const seen: Candidate[] = [];
 
     for (let i = 0; i < 400 && seen.length === 0; i++) {

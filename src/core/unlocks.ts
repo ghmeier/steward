@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { copy } from "./copy";
 import { compareKeys, sortedKeys } from "./data";
 import {
   type Condition,
@@ -9,29 +10,42 @@ import {
 import { addIssue } from "./errors";
 import type { Game } from "./game";
 import type { AddContext } from "./math";
+import { RESOURCES, type Resource } from "./realm";
 import { name, positive, positiveInteger, repeatIssues } from "./schema";
 
 export type UnlockId = string;
+export type ArchiveCost = Partial<Record<Resource, number>>;
+/** An entry with no `shown` is on offer from the start; "promotion" reveals it once the village is promoted. */
+export type ArchiveShown = Condition | "promotion";
 export type ArchiveEntry = {
   id: UnlockId;
   label: string;
   description: string;
-  cost: number;
+  cost: ArchiveCost;
   requires: UnlockId[];
+  shown?: ArchiveShown | undefined;
 };
 export type PlayUnlock = { id: UnlockId; label: string; when: Condition };
-export type NeedHook = { control: string; when: Condition };
 export type ArchiveTuning = {
   maxSaved: number;
   entries: ArchiveEntry[];
   play: PlayUnlock[];
-  needs: NeedHook[];
 };
 
-export type PanelId = "archive" | "crown" | "ledger" | "peasants";
+export type PanelId =
+  | "archive"
+  | "court"
+  | "crown"
+  | "decrees"
+  | "ledger"
+  | "peasants";
 
 export const ARCHIVE_PANEL: UnlockId = "panel.archive";
+export const COURT_PANEL: UnlockId = "panel.court";
+export const DECREES_PANEL: UnlockId = "panel.decrees";
 export const CROWN_PANEL: UnlockId = "panel.crown";
+export const FORGING: UnlockId = "control.forging";
+export const GOVERNORS: UnlockId = "control.governors";
 export const COMPOUND_UNLOCK: UnlockId = "decree.compound";
 export const CHAINING_UNLOCK: UnlockId = "decree.chaining";
 export const CROWN_CORRESPONDENCE: UnlockId = "decree.crownCorrespondence";
@@ -40,6 +54,26 @@ export const EXACT_DEBT: UnlockId = "precision.exact";
 export const TRUE_REPORTS: UnlockId = "precision.reports";
 export const PALETTE_UNLOCK: UnlockId = "control.palette";
 export const SAVED_DECREES_UNLOCK: UnlockId = "control.savedDecrees";
+
+/** The unlock that reveals each panel; the ledger and peasants are always open. */
+export const PANEL_UNLOCKS: Record<PanelId, UnlockId | undefined> = {
+  ledger: undefined,
+  peasants: undefined,
+  court: COURT_PANEL,
+  decrees: DECREES_PANEL,
+  archive: ARCHIVE_PANEL,
+  crown: CROWN_PANEL,
+};
+
+/** What an entry costs, in the fixed resource order so that spending and display never depend on key order. */
+export function costLines(
+  entry: ArchiveEntry,
+): { resource: Resource; amount: number }[] {
+  return RESOURCES.flatMap((resource) => {
+    const amount = entry.cost[resource];
+    return amount === undefined ? [] : [{ resource, amount }];
+  });
+}
 
 export class UnlockManager {
   constructor(private game: Game) {}
@@ -52,30 +86,48 @@ export class UnlockManager {
     return sortedKeys(this.game.state.career.unlocks);
   }
 
-  /** Panels hidden until their unlock is bought; the ledger and peasants are always open. */
+  /** Panels hidden until their unlock is owned. */
   lockedPanels(): PanelId[] {
-    const locked: PanelId[] = [];
-    if (!this.enabled(ARCHIVE_PANEL)) locked.push("archive");
-    if (!this.enabled(CROWN_PANEL)) locked.push("crown");
-    return locked;
+    return (Object.keys(PANEL_UNLOCKS) as PanelId[]).filter((panel) => {
+      const needed = PANEL_UNLOCKS[panel];
+      return needed !== undefined && !this.enabled(needed);
+    });
   }
 
+  isSeen(id: UnlockId): boolean {
+    return Object.hasOwn(this.game.state.career.seen, id);
+  }
+
+  /** Entries the Archive shows: revealed at some point, not owned, and with every prerequisite owned. */
+  offered(): ArchiveEntry[] {
+    return this.game.tuning.archive.entries.filter(
+      (entry) =>
+        this.isSeen(entry.id) &&
+        !this.enabled(entry.id) &&
+        entry.requires.every((id) => this.enabled(id)),
+    );
+  }
+
+  private isRevealed(shown: ArchiveShown | undefined): boolean {
+    if (shown === undefined) return true;
+    if (shown === "promotion") return this.game.state.career.promotedAt !== 0;
+    return this.game.conditions.evaluate(shown, {});
+  }
+
+  /** An entry stays visible after its condition stops holding, because the stock that revealed it can fall back. */
   run(): void {
-    const { play, needs } = this.game.tuning.archive;
+    const { play, entries } = this.game.tuning.archive;
+    const { career, tick } = this.game.state;
     const sortedPlay = [...play].sort((a, b) => compareKeys(a.id, b.id));
     for (const unlock of sortedPlay) {
       if (this.enabled(unlock.id)) continue;
       if (this.game.conditions.evaluate(unlock.when, {})) {
-        this.game.state.career.unlocks[unlock.id] = this.game.state.tick;
+        career.unlocks[unlock.id] = tick;
       }
     }
-    const sortedNeeds = [...needs].sort((a, b) =>
-      compareKeys(a.control, b.control),
-    );
-    for (const hook of sortedNeeds) {
-      if (Object.hasOwn(this.game.state.career.needed, hook.control)) continue;
-      if (this.game.conditions.evaluate(hook.when, {})) {
-        this.game.state.career.needed[hook.control] = this.game.state.tick;
+    for (const entry of entries) {
+      if (!this.isSeen(entry.id) && this.isRevealed(entry.shown)) {
+        career.seen[entry.id] = tick;
       }
     }
   }
@@ -103,11 +155,26 @@ export class UnlockManager {
         throw new Error(`${entry.label} needs ${label} first`);
       }
     }
-    if (this.game.illusion.apparent("coin") < entry.cost) {
-      throw new Error(`you do not have enough coin to purchase ${entry.label}`);
+    if (!this.isSeen(id)) {
+      throw new Error(copy.archive.notOffered({ label: entry.label }));
     }
-    this.game.illusion.spend("coin", entry.cost, context);
+    const lines = costLines(entry);
+    const short = lines.find(
+      ({ resource, amount }) => this.game.illusion.apparent(resource) < amount,
+    );
+    if (short !== undefined) {
+      throw new Error(
+        copy.archive.cannotAfford({
+          label: entry.label,
+          resource: short.resource,
+        }),
+      );
+    }
+    for (const { resource, amount } of lines) {
+      this.game.illusion.spend(resource, amount, context);
+    }
     this.game.state.career.unlocks[id] = this.game.state.tick;
+    if (id === CROWN_PANEL) this.game.crown.scheduleFirstDemand();
   }
 
   /** The Archive entry a decree needs and the player has not bought, or null. */
@@ -160,26 +227,35 @@ const simpleCondition: z.ZodType<Condition> = conditionSchema({
   }
 });
 
+const archiveCost: z.ZodType<ArchiveCost> = z
+  .partialRecord(z.enum(RESOURCES), positive)
+  .refine((cost) => Object.keys(cost).length > 0, "must cost something");
 const archiveEntry: z.ZodType<ArchiveEntry> = z.strictObject({
   id: name,
   label: name,
   description: name,
-  cost: positive,
+  cost: archiveCost,
   requires: z.array(name),
+  shown: z.union([simpleCondition, z.literal("promotion")]).optional(),
 });
 const playUnlock: z.ZodType<PlayUnlock> = z.strictObject({
   id: name,
   label: name,
   when: simpleCondition,
 });
-const needHook: z.ZodType<NeedHook> = z.strictObject({
-  control: name,
-  when: simpleCondition,
-});
 
 function archiveIssues(archive: ArchiveTuning, ctx: z.RefinementCtx): void {
-  const { entries, play, needs } = archive;
-  for (const { id } of DECREE_GATES) {
+  const { entries, play } = archive;
+  const gated = [
+    ...DECREE_GATES.map(({ id }) => id),
+    COURT_PANEL,
+    DECREES_PANEL,
+    CROWN_PANEL,
+    CONJURING,
+    FORGING,
+    GOVERNORS,
+  ];
+  for (const id of gated) {
     if (!entries.some((entry) => entry.id === id)) {
       addIssue(ctx, `must include "${id}"`, ["entries"]);
     }
@@ -191,12 +267,6 @@ function archiveIssues(archive: ArchiveTuning, ctx: z.RefinementCtx): void {
     [...entries.map((entry) => entry.id), ...play.map((unlock) => unlock.id)],
     "id",
     ctx,
-  );
-  repeatIssues(
-    needs.map((hook) => hook.control),
-    "control",
-    ctx,
-    ["needs"],
   );
 
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
@@ -231,7 +301,6 @@ export const archiveTuningSchema: z.ZodType<ArchiveTuning> = z
     maxSaved: positiveInteger,
     entries: z.array(archiveEntry),
     play: z.array(playUnlock),
-    needs: z.array(needHook),
   })
   .superRefine(archiveIssues);
 

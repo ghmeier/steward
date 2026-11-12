@@ -2,53 +2,179 @@
   "maxSaved": 12,
   "entries": [
     {
+      "id": "panel.court",
+      "label": "The Court",
+      "description": "Opens the Court, where disputes and petitions wait to be settled.",
+      "cost": {
+        "grain": 30
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "population",
+        "comparison": "above",
+        "value": 1
+      }
+    },
+    {
+      "id": "panel.decrees",
+      "label": "Decrees",
+      "description": "Opens the Decrees panel, where standing orders are written to answer petitions without you.",
+      "cost": {
+        "wood": 40
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "wood",
+        "comparison": "above",
+        "value": 10
+      }
+    },
+    {
+      "id": "panel.crown",
+      "label": "Crown charter",
+      "description": "Opens the Crown panel and starts the crown's demands. Governors, forging and conjuring all need it.",
+      "cost": {
+        "coin": 200,
+        "wood": 100
+      },
+      "requires": [],
+      "shown": "promotion"
+    },
+    {
       "id": "control.palette",
       "label": "Command palette",
       "description": "Opens the command line empty, with every command you own listed as you type.",
-      "cost": 100,
-      "requires": []
+      "cost": {
+        "coin": 100
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "coin",
+        "comparison": "above",
+        "value": 50
+      }
     },
     {
       "id": "control.savedDecrees",
       "label": "Saved decrees",
       "description": "Keep a decree under a name and enact it again later with one command.",
-      "cost": 250,
-      "requires": ["control.palette"]
+      "cost": {
+        "coin": 250
+      },
+      "requires": ["control.palette"],
+      "shown": {
+        "kind": "compare",
+        "quantity": "coin",
+        "comparison": "above",
+        "value": 125
+      }
     },
     {
       "id": "decree.compound",
       "label": "Compound conditions",
       "description": "Join conditions in a decree with and, or and not.",
-      "cost": 400,
-      "requires": []
+      "cost": {
+        "coin": 400
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "coin",
+        "comparison": "above",
+        "value": 200
+      }
     },
     {
       "id": "decree.chaining",
       "label": "Chaining",
       "description": "Let one decree react to the policy another decree chose.",
-      "cost": 800,
-      "requires": []
+      "cost": {
+        "coin": 800
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "coin",
+        "comparison": "above",
+        "value": 400
+      }
     },
     {
       "id": "decree.crownCorrespondence",
       "label": "Crown correspondence",
       "description": "Let decrees read what the crown still demands, as owedOre, owedWood, owedGrain and owedCoin.",
-      "cost": 300,
-      "requires": []
+      "cost": {
+        "coin": 300
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "coin",
+        "comparison": "above",
+        "value": 150
+      }
     },
     {
       "id": "precision.exact",
       "label": "Exact books",
       "description": "Shows debt to the decimal instead of rounded up to the nearest ten, and how long until announced auditors arrive. Decrees may also read debt.",
-      "cost": 350,
-      "requires": []
+      "cost": {
+        "coin": 350
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "coin",
+        "comparison": "above",
+        "value": 175
+      }
     },
     {
       "id": "precision.reports",
       "label": "True reports",
       "description": "Strips governors' exaggeration: the Ledger's rates count only what the stores really receive, and each governor is listed with their real output and the gap.",
-      "cost": 600,
-      "requires": []
+      "cost": {
+        "coin": 600
+      },
+      "requires": [],
+      "shown": {
+        "kind": "compare",
+        "quantity": "coin",
+        "comparison": "above",
+        "value": 300
+      }
+    },
+    {
+      "id": "control.conjuring",
+      "label": "Conjuring",
+      "description": "Lets you add grain or coin to the Ledger that the stores do not hold.",
+      "cost": {
+        "coin": 100
+      },
+      "requires": ["panel.crown"]
+    },
+    {
+      "id": "control.forging",
+      "label": "Forging",
+      "description": "Lets you report a crown demand as delivered on paper, and owe the difference.",
+      "cost": {
+        "coin": 150,
+        "ore": 50
+      },
+      "requires": ["panel.crown"]
+    },
+    {
+      "id": "control.governors",
+      "label": "Governors",
+      "description": "Lets candidates arrive on the Court's desk to be hired as governors.",
+      "cost": {
+        "coin": 300,
+        "wood": 150
+      },
+      "requires": ["panel.crown"]
     }
   ],
   "play": [
@@ -57,29 +183,9 @@
       "label": "The Archive",
       "when": {
         "kind": "compare",
-        "quantity": "coin",
+        "quantity": "grain",
         "comparison": "above",
-        "value": 0
-      }
-    }
-  ],
-  "needs": [
-    {
-      "control": "court",
-      "when": {
-        "kind": "compare",
-        "quantity": "population",
-        "comparison": "above",
-        "value": 1
-      }
-    },
-    {
-      "control": "archive",
-      "when": {
-        "kind": "compare",
-        "quantity": "coin",
-        "comparison": "above",
-        "value": 0
+        "value": 70
       }
     }
   ]

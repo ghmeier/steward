@@ -2,7 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { key } from "../../test/tui-helpers";
 import { copy } from "../core/copy";
 import { Job } from "../core/realm";
-import { ARCHIVE_PANEL, CONJURING, PALETTE_UNLOCK } from "../core/unlocks";
+import {
+  ARCHIVE_PANEL,
+  CONJURING,
+  COURT_PANEL,
+  CROWN_PANEL,
+  DECREES_PANEL,
+  PALETTE_UNLOCK,
+} from "../core/unlocks";
 import {
   FocusRing,
   type KeyAction,
@@ -11,7 +18,14 @@ import {
 } from "./keys";
 import { keymap } from "./village-panels";
 
-const everything = [ARCHIVE_PANEL, PALETTE_UNLOCK, CONJURING];
+const everything = [
+  ARCHIVE_PANEL,
+  PALETTE_UNLOCK,
+  CONJURING,
+  COURT_PANEL,
+  DECREES_PANEL,
+  CROWN_PANEL,
+];
 
 describe("Keymap.actionForKey", () => {
   const palette: KeyAction = { kind: "line", prefill: "" };
@@ -23,10 +37,12 @@ describe("Keymap.actionForKey", () => {
 		KeyAction | null,
 	][] = [
 		["p focuses the peasants", key("p"), [], { kind: "focus", panel: "peasants" }],
-		["c focuses the court", key("c"), [], { kind: "focus", panel: "court" }],
-		["d focuses the decrees", key("d"), [], { kind: "focus", panel: "decrees" }],
-		["l focuses the Ledger when conjuring is owned", key("l"), [CONJURING], { kind: "focus", panel: "ledger" }],
-		["l does nothing without conjuring", key("l"), [ARCHIVE_PANEL, PALETTE_UNLOCK], null],
+		["c focuses the court when the panel is owned", key("c"), [COURT_PANEL], { kind: "focus", panel: "court" }],
+		["d focuses the decrees when the panel is owned", key("d"), [DECREES_PANEL], { kind: "focus", panel: "decrees" }],
+		["c does nothing without the Court panel", key("c"), [], null],
+		["d does nothing without the Decrees panel", key("d"), [], null],
+		["l focuses the Ledger when the charter is owned", key("l"), [CROWN_PANEL], { kind: "focus", panel: "ledger" }],
+		["l does nothing without the charter", key("l"), [ARCHIVE_PANEL, PALETTE_UNLOCK], null],
 		["f does nothing without Peasants focused", key("f"), everything, null],
 		["j does nothing without a panel focused", key("j"), everything, null],
 		["n asks for a new village", key("n"), [], { kind: "newGame" }],
@@ -73,9 +89,12 @@ describe("Keymap.actionForKey", () => {
 });
 
 describe("FocusRing", () => {
-  test("the Ledger leads the reading order once conjuring is owned and is absent before", () => {
-    const owned = new FocusRing([CONJURING], keymap);
-    const unowned = new FocusRing([], keymap);
+  test("the Ledger leads the reading order once the charter is owned and is absent before", () => {
+    const owned = new FocusRing(
+      [CROWN_PANEL, COURT_PANEL, DECREES_PANEL],
+      keymap,
+    );
+    const unowned = new FocusRing([COURT_PANEL, DECREES_PANEL], keymap);
 
     expect(owned.target({ kind: "cycle", delta: 1 }, null)).toBe("ledger");
     expect(owned.target({ kind: "cycle", delta: 1 }, "ledger")).toBe(

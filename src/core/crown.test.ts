@@ -3,6 +3,7 @@ import {
   contextFor,
   grantUnlocks,
   quietOptions,
+  revealArchive,
   setRoster,
   tuning,
 } from "../../test/helpers";
@@ -11,7 +12,7 @@ import { type Demand, NO_DEMAND, NO_DEMAND_TICK } from "./crown";
 import type { Decree } from "./decree";
 import { Game } from "./game";
 import type { Resource } from "./realm";
-import { CROWN_CORRESPONDENCE, CROWN_PANEL } from "./unlocks";
+import { ARCHIVE_PANEL, CROWN_CORRESPONDENCE, CROWN_PANEL } from "./unlocks";
 
 const { crown: crownTuning } = tuning;
 const oreBase = crownTuning.baseAmounts.ore;
@@ -27,10 +28,16 @@ function step(game: Game, count = 1): void {
   game.steps.runSteps(count, [], quietOptions);
 }
 
+/** A promoted village that has bought the Crown charter, so its demands are under way. */
 function promotedGame(): Game {
   const game = Game.create(1, tuning);
   setRoster(game, { idle: tuning.village.promotionPopulation });
   step(game);
+  grantUnlocks(game, [ARCHIVE_PANEL]);
+  revealArchive(game);
+  Object.assign(game.state.posting.resources, { coin: 1e6, wood: 1e6 });
+  game.unlocks.buy(CROWN_PANEL, contextFor(game));
+  Object.assign(game.state.posting.resources, { coin: 0, wood: 0 });
   return game;
 }
 
@@ -83,9 +90,9 @@ describe("crown demands", () => {
     expect(game.state.posting.crown.nextDemandTick).toBe(NO_DEMAND_TICK);
   });
 
-  test("promotion grants the Crown panel and issues the first demand within the first-demand range", () => {
+  test("the first demand is issued one first-demand delay after the charter is bought, due one deadline after", () => {
     const game = promotedGame();
-    const { promotedAt } = game.state.career;
+    const chartered = game.state.career.unlocks[CROWN_PANEL] as number;
 
     step(game, crownTuning.firstDemand.minTicks - 1);
     const early = game.crown.isOpen;
@@ -95,11 +102,11 @@ describe("crown demands", () => {
     expect(early).toBe(false);
     expect(game.crown.isOpen).toBe(true);
     expect(demand.id).not.toBe(NO_DEMAND.id);
-    expect(demand.issuedAt - promotedAt).toBeGreaterThanOrEqual(
-      crownTuning.firstDemand.minTicks,
+    expect(demand.issuedAt).toBeGreaterThanOrEqual(
+      chartered + crownTuning.firstDemand.minTicks,
     );
-    expect(demand.issuedAt - promotedAt).toBeLessThanOrEqual(
-      crownTuning.firstDemand.maxTicks,
+    expect(demand.issuedAt).toBeLessThanOrEqual(
+      chartered + crownTuning.firstDemand.maxTicks,
     );
   });
 

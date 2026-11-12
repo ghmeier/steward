@@ -1,10 +1,17 @@
 import { describe, expect, test } from "bun:test";
-import { grantUnlocks, rosterOf, setRoster, tuning } from "../../test/helpers";
+import {
+  grantUnlocks,
+  priceOf,
+  revealArchive,
+  rosterOf,
+  setRoster,
+  tuning,
+} from "../../test/helpers";
 import { key } from "../../test/tui-helpers";
 import { copy } from "../core/copy";
 import { type Decree, PETITIONS, policiesFor } from "../core/decree";
 import { Game } from "../core/game";
-import { Job } from "../core/realm";
+import { Job, type Resource } from "../core/realm";
 import type { Tuning } from "../core/tuning";
 import {
   ARCHIVE_PANEL,
@@ -13,6 +20,8 @@ import {
   CONJURING,
   CROWN_CORRESPONDENCE,
   CROWN_PANEL,
+  DECREES_PANEL,
+  FORGING,
   PALETTE_UNLOCK,
   SAVED_DECREES_UNLOCK,
 } from "../core/unlocks";
@@ -27,6 +36,10 @@ type Setup = {
   coin?: number;
   idle?: number;
   tuning?: Tuning;
+  /** Debt to record in one resource, as forging leaves behind. */
+  owing?: { resource: Resource; amount: number };
+  /** Leaves the Decrees panel unowned, which every other setup has. */
+  withoutDecrees?: true;
 };
 
 const granary: Decree = {
@@ -42,12 +55,18 @@ function contextWith(setup: Setup = {}): MenuContext {
   const using = setup.tuning ?? tuning;
   const game = Game.create(1, using);
   grantUnlocks(game, setup.unlocks ?? []);
+  if (setup.withoutDecrees === undefined) grantUnlocks(game, [DECREES_PANEL]);
+  revealArchive(game);
   for (const decree of setup.decrees ?? []) game.decrees.enact(decree);
   if (setup.saved !== undefined) {
     grantUnlocks(game, [SAVED_DECREES_UNLOCK]);
     game.savedDecrees.save(setup.saved.name, setup.saved.decree);
   }
   if (setup.coin !== undefined) game.state.posting.resources.coin = setup.coin;
+  if (setup.owing !== undefined) {
+    game.state.posting.illusion.debt[setup.owing.resource] = setup.owing.amount;
+    game.state.posting.illusion.debtSince = 1;
+  }
   if (setup.idle !== undefined) setRoster(game, { idle: setup.idle });
   return { view: game.view.compute(), tuning: using };
 }
@@ -57,6 +76,11 @@ const chained: Setup = { unlocks: [CHAINING_UNLOCK], decrees: [harvest] };
 const archive: Setup = { unlocks: [ARCHIVE_PANEL] };
 const crowned: Setup = { unlocks: [CROWN_PANEL] };
 const conjuring: Setup = { unlocks: [CONJURING] };
+const forging: Setup = { unlocks: [FORGING] };
+const owingOre: Setup = {
+  unlocks: [FORGING],
+  owing: { resource: "ore", amount: 5 },
+};
 const corresponding: Setup = { unlocks: [CROWN_CORRESPONDENCE] };
 const saving: Setup = { saved: { name: "plan", decree: granary } };
 const palette: Setup = { unlocks: [PALETTE_UNLOCK], idle: 3 };
@@ -104,61 +128,207 @@ const savedHarvest = {
 type Outcome = { command?: object; problem?: string };
 // biome-ignore format: one row per line keeps the table scannable
 const parseRows: [string, Setup, Outcome | null][] = [
-	["decree harvest otherwise sell", {}, enact({ id: "harvest", rules: [] })],
-	["decree harvest otherwise sell", { decrees: [granary] }, enact({ id: "granary" })],
-	[`${harvestRuleStart}grain seasons above 2 otherwise feed`, {}, enact({ rules: [{ when: { quantity: "grainSeasons" } }] })],
-	[`${harvestRuleStart}coin above 0.5 otherwise feed`, {}, enact({ rules: [{ when: { value: 0.5 } }] })],
-	[`decree harvest ${repeated(maxRules, "sell when coin above 1", ", ")} otherwise feed`, {}, enact({})],
-	[`decree harvest ${repeated(maxRules + 1, "sell when coin above 1", ", ")} otherwise feed`, {}, bad(line.tooManyRules({ maxRules: String(maxRules) }))],
-	[`${harvestRuleStart}coin above `, {}, null],
-	["decree harvest otherwise sell now", {}, bad(line.doesNotBelong({ rest: "now" }))],
-	["decree harvest banana", {}, bad(line.notExpected({ word: "banana", expected: expected.policyOrOtherwise }))],
-	[`${woodRuleStart}coin above 1 and idle above 2 otherwise stockpile`, compound, enact({ rules: [{ when: { kind: "all" } }] })],
-	[`${woodRuleStart}coin above 1 or not idle above 2 otherwise stockpile`, compound, enact({ rules: [{ when: coinOrNotIdle }] })],
-	[`${woodRuleStart}coin above 1 and idle above 2 or ore above 3 otherwise stockpile`, compound, bad(line.mixedJoins)],
-	[`${woodRuleStart}${repeated(maxNodes, "coin above 1", " and ")} otherwise stockpile`, compound, bad(line.tooManyConditionParts({ maxParts: String(maxNodes) }))],
-	[`${woodRuleStart}not not `, compound, bad(line.notRepeated)],
-	[`${woodRuleStart}not coin above 1 otherwise stockpile`, {}, bad(line.notExpected({ word: "not", expected: expected.condition }))],
-	[`${woodRuleStart}harvest chose sell otherwise stockpile`, { decrees: [harvest] }, bad(line.notExpected({ word: "harvest", expected: expected.condition }))],
-	["decree harvest feed when wood chose sell otherwise stockpile", { ...chained, decrees: [woodDecree] }, enact({ rules: [{ when: woodChoseSell }] })],
-	["decree harvest feed when wood above 3 otherwise stockpile", { ...chained, decrees: [woodDecree] }, enact({ rules: [{ when: { kind: "compare", quantity: "wood" } }] })],
-	["repeal granary", { decrees: [granary] }, ok({ type: "repealDecree", id: "granary" })],
-	["repeal harvest ", { decrees: [granary] }, bad(line.notExpected({ word: "harvest", expected: expected.decreeInForce }))],
-	["repeal ", {}, bad(line.noDecreesInForce)],
-	["save plan decree harvest otherwise sell", {}, bad(line.needsEntry({ verb: "save", label: label(SAVED_DECREES_UNLOCK) }))],
-	["buy palette", {}, bad(line.needsArchive({ verb: "buy" }))],
-	["buy compound", archive, ok({ type: "buyUnlock", id: COMPOUND_UNLOCK })],
-	["buy saved-decrees", archive, bad(line.needsFirst({ label: label(SAVED_DECREES_UNLOCK), missing: label(PALETTE_UNLOCK) }))],
-	["buy compound", { unlocks: [ARCHIVE_PANEL, COMPOUND_UNLOCK] }, bad(line.alreadyOwn({ label: label(COMPOUND_UNLOCK) }))],
-	["buy ", { unlocks: [ARCHIVE_PANEL, ...tuning.archive.entries.map((e) => e.id)] }, bad(line.ownEverything)],
-	["buy ", { ...archive, tuning: onlyDependent }, bad(line.nothingToBuyYet)],
-	["save plan decree harvest sell when grain above 5 otherwise stockpile", everyVerb, ok({ type: "saveDecree", name: "plan", decree: savedHarvest })],
-	["save Plan! decree", everyVerb, bad(line.invalidName({ word: "Plan!" }))],
-	["enact plan", saving, ok({ type: "enactSaved", name: "plan" })],
-	["forget plan", saving, ok({ type: "forgetSaved", name: "plan" })],
-	["enact ", { unlocks: [SAVED_DECREES_UNLOCK] }, bad(line.noDecreesSaved)],
-	["forget plan", { unlocks: [SAVED_DECREES_UNLOCK] }, bad(line.noSavedDecreesToForget)],
-	[`assign ${second?.name} mine`, palette, ok({ type: "assignPeasant", peasant: second?.id, job: Job.MINE })],
-	["assign x idle", {}, bad(line.needsEntry({ verb: "assign", label: label(PALETTE_UNLOCK) }))],
-	["deliver", crowned, ok({ type: "deliver" })],
-	["deliver", {}, bad(line.needsCrown)],
-	["conjure grain 25", conjuring, ok({ type: "conjure", resource: "grain", amount: 25 })],
-	["conjure coin 5", conjuring, ok({ type: "conjure", resource: "coin", amount: 5 })],
-	["conjure ore 5", conjuring, bad(line.notExpected({ word: "ore", expected: expected.resourceToConjure }))],
-	["conjure grain 25", {}, bad(line.needsConjuring({ verb: "conjure" }))],
-	["forge", conjuring, ok({ type: "forge" })],
-	["forge", {}, bad(line.needsConjuring({ verb: "forge" }))],
-	["back ore", conjuring, ok({ type: "back", resource: "ore" })],
-	["back ore", {}, bad(line.needsConjuring({ verb: "back" }))],
-	[`${woodRuleStart}owed ore above 0 otherwise stockpile`, {}, bad(line.owedNeedsEntry({ label: label(CROWN_CORRESPONDENCE) }))],
-	[`${woodRuleStart}owed ore above 0 otherwise stockpile`, corresponding, enact({ rules: [{ when: { kind: "compare", quantity: "owedOre" } }] })],
-	...PETITIONS.flatMap((petition) =>
-		policiesFor(petition, tuning).map((policy): [string, Setup, Outcome] => [
-			`decree ${petition} otherwise ${policy}`,
-			{},
-			enact({ petition, otherwise: policy }),
-		]),
-	),
+  ["decree harvest otherwise sell", {}, enact({ id: "harvest", rules: [] })],
+  [
+    "decree harvest otherwise sell",
+    { decrees: [granary] },
+    enact({ id: "granary" }),
+  ],
+  [
+    `${harvestRuleStart}grain seasons above 2 otherwise feed`,
+    {},
+    enact({ rules: [{ when: { quantity: "grainSeasons" } }] }),
+  ],
+  [
+    `${harvestRuleStart}coin above 0.5 otherwise feed`,
+    {},
+    enact({ rules: [{ when: { value: 0.5 } }] }),
+  ],
+  [
+    `decree harvest ${repeated(maxRules, "sell when coin above 1", ", ")} otherwise feed`,
+    {},
+    enact({}),
+  ],
+  [
+    `decree harvest ${repeated(maxRules + 1, "sell when coin above 1", ", ")} otherwise feed`,
+    {},
+    bad(line.tooManyRules({ maxRules: String(maxRules) })),
+  ],
+  [`${harvestRuleStart}coin above `, {}, null],
+  [
+    "decree harvest otherwise sell now",
+    {},
+    bad(line.doesNotBelong({ rest: "now" })),
+  ],
+  [
+    "decree harvest banana",
+    {},
+    bad(
+      line.notExpected({
+        word: "banana",
+        expected: expected.policyOrOtherwise,
+      }),
+    ),
+  ],
+  [
+    `${woodRuleStart}coin above 1 and idle above 2 otherwise stockpile`,
+    compound,
+    enact({ rules: [{ when: { kind: "all" } }] }),
+  ],
+  [
+    `${woodRuleStart}coin above 1 or not idle above 2 otherwise stockpile`,
+    compound,
+    enact({ rules: [{ when: coinOrNotIdle }] }),
+  ],
+  [
+    `${woodRuleStart}coin above 1 and idle above 2 or ore above 3 otherwise stockpile`,
+    compound,
+    bad(line.mixedJoins),
+  ],
+  [
+    `${woodRuleStart}${repeated(maxNodes, "coin above 1", " and ")} otherwise stockpile`,
+    compound,
+    bad(line.tooManyConditionParts({ maxParts: String(maxNodes) })),
+  ],
+  [`${woodRuleStart}not not `, compound, bad(line.notRepeated)],
+  [
+    `${woodRuleStart}not coin above 1 otherwise stockpile`,
+    {},
+    bad(line.notExpected({ word: "not", expected: expected.condition })),
+  ],
+  [
+    `${woodRuleStart}harvest chose sell otherwise stockpile`,
+    { decrees: [harvest] },
+    bad(line.notExpected({ word: "harvest", expected: expected.condition })),
+  ],
+  [
+    "decree harvest feed when wood chose sell otherwise stockpile",
+    { ...chained, decrees: [woodDecree] },
+    enact({ rules: [{ when: woodChoseSell }] }),
+  ],
+  [
+    "decree harvest feed when wood above 3 otherwise stockpile",
+    { ...chained, decrees: [woodDecree] },
+    enact({ rules: [{ when: { kind: "compare", quantity: "wood" } }] }),
+  ],
+  [
+    "repeal granary",
+    { decrees: [granary] },
+    ok({ type: "repealDecree", id: "granary" }),
+  ],
+  [
+    "repeal harvest ",
+    { decrees: [granary] },
+    bad(
+      line.notExpected({ word: "harvest", expected: expected.decreeInForce }),
+    ),
+  ],
+  ["repeal ", {}, bad(line.noDecreesInForce)],
+  [
+    "save plan decree harvest otherwise sell",
+    {},
+    bad(line.needsEntry({ verb: "save", label: label(SAVED_DECREES_UNLOCK) })),
+  ],
+  ["buy palette", {}, bad(line.needsArchive({ verb: "buy" }))],
+  ["buy compound", archive, ok({ type: "buyUnlock", id: COMPOUND_UNLOCK })],
+  [
+    "buy saved-decrees",
+    archive,
+    bad(
+      line.needsFirst({
+        label: label(SAVED_DECREES_UNLOCK),
+        missing: label(PALETTE_UNLOCK),
+      }),
+    ),
+  ],
+  [
+    "buy compound",
+    { unlocks: [ARCHIVE_PANEL, COMPOUND_UNLOCK] },
+    bad(line.alreadyOwn({ label: label(COMPOUND_UNLOCK) })),
+  ],
+  [
+    "buy ",
+    { unlocks: [ARCHIVE_PANEL, ...tuning.archive.entries.map((e) => e.id)] },
+    bad(line.nothingToBuyYet),
+  ],
+  ["buy ", { ...archive, tuning: onlyDependent }, bad(line.nothingToBuyYet)],
+  [
+    "save plan decree harvest sell when grain above 5 otherwise stockpile",
+    everyVerb,
+    ok({ type: "saveDecree", name: "plan", decree: savedHarvest }),
+  ],
+  ["save Plan! decree", everyVerb, bad(line.invalidName({ word: "Plan!" }))],
+  ["enact plan", saving, ok({ type: "enactSaved", name: "plan" })],
+  ["forget plan", saving, ok({ type: "forgetSaved", name: "plan" })],
+  ["enact ", { unlocks: [SAVED_DECREES_UNLOCK] }, bad(line.noDecreesSaved)],
+  [
+    "forget plan",
+    { unlocks: [SAVED_DECREES_UNLOCK] },
+    bad(line.noSavedDecreesToForget),
+  ],
+  [
+    `assign ${second?.name} mine`,
+    palette,
+    ok({ type: "assignPeasant", peasant: second?.id, job: Job.MINE }),
+  ],
+  [
+    "assign x idle",
+    {},
+    bad(line.needsEntry({ verb: "assign", label: label(PALETTE_UNLOCK) })),
+  ],
+  ["deliver", crowned, ok({ type: "deliver" })],
+  ["deliver", {}, bad(line.needsCrown)],
+  [
+    "conjure grain 25",
+    conjuring,
+    ok({ type: "conjure", resource: "grain", amount: 25 }),
+  ],
+  [
+    "conjure coin 5",
+    conjuring,
+    ok({ type: "conjure", resource: "coin", amount: 5 }),
+  ],
+  [
+    "conjure ore 5",
+    conjuring,
+    bad(
+      line.notExpected({ word: "ore", expected: expected.resourceToConjure }),
+    ),
+  ],
+  ["conjure grain 25", {}, bad(line.needsConjuring({ verb: "conjure" }))],
+  ["forge", forging, ok({ type: "forge" })],
+  ["forge", conjuring, bad(line.needsForging({ verb: "forge" }))],
+  ["forge", {}, bad(line.needsForging({ verb: "forge" }))],
+  ["back ore", owingOre, ok({ type: "back", resource: "ore" })],
+  ["back ore", forging, bad(line.needsDebt)],
+  ["back ore", {}, bad(line.needsDebt)],
+  [
+    "decree harvest otherwise sell",
+    { withoutDecrees: true },
+    bad(line.needsEntry({ verb: "decree", label: label(DECREES_PANEL) })),
+  ],
+  [
+    "repeal granary",
+    { withoutDecrees: true },
+    bad(line.needsEntry({ verb: "repeal", label: label(DECREES_PANEL) })),
+  ],
+  [
+    `${woodRuleStart}owed ore above 0 otherwise stockpile`,
+    {},
+    bad(line.owedNeedsEntry({ label: label(CROWN_CORRESPONDENCE) })),
+  ],
+  [
+    `${woodRuleStart}owed ore above 0 otherwise stockpile`,
+    corresponding,
+    enact({ rules: [{ when: { kind: "compare", quantity: "owedOre" } }] }),
+  ],
+  ...PETITIONS.flatMap((petition) =>
+    policiesFor(petition, tuning).map((policy): [string, Setup, Outcome] => [
+      `decree ${petition} otherwise ${policy}`,
+      {},
+      enact({ petition, otherwise: policy }),
+    ]),
+  ),
 ];
 
 describe("parseLine", () => {
@@ -195,51 +365,74 @@ describe("parseLine", () => {
 
 // biome-ignore format: one row per line keeps the table scannable
 const exactRows: [string, Setup, readonly string[]][] = [
-	["", {}, ["decree", "repeal"]],
-	["", archive, ["decree", "repeal", "buy"]],
-	["decree ", {}, PETITIONS],
-	["decree w", {}, ["wood"]],
-	[`${harvestRuleStart}grain`, {}, ["grain", "grain seasons"]],
-	[`${woodRuleStart}harvest `, chained, ["chose"]],
-	[`${woodRuleStart}harvest chose `, chained, policiesFor("harvest", tuning)],
-	[`decree harvest ${repeated(maxRules, "sell when coin above 1, ", "")}`, {}, ["otherwise"]],
-	["repeal ", { decrees: [granary] }, ["granary"]],
-	["enact ", saving, ["plan"]],
-	["assign ", palette, peasants.map((peasant) => peasant.name)],
-	[`assign ${second?.name} `, palette, ["farm", "forest", "mine", "idle"]],
-	...PETITIONS.map((petition): [string, Setup, readonly string[]] => [
-		`decree ${petition} otherwise `,
-		{},
-		policiesFor(petition, tuning),
-	]),
+  ["", {}, ["decree", "repeal"]],
+  ["", archive, ["decree", "repeal", "buy"]],
+  ["decree ", {}, PETITIONS],
+  ["decree w", {}, ["wood"]],
+  [`${harvestRuleStart}grain`, {}, ["grain", "grain seasons"]],
+  [`${woodRuleStart}harvest `, chained, ["chose"]],
+  [`${woodRuleStart}harvest chose `, chained, policiesFor("harvest", tuning)],
+  [
+    `decree harvest ${repeated(maxRules, "sell when coin above 1, ", "")}`,
+    {},
+    ["otherwise"],
+  ],
+  ["repeal ", { decrees: [granary] }, ["granary"]],
+  ["enact ", saving, ["plan"]],
+  ["assign ", palette, peasants.map((peasant) => peasant.name)],
+  [`assign ${second?.name} `, palette, ["farm", "forest", "mine", "idle"]],
+  ...PETITIONS.map((petition): [string, Setup, readonly string[]] => [
+    `decree ${petition} otherwise `,
+    {},
+    policiesFor(petition, tuning),
+  ]),
 ];
 const andRoom = (count: number) =>
   `${woodRuleStart}${repeated(count, "coin above 1", " and ")} `;
 // A leading "!" means the word must be withheld.
 // biome-ignore format: one row per line keeps the table scannable
 const presenceRows: [string, Setup, string[]][] = [
-	["", saving, ["forget"]],
-	[harvestRuleStart, {}, ["!not"]],
-	[harvestRuleStart, compound, ["not"]],
-	[`${harvestRuleStart}coin above 1 `, {}, ["!and", "!or"]],
-	[`${harvestRuleStart}coin above 1 `, compound, ["and", "or"]],
-	[`${harvestRuleStart}coin above 1 and idle above 2 `, compound, ["and", "!or"]],
-	[`${harvestRuleStart}grain `, {}, ["above", "below", "grain seasons"]],
-	[andRoom(maxNodes - 2), compound, ["and"]],
-	[andRoom(maxNodes - 1), compound, ["!and"]],
-	[woodRuleStart, { decrees: [harvest] }, ["!harvest"]],
-	[woodRuleStart, chained, ["harvest"]],
-	[harvestRuleStart, {}, ["!owed ore", "!owed wood", "!owed grain", "!owed coin"]],
-	[harvestRuleStart, corresponding, ["owed ore", "owed wood", "owed grain", "owed coin"]],
-	["", crowned, ["deliver"]],
-	["", {}, ["!deliver"]],
-	["", conjuring, ["conjure", "forge", "back"]],
-	["", {}, ["!conjure", "!forge", "!back"]],
-	["conjure ", conjuring, ["grain", "coin", "!ore", "!wood"]],
-	["back ", conjuring, ["grain", "coin", "ore", "wood"]],
-	["buy ", archive, ["palette", "!saved-decrees"]],
-	["buy ", { unlocks: [ARCHIVE_PANEL, PALETTE_UNLOCK] }, ["saved-decrees"]],
-	["buy ", { unlocks: [ARCHIVE_PANEL, COMPOUND_UNLOCK] }, ["chaining", "!compound"]],
+  ["", saving, ["forget"]],
+  [harvestRuleStart, {}, ["!not"]],
+  [harvestRuleStart, compound, ["not"]],
+  [`${harvestRuleStart}coin above 1 `, {}, ["!and", "!or"]],
+  [`${harvestRuleStart}coin above 1 `, compound, ["and", "or"]],
+  [
+    `${harvestRuleStart}coin above 1 and idle above 2 `,
+    compound,
+    ["and", "!or"],
+  ],
+  [`${harvestRuleStart}grain `, {}, ["above", "below", "grain seasons"]],
+  [andRoom(maxNodes - 2), compound, ["and"]],
+  [andRoom(maxNodes - 1), compound, ["!and"]],
+  [woodRuleStart, { decrees: [harvest] }, ["!harvest"]],
+  [woodRuleStart, chained, ["harvest"]],
+  [
+    harvestRuleStart,
+    {},
+    ["!owed ore", "!owed wood", "!owed grain", "!owed coin"],
+  ],
+  [
+    harvestRuleStart,
+    corresponding,
+    ["owed ore", "owed wood", "owed grain", "owed coin"],
+  ],
+  ["", crowned, ["deliver"]],
+  ["", {}, ["!deliver"]],
+  ["", conjuring, ["conjure", "!forge"]],
+  ["", forging, ["forge", "!conjure"]],
+  ["", owingOre, ["back"]],
+  ["", {}, ["!conjure", "!forge", "!back"]],
+  ["", { withoutDecrees: true }, ["!decree", "!repeal"]],
+  ["conjure ", conjuring, ["grain", "coin", "!ore", "!wood"]],
+  ["back ", owingOre, ["grain", "coin", "ore", "wood"]],
+  ["buy ", archive, ["palette", "!saved-decrees"]],
+  ["buy ", { unlocks: [ARCHIVE_PANEL, PALETTE_UNLOCK] }, ["saved-decrees"]],
+  [
+    "buy ",
+    { unlocks: [ARCHIVE_PANEL, COMPOUND_UNLOCK] },
+    ["chaining", "!compound"],
+  ],
 ];
 
 describe("labor splits", () => {
@@ -352,22 +545,22 @@ describe("suggestions", () => {
   const paletteEntry = entry(PALETTE_UNLOCK);
   const paletteHelp = {
     label: paletteEntry.label,
-    cost: String(paletteEntry.cost),
+    cost: `${priceOf(paletteEntry)} coin`,
     description: paletteEntry.description,
   };
   test.each<[string, Setup, string, string]>([
     ["decree wood ", {}, "sell", describePolicy("wood", "sell", tuning)],
     [
       "buy ",
-      { ...archive, coin: paletteEntry.cost },
+      { ...archive, coin: priceOf(paletteEntry) },
       "palette",
       line.archiveEntryHelp(paletteHelp),
     ],
     [
       "buy ",
-      { ...archive, coin: paletteEntry.cost - 30 },
+      { ...archive, coin: priceOf(paletteEntry) - 30 },
       "palette",
-      line.archiveEntryShortHelp({ ...paletteHelp, shortfall: "30" }),
+      line.archiveEntryShortHelp({ ...paletteHelp, shortfall: "30 coin" }),
     ],
     ["enact ", saving, "plan", formatDecree({ ...granary, id: "plan" })],
   ])("%s describes the suggestion %#", (text, setup, word, description) => {

@@ -1,9 +1,9 @@
 import type { Delegate, Governor } from "../src/core/delegates";
 import { Game } from "../src/core/game";
 import type { AddContext } from "../src/core/math";
-import { JOBS, Job } from "../src/core/realm";
+import { JOBS, Job, type Resource } from "../src/core/realm";
 import { parseTuning, type Tuning } from "../src/core/tuning";
-import { ARCHIVE_PANEL } from "../src/core/unlocks";
+import { ARCHIVE_PANEL, type ArchiveEntry } from "../src/core/unlocks";
 import type { GameView } from "../src/core/view";
 import { readTuningJson } from "../src/save/content";
 import { type HelpTopicId, helpSections } from "../src/tui/help-menu";
@@ -270,6 +270,23 @@ export function grantUnlocks(game: Game, ids: readonly string[]): void {
   for (const id of ids) game.state.career.unlocks[id] = 0;
 }
 
+/** What an Archive entry charges in one resource, which the entry must charge. */
+export function priceOf(
+  entry: ArchiveEntry,
+  resource: Resource = "coin",
+): number {
+  const amount = entry.cost[resource];
+  if (amount === undefined) throw new Error(`${entry.id} costs no ${resource}`);
+  return amount;
+}
+
+/** Marks every Archive entry as revealed, so tests can buy without arranging each entry's reveal condition. */
+export function revealArchive(game: Game): void {
+  for (const { id } of game.tuning.archive.entries) {
+    game.state.career.seen[id] = 0;
+  }
+}
+
 /** The ten-peasant village the sample command log was written for, so the desk and multi-peasant labor stay covered. */
 export function sampleVillage(seed: number): Game {
   const game = Game.create(seed, tuning);
@@ -278,6 +295,7 @@ export function sampleVillage(seed: number): Game {
     ARCHIVE_PANEL,
     ...tuning.archive.entries.map((entry) => entry.id),
   ]);
+  revealArchive(game);
   return game;
 }
 

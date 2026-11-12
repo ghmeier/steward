@@ -6,6 +6,8 @@ import {
   ARCHIVE_PANEL,
   CONJURING,
   CROWN_PANEL,
+  DECREES_PANEL,
+  FORGING,
   PALETTE_UNLOCK,
   SAVED_DECREES_UNLOCK,
   type UnlockId,
@@ -19,6 +21,7 @@ import {
 } from "./command-cursor";
 import { formatDecree } from "./decree-format";
 import { parseDecreeVerb } from "./decree-grammar";
+import { formatCost } from "./format";
 import type { KeyPress } from "./keys";
 import { entryLabel, type MenuContext, type MenuRender } from "./menu";
 import { editedText, promptLine } from "./text-edit";
@@ -76,46 +79,36 @@ function needsUnlock(id: UnlockId, verb: string) {
   };
 }
 
-const always = {
-  available: () => true,
-  unavailableProblem: () => "",
-};
-
 function slugOf(id: UnlockId): string {
   return id
     .slice(id.indexOf(".") + 1)
     .replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 }
 
-function coinHeld(context: MenuContext): number {
-  return (
-    context.view.ledger.find((line) => line.resource === "coin")?.amount ?? 0
-  );
-}
-
 function parseBuyVerb(cursor: Cursor, context: MenuContext): Command {
   const { entries } = context.view.archive;
-  const coin = coinHeld(context);
-  const offered = entries.filter((entry) => !entry.owned && entry.available);
-  if (entries.every((entry) => entry.owned)) {
-    cursor.fail(copy.commandLine.ownEverything);
-  }
-  if (offered.length === 0) cursor.fail(copy.commandLine.nothingToBuyYet);
+  if (entries.length === 0) cursor.fail(copy.commandLine.nothingToBuyYet);
   const id = cursor.expect(
     copy.commandLine.expected.archiveEntryToBuy,
-    offered.map((entry) => {
+    entries.map((entry) => {
       const help = {
         label: entry.label,
-        cost: String(entry.cost),
+        cost: formatCost(entry.cost),
         description: entry.description,
       };
+      const short = entry.cost
+        .filter((part) => !part.affordable)
+        .map((part) => ({
+          resource: part.resource,
+          amount: Math.ceil(part.amount - part.held),
+        }));
       return {
         text: slugOf(entry.id),
         description: entry.affordable
           ? copy.commandLine.archiveEntryHelp(help)
           : copy.commandLine.archiveEntryShortHelp({
               ...help,
-              shortfall: String(Math.ceil(entry.cost - coin)),
+              shortfall: formatCost(short),
             }),
         value: entry.id,
       };
@@ -123,18 +116,21 @@ function parseBuyVerb(cursor: Cursor, context: MenuContext): Command {
     {
       final: true,
       unmatched: (word) => {
-        const known = entries.find((entry) => slugOf(entry.id) === word);
+        const known = context.tuning.archive.entries.find(
+          (entry) => slugOf(entry.id) === word,
+        );
         if (known === undefined) return null;
-        if (known.owned)
+        if (ownsUnlock(context, known.id))
           return copy.commandLine.alreadyOwn({ label: known.label });
-        const missing = context.tuning.archive.entries
-          .find((entry) => entry.id === known.id)
-          ?.requires.filter((id) => !ownsUnlock(context, id))
-          .map((id) => entryLabel(context, id));
-        return copy.commandLine.needsFirst({
-          label: known.label,
-          missing: (missing ?? []).join(" and "),
-        });
+        const missing = known.requires
+          .filter((required) => !ownsUnlock(context, required))
+          .map((required) => entryLabel(context, required));
+        return missing.length === 0
+          ? null
+          : copy.commandLine.needsFirst({
+              label: known.label,
+              missing: missing.join(" and "),
+            });
       },
     },
   ).value;
@@ -218,6 +214,20 @@ const conjuringVerb = (verb: string) => ({
   unavailableProblem: () => copy.commandLine.needsConjuring({ verb }),
 });
 
+const forgingVerb = (verb: string) => ({
+  available: (context: MenuContext) => ownsUnlock(context, FORGING),
+  unavailableProblem: () => copy.commandLine.needsForging({ verb }),
+});
+
+/** Repaying stays open to anyone who owes, however the debt arose. */
+const backVerbGate = {
+  available: (context: MenuContext) =>
+    Object.values(context.view.illusion?.debt ?? {}).some(
+      (debt) => debt.owed > 0,
+    ),
+  unavailableProblem: () => copy.commandLine.needsDebt,
+};
+
 function parseConjureVerb(cursor: Cursor): Command {
   const resource = cursor.expect(
     copy.commandLine.expected.resourceToConjure,
@@ -240,7 +250,7 @@ const VERBS: readonly Verb[] = [
   {
     word: "decree",
     description: copy.commandLine.verbHelp.decree,
-    ...always,
+    ...needsUnlock(DECREES_PANEL, "decree"),
     parse: (cursor, context) =>
       parseDecreeVerb(cursor, context, (decree) => ({
         type: "enactDecree",
@@ -250,7 +260,7 @@ const VERBS: readonly Verb[] = [
   {
     word: "repeal",
     description: copy.commandLine.verbHelp.repeal,
-    ...always,
+    ...needsUnlock(DECREES_PANEL, "repeal"),
     parse: parseRepealVerb,
   },
   {
@@ -302,20 +312,20 @@ const VERBS: readonly Verb[] = [
     word: "forge",
     bare: true,
     description: copy.commandLine.verbHelp.forge,
-    ...conjuringVerb("forge"),
+    ...forgingVerb("forge"),
     parse: () => ({ type: "forge" }),
   },
   {
     word: "forge missing",
     bare: true,
     description: copy.commandLine.verbHelp.forgeMissing,
-    ...conjuringVerb("forge missing"),
+    ...forgingVerb("forge missing"),
     parse: () => ({ type: "forgeMissing" }),
   },
   {
     word: "back",
     description: copy.commandLine.verbHelp.back,
-    ...conjuringVerb("back"),
+    ...backVerbGate,
     parse: parseBackVerb,
   },
 ];

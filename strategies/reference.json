@@ -2,6 +2,24 @@
   "name": "reference",
   "setup": [
     {
+      "type": "assignPeasant",
+      "peasant": 1,
+      "job": "farm"
+    },
+    {
+      "when": {
+        "kind": "compare",
+        "quantity": "grain",
+        "comparison": "above",
+        "value": 70
+      },
+      "command": {
+        "type": "assignPeasant",
+        "peasant": 1,
+        "job": "forest"
+      }
+    },
+    {
       "type": "enactDecree",
       "decree": {
         "id": "granary",
@@ -23,12 +41,51 @@
     {
       "type": "enactDecree",
       "decree": {
+        "id": "wood-sales",
+        "petition": "wood",
+        "rules": [
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "wood",
+              "comparison": "below",
+              "value": 120
+            },
+            "policy": "stockpile"
+          }
+        ],
+        "otherwise": "sell"
+      }
+    },
+    {
+      "type": "enactDecree",
+      "decree": {
+        "id": "ore-sales",
+        "petition": "ore",
+        "rules": [],
+        "otherwise": "sell"
+      }
+    },
+    {
+      "type": "enactDecree",
+      "decree": {
         "id": "workforce",
         "petition": "labor",
-        "rules": [],
-        "otherwise": "farm"
+        "rules": [
+          {
+            "when": {
+              "kind": "compare",
+              "quantity": "population",
+              "comparison": "below",
+              "value": 20
+            },
+            "policy": "farm"
+          }
+        ],
+        "otherwise": "farming"
       }
     }
   ],
-  "reactions": []
+  "reactions": [],
+  "purchases": ["panel.decrees", "panel.crown"]
 }

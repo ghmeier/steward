@@ -19,7 +19,15 @@ import { NO_LABOR_POLICY } from "../core/labor";
 import { seedStream } from "../core/rng";
 import { canonicalStringify } from "../core/serialize";
 import { type GameState, SCHEMA_VERSION } from "../core/state";
-import { CONJURING, CROWN_PANEL } from "../core/unlocks";
+import {
+  ARCHIVE_PANEL,
+  CONJURING,
+  COURT_PANEL,
+  CROWN_PANEL,
+  DECREES_PANEL,
+  FORGING,
+  GOVERNORS,
+} from "../core/unlocks";
 import { assertValidState } from "../core/validate";
 import { contentHash, loadTuning } from "./content";
 
@@ -142,6 +150,29 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
     const { illusion } = state.posting;
     illusion.principal = isRecord(illusion.debt) ? { ...illusion.debt } : {};
     illusion.lastAuditClosedAt = 0;
+  },
+  // Panels and controls became Archive purchases. A save keeps every panel and control it could use,
+  // and a promoted or conjuring save, which could already forge and hire governors, gains both of those too.
+  // The record of when controls were first needed was never read, and every owned entry counts as already seen.
+  16: (state) => {
+    if (!isRecord(state.career) || !isRecord(state.career.unlocks)) return;
+    const { career } = state;
+    const unlocks = career.unlocks as Record<string, number>;
+    const tick = state.tick as number;
+    const promoted =
+      typeof career.promotedAt === "number" && career.promotedAt !== 0;
+    const grant = (id: string) => {
+      unlocks[id] ??= tick;
+    };
+    for (const id of [ARCHIVE_PANEL, COURT_PANEL, DECREES_PANEL]) grant(id);
+    const past = [CROWN_PANEL, CONJURING].some((id) =>
+      Object.hasOwn(unlocks, id),
+    );
+    if (promoted || past) {
+      for (const id of [CROWN_PANEL, FORGING, GOVERNORS]) grant(id);
+    }
+    delete career.needed;
+    career.seen = { ...unlocks };
   },
 };
 

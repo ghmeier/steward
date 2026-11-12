@@ -5,7 +5,12 @@ import { PETITIONS } from "../core/decree";
 import { DebtFigure } from "../core/illusion";
 import type { Resource } from "../core/realm";
 import type { Tuning } from "../core/tuning";
-import { ARCHIVE_PANEL, CONJURING, CROWN_PANEL } from "../core/unlocks";
+import {
+  ARCHIVE_PANEL,
+  COURT_PANEL,
+  CROWN_PANEL,
+  DECREES_PANEL,
+} from "../core/unlocks";
 import type { ArchiveEntryView, GameView } from "../core/view";
 import { courtEntryLabel, courtMenu } from "./court-menu";
 import { type Cursor, moveCursor, reconcileCursor, stepIndex } from "./cursor";
@@ -13,6 +18,7 @@ import { formatPolicy, formatRule } from "./decree-format";
 import {
   capitalize,
   formatAmount,
+  formatCost,
   formatGameTime,
   formatRate,
   formatTicks,
@@ -198,7 +204,7 @@ export class CourtPanel extends MenuPanel {
   static override readonly keys: PanelKeys = {
     id: "court",
     focusKey: "c",
-    needs: undefined,
+    needs: COURT_PANEL,
     focusLabel: copy.keys.hints.court,
     hints: [
       { keys: "j/k", label: copy.keys.panelActions.select },
@@ -216,15 +222,13 @@ export class CourtPanel extends MenuPanel {
 }
 
 function archiveLabel(entry: ArchiveEntryView): string {
-  const status = entry.owned
-    ? copy.village.archiveOwned
-    : copy.village.archiveCost({ cost: String(entry.cost) });
-  return `${entry.label}  ${status}`;
+  return `${entry.label}  ${formatCost(entry.cost)}`;
 }
 
 const archiveScreen: ScreenBuilder = ({ view }) => ({
   kind: "list",
   title: copy.village.archiveTitle,
+  notes: view.archive.entries.length === 0 ? [copy.village.archiveEmpty] : [],
   items: view.archive.entries.map(
     (entry): MenuItem => ({
       label: archiveLabel(entry),
@@ -253,7 +257,9 @@ export class ArchivePanel extends MenuPanel {
   protected readonly root = archiveScreen;
 
   protected unfocusedLines({ view }: MenuContext): string[] {
-    return view.archive.entries.map((entry) => `  ${archiveLabel(entry)}`);
+    return view.archive.entries.length === 0
+      ? [copy.village.archiveEmpty]
+      : view.archive.entries.map((entry) => `  ${archiveLabel(entry)}`);
   }
 }
 
@@ -261,7 +267,7 @@ export class DecreesPanel extends VillagePanel {
   static override readonly keys: PanelKeys = {
     id: "decrees",
     focusKey: "d",
-    needs: undefined,
+    needs: DECREES_PANEL,
     focusLabel: copy.keys.hints.decrees,
     hints: [
       { keys: "j/k", label: copy.keys.panelActions.select },
@@ -408,7 +414,7 @@ export class LedgerPanel extends VillagePanel {
   static override readonly keys: PanelKeys = {
     id: "ledger",
     focusKey: "l",
-    needs: CONJURING,
+    needs: CROWN_PANEL,
     focusLabel: copy.keys.hints.ledger,
     hints: [
       { keys: "j/k", label: copy.keys.panelActions.select },

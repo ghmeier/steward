@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import {
   contextFor,
   grantUnlocks,
+  priceOf,
   quietOptions,
+  revealArchive,
   setRoster,
   tuning,
 } from "../../test/helpers";
@@ -11,7 +13,7 @@ import { copy } from "./copy";
 import { Game } from "./game";
 import { NO_AUDIT_TICK, NO_DEBT_TICK } from "./illusion";
 import type { Resource } from "./realm";
-import { ARCHIVE_PANEL, CONJURING } from "./unlocks";
+import { ARCHIVE_PANEL, CONJURING, CROWN_PANEL, FORGING } from "./unlocks";
 
 const { illusion: illusionTuning, crown: crownTuning } = tuning;
 const palette = tuning.archive.entries.find(
@@ -22,7 +24,8 @@ if (palette === undefined) throw new Error("the palette entry is missing");
 function village(peasants = tuning.village.promotionPopulation): Game {
   const game = Game.create(1, tuning);
   setRoster(game, { idle: peasants });
-  grantUnlocks(game, [CONJURING]);
+  grantUnlocks(game, [CONJURING, FORGING]);
+  revealArchive(game);
   return game;
 }
 
@@ -138,16 +141,16 @@ describe("spending on outsiders", () => {
     const game = village();
     grantUnlocks(game, [ARCHIVE_PANEL]);
     stock(game, "coin", 0);
-    game.state.posting.illusion.conjured.coin = palette.cost;
+    game.state.posting.illusion.conjured.coin = priceOf(palette);
     const poor = village();
     grantUnlocks(poor, [ARCHIVE_PANEL]);
     stock(poor, "coin", 0);
-    poor.state.posting.illusion.conjured.coin = palette.cost - 1;
+    poor.state.posting.illusion.conjured.coin = priceOf(palette) - 1;
 
     game.unlocks.buy(palette.id, contextFor(game));
 
     expect(game.unlocks.enabled(palette.id)).toBe(true);
-    expect(debt(game, "coin")).toBe(palette.cost);
+    expect(debt(game, "coin")).toBe(priceOf(palette));
     expect(() => poor.unlocks.buy(palette.id, contextFor(poor))).toThrow(
       "enough coin",
     );
@@ -243,27 +246,47 @@ describe("conjuring", () => {
     expect(game.illusion.conjuredValue).toBe(0);
   });
 
-  test("every command is refused until the first crown demand grants conjuring", () => {
+  test("conjure and forge are refused until bought, and a crown demand grants neither", () => {
+    const game = Game.create(1, tuning);
+    setRoster(game, { idle: tuning.village.promotionPopulation });
+    grantUnlocks(game, [CROWN_PANEL]);
+    game.state.posting.crown.nextDemandTick = game.state.tick + 1;
+
+    const refused = () => [
+      command(game, { type: "conjure", resource: "coin", amount: 1 }),
+      command(game, { type: "forge" }),
+    ];
+    const before = refused();
+    while (!game.crown.isOpen) step(game);
+
+    expect(before.map((result) => result.ok)).toEqual([false, false]);
+    expect(refused().map((result) => result.ok)).toEqual([false, false]);
+    expect(game.unlocks.enabled(CONJURING)).toBe(false);
+    expect(game.unlocks.enabled(FORGING)).toBe(false);
+  });
+
+  test("back repays existing debt without forging or conjuring owned, and refuses when nothing is owed", () => {
     const game = Game.create(1, tuning);
     setRoster(game, { idle: tuning.village.promotionPopulation });
     game.state.posting.illusion.debt.grain = 5;
+    game.state.posting.illusion.debtSince = 1;
     stock(game, "grain", 5);
-    const locked = () => [
-      command(game, { type: "conjure", resource: "coin", amount: 1 }),
-      command(game, { type: "forge" }),
-      command(game, { type: "back", resource: "grain" }),
-    ];
 
-    const before = locked();
-    const grainAfterRefusal = game.state.posting.resources.grain;
-    while (!game.crown.isOpen) step(game);
+    const repaid = command(game, { type: "back", resource: "grain" });
+    const nothingOwed = command(game, { type: "back", resource: "grain" });
 
-    expect(before.map((result) => result.ok)).toEqual([false, false, false]);
-    expect(grainAfterRefusal).toBe(5);
-    expect(game.unlocks.enabled(CONJURING)).toBe(true);
-    expect(game.state.career.unlocks[CONJURING]).toBe(
-      game.state.posting.crown.demand.issuedAt,
-    );
+    expect(repaid.ok).toBe(true);
+    expect(debt(game, "grain")).toBe(0);
+    expect(nothingOwed.ok).toBe(false);
+  });
+
+  test("the illusion view appears once either conjuring or forging is owned", () => {
+    const game = Game.create(1, tuning);
+    const none = game.view.compute().illusion;
+    grantUnlocks(game, [FORGING]);
+
+    expect(none).toBeNull();
+    expect(game.view.compute().illusion).not.toBeNull();
   });
 });
 
@@ -446,6 +469,7 @@ describe("the view", () => {
   test("shows the illusion only once conjuring is unlocked, and reads the books by the share of the ceiling", () => {
     const game = village();
     delete game.state.career.unlocks[CONJURING];
+    delete game.state.career.unlocks[FORGING];
     const locked = game.view.compute().illusion;
     grantUnlocks(game, [CONJURING]);
     const { ceiling } = game.illusion;
@@ -488,7 +512,7 @@ describe("the view", () => {
         ?.affordable;
 
     const before = affordable();
-    game.state.posting.illusion.conjured.coin = palette.cost;
+    game.state.posting.illusion.conjured.coin = priceOf(palette);
 
     expect(before).toBe(false);
     expect(affordable()).toBe(true);

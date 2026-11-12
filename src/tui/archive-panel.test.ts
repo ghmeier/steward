@@ -12,7 +12,7 @@ import { Village } from "./village-panels";
 disposeDrawnPanels();
 
 describe("the Archive panel", () => {
-  test("the archive panel shows each entry's price and owned state, and the selected entry's description only while focused", async () => {
+  test("the archive panel shows each entry's mixed price, and the selected entry's description only while focused", async () => {
     const view = emptyView({
       archive: {
         open: true,
@@ -21,34 +21,55 @@ describe("the Archive panel", () => {
             id: "a",
             label: "Alpha",
             description: "Opens the first door.",
-            cost: 100,
-            owned: false,
+            cost: [
+              { resource: "wood", amount: 40, held: 0, affordable: false },
+              { resource: "ore", amount: 10, held: 0, affordable: false },
+            ],
             affordable: false,
-            available: true,
           },
           {
             id: "b",
             label: "Beta",
             description: "Opens the second door.",
-            cost: 200,
-            owned: true,
+            cost: [
+              { resource: "coin", amount: 200, held: 200, affordable: true },
+            ],
             affordable: true,
-            available: true,
           },
         ],
       },
     });
 
-    const unfocused = await drawPanels([view]);
-    const focused = await drawPanels([view], { focus: "archive" });
+    const unfocused = await drawPanels([view], {
+      size: { width: 150, height: 30 },
+    });
+    const focused = await drawPanels([view], {
+      focus: "archive",
+      size: { width: 150, height: 30 },
+    });
 
-    const alpha = `Alpha  ${copy.village.archiveCost({ cost: "100" })}`;
+    const alpha = "Alpha  40 wood · 10 ore";
     expect(unfocused).toContain(alpha);
-    expect(unfocused).toContain(`Beta  ${copy.village.archiveOwned}`);
+    expect(unfocused).toContain("Beta  200 coin");
     expect(unfocused).not.toContain("Opens the first door.");
     expect(focused).toContain(`> ${alpha}`);
     expect(focused).toContain("Opens the first door.");
     expect(focused).not.toContain("Opens the second door.");
+  });
+
+  test("an empty archive says there is nothing more to learn", async () => {
+    const view = emptyView({ archive: { open: true, entries: [] } });
+
+    const unfocused = await drawPanels([view], {
+      size: { width: 150, height: 30 },
+    });
+    const focused = await drawPanels([view], {
+      focus: "archive",
+      size: { width: 150, height: 30 },
+    });
+
+    expect(unfocused).toContain(copy.village.archiveEmpty);
+    expect(focused).toContain(copy.village.archiveEmpty);
   });
 
   describe("keys", () => {
@@ -62,10 +83,15 @@ describe("the Archive panel", () => {
                 id: "a",
                 label: "Alpha",
                 description: "Opens the first door.",
-                cost: 100,
-                owned: false,
+                cost: [
+                  {
+                    resource: "coin",
+                    amount: 100,
+                    held: 100,
+                    affordable: true,
+                  },
+                ],
                 affordable: true,
-                available: true,
               },
             ],
           },

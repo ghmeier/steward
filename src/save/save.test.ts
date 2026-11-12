@@ -15,7 +15,15 @@ import { emptyIllusionState } from "../core/illusion";
 import { NO_LABOR_POLICY } from "../core/labor";
 import { seedStream } from "../core/rng";
 import { type GameState, SCHEMA_VERSION } from "../core/state";
-import { CONJURING, CROWN_PANEL } from "../core/unlocks";
+import {
+  ARCHIVE_PANEL,
+  CONJURING,
+  COURT_PANEL,
+  CROWN_PANEL,
+  DECREES_PANEL,
+  FORGING,
+  GOVERNORS,
+} from "../core/unlocks";
 import { loadTuning } from "./content";
 import {
   loadGame,
@@ -495,5 +503,70 @@ describe("version 15 upgrade", () => {
     expect(upgraded.principal).toEqual(upgraded.debt);
     expect(upgraded.principal.grain).toBe(40);
     expect(upgraded.lastAuditClosedAt).toBe(0);
+  });
+});
+describe("version 16 upgrade", () => {
+  function version14Save(
+    unlocks: Record<string, number>,
+    promotedAt = 0,
+  ): Record<string, unknown> {
+    const game = Game.create(42, loadTuning());
+    game.state.tick = 100;
+    const { seen: _, ...career } = game.state.career;
+    return {
+      ...structuredClone(game.state),
+      schemaVersion: 14,
+      career: { ...career, needed: { court: 3 }, unlocks, promotedAt },
+    };
+  }
+
+  test("any old save gains the Court, Decrees and Archive panels and drops the unread needed record", () => {
+    writeSave(14, version14Save({}));
+
+    const state = loaded(dir);
+
+    expect(state.schemaVersion).toBe(SCHEMA_VERSION);
+    for (const id of [COURT_PANEL, DECREES_PANEL, ARCHIVE_PANEL]) {
+      expect(state.career.unlocks[id]).toBe(100);
+    }
+    expect(Object.hasOwn(state.career, "needed")).toBe(false);
+  });
+
+  test("a save that has not reached the crown does not gain the charter, forging or governors", () => {
+    writeSave(14, version14Save({}));
+
+    const { unlocks } = loaded(dir).career;
+
+    for (const id of [CROWN_PANEL, FORGING, GOVERNORS]) {
+      expect(Object.hasOwn(unlocks, id)).toBe(false);
+    }
+  });
+
+  test.each([
+    ["owns the Crown panel", { [CROWN_PANEL]: 50 }, 0],
+    ["owns conjuring", { [CONJURING]: 50 }, 0],
+    ["is promoted", {}, 60],
+  ])(
+    "a save that %s gains the charter, forging and governors and keeps what it owned",
+    (_name, owned, promotedAt) => {
+      writeSave(14, version14Save(owned, promotedAt));
+
+      const { unlocks } = loaded(dir).career;
+
+      for (const id of [CROWN_PANEL, FORGING, GOVERNORS]) {
+        expect(Object.hasOwn(unlocks, id)).toBe(true);
+      }
+      for (const [id, tick] of Object.entries(owned)) {
+        expect(unlocks[id]).toBe(tick);
+      }
+    },
+  );
+
+  test("every entry the save already owned counts as seen", () => {
+    writeSave(14, version14Save({ "control.palette": 40 }));
+
+    const { seen } = loaded(dir).career;
+
+    expect(seen["control.palette"]).toBe(40);
   });
 });

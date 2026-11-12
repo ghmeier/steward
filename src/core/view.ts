@@ -5,11 +5,12 @@ import type { DeskEntryView } from "./desk";
 import type { Game } from "./game";
 import type { FormerGovernorView, GovernorView } from "./governors";
 import type { IllusionView } from "./illusion";
-import { type Job, RESOURCES, type Season } from "./realm";
+import { type Job, RESOURCES, type Resource, type Season } from "./realm";
 import type { ResourceId } from "./state";
 import {
   ARCHIVE_PANEL,
   CROWN_PANEL,
+  costLines,
   type PanelId,
   TRUE_REPORTS,
   type UnlockId,
@@ -53,15 +54,22 @@ export type GameView = {
   unlocks: UnlockId[];
   archive: { open: boolean; entries: ArchiveEntryView[] };
 };
+export type ArchiveCostView = {
+  resource: Resource;
+  amount: number;
+  /** The stock on hand, conjured units included. */
+  held: number;
+  /** The stock on hand covers this part of the cost. */
+  affordable: boolean;
+};
+/** Only entries on offer appear: revealed, not owned and with every prerequisite owned. */
 export type ArchiveEntryView = {
   id: UnlockId;
   label: string;
   description: string;
-  cost: number;
-  owned: boolean;
+  cost: ArchiveCostView[];
+  /** Every part of the cost is covered. */
   affordable: boolean;
-  /** Every prerequisite is owned. */
-  available: boolean;
 };
 
 export class ViewManager {
@@ -144,17 +152,19 @@ export class ViewManager {
       unlocks: this.game.unlocks.purchased,
       archive: {
         open: this.game.unlocks.enabled(ARCHIVE_PANEL),
-        entries: this.tuning.archive.entries.map((entry) => ({
-          id: entry.id,
-          label: entry.label,
-          description: entry.description,
-          cost: entry.cost,
-          owned: this.game.unlocks.enabled(entry.id),
-          affordable: this.game.illusion.apparent("coin") >= entry.cost,
-          available: entry.requires.every((id) =>
-            this.game.unlocks.enabled(id),
-          ),
-        })),
+        entries: this.game.unlocks.offered().map((entry) => {
+          const cost = costLines(entry).map(({ resource, amount }) => {
+            const held = this.game.illusion.apparent(resource);
+            return { resource, amount, held, affordable: held >= amount };
+          });
+          return {
+            id: entry.id,
+            label: entry.label,
+            description: entry.description,
+            cost,
+            affordable: cost.every((part) => part.affordable),
+          };
+        }),
       },
     };
   }

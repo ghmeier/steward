@@ -1,6 +1,7 @@
-import { formatMagnitude } from "../core/amount";
+import { formatAmount, formatMagnitude } from "../core/amount";
+import { copy } from "../core/copy";
 
-export { formatAmount } from "../core/amount";
+export { formatAmount };
 
 export function formatRate(perSecond: number): string {
   const body = formatMagnitude(Math.abs(perSecond));
@@ -40,4 +41,13 @@ export function formatTicksRoughly(ticks: number, stepMs: number): string {
 
 export function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** A price such as "40 wood · 10 ore", one part per resource it charges. */
+export function formatCost(
+  parts: readonly { resource: string; amount: number }[],
+): string {
+  return parts
+    .map(({ resource, amount }) => `${plain(amount)} ${resource}`)
+    .join(copy.village.costJoin);
 }

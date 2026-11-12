@@ -228,7 +228,7 @@ const posting: z.ZodType<PostingState> = z
 const career = z.strictObject({
   unlocks: z.record(z.string(), count),
   savedDecrees: decreeRecord(false),
-  needed: z.record(z.string(), count),
+  seen: z.record(z.string(), count),
   followers: z.array(z.string()),
   promotedAt: count,
 });

@@ -97,6 +97,16 @@ describe("createPanels", () => {
     });
   });
 
+  describe("a locked Court", () => {
+    test("is not drawn until the panel is owned, and then is", async () => {
+      const locked = await drawPanels([emptyView({ lockedPanels: ["court"] })]);
+      const owned = await drawPanels([emptyView()]);
+
+      expect(locked).not.toContain("(C)ourt");
+      expect(owned).toContain("(C)ourt");
+    });
+  });
+
   describe("a locked Crown", () => {
     const label = "A squabble over the miller's grain share";
     const desk = [{ ...dispute, label }];
