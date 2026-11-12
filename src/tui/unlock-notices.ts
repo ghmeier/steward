@@ -1,14 +1,14 @@
 import { copy } from "../core/copy";
 import type { Tuning } from "../core/tuning";
 import { ARCHIVE_PANEL, CONJURING, type UnlockId } from "../core/unlocks";
-import { keyFor } from "./keys";
 import type { Notice } from "./notices";
+import { keymap } from "./village-panels";
 
 function noticeFor(id: UnlockId, tuning: Tuning): string | null {
   if (id === ARCHIVE_PANEL)
-    return copy.notices.archiveOpens({ key: keyFor("archive") });
+    return copy.notices.archiveOpens({ key: keymap.keyFor("archive") });
   if (id === CONJURING)
-    return copy.notices.conjuringOpens({ key: keyFor("ledger") });
+    return copy.notices.conjuringOpens({ key: keymap.keyFor("ledger") });
   const entry = tuning.archive.entries.find((candidate) => candidate.id === id);
   if (entry !== undefined) return copy.notices.bought({ label: entry.label });
   const play = tuning.archive.play.find((candidate) => candidate.id === id);

@@ -6,13 +6,13 @@ import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
 import { type LineState, lineKey, openLine, renderLine } from "./command-line";
 import { HelpPage } from "./help-menu";
-import { actionForKey, type FocusId, FocusRing, isInterrupt } from "./keys";
+import { type FocusId, FocusRing, isInterrupt } from "./keys";
 import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
 import { newGameMenu } from "./new-game-menu";
 import { latestNotice } from "./notices";
 import { BAR_LINES, createPanels } from "./panels";
 import { Session } from "./session";
-import { type PanelStep, Village } from "./village-panels";
+import { keymap, type PanelStep, Village } from "./village-panels";
 
 const FRAME_INTERVAL_MS = 50;
 const AUTOSAVE_INTERVAL_MS = 30_000;
@@ -198,10 +198,13 @@ export function startApp(options: {
         return;
       }
     }
-    const action = actionForKey(key, session.view().unlocks);
+    const action = keymap.actionForKey(key, session.view().unlocks);
     if (action === null) return;
     if (action.kind === "focus" || action.kind === "cycle") {
-      focus = new FocusRing(session.view().unlocks).target(action, focus);
+      focus = new FocusRing(session.view().unlocks, keymap).target(
+        action,
+        focus,
+      );
       village.focusable[focus].enter(menuContext());
       redraw();
     } else if (action.kind === "line") {

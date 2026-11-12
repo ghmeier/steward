@@ -30,7 +30,7 @@ import {
 import { stateHash } from "../save/hash";
 import { readSaveFile, SAVE_FILE_NAME, saveGame } from "../save/save";
 import { type App, prepareStartup, type Startup, startApp } from "./app";
-import { keyFor } from "./keys";
+import { keymap } from "./village-panels";
 
 const NEVER_MS = 1e9;
 const NEW_SEED = 321;
@@ -796,7 +796,9 @@ describe("notices", () => {
     const harness = await launch();
     harness.game.state.posting.resources.coin = 5;
 
-    const archiveOpens = copy.notices.archiveOpens({ key: keyFor("archive") });
+    const archiveOpens = copy.notices.archiveOpens({
+      key: keymap.keyFor("archive"),
+    });
 
     const { announced, later } = await announcedThenLater(harness);
     await harness.app.shutdown();

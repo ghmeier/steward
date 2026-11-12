@@ -4,6 +4,7 @@ import { PETITIONS } from "../core/decree";
 import { DebtFigure } from "../core/illusion";
 import type { Resource } from "../core/realm";
 import type { Tuning } from "../core/tuning";
+import { ARCHIVE_PANEL, CONJURING, CROWN_PANEL } from "../core/unlocks";
 import type {
   ArchiveEntryView,
   CrownDemandView,
@@ -23,8 +24,9 @@ import {
 } from "./format";
 import {
   type FocusId,
+  Keymap,
   type KeyPress,
-  panelHintKey,
+  type PanelKeys,
   peasantActionForKey,
   plainKeyName,
 } from "./keys";
@@ -58,15 +60,23 @@ export function titleWithKey(name: string, key = name.charAt(0)): string {
 }
 
 export abstract class VillagePanel {
-  abstract readonly id: FocusId;
+  /** TypeScript has no abstract statics, so each subclass overrides this declaration with its own keys. */
+  declare static readonly keys: PanelKeys;
+
+  get keys(): PanelKeys {
+    return (this.constructor as typeof VillagePanel).keys;
+  }
+
+  get id(): FocusId {
+    return this.keys.id;
+  }
 
   get name(): string {
     return capitalize(this.id);
   }
 
-  /** The border title; a panel whose key is not its first letter overrides the letter it marks. */
   get title(): string {
-    return titleWithKey(this.name);
+    return titleWithKey(this.name, this.keys.focusKey);
   }
 
   /** Called when the panel gains focus, so it never shows state left over from an earlier visit. */
@@ -90,7 +100,17 @@ function step(
 }
 
 export class PeasantsPanel extends VillagePanel {
-  readonly id = "peasants";
+  static override readonly keys: PanelKeys = {
+    id: "peasants",
+    focusKey: "p",
+    needs: undefined,
+    focusLabel: copy.keys.hints.peasants,
+    hints: [
+      { keys: "j/k", label: copy.keys.panelActions.select },
+      { keys: "f/w/m/i", label: copy.keys.panelActions.assign },
+      { keys: "esc", label: copy.keys.panelActions.back },
+    ],
+  };
   private cursor: Cursor | null = null;
 
   /** Keeps the selection on the same peasant as the roster changes. */
@@ -178,7 +198,17 @@ abstract class MenuPanel extends VillagePanel {
 }
 
 export class CourtPanel extends MenuPanel {
-  readonly id = "court";
+  static override readonly keys: PanelKeys = {
+    id: "court",
+    focusKey: "c",
+    needs: undefined,
+    focusLabel: copy.keys.hints.court,
+    hints: [
+      { keys: "j/k", label: copy.keys.panelActions.select },
+      { keys: "enter", label: copy.keys.panelActions.choose },
+      { keys: "esc", label: copy.keys.panelActions.back },
+    ],
+  };
   protected readonly root = courtMenu;
 
   protected unfocusedLines({ view, tuning }: MenuContext): string[] {
@@ -212,7 +242,17 @@ const archiveScreen: ScreenBuilder = ({ view }) => ({
 });
 
 export class ArchivePanel extends MenuPanel {
-  readonly id = "archive";
+  static override readonly keys: PanelKeys = {
+    id: "archive",
+    focusKey: "a",
+    needs: ARCHIVE_PANEL,
+    focusLabel: copy.keys.hints.archive,
+    hints: [
+      { keys: "j/k", label: copy.keys.panelActions.select },
+      { keys: "enter", label: copy.keys.panelActions.buy },
+      { keys: "esc", label: copy.keys.panelActions.back },
+    ],
+  };
   protected readonly root = archiveScreen;
 
   protected unfocusedLines({ view }: MenuContext): string[] {
@@ -221,7 +261,18 @@ export class ArchivePanel extends MenuPanel {
 }
 
 export class DecreesPanel extends VillagePanel {
-  readonly id = "decrees";
+  static override readonly keys: PanelKeys = {
+    id: "decrees",
+    focusKey: "d",
+    needs: undefined,
+    focusLabel: copy.keys.hints.decrees,
+    hints: [
+      { keys: "j/k", label: copy.keys.panelActions.select },
+      { keys: "enter", label: copy.keys.panelActions.write },
+      { keys: "x", label: copy.keys.panelActions.repeal },
+      { keys: "esc", label: copy.keys.panelActions.back },
+    ],
+  };
   private static readonly labelWidth = Math.max(
     ...PETITIONS.map((petition) => petition.length),
   );
@@ -288,11 +339,17 @@ export class DecreesPanel extends VillagePanel {
 }
 
 export class CrownPanel extends VillagePanel {
-  readonly id = "crown";
-
-  override get title(): string {
-    return titleWithKey(this.name, "r");
-  }
+  static override readonly keys: PanelKeys = {
+    id: "crown",
+    focusKey: "r",
+    needs: CROWN_PANEL,
+    focusLabel: copy.keys.hints.crown,
+    hints: [
+      { keys: "enter", label: copy.keys.panelActions.deliver },
+      { keys: "f", label: copy.keys.panelActions.forge },
+      { keys: "esc", label: copy.keys.panelActions.back },
+    ],
+  };
 
   enter(): void {}
 
@@ -348,7 +405,19 @@ export class CrownPanel extends VillagePanel {
 }
 
 export class LedgerPanel extends VillagePanel {
-  readonly id = "ledger";
+  private static readonly repayKey = "b";
+  static override readonly keys: PanelKeys = {
+    id: "ledger",
+    focusKey: "l",
+    needs: CONJURING,
+    focusLabel: copy.keys.hints.ledger,
+    hints: [
+      { keys: "j/k", label: copy.keys.panelActions.select },
+      { keys: "enter", label: copy.keys.panelActions.conjure },
+      { keys: LedgerPanel.repayKey, label: copy.keys.panelActions.repay },
+      { keys: "esc", label: copy.keys.panelActions.back },
+    ],
+  };
   private selected = 0;
 
   enter(): void {
@@ -371,7 +440,7 @@ export class LedgerPanel extends VillagePanel {
     const figure = (amount: number) => debtFigure.text(amount);
     const owed = copy.ledger.owed({ figure: figure(debt.owed) });
     if (!selected) return [`${indent}${owed}`];
-    const key = panelHintKey("ledger", copy.keys.panelActions.repay);
+    const key = LedgerPanel.repayKey;
     const advice = debt.covered
       ? copy.ledger.repayAll({ key })
       : debt.repayable > 0
@@ -518,10 +587,22 @@ export class LedgerPanel extends VillagePanel {
     if (name === "return" || name === "enter") {
       return step([{ type: "conjure", resource, amount: tuning.illusion.lot }]);
     }
-    if (name === "b") return step([{ type: "back", resource }]);
+    if (name === LedgerPanel.repayKey) {
+      return step([{ type: "back", resource }]);
+    }
     return null;
   }
 }
+
+/** The focusable panels keyed by id, so a missing or extra panel is a type error; key order is the reading order. */
+const PANELS = {
+  ledger: LedgerPanel,
+  peasants: PeasantsPanel,
+  archive: ArchivePanel,
+  court: CourtPanel,
+  decrees: DecreesPanel,
+  crown: CrownPanel,
+} satisfies Record<FocusId, { new (): VillagePanel; keys: PanelKeys }>;
 
 /** The village's panels, built once per app so each focusable one keeps its own selection. */
 export class Village {
@@ -535,3 +616,8 @@ export class Village {
     crown: new CrownPanel(),
   };
 }
+
+/** Declared keys and hints are static, so the key tables are built once from the classes without constructing any panel. */
+export const keymap = new Keymap(
+  Object.values(PANELS).map((panel) => panel.keys),
+);

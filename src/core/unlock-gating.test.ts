@@ -1,12 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { grantUnlocks, topicLines, tuning } from "../../test/helpers";
 import { parseLine } from "../tui/command-line";
-import {
-  actionForKey,
-  barCommandsText,
-  type KeyPress,
-  keyHints,
-} from "../tui/keys";
+import { barCommandsText, type KeyPress } from "../tui/keys";
+import { keymap } from "../tui/village-panels";
 import { copy } from "./copy";
 import type { Decree } from "./decree";
 import { Game } from "./game";
@@ -47,8 +43,8 @@ function surfaces(unlocks: readonly string[]) {
     parseLine(text, context).suggestions.map((s) => s.text);
   return {
     action: (name: string, modifiers: Partial<KeyPress> = {}) =>
-      actionForKey(key(name, modifiers), owned),
-    hints: keyHints(owned).map((hint) => hint.label),
+      keymap.actionForKey(key(name, modifiers), owned),
+    hints: keymap.keyHints(owned).map((hint) => hint.label),
     barCommands: barCommandsText(owned),
     keysHelp: topicLines("keys", tuning, unlocks),
     decreesHelp: topicLines("decrees", tuning, unlocks),
