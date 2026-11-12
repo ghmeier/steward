@@ -1,11 +1,11 @@
 ---
 title: "Phase 8: governors, crown favor and Archive precision"
-status: active
+status: completed
 tags: [phase-8]
 created: 2026-11-11
 updated: 2026-11-12
-last_pr: 24
-next_step: merge #25 governors-tui; Garret playtests governors
+last_pr: 25
+next_step: done; phase 9 (ending a posting) is next, after the REFINEMENTS.md UI pass
 ---
 # Phase 8: governors, crown favor and Archive precision
 
