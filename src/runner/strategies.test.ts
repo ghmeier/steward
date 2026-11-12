@@ -2,16 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { tuning } from "../../test/helpers";
-import { Game } from "../core/game";
 import { runSim } from "./sim";
-import { parseStrategy, StrategyPlayer } from "./strategy";
 
 const STEPS = "24000";
 
 type Summary = {
   hash: string;
   starved: number;
+  promotedAt: number;
 };
 
 function run(argv: string[]): Summary {
@@ -40,23 +38,10 @@ function play(name: string, extra: string[] = []): Summary {
 
 describe("scripted strategies over ten game years", () => {
   test("the reference strategy never starves and is promoted within the run", () => {
-    const strategy = parseStrategy(
-      JSON.parse(readFileSync("strategies/reference.json", "utf8")),
-      tuning.decrees,
-    );
-    const player = new StrategyPlayer(strategy);
-    const game = Game.create(1, tuning);
+    const summary = play("reference");
 
-    game.steps.runSteps(
-      Number(STEPS),
-      [],
-      { absorbed: null, validateEvery: 0 },
-      () => player.observe(game),
-      player.next.bind(player),
-    );
-
-    expect(game.state.career.promotedAt).toBeGreaterThan(0);
-    expect(play("reference").starved).toBe(0);
+    expect(summary.starved).toBe(0);
+    expect(summary.promotedAt).toBeGreaterThan(0);
   });
 
   test("a recorded seasonal run replays to the same hash", () => {
