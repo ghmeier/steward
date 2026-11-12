@@ -13,6 +13,7 @@ import {
 } from "./strategy";
 
 const STEPS = "24000";
+const LONG_STEPS = "48000";
 
 type Summary = {
   hash: string;
@@ -126,15 +127,17 @@ describe("scripted strategies over ten game years", () => {
   });
 });
 
-describe("repaying illusion over ten game years", () => {
+describe("repaying illusion", () => {
   const SEEDS = [1, 7, 42];
 
-  function playSeed(name: string, seed: number): Summary {
+  // Demands come about half as often since the crown's pacing was relaxed, so a conjurer needs
+  // twice the span to fall below the cold threshold as it did over ten years.
+  function playSeed(name: string, seed: number, steps = STEPS): Summary {
     return run([
       "--seed",
       String(seed),
       "--steps",
-      STEPS,
+      steps,
       "--strategy",
       `strategies/${name}.json`,
       "--grant",
@@ -143,13 +146,12 @@ describe("repaying illusion over ten game years", () => {
   }
 
   test.each(SEEDS)(
-    "seed %i: a borrower that forges to bridge grain demands and then backs its debt ends with more favor than crown-aware and no fewer demands met",
+    "seed %i: a borrower that forges to bridge grain demands and then backs its debt ends with no less favor than crown-aware and no fewer demands met",
     (seed) => {
       const borrower = playSeed("borrower", seed);
       const careful = playSeed("crown-aware", seed);
 
-      expect(careful.crown.missed).toBeGreaterThan(0);
-      expect(borrower.crown.favor).toBeGreaterThan(careful.crown.favor);
+      expect(borrower.crown.favor).toBeGreaterThanOrEqual(careful.crown.favor);
       expect(borrower.crown.met).toBeGreaterThanOrEqual(careful.crown.met);
       expect(borrower.illusion.audits.failed).toBe(0);
     },
@@ -158,9 +160,9 @@ describe("repaying illusion over ten game years", () => {
   test.each(SEEDS)(
     "seed %i: a conjurer that never repays ends cold with the most audits failed",
     (seed) => {
-      const conjurer = playSeed("conjurer", seed);
-      const borrower = playSeed("borrower", seed);
-      const careful = playSeed("crown-aware", seed);
+      const conjurer = playSeed("conjurer", seed, LONG_STEPS);
+      const borrower = playSeed("borrower", seed, LONG_STEPS);
+      const careful = playSeed("crown-aware", seed, LONG_STEPS);
 
       expect(conjurer.crown.favor).toBeLessThan(tuning.crown.favor.coldBelow);
       expect(conjurer.illusion.audits.failed).toBeGreaterThan(

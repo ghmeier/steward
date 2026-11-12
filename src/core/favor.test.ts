@@ -39,7 +39,7 @@ function openDemand(game: Game, resource: Resource, amount: number): void {
     amount,
     delivered: 0,
     issuedAt: game.state.tick,
-    dueAt: game.state.tick + crownTuning.deadlineTicks,
+    dueAt: game.state.tick + crownTuning.deadline.minTicks,
   };
 }
 

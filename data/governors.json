@@ -2,7 +2,8 @@
   "cap": 4,
   "village": { "min": 6, "max": 10 },
   "term": { "minTicks": 9600, "maxTicks": 19200 },
-  "deathPerMille": 20,
+  "deathPerMille": 10,
+  "causes": ["a fever", "a fall from a horse", "a winter cough", "bad fish"],
   "price": { "min": 60, "max": 140 },
   "empireBuilderLimit": 14,
   "traits": {

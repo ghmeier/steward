@@ -12,7 +12,7 @@ const demand: CrownDemandView = {
   resource: "ore",
   amount: 80,
   delivered: 0,
-  ticksLeft: tuning.crown.deadlineTicks,
+  ticksLeft: tuning.crown.deadline.minTicks,
   herald: "The crown requires 80 ore for the armory.",
 };
 const crown = (

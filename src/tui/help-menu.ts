@@ -96,6 +96,10 @@ function grainLines(tuning: Tuning): string[] {
     copy.help.grain.farmersGrow({ yields }),
     copy.help.grain.peasantsEat({
       rate: perSecond(economy.grainPerPerson, tuning),
+      idleRate: perSecond(
+        economy.grainPerPerson * economy.idleGrainFactor,
+        tuning,
+      ),
       feeds,
     }),
     barren.length === 0
@@ -249,10 +253,12 @@ function crownLines(tuning: Tuning): string[] {
   ) as ArchiveEntry;
   return [
     copy.help.crown.firstDemand({
-      wait: seconds(crown.firstDemandTicks, tuning),
+      shortestWait: seconds(crown.firstDemand.minTicks, tuning),
+      longestWait: seconds(crown.firstDemand.maxTicks, tuning),
     }),
     copy.help.crown.deadline({
-      deadline: seconds(crown.deadlineTicks, tuning),
+      shortestDeadline: seconds(crown.deadline.minTicks, tuning),
+      longestDeadline: seconds(crown.deadline.maxTicks, tuning),
       shortestGap: seconds(minTicks, tuning),
       longestGap: seconds(maxTicks, tuning),
     }),

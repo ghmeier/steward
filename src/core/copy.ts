@@ -143,8 +143,14 @@ export const copy = {
       "Auditors are on the road, and you do not know when they arrive. Repay what you can before they count it.",
     governorRetired: ({ name }: { name: string }) =>
       `${name}'s term is over and they have retired from governing.`,
-    governorDied: ({ name }: { name: string }) =>
-      `${name} has died, and their village is gone with them.`,
+    governorDied: ({
+      name,
+      cause,
+    }: {
+      name: string;
+      cause?: string | undefined;
+    }) =>
+      `${name} has died${cause === undefined ? "" : ` of ${cause}`}, and their village is gone with them.`,
     governorDismissed: ({ name }: { name: string }) =>
       `The failed audit fell on ${name}, who has been dismissed.`,
     governorHandedOver: ({ coin }: { coin: string }) =>
@@ -258,6 +264,8 @@ export const copy = {
     }) => `brings in ${real} ${resource}/s, claims ${gap} more`,
     governorHonest: ({ real, resource }: { real: string; resource: string }) =>
       `brings in ${real} ${resource}/s, claims only what they bring in`,
+    governorSeasonsLeft: ({ seasons }: { seasons: number }) =>
+      `${seasons} ${seasons === 1 ? "season" : "seasons"} left`,
     archiveTitle: "The Archive",
     archiveOwned: "owned",
     archiveCost: ({ cost }: { cost: string }) => `${cost} coin`,
@@ -356,8 +364,16 @@ export const copy = {
         `${season} ${rate}`,
       farmersGrow: ({ yields }: { yields: string }) =>
         `Farmers grow grain, per farmer: ${yields}.`,
-      peasantsEat: ({ rate, feeds }: { rate: string; feeds: string }) =>
-        `Every peasant eats ${rate}, so over a year one farmer feeds about ${feeds} peasants.`,
+      peasantsEat: ({
+        rate,
+        idleRate,
+        feeds,
+      }: {
+        rate: string;
+        idleRate: string;
+        feeds: string;
+      }) =>
+        `Every working peasant eats ${rate}, and an idle one only ${idleRate}, so over a year one farmer feeds about ${feeds} working peasants.`,
       seasonLasts: ({ duration }: { duration: string }) =>
         `A season lasts ${duration}.`,
       seasonLastsWithBarren: ({
@@ -493,18 +509,26 @@ export const copy = {
       once: "Promotion happens once, and it is not taken back.",
     },
     crown: {
-      firstDemand: ({ wait }: { wait: string }) =>
-        `After promotion the crown makes one demand at a time, the first ${wait} later: an amount of grain, wood, ore or coin, never the same resource twice running.`,
+      firstDemand: ({
+        shortestWait,
+        longestWait,
+      }: {
+        shortestWait: string;
+        longestWait: string;
+      }) =>
+        `After promotion the crown makes one demand at a time, the first ${shortestWait} to ${longestWait} later: an amount of grain, wood, ore or coin, never the same resource twice running.`,
       deadline: ({
-        deadline,
+        shortestDeadline,
+        longestDeadline,
         shortestGap,
         longestGap,
       }: {
-        deadline: string;
+        shortestDeadline: string;
+        longestDeadline: string;
         shortestGap: string;
         longestGap: string;
       }) =>
-        `Each demand has a deadline of ${deadline}, and a new one follows ${shortestGap} to ${longestGap} after each is settled.`,
+        `Each demand has a deadline of ${shortestDeadline} to ${longestDeadline}, and a new one follows ${shortestGap} to ${longestGap} after each is settled.`,
       deliver: ({ key }: { key: string }) =>
         `Press ${key} to focus the Crown, then enter to deliver whatever the stores hold toward the demand. Partial deliveries add up.`,
       reward: ({ reward }: { reward: string }) =>

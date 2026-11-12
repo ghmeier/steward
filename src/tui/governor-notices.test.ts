@@ -42,7 +42,7 @@ describe("governorNotice", () => {
     expect(governorNotice(before, before, noticeFrame)).toBeNull();
   });
 
-  test("a death is reported with the governor's name", () => {
+  test("a death is reported with the governor's name and the cause of death", () => {
     const game = Game.fromState(structuredClone(village({}).state), {
       ...tuning,
       governors: { ...tuning.governors, deathPerMille: 1000 },
@@ -52,8 +52,10 @@ describe("governorNotice", () => {
 
     stepTo(game, tuning.economy.ticksPerSeason);
 
+    const cause = game.state.posting.formerStaff[0]?.cause as string;
+    expect(tuning.governors.causes).toContain(cause);
     expect(governorNotice(before, game.view.compute(), noticeFrame)).toBe(
-      copy.notices.governorDied({ name: governor?.name as string }),
+      copy.notices.governorDied({ name: governor?.name as string, cause }),
     );
   });
 

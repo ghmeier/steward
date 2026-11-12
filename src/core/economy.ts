@@ -78,6 +78,7 @@ export const economyTuningSchema = z
     woodPerWorker: nonNegative,
     orePerWorker: nonNegative,
     grainPerPerson: nonNegative,
+    idleGrainFactor: z.number().min(0).max(1),
     grainPrice: nonNegative,
     woodPrice: nonNegative,
     orePrice: nonNegative,
@@ -175,9 +176,23 @@ export class EconomyManager {
     return SEASONS[index] ?? "spring";
   }
 
-  /** Grain the whole village eats in one season at the current population. */
+  /**
+   * Grain the village eats in one tick. A peasant with no job, whether unassigned or idled by a grudge,
+   * eats only the idle share; governors' villages count as working. Every reading of the upkeep goes
+   * through here so the Ledger, the crown's reserve and the real consumption cannot disagree.
+   */
+  grainUpkeepPerTick(): number {
+    const idle = this.game.delegates.peasants.filter(
+      (peasant) => peasant.job === Job.IDLE || this.tick < peasant.grudgeUntil,
+    ).length;
+    const { idleGrainFactor } = this.tuning.economy;
+    const eaters = this.population - idle + idle * idleGrainFactor;
+    return eaters * this.grainPerPerson;
+  }
+
+  /** Grain the whole village eats in one season at the current population and jobs. */
   grainUpkeepPerSeason(): number {
-    return this.population * this.grainPerPerson * this.ticksPerSeason;
+    return this.grainUpkeepPerTick() * this.ticksPerSeason;
   }
 
   grainSeasons(): number {
@@ -215,10 +230,6 @@ export class EconomyManager {
       case Job.IDLE:
         return null;
     }
-  }
-
-  private upkeepOf(): number {
-    return this.population * this.grainPerPerson;
   }
 
   // Idle peasants die first so that a starving village loses its workers last; among
@@ -262,7 +273,7 @@ export class EconomyManager {
     add(resources, "wood", woodCut, context);
     add(resources, "ore", oreDug, context);
 
-    const upkeep = this.upkeepOf();
+    const upkeep = this.grainUpkeepPerTick();
     const grain = resources.grain ?? 0;
     const eaten = Math.min(grain, upkeep);
     if (grain >= upkeep) {

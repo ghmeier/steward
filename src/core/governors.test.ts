@@ -156,14 +156,16 @@ describe("worker-weighted counts", () => {
     expect(game.delegates.workingCountsAt(50).farm).toBe(8);
   });
 
-  test("grain upkeep feeds the whole village", () => {
+  test("grain upkeep feeds a governor's village in full and idle peasants at the idle share", () => {
     const game = posted(2, governorOf({ job: Job.IDLE, village: 8 }));
     game.state.posting.resources.grain = 100;
 
     game.economy.run(contextFor(game));
 
     expect(game.state.posting.resources.grain).toBeCloseTo(
-      100 - 10 * tuning.economy.grainPerPerson,
+      100 -
+        (8 + 2 * tuning.economy.idleGrainFactor) *
+          tuning.economy.grainPerPerson,
       9,
     );
   });
@@ -268,11 +270,52 @@ describe("reported output", () => {
       reportedPerSecond:
         (10 * 1.4 * tuning.economy.orePerWorker * 1000) / tuning.stepMs,
       truth: null,
+      seasonsLeft: Math.ceil((governor?.termEndsAt as number) / ticksPerSeason),
     });
   });
 });
 
 describe("terms", () => {
+  test("seasonsLeft counts down by one across a season", () => {
+    const game = posted(
+      3,
+      governorOf({ termEndsAt: 3 * ticksPerSeason + 1, job: Job.IDLE }),
+    );
+    const calm = Game.fromState(game.state, {
+      ...tuning,
+      governors: { ...tuning.governors, deathPerMille: 0 },
+    });
+    const before = calm.view.compute().governors[0]?.seasonsLeft;
+
+    stepTo(calm, ticksPerSeason);
+    const after = calm.view.compute().governors[0]?.seasonsLeft;
+
+    expect(before).toBe(4);
+    expect(after).toBe((before as number) - 1);
+  });
+
+  test("a governor who dies is recorded with a cause from the tuning list, and one who retires has none", () => {
+    const deadly = Game.fromState(
+      structuredClone(posted(3, governorOf()).state),
+      { ...tuning, governors: { ...tuning.governors, deathPerMille: 1000 } },
+    );
+    const retiring = posted(3, governorOf({ termEndsAt: 1 }));
+
+    stepTo(deadly, ticksPerSeason);
+    stepTo(retiring, 1);
+
+    expect(tuning.governors.causes).toContain(
+      deadly.state.posting.formerStaff[0]?.cause as string,
+    );
+    expect(retiring.state.posting.formerStaff[0]?.cause).toBeUndefined();
+  });
+
+  test("the death chance getter reads the tuning", () => {
+    const game = posted(3);
+
+    expect(game.governors.deathPerMille).toBe(tuning.governors.deathPerMille);
+  });
+
   test("a governor retires when their term ends and is recorded as former staff", () => {
     const game = posted(
       3,

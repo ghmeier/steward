@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { setRoster, economyTestTuning as tuning } from "../../test/helpers";
+import {
+  addGovernors,
+  governorOf,
+  tuning as realTuning,
+  setRoster,
+  economyTestTuning as tuning,
+} from "../../test/helpers";
 import { Game } from "./game";
 import type { AddContext } from "./math";
 import { Job, type Season, type WorkingJob } from "./realm";
@@ -170,6 +176,70 @@ describe("runEconomy eating", () => {
       expect(game.state.posting.economy.starved).toBe(0);
     },
   );
+});
+
+describe("idle upkeep", () => {
+  const idleGrainFactor = realTuning.economy.idleGrainFactor;
+  const frugal = {
+    ...tuning,
+    economy: { ...tuning.economy, idleGrainFactor },
+  };
+
+  function peasants(roster: { farm?: number; idle?: number }): Game {
+    const game = Game.create(1, frugal);
+    setRoster(game, roster);
+    return game;
+  }
+
+  test("a village of idle peasants eats less than the same number working", () => {
+    const idle = peasants({ idle: 10 });
+    const working = peasants({ farm: 10 });
+
+    expect(idle.economy.grainUpkeepPerTick()).toBeLessThan(
+      working.economy.grainUpkeepPerTick(),
+    );
+    expect(idle.economy.grainUpkeepPerTick()).toBeCloseTo(
+      10 * tuning.economy.grainPerPerson * idleGrainFactor,
+      12,
+    );
+    expect(working.economy.grainUpkeepPerSeason()).toBeCloseTo(
+      10 * tuning.economy.grainPerPerson * perSeason,
+      12,
+    );
+  });
+
+  test("a peasant idled by a grudge eats the idle share until the grudge ends", () => {
+    const game = peasants({ farm: 2 });
+    const full = game.economy.grainUpkeepPerTick();
+    const [peasant] = game.delegates.peasants;
+    (peasant as { grudgeUntil: number }).grudgeUntil = game.state.tick + 5;
+
+    const grudged = game.economy.grainUpkeepPerTick();
+    game.state.tick += 5;
+
+    expect(grudged).toBeLessThan(full);
+    expect(game.economy.grainUpkeepPerTick()).toBe(full);
+  });
+
+  test("a governor's village eats as working even when the governor's job is idle", () => {
+    const game = peasants({ farm: 1 });
+    const baseline = game.economy.grainUpkeepPerTick();
+    addGovernors(game, governorOf({ village: 8, job: Job.IDLE }));
+
+    expect(game.economy.grainUpkeepPerTick()).toBeCloseTo(
+      baseline + 8 * tuning.economy.grainPerPerson,
+      12,
+    );
+  });
+
+  test("the grain eaten in a tick matches the upkeep", () => {
+    const game = peasants({ farm: 3, idle: 5 });
+    game.state.posting.resources.grain = 1000;
+
+    const { eaten } = game.economy.run(context);
+
+    expect(eaten).toBe(game.economy.grainUpkeepPerTick());
+  });
 });
 
 describe("feedGrain", () => {

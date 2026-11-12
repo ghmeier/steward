@@ -80,7 +80,7 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
     ) {
       state.career.unlocks[CROWN_PANEL] = state.tick as number;
       crown.nextDemandTick =
-        (state.tick as number) + loadTuning().crown.firstDemandTicks;
+        (state.tick as number) + loadTuning().crown.firstDemand.minTicks;
     }
   },
   // Every desk entry before version 11 was a dispute.

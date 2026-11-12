@@ -122,16 +122,18 @@ const favor = z
     }
   });
 
+const delayRange = z
+  .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
+  .superRefine((range, ctx) => {
+    if (range.minTicks > range.maxTicks) {
+      addIssue(ctx, "must not exceed maxTicks", ["minTicks"]);
+    }
+  });
+
 export const crownTuningSchema = z.strictObject({
-  firstDemandTicks: positiveInteger,
-  deadlineTicks: positiveInteger,
-  gap: z
-    .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
-    .superRefine((gap, ctx) => {
-      if (gap.minTicks > gap.maxTicks) {
-        addIssue(ctx, "must not exceed maxTicks", ["minTicks"]);
-      }
-    }),
+  firstDemand: delayRange,
+  deadline: delayRange,
+  gap: delayRange,
   baseAmounts: z.record(z.enum(RESOURCES), positive),
   step: nonNegative,
   grainReserveSeasons: nonNegative,
@@ -258,7 +260,8 @@ export class CrownManager {
   }
 
   scheduleFirstDemand(): void {
-    this.crown.nextDemandTick = this.tick + this.tuning.firstDemandTicks;
+    this.crown.nextDemandTick =
+      this.tick + drawDelay(this.stream, this.tuning.firstDemand);
   }
 
   private get resources() {
@@ -301,7 +304,7 @@ export class CrownManager {
       amount: Math.round(base * (1 + step * crown.met) + crown.surcharge),
       delivered: 0,
       issuedAt: this.tick,
-      dueAt: this.tick + tuning.deadlineTicks,
+      dueAt: this.tick + drawDelay(this.stream, tuning.deadline),
     };
     crown.surcharge = 0;
     crown.lastResource = resource;

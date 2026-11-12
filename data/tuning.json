@@ -9,6 +9,7 @@
     "woodPerWorker": 0.02,
     "orePerWorker": 0.01,
     "grainPerPerson": 0.01,
+    "idleGrainFactor": 0.4,
     "grainPrice": 0.5,
     "woodPrice": 0.5,
     "orePrice": 1,
