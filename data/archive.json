@@ -46,9 +46,9 @@
       "requires": [],
       "shown": {
         "kind": "compare",
-        "quantity": "coin",
+        "quantity": "population",
         "comparison": "above",
-        "value": 50
+        "value": 5
       }
     },
     {
@@ -61,9 +61,9 @@
       "requires": ["control.palette"],
       "shown": {
         "kind": "compare",
-        "quantity": "coin",
+        "quantity": "population",
         "comparison": "above",
-        "value": 125
+        "value": 8
       }
     },
     {
@@ -76,9 +76,9 @@
       "requires": [],
       "shown": {
         "kind": "compare",
-        "quantity": "coin",
+        "quantity": "population",
         "comparison": "above",
-        "value": 200
+        "value": 10
       }
     },
     {
@@ -91,9 +91,9 @@
       "requires": [],
       "shown": {
         "kind": "compare",
-        "quantity": "coin",
+        "quantity": "population",
         "comparison": "above",
-        "value": 400
+        "value": 14
       }
     },
     {
@@ -104,12 +104,7 @@
         "coin": 300
       },
       "requires": [],
-      "shown": {
-        "kind": "compare",
-        "quantity": "coin",
-        "comparison": "above",
-        "value": 150
-      }
+      "shown": "promotion"
     },
     {
       "id": "precision.exact",
@@ -119,12 +114,7 @@
         "coin": 350
       },
       "requires": [],
-      "shown": {
-        "kind": "compare",
-        "quantity": "coin",
-        "comparison": "above",
-        "value": 175
-      }
+      "shown": "promotion"
     },
     {
       "id": "precision.reports",
@@ -134,12 +124,7 @@
         "coin": 600
       },
       "requires": [],
-      "shown": {
-        "kind": "compare",
-        "quantity": "coin",
-        "comparison": "above",
-        "value": 300
-      }
+      "shown": "governor"
     },
     {
       "id": "control.conjuring",
@@ -180,9 +165,9 @@
       "requires": [],
       "shown": {
         "kind": "compare",
-        "quantity": "grain",
+        "quantity": "population",
         "comparison": "above",
-        "value": 250
+        "value": 13
       },
       "effects": {
         "grainCap": 400
@@ -198,9 +183,9 @@
       "requires": [],
       "shown": {
         "kind": "compare",
-        "quantity": "wood",
+        "quantity": "population",
         "comparison": "above",
-        "value": 150
+        "value": 12
       },
       "effects": {
         "woodCap": 300
@@ -217,9 +202,9 @@
       "requires": [],
       "shown": {
         "kind": "compare",
-        "quantity": "ore",
+        "quantity": "population",
         "comparison": "above",
-        "value": 25
+        "value": 15
       },
       "effects": {
         "oreCap": 150
@@ -236,9 +221,9 @@
       "requires": [],
       "shown": {
         "kind": "compare",
-        "quantity": "grain",
+        "quantity": "population",
         "comparison": "above",
-        "value": 150
+        "value": 6
       },
       "effects": {
         "farmYield": 1.25
@@ -255,9 +240,9 @@
       "requires": [],
       "shown": {
         "kind": "compare",
-        "quantity": "wood",
+        "quantity": "population",
         "comparison": "above",
-        "value": 40
+        "value": 7
       },
       "effects": {
         "forestYield": 1.25
@@ -274,9 +259,9 @@
       "requires": [],
       "shown": {
         "kind": "compare",
-        "quantity": "ore",
+        "quantity": "population",
         "comparison": "above",
-        "value": 20
+        "value": 9
       },
       "effects": {
         "mineYield": 1.25
@@ -293,9 +278,9 @@
       "requires": [],
       "shown": {
         "kind": "compare",
-        "quantity": "wood",
+        "quantity": "population",
         "comparison": "above",
-        "value": 100
+        "value": 11
       },
       "effects": {
         "sellPrice": 1.25
@@ -562,7 +547,7 @@
         "kind": "compare",
         "quantity": "grain",
         "comparison": "above",
-        "value": 70
+        "value": 66
       }
     }
   ]

@@ -196,6 +196,43 @@ describe("stockpile caps", () => {
     return game.state.posting.resources.wood ?? 0;
   }
 
+  test("every cost fits within the stores the village can build without that entry", () => {
+    const { entries } = tuning.archive;
+    const prerequisitesOf = (id: string): Set<string> => {
+      const found = new Set<string>();
+      const pending = [...archiveEntry(id).requires];
+      for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+        if (found.has(next)) continue;
+        found.add(next);
+        pending.push(...archiveEntry(next).requires);
+      }
+      return found;
+    };
+    const stores = entries.filter(
+      ({ effects }) =>
+        effects?.grainCap !== undefined ||
+        effects?.woodCap !== undefined ||
+        effects?.oreCap !== undefined,
+    );
+
+    const unaffordable = entries.flatMap(({ id, cost }) => {
+      const game = villageOwning(
+        ...stores
+          .filter(
+            (store) => store.id !== id && !prerequisitesOf(store.id).has(id),
+          )
+          .map((store) => store.id),
+      );
+      return (["grain", "wood", "ore"] as const)
+        .filter(
+          (resource) => (cost[resource] ?? 0) > game.economy.capOf(resource),
+        )
+        .map((resource) => `${id} costs more ${resource} than the stores hold`);
+    });
+
+    expect(unaffordable).toEqual([]);
+  });
+
   test("production stops at the cap and the excess is lost", () => {
     const game = Game.create(1, tuning);
 
@@ -256,7 +293,7 @@ describe("tiers appear progressively", () => {
 
   test("a stock-gated upgrade appears once its stock passes the threshold and not before", () => {
     const threshold = (
-      archiveEntry("store.granary1").shown as { value: number }
+      archiveEntry("store.granary2").shown as { value: number }
     ).value;
     const game = Game.create(1, tuning);
 
@@ -265,8 +302,8 @@ describe("tiers appear progressively", () => {
     game.state.posting.resources.grain = threshold + 1;
     const above = seenAfter(game);
 
-    expect(atThreshold).not.toContain("store.granary1");
-    expect(above).toContain("store.granary1");
+    expect(atThreshold).not.toContain("store.granary2");
+    expect(above).toContain("store.granary2");
   });
 
   test("a second tier is not offered until the first is owned and the charter is bought", () => {
