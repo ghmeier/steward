@@ -103,21 +103,20 @@ describe("crown demands", () => {
     );
   });
 
-  test("every demand's deadline falls within the deadline range", () => {
+  test("every demand's deadline falls within the deadline range, and deadlines vary between demands", () => {
     const game = promotedGame();
-    const spans: number[] = [];
+    const spans = new Set<number>();
 
     for (let i = 0; i < 12; i++) {
       const { issuedAt, dueAt } = openDemand(game);
-      spans.push(dueAt - issuedAt);
+      const span = dueAt - issuedAt;
+      expect(span).toBeGreaterThanOrEqual(crownTuning.deadline.minTicks);
+      expect(span).toBeLessThanOrEqual(crownTuning.deadline.maxTicks);
+      spans.add(span);
       stepUntilClosed(game);
     }
 
-    for (const span of spans) {
-      expect(span).toBeGreaterThanOrEqual(crownTuning.deadline.minTicks);
-      expect(span).toBeLessThanOrEqual(crownTuning.deadline.maxTicks);
-    }
-    expect(new Set(spans).size).toBeGreaterThan(1);
+    expect(spans.size).toBeGreaterThan(1);
   });
 
   test("the same resource is never demanded twice in a row", () => {

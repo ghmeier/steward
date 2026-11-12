@@ -10,8 +10,8 @@ import {
   count,
   nonNegative,
   positive,
-  positiveInteger,
   textWithPlaceholders,
+  tickRange,
 } from "./schema";
 import type { ResourceId } from "./state";
 import { CONJURING, CROWN_PANEL } from "./unlocks";
@@ -122,18 +122,10 @@ const favor = z
     }
   });
 
-const delayRange = z
-  .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
-  .superRefine((range, ctx) => {
-    if (range.minTicks > range.maxTicks) {
-      addIssue(ctx, "must not exceed maxTicks", ["minTicks"]);
-    }
-  });
-
 export const crownTuningSchema = z.strictObject({
-  firstDemand: delayRange,
-  deadline: delayRange,
-  gap: delayRange,
+  firstDemand: tickRange,
+  deadline: tickRange,
+  gap: tickRange,
   baseAmounts: z.record(z.enum(RESOURCES), positive),
   step: nonNegative,
   grainReserveSeasons: nonNegative,

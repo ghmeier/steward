@@ -12,8 +12,8 @@ import {
   SAVED_DECREES_UNLOCK,
   TRUE_REPORTS,
 } from "../core/unlocks";
-import { describePolicy, percent, plain } from "./decree-format";
-import { capitalize } from "./format";
+import { describePolicy, percent } from "./decree-format";
+import { capitalize, plain } from "./format";
 import { type KeyPress, peasantKeyFor, plainKeyName } from "./keys";
 import type { MenuContext, MenuRender } from "./menu";
 import { keymap, type PanelSize } from "./village-panels";

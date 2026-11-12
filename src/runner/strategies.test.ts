@@ -13,7 +13,9 @@ import {
 } from "./strategy";
 
 const STEPS = "24000";
-const LONG_STEPS = "48000";
+// Crown demands are spaced far enough apart that a conjurer only falls below the cold
+// threshold after about twenty game years of them.
+const TWENTY_YEARS_STEPS = "48000";
 
 type Summary = {
   hash: string;
@@ -130,8 +132,6 @@ describe("scripted strategies over ten game years", () => {
 describe("repaying illusion", () => {
   const SEEDS = [1, 7, 42];
 
-  // Demands come about half as often since the crown's pacing was relaxed, so a conjurer needs
-  // twice the span to fall below the cold threshold as it did over ten years.
   function playSeed(name: string, seed: number, steps = STEPS): Summary {
     return run([
       "--seed",
@@ -145,8 +145,10 @@ describe("repaying illusion", () => {
     ]);
   }
 
+  // Crown-aware meets every demand at the current spacing, so borrowing has nothing to win and the
+  // two strategies tie; the test only holds that borrowing and repaying costs no favor or demands.
   test.each(SEEDS)(
-    "seed %i: a borrower that forges to bridge grain demands and then backs its debt ends with no less favor than crown-aware and no fewer demands met",
+    "seed %i: a borrower that forges to bridge grain demands and then backs its debt ends with at least as much favor and as many demands met as crown-aware, and fails no audits",
     (seed) => {
       const borrower = playSeed("borrower", seed);
       const careful = playSeed("crown-aware", seed);
@@ -160,9 +162,9 @@ describe("repaying illusion", () => {
   test.each(SEEDS)(
     "seed %i: a conjurer that never repays ends cold with the most audits failed",
     (seed) => {
-      const conjurer = playSeed("conjurer", seed, LONG_STEPS);
-      const borrower = playSeed("borrower", seed, LONG_STEPS);
-      const careful = playSeed("crown-aware", seed, LONG_STEPS);
+      const conjurer = playSeed("conjurer", seed, TWENTY_YEARS_STEPS);
+      const borrower = playSeed("borrower", seed, TWENTY_YEARS_STEPS);
+      const careful = playSeed("crown-aware", seed, TWENTY_YEARS_STEPS);
 
       expect(conjurer.crown.favor).toBeLessThan(tuning.crown.favor.coldBelow);
       expect(conjurer.illusion.audits.failed).toBeGreaterThan(

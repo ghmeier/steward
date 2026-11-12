@@ -3,6 +3,7 @@ import type { Condition, Decree, DecreeRule, Petition } from "../core/decree";
 import { LaborSplit } from "../core/labor-split";
 import { WORKING_JOBS } from "../core/realm";
 import type { Tuning } from "../core/tuning";
+import { plain } from "./format";
 
 export function words(identifier: string): string {
   return identifier.replace(/[A-Z]/g, (letter) => ` ${letter.toLowerCase()}`);
@@ -43,10 +44,6 @@ export function formatDecree(decree: Decree): string {
   const clauses = decree.rules.map(formatRule);
   clauses.push(`otherwise ${formatPolicy(decree.otherwise)}`);
   return `${decree.id} (${decree.petition}): ${clauses.join("; ")}`;
-}
-
-export function plain(value: number): string {
-  return String(Number(value.toPrecision(3)));
 }
 
 export function percent(share: number): string {

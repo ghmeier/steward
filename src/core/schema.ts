@@ -14,6 +14,14 @@ export const positive = z.number().gt(0).transform(normalizeZero);
 export const positiveInteger = z.int().min(1);
 export const name = z.string().min(1);
 
+export const tickRange = z
+  .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
+  .superRefine((range, ctx) => {
+    if (range.minTicks > range.maxTicks) {
+      addIssue(ctx, "must not exceed maxTicks", ["minTicks"]);
+    }
+  });
+
 export function textWithPlaceholders(allowed: readonly string[]) {
   return name.superRefine((text, ctx) => {
     for (const match of text.matchAll(/\{([^{}]*)\}/g)) {

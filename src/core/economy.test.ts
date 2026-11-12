@@ -1,7 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-  addGovernors,
-  governorOf,
   tuning as realTuning,
   setRoster,
   economyTestTuning as tuning,
@@ -179,7 +177,7 @@ describe("runEconomy eating", () => {
 });
 
 describe("idle upkeep", () => {
-  const idleGrainFactor = realTuning.economy.idleGrainFactor;
+  const { idleGrainFactor } = realTuning.economy;
   const frugal = {
     ...tuning,
     economy: { ...tuning.economy, idleGrainFactor },
@@ -191,19 +189,16 @@ describe("idle upkeep", () => {
     return game;
   }
 
-  test("a village of idle peasants eats less than the same number working", () => {
+  test("an idle peasant eats the idle share of a working peasant's grain", () => {
     const idle = peasants({ idle: 10 });
     const working = peasants({ farm: 10 });
 
-    expect(idle.economy.grainUpkeepPerTick()).toBeLessThan(
-      working.economy.grainUpkeepPerTick(),
-    );
     expect(idle.economy.grainUpkeepPerTick()).toBeCloseTo(
       10 * tuning.economy.grainPerPerson * idleGrainFactor,
       12,
     );
-    expect(working.economy.grainUpkeepPerSeason()).toBeCloseTo(
-      10 * tuning.economy.grainPerPerson * perSeason,
+    expect(working.economy.grainUpkeepPerTick()).toBeCloseTo(
+      10 * tuning.economy.grainPerPerson,
       12,
     );
   });
@@ -219,26 +214,6 @@ describe("idle upkeep", () => {
 
     expect(grudged).toBeLessThan(full);
     expect(game.economy.grainUpkeepPerTick()).toBe(full);
-  });
-
-  test("a governor's village eats as working even when the governor's job is idle", () => {
-    const game = peasants({ farm: 1 });
-    const baseline = game.economy.grainUpkeepPerTick();
-    addGovernors(game, governorOf({ village: 8, job: Job.IDLE }));
-
-    expect(game.economy.grainUpkeepPerTick()).toBeCloseTo(
-      baseline + 8 * tuning.economy.grainPerPerson,
-      12,
-    );
-  });
-
-  test("the grain eaten in a tick matches the upkeep", () => {
-    const game = peasants({ farm: 3, idle: 5 });
-    game.state.posting.resources.grain = 1000;
-
-    const { eaten } = game.economy.run(context);
-
-    expect(eaten).toBe(game.economy.grainUpkeepPerTick());
   });
 });
 

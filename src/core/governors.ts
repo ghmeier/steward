@@ -13,7 +13,14 @@ import {
   WORKING_JOBS,
 } from "./realm";
 import { chance, drawDelay, intBelow, type RngState } from "./rng";
-import { count, positive, positiveInteger, traitList } from "./schema";
+import {
+  count,
+  name,
+  positive,
+  positiveInteger,
+  tickRange,
+  traitList,
+} from "./schema";
 import { TRUE_REPORTS } from "./unlocks";
 
 export type DepartureReason = "retired" | "died" | "dismissed";
@@ -37,7 +44,7 @@ export const formerGovernorSchema: z.ZodType<FormerGovernor> = z.strictObject({
   leftAt: count,
   reason: z.enum(["retired", "died", "dismissed"]),
   handedOver: z.number().min(0),
-  cause: z.string().min(1).optional(),
+  cause: name.optional(),
 });
 
 /** What a candidate on the desk offers, drawn when they arrive so the player sees it before choosing. */
@@ -57,20 +64,12 @@ const countRange = z
     if (range.min > range.max) addIssue(ctx, "must not exceed max", ["min"]);
   });
 
-const tickRange = z
-  .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
-  .superRefine((range, ctx) => {
-    if (range.minTicks > range.maxTicks) {
-      addIssue(ctx, "must not exceed maxTicks", ["minTicks"]);
-    }
-  });
-
 export const governorTuningSchema = z.strictObject({
   cap: positiveInteger,
   village: countRange,
   term: tickRange,
   deathPerMille: z.int().min(0).max(1000),
-  causes: z.array(z.string().min(1)).min(1),
+  causes: z.array(name).min(1),
   price: countRange,
   empireBuilderLimit: positiveInteger,
   traits: z.record(
@@ -152,11 +151,6 @@ export class GovernorManager {
 
   get hasRoom(): boolean {
     return this.roster.length < this.tuning.cap;
-  }
-
-  /** The chance, in thousandths, that a governor dies at a season's end; the one place later modifiers apply. */
-  get deathPerMille(): number {
-    return this.tuning.deathPerMille;
   }
 
   /** Candidates arrive only after promotion, and only while hiring them all would stay within the cap. */
@@ -362,7 +356,7 @@ export class GovernorManager {
       this.keepBack(governor, tick);
       if (tick >= governor.termEndsAt) {
         this.depart(governor, "retired", context);
-      } else if (seasonEnds && chance(this.stream, this.deathPerMille)) {
+      } else if (seasonEnds && chance(this.stream, this.tuning.deathPerMille)) {
         this.depart(governor, "died", context, this.pick(this.tuning.causes));
       } else if (
         seasonEnds &&

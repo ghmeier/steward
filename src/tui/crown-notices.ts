@@ -1,6 +1,6 @@
 import { copy } from "../core/copy";
 import type { Resource } from "../core/realm";
-import { plain } from "./decree-format";
+import { plain } from "./format";
 import type { Notice } from "./notices";
 
 /**

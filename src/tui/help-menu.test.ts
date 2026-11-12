@@ -15,8 +15,8 @@ import {
   SAVED_DECREES_UNLOCK,
   TRUE_REPORTS,
 } from "../core/unlocks";
-import { describePolicy, plain } from "./decree-format";
-import { capitalize } from "./format";
+import { describePolicy } from "./decree-format";
+import { capitalize, plain } from "./format";
 import type { HelpTopicId } from "./help-menu";
 import { peasantKeyFor } from "./keys";
 import { keymap } from "./village-panels";

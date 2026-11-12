@@ -310,12 +310,6 @@ describe("terms", () => {
     expect(retiring.state.posting.formerStaff[0]?.cause).toBeUndefined();
   });
 
-  test("the death chance getter reads the tuning", () => {
-    const game = posted(3);
-
-    expect(game.governors.deathPerMille).toBe(tuning.governors.deathPerMille);
-  });
-
   test("a governor retires when their term ends and is recorded as former staff", () => {
     const game = posted(
       3,

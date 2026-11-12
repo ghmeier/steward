@@ -265,7 +265,7 @@ export const copy = {
     governorHonest: ({ real, resource }: { real: string; resource: string }) =>
       `brings in ${real} ${resource}/s, claims only what they bring in`,
     governorSeasonsLeft: ({ seasons }: { seasons: number }) =>
-      `${seasons} ${seasons === 1 ? "season" : "seasons"} left`,
+      `${seasons} ${plural(seasons, "season", "seasons")} left`,
     archiveTitle: "The Archive",
     archiveOwned: "owned",
     archiveCost: ({ cost }: { cost: string }) => `${cost} coin`,

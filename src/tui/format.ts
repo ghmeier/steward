@@ -8,6 +8,11 @@ export function formatRate(perSecond: number): string {
   return `${perSecond > 0 ? "+" : "-"}${body}/s`;
 }
 
+/** Three significant digits, so a small figure such as 0.04 is not rounded away to 0.0. */
+export function plain(value: number): string {
+  return String(Number(value.toPrecision(3)));
+}
+
 export function formatGameTime(seconds: number): string {
   const total = Math.floor(seconds);
   const days = Math.floor(total / 86400);
