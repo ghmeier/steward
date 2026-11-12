@@ -1,11 +1,20 @@
+import { z } from "zod";
 import type { CommandResult } from "./commands";
 import { copy } from "./copy";
+import { addIssue } from "./errors";
 import type { Game } from "./game";
 import { type AddContext, add } from "./math";
 import { RESOURCES, type Resource } from "./realm";
 import { drawDelay, intBelow, type RngState } from "./rng";
+import {
+  count,
+  nonNegative,
+  positive,
+  positiveInteger,
+  textWithPlaceholders,
+} from "./schema";
 import type { ResourceId } from "./state";
-import { CONJURING } from "./unlocks";
+import { CONJURING, CROWN_PANEL } from "./unlocks";
 
 export type Demand = {
   id: number;
@@ -28,6 +37,25 @@ export type CrownState = {
   /** How the crown regards the steward, from -limit to limit; it never decays. */
   favor: number;
 };
+
+const demand = z.strictObject({
+  id: count,
+  resource: z.string(),
+  amount: z.number().min(0),
+  delivered: z.number().min(0),
+  issuedAt: count,
+  dueAt: count,
+});
+
+export const crownStateSchema: z.ZodType<CrownState> = z.strictObject({
+  demand,
+  nextDemandTick: count,
+  met: count,
+  missed: count,
+  surcharge: z.number().min(0),
+  lastResource: z.string(),
+  favor: z.number().min(-100).max(100),
+});
 
 export type FavorBand = "cold" | "neutral" | "warm";
 
@@ -58,6 +86,80 @@ export function emptyCrownState(): CrownState {
     favor: 0,
   };
 }
+
+const amountText = textWithPlaceholders(["amount"]);
+
+const crownLines = z.strictObject({
+  herald: amountText,
+  met: amountText,
+  missed: amountText,
+});
+
+const favor = z
+  .strictObject({
+    limit: positive,
+    coldBelow: z.number(),
+    warmAbove: z.number(),
+    met: nonNegative,
+    early: nonNegative,
+    missed: z.number().max(0),
+    backed: nonNegative,
+    deepened: z.number().max(0),
+    failed: z.number().max(0),
+    cold: z.strictObject({
+      debtShareFactor: positive,
+      warningFactor: positive,
+      stepFactor: positive,
+    }),
+    warm: z.strictObject({
+      ceilingFactor: positive,
+      rewardFactor: positive,
+    }),
+  })
+  .superRefine((value, ctx) => {
+    if (value.coldBelow >= value.warmAbove) {
+      addIssue(ctx, "must be below warmAbove", ["coldBelow"]);
+    }
+  });
+
+export const crownTuningSchema = z.strictObject({
+  firstDemandTicks: positiveInteger,
+  deadlineTicks: positiveInteger,
+  gap: z
+    .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
+    .superRefine((gap, ctx) => {
+      if (gap.minTicks > gap.maxTicks) {
+        addIssue(ctx, "must not exceed maxTicks", ["minTicks"]);
+      }
+    }),
+  baseAmounts: z.record(z.enum(RESOURCES), positive),
+  step: nonNegative,
+  grainReserveSeasons: nonNegative,
+  surcharge: nonNegative,
+  reward: nonNegative,
+  favor,
+  lines: z.record(z.enum(RESOURCES), crownLines),
+});
+
+export type CrownTuning = z.infer<typeof crownTuningSchema>;
+
+export type CrownDemandView = {
+  resource: ResourceId;
+  amount: number;
+  delivered: number;
+  ticksLeft: number;
+  herald: string;
+};
+/** What the Crown panel shows; null before promotion, when the crown has made no demands. */
+export type CrownView = {
+  /** The crown's mood toward the steward; the score behind it is never shown. */
+  favor: FavorBand;
+  demand: CrownDemandView | null;
+  /** Ticks until the next demand while none is open; null while one is open. */
+  nextDemandTicks: number | null;
+  met: number;
+  missed: number;
+};
 
 export class CrownManager {
   constructor(private game: Game) {}
@@ -116,6 +218,28 @@ export class CrownManager {
 
   get isOpen(): boolean {
     return this.crown.demand.id !== NO_DEMAND.id;
+  }
+
+  view(): CrownView | null {
+    if (!this.game.unlocks.enabled(CROWN_PANEL)) return null;
+    const { demand, nextDemandTick, met, missed } = this.crown;
+    return {
+      demand: this.isOpen
+        ? {
+            resource: demand.resource,
+            amount: demand.amount,
+            delivered: demand.delivered,
+            ticksLeft: demand.dueAt - this.tick,
+            herald: this.tuning.lines[
+              demand.resource as Resource
+            ].herald.replaceAll("{amount}", String(demand.amount)),
+          }
+        : null,
+      nextDemandTicks: this.isOpen ? null : nextDemandTick - this.tick,
+      met,
+      missed,
+      favor: this.band,
+    };
   }
 
   /** What is still owed on the open demand; zero when none is open. */

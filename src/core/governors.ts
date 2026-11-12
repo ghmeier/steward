@@ -1,5 +1,7 @@
+import { z } from "zod";
 import type { Governor } from "./delegates";
 import type { Candidate } from "./desk";
+import { addIssue } from "./errors";
 import type { Game } from "./game";
 import { type AddContext, add } from "./math";
 import {
@@ -11,7 +13,8 @@ import {
   WORKING_JOBS,
 } from "./realm";
 import { chance, drawDelay, intBelow, type RngState } from "./rng";
-import type { GovernorTuning } from "./tuning";
+import { count, positive, positiveInteger, traitList } from "./schema";
+import { TRUE_REPORTS } from "./unlocks";
 
 export type DepartureReason = "retired" | "died" | "dismissed";
 
@@ -25,6 +28,15 @@ export type FormerGovernor = {
   handedOver: number;
 };
 
+export const formerGovernorSchema: z.ZodType<FormerGovernor> = z.strictObject({
+  name: z.string().min(1),
+  traits: traitList,
+  hiredAt: count,
+  leftAt: count,
+  reason: z.enum(["retired", "died", "dismissed"]),
+  handedOver: z.number().min(0),
+});
+
 /** What a candidate on the desk offers, drawn when they arrive so the player sees it before choosing. */
 export type CandidateDetails = {
   name: string;
@@ -35,6 +47,35 @@ export type CandidateDetails = {
   /** Ticks the governor serves once hired. */
   term: number;
 };
+
+const countRange = z
+  .strictObject({ min: positiveInteger, max: positiveInteger })
+  .superRefine((range, ctx) => {
+    if (range.min > range.max) addIssue(ctx, "must not exceed max", ["min"]);
+  });
+
+const tickRange = z
+  .strictObject({ minTicks: positiveInteger, maxTicks: positiveInteger })
+  .superRefine((range, ctx) => {
+    if (range.minTicks > range.maxTicks) {
+      addIssue(ctx, "must not exceed maxTicks", ["minTicks"]);
+    }
+  });
+
+export const governorTuningSchema = z.strictObject({
+  cap: positiveInteger,
+  village: countRange,
+  term: tickRange,
+  deathPerMille: z.int().min(0).max(1000),
+  price: countRange,
+  empireBuilderLimit: positiveInteger,
+  traits: z.record(
+    z.enum(TRAITS),
+    z.strictObject({ output: positive, report: positive }),
+  ),
+});
+
+export type GovernorTuning = z.infer<typeof governorTuningSchema>;
 
 /** The traits one governor holds; each factor is the product over those traits, so no caller recomputes it. */
 class TraitSet {
@@ -62,6 +103,25 @@ class TraitSet {
     return this.traits.includes(trait);
   }
 }
+
+export type GovernorView = {
+  id: number;
+  name: string;
+  job: Job;
+  village: number;
+  traits: Trait[];
+  /** What the governor claims to bring in each second of their job's resource; real output scaled by their report factor. */
+  reportedPerSecond: number;
+  /** What the governor really brings in and how far the report overshoots it; null until true reports are bought. */
+  truth: { realPerSecond: number; gapPerSecond: number } | null;
+};
+/** A governor who has left, oldest first, so a change in the list's length is a new departure. */
+export type FormerGovernorView = {
+  name: string;
+  reason: DepartureReason;
+  /** Coin the governor kept back and handed over on leaving; 0 for one who kept none. */
+  handedOver: number;
+};
 
 export class GovernorManager {
   constructor(private game: Game) {}
@@ -130,6 +190,38 @@ export class GovernorManager {
     return yielded === null
       ? 0
       : this.reportedWorkersOf(governor) * yielded.amount;
+  }
+
+  view(): GovernorView[] {
+    const trueReports = this.game.unlocks.enabled(TRUE_REPORTS);
+    const { stepMs } = this.game.tuning;
+    const perSecond = (perTick: number) => (perTick * 1000) / stepMs;
+    // The projection runs the next tick, so output is read at that tick too.
+    const tick = this.game.state.tick + 1;
+    return this.roster.map((governor) => {
+      const reported = this.reportedOutput(governor, tick);
+      const real = this.realOutput(governor, tick);
+      return {
+        id: governor.id,
+        name: governor.name,
+        job: governor.job,
+        village: governor.village,
+        traits: [...governor.traits],
+        reportedPerSecond: perSecond(reported),
+        truth: trueReports
+          ? {
+              realPerSecond: perSecond(real),
+              gapPerSecond: perSecond(reported - real),
+            }
+          : null,
+      };
+    });
+  }
+
+  formerView(): FormerGovernorView[] {
+    return this.game.state.posting.formerStaff.map(
+      ({ name, reason, handedOver }) => ({ name, reason, handedOver }),
+    );
   }
 
   /** Reported minus real output per tick for each resource, which the ledger adds to its displayed rates. */

@@ -4,6 +4,7 @@ import { addIssue, type IssuePath, parseWith } from "./errors";
 import { LaborSplit } from "./labor-split";
 import { normalizeZero } from "./math";
 import { type Resource, SEASONS, type Season } from "./realm";
+import { positiveInteger } from "./schema";
 import type { Tuning } from "./tuning";
 
 export const PETITIONS = ["harvest", "wood", "ore", "labor"] as const;
@@ -56,6 +57,12 @@ export type DecreeLimits = {
   maxConditionNodes: number;
   maxConditionDepth: number;
 };
+
+export const decreeLimitsSchema: z.ZodType<DecreeLimits> = z.strictObject({
+  maxRules: positiveInteger,
+  maxConditionNodes: positiveInteger,
+  maxConditionDepth: positiveInteger,
+});
 
 export const DECREE_ID_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
 

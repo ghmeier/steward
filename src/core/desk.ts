@@ -1,13 +1,15 @@
+import { z } from "zod";
 import type { CommandResult } from "./commands";
 import { copy } from "./copy";
 import { sortedKeys } from "./data";
+import type { DeskOption, DeskTemplate, DeskTuning } from "./desk-tuning";
 import type { Game } from "./game";
 import type { CandidateDetails } from "./governors";
 import type { AddContext } from "./math";
 import { add } from "./math";
-import type { Resource } from "./realm";
+import { type Resource, WORKING_JOBS } from "./realm";
 import { drawDelay, intBelow, type RngState } from "./rng";
-import type { DeskOption, DeskTemplate } from "./tuning";
+import { ascendingIdIssues, count, positiveCount, traitList } from "./schema";
 
 /** A record keyed by kind is in this order, so the weighted draw walks the kinds in a fixed order. */
 export const DRAWN_KINDS = [
@@ -52,10 +54,79 @@ export type DeskState = {
   disputes: DeskEntry[];
 };
 
+const deskEntryBase = {
+  id: positiveCount,
+  template: z.string().min(1),
+  arrivedAt: count,
+};
+
+const deskEntry = z.discriminatedUnion("kind", [
+  z.strictObject({
+    ...deskEntryBase,
+    kind: z.literal("dispute"),
+    parties: z.tuple([positiveCount, positiveCount]),
+  }),
+  z.strictObject({
+    ...deskEntryBase,
+    kind: z.enum(DRAWN_KINDS).exclude(["dispute", "candidate"]),
+  }),
+  z.strictObject({
+    ...deskEntryBase,
+    kind: z.literal("candidate"),
+    name: z.string().min(1),
+    job: z.enum(WORKING_JOBS),
+    village: positiveCount,
+    traits: traitList,
+    price: count,
+    term: positiveCount,
+  }),
+  z.strictObject({ ...deskEntryBase, kind: z.literal("audit"), dueAt: count }),
+]);
+
+export const deskStateSchema: z.ZodType<DeskState> = z
+  .strictObject({
+    nextDisputeId: positiveCount,
+    nextArrivalTick: count,
+    disputes: z.array(deskEntry),
+  })
+  .superRefine((value, ctx) =>
+    ascendingIdIssues(ctx, value, "disputes", "nextDisputeId"),
+  );
+
+/** Draws the first arrival from the disputes stream, so a new game's desk starts on the same schedule as every later one. */
+export function initialDeskState(
+  arrivals: RngState,
+  tuning: DeskTuning,
+): DeskState {
+  return {
+    nextDisputeId: 1,
+    nextArrivalTick: drawDelay(arrivals, tuning.arrival),
+    disputes: [],
+  };
+}
+
 // Floored so a village holding 4.96 against a need of 5 is never described as having 5.
 function show(amount: number): string {
   return String(Math.floor(amount * 10) / 10);
 }
+
+export type DeskOptionView = {
+  id: string;
+  label: string;
+  affordable: boolean;
+  expiry: boolean;
+  /** Resource deltas, keys sorted. */
+  resources: Record<string, number>;
+  sulker: string | null;
+};
+export type DeskEntryView = {
+  id: number;
+  kind: DeskKind;
+  label: string;
+  /** Ticks until the entry expires on its own deadline; null for an entry that has none. */
+  ticksLeft: number | null;
+  options: DeskOptionView[];
+};
 
 export class DeskManager {
   // Not saved: the lines only feed the TUI's notice, which reads them after each step.
@@ -91,6 +162,34 @@ export class DeskManager {
     const stream = this.posting.rng.disputes;
     if (stream === undefined) throw new Error("the disputes stream is missing");
     return stream;
+  }
+
+  view(): DeskEntryView[] {
+    return this.posting.desk.disputes.map((entry) => {
+      const template = this.templateOf(entry);
+      return {
+        id: entry.id,
+        kind: entry.kind,
+        label: this.fill(entry, template.text),
+        ticksLeft:
+          entry.kind === "audit" ? entry.dueAt - this.state.tick : null,
+        options: template.options.map((option) => ({
+          id: option.id,
+          label: this.fill(entry, option.label),
+          affordable: this.shortfall(entry, option) === null,
+          expiry: option.id === template.expiry,
+          resources: this.sortedDeltas(entry, option),
+          sulker: this.sulker(entry, option),
+        })),
+      };
+    });
+  }
+
+  private sortedDeltas(entry: DeskEntry, option: DeskOption) {
+    const deltas = this.deltasOf(entry, option);
+    const sorted: Record<string, number> = {};
+    for (const key of sortedKeys(deltas)) sorted[key] = deltas[key] ?? 0;
+    return sorted;
   }
 
   templatesOf(kind: DeskKind): readonly DeskTemplate[] {

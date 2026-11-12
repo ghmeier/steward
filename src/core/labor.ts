@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Game } from "./game";
 
 /**
@@ -7,6 +8,15 @@ import type { Game } from "./game";
 export const NO_LABOR_POLICY = "";
 
 export type LaborState = { policy: string; settling: boolean };
+
+export const laborStateSchema: z.ZodType<LaborState> = z.strictObject({
+  policy: z.string(),
+  settling: z.boolean(),
+});
+
+export function emptyLaborState(): LaborState {
+  return { policy: NO_LABOR_POLICY, settling: false };
+}
 
 /** Tracks whether a labor decree is still moving peasants toward its split. */
 export class LaborSettling {

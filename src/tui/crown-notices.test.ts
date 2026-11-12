@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { noticeFrame, tuning, viewWith } from "../../test/helpers";
 import { copy } from "../core/copy";
-import type { CrownDemandView, GameView } from "../core/view";
+import type { CrownDemandView } from "../core/crown";
+import type { GameView } from "../core/view";
 import { crownNotice } from "./crown-notices";
 
 const { lines } = tuning.crown;

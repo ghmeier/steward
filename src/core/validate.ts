@@ -1,10 +1,16 @@
 import { z } from "zod";
+import { crownStateSchema } from "./crown";
 import { sortedKeys } from "./data";
 import { type Decree, decreeSchema, decreeSetProblem } from "./decree";
-import { DRAWN_KINDS } from "./desk";
+import { delegateSchema } from "./delegates";
+import { deskStateSchema } from "./desk";
+import { economyStateSchema } from "./economy";
 import { addIssue, formatIssue } from "./errors";
-import { NO_AUDIT_TICK } from "./illusion";
-import { JOBS, RESOURCES, TRAITS, WORKING_JOBS } from "./realm";
+import { formerGovernorSchema } from "./governors";
+import { illusionStateSchema, NO_AUDIT_TICK } from "./illusion";
+import { laborStateSchema } from "./labor";
+import { RESOURCES } from "./realm";
+import { ascendingIdIssues, count, positiveCount, uint32 } from "./schema";
 import { type GameState, type PostingState, SCHEMA_VERSION } from "./state";
 
 function isPlainObject(value: object): boolean {
@@ -60,10 +66,6 @@ function scanPlainData(value: unknown, path: string, problems: string[]): void {
   }
 }
 
-const count = z.int().min(0);
-const positiveCount = z.int().min(1);
-const uint32 = z.int().min(0).max(0xffffffff);
-
 const rngStream = z
   .tuple([uint32, uint32, uint32, uint32])
   .superRefine((words, ctx) => {
@@ -71,128 +73,6 @@ const rngStream = z
       addIssue(ctx, "must not be all zero");
     }
   });
-
-const delegateBase = {
-  id: positiveCount,
-  name: z.string().min(1),
-  job: z.enum(JOBS),
-  grudgeUntil: count,
-};
-
-const traits = z.array(z.enum(TRAITS));
-
-const delegate = z.discriminatedUnion("kind", [
-  z.strictObject({ ...delegateBase, kind: z.literal("peasant") }),
-  z.strictObject({
-    ...delegateBase,
-    kind: z.literal("governor"),
-    village: positiveCount,
-    traits,
-    hiredAt: count,
-    termEndsAt: count,
-    hoard: z.number().min(0),
-  }),
-]);
-
-const formerGovernor = z.strictObject({
-  name: z.string().min(1),
-  traits,
-  hiredAt: count,
-  leftAt: count,
-  reason: z.enum(["retired", "died", "dismissed"]),
-  handedOver: z.number().min(0),
-});
-
-const deskEntryBase = {
-  id: positiveCount,
-  template: z.string().min(1),
-  arrivedAt: count,
-};
-
-const deskEntry = z.discriminatedUnion("kind", [
-  z.strictObject({
-    ...deskEntryBase,
-    kind: z.literal("dispute"),
-    parties: z.tuple([positiveCount, positiveCount]),
-  }),
-  z.strictObject({
-    ...deskEntryBase,
-    kind: z.enum(DRAWN_KINDS).exclude(["dispute", "candidate"]),
-  }),
-  z.strictObject({
-    ...deskEntryBase,
-    kind: z.literal("candidate"),
-    name: z.string().min(1),
-    job: z.enum(WORKING_JOBS),
-    village: positiveCount,
-    traits,
-    price: count,
-    term: positiveCount,
-  }),
-  z.strictObject({ ...deskEntryBase, kind: z.literal("audit"), dueAt: count }),
-]);
-
-const demand = z.strictObject({
-  id: count,
-  resource: z.string(),
-  amount: z.number().min(0),
-  delivered: z.number().min(0),
-  issuedAt: count,
-  dueAt: count,
-});
-
-const crown = z.strictObject({
-  demand,
-  nextDemandTick: count,
-  met: count,
-  missed: count,
-  surcharge: z.number().min(0),
-  lastResource: z.string(),
-  favor: z.number().min(-100).max(100),
-});
-
-const nonNegativeNumber = z.number().min(0);
-
-const illusion = z.strictObject({
-  conjured: z.strictObject({
-    coin: nonNegativeNumber,
-    grain: nonNegativeNumber,
-  }),
-  debt: z.strictObject({
-    coin: nonNegativeNumber,
-    grain: nonNegativeNumber,
-    ore: nonNegativeNumber,
-    wood: nonNegativeNumber,
-  }),
-  debtSince: count,
-  auditAt: count,
-  audits: z.strictObject({ backed: count, deepened: count, failed: count }),
-});
-
-function ascendingIdIssues<List extends string, Next extends string>(
-  ctx: z.RefinementCtx,
-  parent: Record<List, readonly { id: number }[]> & Record<Next, number>,
-  listKey: List,
-  nextKey: Next,
-): void {
-  let previousId = 0;
-  for (const [index, { id }] of parent[listKey].entries()) {
-    const path = [listKey, index, "id"];
-    if (id <= previousId) addIssue(ctx, "ids must be strictly ascending", path);
-    if (id >= parent[nextKey]) addIssue(ctx, `must be below ${nextKey}`, path);
-    previousId = id;
-  }
-}
-
-const desk = z
-  .strictObject({
-    nextDisputeId: positiveCount,
-    nextArrivalTick: count,
-    disputes: z.array(deskEntry),
-  })
-  .superRefine((value, ctx) =>
-    ascendingIdIssues(ctx, value, "disputes", "nextDisputeId"),
-  );
 
 // Validation has no tuning, so the size caps are enforced when a decree is enacted, not here.
 const UNBOUNDED_DECREE = {
@@ -329,23 +209,15 @@ const posting: z.ZodType<PostingState> = z
     seed: uint32,
     rng: z.record(z.string(), rngStream),
     resources,
-    economy: z.strictObject({
-      famine: z.strictObject({
-        startPopulation: count,
-        ticks: count,
-        deaths: count,
-      }),
-      growth: z.number().min(0),
-      starved: count,
-    }),
-    delegates: z.array(delegate),
+    economy: economyStateSchema,
+    delegates: z.array(delegateSchema),
     nextDelegateId: positiveCount,
-    formerStaff: z.array(formerGovernor),
+    formerStaff: z.array(formerGovernorSchema),
     decrees: decreeRecord(true),
-    labor: z.strictObject({ policy: z.string(), settling: z.boolean() }),
-    desk,
-    crown,
-    illusion,
+    labor: laborStateSchema,
+    desk: deskStateSchema,
+    crown: crownStateSchema,
+    illusion: illusionStateSchema,
   })
   .superRefine(rosterIssues);
 

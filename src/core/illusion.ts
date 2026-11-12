@@ -1,9 +1,12 @@
+import { z } from "zod";
 import { formatAmount, withThousandsSeparators } from "./amount";
 import type { CommandResult } from "./commands";
 import { copy } from "./copy";
+import { addIssue } from "./errors";
 import type { Game } from "./game";
-import { type AddContext, add } from "./math";
+import { type AddContext, add, normalizeZero } from "./math";
 import { RESOURCES, type Resource } from "./realm";
+import { count, nonNegative, positive, positiveInteger } from "./schema";
 import type { ResourceId } from "./state";
 import { CONJURING, EXACT_DEBT } from "./unlocks";
 
@@ -63,6 +66,24 @@ export type IllusionState = {
   audits: { backed: number; deepened: number; failed: number };
 };
 
+const nonNegativeNumber = z.number().min(0);
+
+export const illusionStateSchema: z.ZodType<IllusionState> = z.strictObject({
+  conjured: z.strictObject({
+    coin: nonNegativeNumber,
+    grain: nonNegativeNumber,
+  }),
+  debt: z.strictObject({
+    coin: nonNegativeNumber,
+    grain: nonNegativeNumber,
+    ore: nonNegativeNumber,
+    wood: nonNegativeNumber,
+  }),
+  debtSince: count,
+  auditAt: count,
+  audits: z.strictObject({ backed: count, deepened: count, failed: count }),
+});
+
 /**
  * Stands for "no debt is owed". State validation and `canonicalStringify` reject null, so the
  * absence of debt is stored as a tick no debt can have rise at; ticks start at 1.
@@ -82,6 +103,45 @@ export function emptyIllusionState(): IllusionState {
   };
 }
 
+export const illusionTuningSchema = z
+  .strictObject({
+    lot: positive,
+    ceilingPerPeasant: positive,
+    fadePerTick: z.number().min(0).max(1).transform(normalizeZero),
+    interestPerTick: nonNegative,
+    audit: z.strictObject({
+      debtShare: positive,
+      ageTicks: positiveInteger,
+      warningTicks: positiveInteger,
+      deadlineTicks: positiveInteger,
+      deepenCost: nonNegative,
+      deepenGrowth: z.number().min(1),
+    }),
+    books: z.strictObject({ strained: positive, rotten: positive }),
+  })
+  .superRefine((value, ctx) => {
+    if (value.books.strained >= value.books.rotten) {
+      addIssue(ctx, "must be below rotten", ["books", "strained"]);
+    }
+  });
+
+export type IllusionTuning = z.infer<typeof illusionTuningSchema>;
+
+/** What the steward sees of the illusion; null until conjuring is unlocked. */
+export type IllusionView = {
+  books: Books;
+  /** Coin value of illusion that can still be added before the ceiling. */
+  room: number;
+  /** Debt per resource, rounded up to the nearest ten unless exact books are owned. */
+  debt: Record<ResourceId, DebtLine>;
+  /** Debt is shown to the decimal rather than rounded. */
+  debtIsExact: boolean;
+  /** Announced auditors have not yet reached the desk. */
+  auditOnTheRoad: boolean;
+  /** Ticks until announced auditors arrive; null when none are on the road or exact books are not owned. */
+  auditInTicks: number | null;
+};
+
 export class IllusionManager {
   constructor(private game: Game) {}
 
@@ -99,6 +159,19 @@ export class IllusionManager {
 
   private get isUnlocked(): boolean {
     return this.game.unlocks.enabled(CONJURING);
+  }
+
+  view(): IllusionView | null {
+    if (!this.isUnlocked) return null;
+    const { books, room, auditInTicks, showsExactDebt } = this;
+    return {
+      books,
+      room,
+      debt: this.debtLines(),
+      debtIsExact: showsExactDebt,
+      auditOnTheRoad: auditInTicks !== null,
+      auditInTicks: showsExactDebt ? auditInTicks : null,
+    };
   }
 
   conjuredOf(resource: ResourceId): number {

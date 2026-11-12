@@ -5,18 +5,31 @@ import { parseTuning, type Tuning } from "../core/tuning";
 
 export const DEFAULT_DATA_DIR = resolve(import.meta.dir, "..", "..", "data");
 
-export function loadTuning(dataDir: string = DEFAULT_DATA_DIR): Tuning {
+/** The data file behind each tuning section; the sections not listed here sit at the top level of `tuning.json`. */
+export const TUNING_SECTION_FILES = {
+  village: "village.json",
+  desk: "desk.json",
+  archive: "archive.json",
+  crown: "crown.json",
+  illusion: "illusion.json",
+  governors: "governors.json",
+} as const;
+
+/** The merged, unparsed contents of every tuning data file. */
+export function readTuningJson(dataDir: string = DEFAULT_DATA_DIR): object {
   const read = (file: string): unknown =>
     JSON.parse(readFileSync(join(dataDir, file), "utf8"));
-  return parseTuning({
-    ...(read("tuning.json") as object),
-    village: read("village.json"),
-    desk: read("desk.json"),
-    archive: read("archive.json"),
-    crown: read("crown.json"),
-    illusion: read("illusion.json"),
-    governors: read("governors.json"),
-  });
+  const sections = Object.fromEntries(
+    Object.entries(TUNING_SECTION_FILES).map(([section, file]) => [
+      section,
+      read(file),
+    ]),
+  );
+  return { ...(read("tuning.json") as object), ...sections };
+}
+
+export function loadTuning(dataDir: string = DEFAULT_DATA_DIR): Tuning {
+  return parseTuning(readTuningJson(dataDir));
 }
 
 function listFiles(root: string, relativeDir: string, out: string[]): void {
