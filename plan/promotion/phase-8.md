@@ -5,7 +5,7 @@ tags: [phase-8]
 created: 2026-11-11
 updated: 2026-11-12
 last_pr: 24
-next_step: Garret reviews #21 (with governors), #23 labor shares and #24 debt and precision; #25 governors-tui (stacked on #24); Garret playtests governors
+next_step: merge #25 governors-tui; Garret playtests governors
 ---
 # Phase 8: governors, crown favor and Archive precision
 
@@ -174,3 +174,4 @@ Carried from phases 6 and 7:
 - 2026-11-11: 3a debt-and-precision open as #24 against `crown-favor` at 0d2db8e, 1080 pass; a follow-up restores thousands separators on exact debt. 3c governors-tui dispatched from `debt-and-precision`.
 - 2026-11-11: 3c governors-tui built at 9e313a0; refactor pass done; #25 open against `debt-and-precision` at f6b6b50, 1105 pass. Panel reads cleanly at 160x45 with 4 governors and 12 peasants; at 80x24 governor rows wrap to 2 or 3 lines and only about one governor shows at once. No manual TUI run yet.
 - 2026-11-11: Garret: 80x24 crowding is not a concern; small terminals are out of scope. Garret will playtest governors himself, so the manual run is his.
+- 2026-11-11: #21, #23 and #24 merged to main. Merged main into `governors-tui` at c4b6654 (import-only conflicts in `src/tui/village-panels.ts` and `src/tui/panels.test.ts`; dropped the now-unused `rowWindow` import); 1143 pass. #25 now targets main.
