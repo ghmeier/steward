@@ -447,11 +447,14 @@ describe("lineKey", () => {
     },
   );
 
-  test("escape closes the line without a command", () => {
-    expect(lineKey(openLine("decree "), key("escape"), fresh)).toEqual({
-      state: null,
-      commands: [],
-    });
+  test("escape discards the line, even a complete command, without issuing it", () => {
+    const result = lineKey(
+      openLine("decree harvest otherwise sell"),
+      key("escape"),
+      fresh,
+    );
+
+    expect(result).toEqual({ state: null, commands: [] });
   });
 
   test("down moves the highlight and tab completes that suggestion; up stops at the top", () => {
@@ -474,6 +477,33 @@ describe("lineKey", () => {
     expect(result.state).toBeNull();
     expect(result.commands).toHaveLength(1);
     expect(result.commands[0]).toMatchObject({ type: "enactDecree" });
+  });
+
+  test("enter on a complete command that is also the start of a longer one issues it without completing", () => {
+    const context = contextWith(forging);
+
+    const result = lineKey(openLine("forge"), key("return"), context);
+
+    expect(result.state).toBeNull();
+    expect(result.commands).toEqual([{ type: "forge" }]);
+  });
+
+  test("enter on an incomplete prefix completes it and issues nothing, then the next enter issues the command", () => {
+    const completed = lineKey(
+      openLine("decree harvest otherwise s"),
+      key("return"),
+      fresh,
+    );
+    const issued = lineKey(
+      completed.state ?? openLine(""),
+      key("return"),
+      fresh,
+    );
+
+    expect(completed.commands).toEqual([]);
+    expect(completed.state?.text).toBe("decree harvest otherwise sell ");
+    expect(issued.state).toBeNull();
+    expect(issued.commands).toHaveLength(1);
   });
 });
 
