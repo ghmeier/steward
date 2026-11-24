@@ -132,34 +132,34 @@ describe("the Crown panel", () => {
       expect(granted?.commands).toEqual([]);
     });
   });
-});
 
-describe("the Crown panel and the posting end", () => {
-  const crown = {
-    demand: null,
-    nextDemandTicks: 10,
-    met: 6,
-    missed: 0,
-    favor: "neutral" as const,
-  };
-  const view = (canEnd: boolean) =>
-    emptyView({
-      crown,
-      unlocks: [CROWN_PANEL],
-      prestige: { ...emptyView().prestige, canEnd, demandsMet: 6 },
+  describe("the posting-end offer", () => {
+    const crown = {
+      demand: null,
+      nextDemandTicks: 10,
+      met: 6,
+      missed: 0,
+      favor: "neutral" as const,
+    };
+    const view = (canEnd: boolean) =>
+      emptyView({
+        crown,
+        unlocks: [CROWN_PANEL],
+        prestige: { ...emptyView().prestige, canEnd, demandsMet: 6 },
+      });
+
+    test("offers to end the posting only once the milestone is reached", async () => {
+      const offer = copy.village.crownMayEnd({ key: "e" });
+
+      const ready = await drawPanels([view(true)], {
+        size: { width: 300, height: 30 },
+      });
+      const early = await drawPanels([view(false)], {
+        size: { width: 300, height: 30 },
+      });
+
+      expect(ready).toContain(offer);
+      expect(early).not.toContain(offer);
     });
-
-  test("offers to end the posting only once the milestone is reached", async () => {
-    const offer = copy.village.crownMayEnd({ key: "e" });
-
-    const ready = await drawPanels([view(true)], {
-      size: { width: 300, height: 30 },
-    });
-    const early = await drawPanels([view(false)], {
-      size: { width: 300, height: 30 },
-    });
-
-    expect(ready).toContain(offer);
-    expect(early).not.toContain(offer);
   });
 });

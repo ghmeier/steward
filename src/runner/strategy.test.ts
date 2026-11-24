@@ -67,6 +67,7 @@ function playerWith(...reactions: Reaction[]) {
     setup: [noop],
     purchases: [],
     reactions,
+    laterPostings: [],
   });
 }
 
@@ -144,7 +145,13 @@ describe("StrategyPlayer", () => {
 
 describe("StrategyPlayer with locked panels", () => {
   function playerFor(setup: SetupStep[], purchases: string[] = []) {
-    return new StrategyPlayer({ name: "s", setup, purchases, reactions: [] });
+    return new StrategyPlayer({
+      name: "s",
+      setup,
+      purchases,
+      reactions: [],
+      laterPostings: [],
+    });
   }
 
   test("a setup command that needs the Decrees panel waits until the panel is owned", () => {
@@ -218,46 +225,36 @@ describe("StrategyPlayer across postings", () => {
     return game;
   }
 
-  test("a strategy with a plan for later postings ends the posting once the milestone is reached", () => {
-    const player = new StrategyPlayer({
+  test("only a strategy with a plan for later postings ends the posting, and only once the milestone is reached", () => {
+    const plan = { setup: [], purchases: [], reactions: [] };
+    const ending = new StrategyPlayer({
       name: "s",
-      setup: [],
-      purchases: [],
-      reactions: [],
+      ...plan,
       laterPostings: [{ setup: [], purchases: [] }],
-    });
-    const game = servedVillage();
-
-    player.observe(game);
-    const handed = player.next();
-
-    expect(handed).toEqual([
-      { type: "endPosting", name: game.prestige.defaultName },
-    ]);
-  });
-
-  test("a strategy without a plan for later postings never ends one, and neither does one that has not met the milestone", () => {
-    const withoutPlan = new StrategyPlayer({
-      name: "s",
-      setup: [],
-      purchases: [],
-      reactions: [],
     });
     const early = new StrategyPlayer({
       name: "s",
-      setup: [],
-      purchases: [],
-      reactions: [],
+      ...plan,
       laterPostings: [{ setup: [], purchases: [] }],
     });
+    const withoutPlan = new StrategyPlayer({
+      name: "s",
+      ...plan,
+      laterPostings: [],
+    });
+    const game = servedVillage();
     const earlyGame = servedVillage();
     earlyGame.state.posting.crown.met = 0;
 
-    withoutPlan.observe(servedVillage());
+    ending.observe(game);
     early.observe(earlyGame);
+    withoutPlan.observe(servedVillage());
 
-    expect(withoutPlan.next()).toEqual([]);
+    expect(ending.next()).toEqual([
+      { type: "endPosting", name: game.prestige.defaultName },
+    ]);
     expect(early.next()).toEqual([]);
+    expect(withoutPlan.next()).toEqual([]);
   });
 
   test("a new posting runs its own setup, and the last plan repeats for every posting after it", () => {

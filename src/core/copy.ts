@@ -20,6 +20,8 @@ export type TraitFigures = {
 };
 
 // Adjectives, so a list of them reads both in the sentences that describe a candidate and on a governor's row.
+type NewPosting = { village: string; province: string };
+
 const TRAIT_WORDS: Record<Trait, string> = {
   braggart: "boastful",
   diligent: "diligent",
@@ -54,23 +56,11 @@ export const copy = {
     notYet: ({ met, needed }: { met: number; needed: number }) =>
       `the crown will not release you until ${needed} demands are met, and you have met ${met}`,
     ended: {
-      promotion: ({
-        village,
-        province,
-      }: {
-        village: string;
-        province: string;
-      }) =>
+      promotion: ({ village, province }: NewPosting) =>
         `The crown promotes you. You take up a new posting at ${village}, in the province of ${province}.`,
-      reassignment: ({
-        village,
-        province,
-      }: {
-        village: string;
-        province: string;
-      }) =>
+      reassignment: ({ village, province }: NewPosting) =>
         `The crown reassigns you. You take up a new posting at ${village}, in the province of ${province}.`,
-      scandal: ({ village, province }: { village: string; province: string }) =>
+      scandal: ({ village, province }: NewPosting) =>
         `You leave in scandal. The crown sends you to ${village}, in the province of ${province}.`,
     },
   },

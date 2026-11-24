@@ -8,6 +8,7 @@ import {
 import { stateHash } from "../save/hash";
 import { Game } from "./game";
 import { derivePostingSeed, type Ending } from "./prestige";
+import { Job } from "./realm";
 import { CROWN_PANEL } from "./unlocks";
 
 const { prestige } = tuning;
@@ -18,7 +19,6 @@ const allProvinces = [
   ...harshProvinces,
 ];
 
-/** A village that holds the charter and has met enough demands to ask for a new posting. */
 function servedVillage(seed = 1, favor = 0): Game {
   const game = Game.create(seed, tuning);
   game.state.tick = 5000;
@@ -37,34 +37,24 @@ function endPosting(game: Game, name = "Greywater") {
 }
 
 describe("endPosting", () => {
-  test("is refused before the milestone and leaves the posting as it was", () => {
-    const game = servedVillage();
-    game.state.posting.crown.met = prestige.demandsMet - 1;
+  test("is refused before the milestone or without a name, and allowed once the milestone is reached", () => {
+    const early = servedVillage();
+    early.state.posting.crown.met = prestige.demandsMet - 1;
+    const unnamed = servedVillage();
+    const ready = servedVillage();
 
-    const result = endPosting(game);
+    const refusedEarly = endPosting(early);
+    const refusedUnnamed = endPosting(unnamed, "   ");
+    const allowed = endPosting(ready);
 
-    expect(result?.ok).toBe(false);
-    expect(game.state.posting.index).toBe(1);
-    expect(game.state.career.postings).toEqual([]);
-  });
-
-  test("is allowed once the milestone is reached", () => {
-    const game = servedVillage();
-
-    const result = endPosting(game);
-
-    expect(result?.ok).toBe(true);
-    expect(game.state.posting.index).toBe(2);
-    expect(() => game.validate()).not.toThrow();
-  });
-
-  test("is refused without a name", () => {
-    const game = servedVillage();
-
-    const result = endPosting(game, "   ");
-
-    expect(result?.ok).toBe(false);
-    expect(game.state.posting.index).toBe(1);
+    expect(refusedEarly?.ok).toBe(false);
+    expect(early.state.posting.index).toBe(1);
+    expect(early.state.career.postings).toEqual([]);
+    expect(refusedUnnamed?.ok).toBe(false);
+    expect(unnamed.state.posting.index).toBe(1);
+    expect(allowed?.ok).toBe(true);
+    expect(ready.state.posting.index).toBe(2);
+    expect(() => ready.validate()).not.toThrow();
   });
 });
 
@@ -102,23 +92,17 @@ describe("the ending", () => {
     ]);
   });
 
-  test("a scandal always sends the steward to a harsh province", () => {
+  test("every ending sends the steward to a province the data names, and a scandal only to a harsh one", () => {
     for (let seed = 1; seed <= 20; seed++) {
-      const game = servedVillage(seed, -30);
+      const scandal = servedVillage(seed, -30);
+      const others = [servedVillage(seed, 0), servedVillage(seed, 30)];
 
-      endPosting(game);
+      for (const game of [scandal, ...others]) endPosting(game);
 
-      expect(harshProvinces).toContain(game.state.posting.province);
-    }
-  });
-
-  test("every ending sends the steward to a province the data names", () => {
-    for (const favor of [-30, 0, 30]) {
-      const game = servedVillage(1, favor);
-
-      endPosting(game);
-
-      expect(allProvinces).toContain(game.state.posting.province);
+      expect(harshProvinces).toContain(scandal.state.posting.province);
+      for (const game of others) {
+        expect(allProvinces).toContain(game.state.posting.province);
+      }
     }
   });
 });
@@ -174,7 +158,7 @@ describe("what carries over", () => {
 });
 
 describe("the new posting", () => {
-  test("starts with the stores and peasants the data names, at the tick it began", () => {
+  test("starts at the tick it began with the data's stores and peasants, and schedules its first demand and dispute from there", () => {
     const game = servedVillage();
     game.state.posting.resources.coin = 9999;
     game.state.posting.illusion.debt = { coin: 40, grain: 0, ore: 0, wood: 0 };
@@ -182,6 +166,8 @@ describe("the new posting", () => {
     game.prestige.end("Dunmere");
 
     const { posting, tick } = game.state;
+    const { firstDemand } = tuning.crown;
+    const demandWait = posting.crown.nextDemandTick - tick;
     expect(posting.name).toBe("Dunmere");
     expect(posting.startedAt).toBe(tick);
     expect(posting.resources).toEqual(prestige.resources);
@@ -190,45 +176,50 @@ describe("the new posting", () => {
     expect(posting.crown.favor).toBe(0);
     expect(game.illusion.debtValue).toBe(0);
     expect(posting.decrees).toEqual({});
-  });
-
-  test("the first crown demand is scheduled from the posting's start, within the usual range", () => {
-    const game = servedVillage();
-
-    endPosting(game);
-
-    const { firstDemand } = tuning.crown;
-    const wait = game.state.posting.crown.nextDemandTick - game.state.tick;
-    expect(wait).toBeGreaterThanOrEqual(firstDemand.minTicks);
-    expect(wait).toBeLessThanOrEqual(firstDemand.maxTicks);
-  });
-
-  test("the first dispute arrives after the posting began, not at an earlier tick", () => {
-    const game = servedVillage();
-
-    endPosting(game);
-
-    expect(game.state.posting.desk.nextArrivalTick).toBeGreaterThan(
-      game.state.tick,
-    );
+    expect(demandWait).toBeGreaterThanOrEqual(firstDemand.minTicks);
+    expect(demandWait).toBeLessThanOrEqual(firstDemand.maxTicks);
+    expect(posting.desk.nextArrivalTick).toBeGreaterThan(tick);
   });
 });
 
-describe("seed derivation", () => {
-  test("the same previous seed and posting number always give the same seed, and a different number gives another", () => {
+describe("replay across postings", () => {
+  test("the new posting's seed derives from the old one and from nothing else", () => {
     expect(derivePostingSeed(42, 2)).toBe(derivePostingSeed(42, 2));
     expect(derivePostingSeed(42, 2)).not.toBe(derivePostingSeed(42, 3));
     expect(derivePostingSeed(42, 2)).not.toBe(derivePostingSeed(43, 2));
   });
 
-  test("the new posting is seeded from the old one, so two identical games end in identical states", () => {
-    const first = servedVillage(7);
-    const second = servedVillage(7);
+  test("a command log that ends the posting replays from the milestone to the same hash", () => {
+    const start = servedVillage(7).state.tick;
+    const log = [
+      { tick: start + 5, command: { type: "endPosting", name: "Greywater" } },
+      {
+        tick: start + 20,
+        command: { type: "assignPeasant", peasant: 1, job: Job.FARM },
+      },
+    ];
+    const recorded = servedVillage(7);
+    const replayed = servedVillage(7);
+    const rejected: string[] = [];
 
-    endPosting(first);
-    endPosting(second);
+    recorded.steps.runSteps(
+      400,
+      recorded.commands.parseCommandLog(log),
+      quietOptions,
+      (_tick, _commands, results) => {
+        for (const result of results)
+          if (!result.ok) rejected.push(result.reason);
+      },
+    );
+    replayed.steps.runSteps(
+      400,
+      replayed.commands.parseCommandLog(JSON.parse(JSON.stringify(log))),
+      quietOptions,
+    );
 
-    expect(first.state.posting.seed).toBe(derivePostingSeed(7, 2));
-    expect(stateHash(second.state)).toBe(stateHash(first.state));
+    expect(rejected).toEqual([]);
+    expect(recorded.state.posting.index).toBe(2);
+    expect(recorded.state.posting.seed).toBe(derivePostingSeed(7, 2));
+    expect(stateHash(replayed.state)).toBe(stateHash(recorded.state));
   });
 });

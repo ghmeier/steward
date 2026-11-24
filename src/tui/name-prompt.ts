@@ -32,15 +32,20 @@ export function nameKey(prompt: NamePrompt, key: KeyPress): NameResult {
     : { kind: "editing", prompt: { ...prompt, text } };
 }
 
+const PROMPT_COPY: Record<
+  NamePrompt["purpose"],
+  { title: string; hints: string }
+> = {
+  village: {
+    title: copy.menus.namePromptTitle,
+    hints: copy.menus.namePromptHints,
+  },
+  posting: {
+    title: copy.menus.postingNamePromptTitle,
+    hints: copy.menus.postingNamePromptHints,
+  },
+};
+
 export function renderNamePrompt(prompt: NamePrompt): MenuRender {
-  const posting = prompt.purpose === "posting";
-  return {
-    title: posting
-      ? copy.menus.postingNamePromptTitle
-      : copy.menus.namePromptTitle,
-    lines: [promptLine(prompt.text)],
-    hints: posting
-      ? copy.menus.postingNamePromptHints
-      : copy.menus.namePromptHints,
-  };
+  return { ...PROMPT_COPY[prompt.purpose], lines: [promptLine(prompt.text)] };
 }

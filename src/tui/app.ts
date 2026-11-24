@@ -2,6 +2,7 @@ import type { CliRenderer, KeyEvent } from "@opentui/core";
 import { copy } from "../core/copy";
 import { errorMessage } from "../core/errors";
 import { Game } from "../core/game";
+import { defaultVillageName } from "../core/posting";
 import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
 import { type LineState, lineKey, openLine, renderLine } from "./command-line";
@@ -214,7 +215,7 @@ export function startApp(options: {
         namePrompt = {
           purpose: "village",
           seed,
-          text: Game.defaultVillageName(seed, tuning),
+          text: defaultVillageName(seed, tuning),
         };
       }
       if (result.requests.includes("endPosting")) {

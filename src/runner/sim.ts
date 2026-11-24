@@ -279,17 +279,7 @@ export function runSim(
       promotedAt: state.career.promotedAt,
       postings: [
         ...state.career.postings,
-        {
-          index: state.posting.index,
-          name: state.posting.name,
-          province: state.posting.province,
-          startedAt: state.posting.startedAt,
-          endedAt: null,
-          ending: null,
-          favor: state.posting.crown.favor,
-          demandsMet: state.posting.crown.met,
-          demandsMissed: state.posting.crown.missed,
-        },
+        { ...game.prestige.openRecord, endedAt: null, ending: null },
       ],
       crown: {
         met: state.posting.crown.met,

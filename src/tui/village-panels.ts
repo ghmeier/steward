@@ -399,20 +399,16 @@ export class CrownPanel extends VillagePanel {
     if (name === "escape") return UNFOCUS;
     if (name === CrownPanel.endKey) {
       const { canEnd, demandsMet, demandsNeeded } = view.prestige;
-      return canEnd
-        ? step([], [{ kind: "endPosting" }])
-        : step(
-            [],
-            [
-              {
-                kind: "message",
-                text: copy.village.crownCannotEnd({
-                  met: demandsMet,
-                  needed: demandsNeeded,
-                }),
-              },
-            ],
-          );
+      const request: PanelRequest = canEnd
+        ? { kind: "endPosting" }
+        : {
+            kind: "message",
+            text: copy.village.crownCannotEnd({
+              met: demandsMet,
+              needed: demandsNeeded,
+            }),
+          };
+      return step([], [request]);
     }
     if (name === "return" || name === "enter")
       return step([{ type: "deliver" }]);

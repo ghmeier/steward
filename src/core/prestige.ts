@@ -24,7 +24,6 @@ const ENDING_FOR_BAND: Record<FavorBand, Ending> = {
   cold: "scandal",
 };
 
-/** What the career remembers about a posting once it is over. */
 export type PostingRecord = {
   index: number;
   name: string;
@@ -116,9 +115,27 @@ export class PrestigeManager {
     return defaultVillageName(this.nextSeed, this.game.tuning);
   }
 
-  provinceLabel(id: string): string {
+  /** Kindest first, so a promotion's two draws are compared by their place in this list. */
+  private get provinces(): Province[] {
     const { kind, harsh } = this.tuning.provinces;
-    return [...kind, ...harsh].find((entry) => entry.id === id)?.label ?? id;
+    return [...kind, ...harsh];
+  }
+
+  provinceLabel(id: string): string {
+    return this.provinces.find((entry) => entry.id === id)?.label ?? id;
+  }
+
+  get openRecord(): Omit<PostingRecord, "endedAt" | "ending"> {
+    const { index, name, province, startedAt, crown } = this.posting;
+    return {
+      index,
+      name,
+      province,
+      startedAt,
+      favor: crown.favor,
+      demandsMet: crown.met,
+      demandsMissed: crown.missed,
+    };
   }
 
   /**
@@ -127,9 +144,8 @@ export class PrestigeManager {
    * disturbs a stream the next posting will go on to use.
    */
   private drawProvince(ending: Ending, seed: number): string {
-    const { kind, harsh } = this.tuning.provinces;
-    const all = [...kind, ...harsh];
-    const pool = ending === "scandal" ? harsh : all;
+    const all = this.provinces;
+    const pool = ending === "scandal" ? this.tuning.provinces.harsh : all;
     const stream = seedStream(seed, "province");
     const draw = () => pool[intBelow(stream, pool.length)] as Province;
     const first = draw();
@@ -138,7 +154,6 @@ export class PrestigeManager {
     return all.indexOf(first) <= all.indexOf(second) ? first.id : second.id;
   }
 
-  /** Closes the posting into the career's history and begins the next one at the current tick. */
   end(newName: string): CommandResult {
     const title = newName.trim();
     if (title === "") throw new Error(copy.prestige.nameRequired);
@@ -151,18 +166,11 @@ export class PrestigeManager {
       );
     }
     const { state, tuning } = this.game;
-    const { crown } = state.posting;
     const ending = this.ending;
     state.career.postings.push({
-      index: state.posting.index,
-      name: state.posting.name,
-      province: state.posting.province,
-      startedAt: state.posting.startedAt,
+      ...this.openRecord,
       endedAt: state.tick,
       ending,
-      favor: crown.favor,
-      demandsMet: crown.met,
-      demandsMissed: crown.missed,
     });
 
     const seed = this.nextSeed;

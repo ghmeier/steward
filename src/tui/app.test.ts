@@ -21,6 +21,7 @@ import { barRow, settledFrame } from "../../test/tui-helpers";
 import { copy } from "../core/copy";
 import type { Decree } from "../core/decree";
 import { Game } from "../core/game";
+import { defaultVillageName } from "../core/posting";
 import { Job } from "../core/realm";
 import {
   ARCHIVE_PANEL,
@@ -839,7 +840,7 @@ describe("new village", () => {
   });
 
   const eraseDefaultName = (harness: Harness) => {
-    for (const _ of Game.defaultVillageName(NEW_SEED, tuning)) {
+    for (const _ of defaultVillageName(NEW_SEED, tuning)) {
       harness.mockInput.pressBackspace();
     }
   };
@@ -847,7 +848,7 @@ describe("new village", () => {
   test("founding a village with a typed name saves that name", async () => {
     const harness = await launch();
     const typed = "Quillhaven";
-    const defaultName = Game.defaultVillageName(NEW_SEED, tuning);
+    const defaultName = defaultVillageName(NEW_SEED, tuning);
 
     await harness.mockInput.typeText("nj");
     harness.mockInput.pressEnter();

@@ -7,13 +7,11 @@ import { type RngState, seedStream } from "./rng";
 import { type PostingState, type ResourceId, RNG_STREAMS } from "./state";
 import type { Tuning } from "./tuning";
 
-/** What distinguishes one posting from the next; everything else about a fresh posting is the same. */
 export type PostingStart = {
   index: number;
   /** The global tick the posting begins at, so its desk schedule and first crown demand count from there. */
   startedAt: number;
   resources: Record<ResourceId, number>;
-  /** Empty for the first posting, which is not in a province. */
   province: string;
 };
 

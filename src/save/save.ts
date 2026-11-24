@@ -13,9 +13,9 @@ import { dirname, join } from "node:path";
 import { emptyCrownState } from "../core/crown";
 import { isRecord } from "../core/data";
 import { errorMessage } from "../core/errors";
-import { Game } from "../core/game";
 import { emptyIllusionState } from "../core/illusion";
 import { NO_LABOR_POLICY } from "../core/labor";
+import { defaultVillageName } from "../core/posting";
 import { seedStream } from "../core/rng";
 import { canonicalStringify } from "../core/serialize";
 import { type GameState, SCHEMA_VERSION } from "../core/state";
@@ -138,7 +138,7 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
   // Villages were unnamed before version 15, so an old save is given the default its own seed picks.
   14: (state) => {
     if (!isRecord(state.posting)) return;
-    state.posting.name = Game.defaultVillageName(
+    state.posting.name = defaultVillageName(
       Number(state.posting.seed),
       loadTuning(),
     );

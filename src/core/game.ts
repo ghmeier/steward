@@ -59,15 +59,11 @@ export class Game {
     this.view = new ViewManager(this);
   }
 
-  static defaultVillageName(seed: number, tuning: Tuning): string {
-    return defaultVillageName(seed, tuning);
-  }
-
   /** Starts a new game: seeds every random stream and gathers the initial village. */
   static create(
     seed: number,
     tuning: Tuning,
-    name: string = Game.defaultVillageName(seed, tuning),
+    name: string = defaultVillageName(seed, tuning),
   ): Game {
     if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
       throw new RangeError(`seed must be a uint32, got ${seed}`);

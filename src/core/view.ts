@@ -52,12 +52,10 @@ export type GameView = {
   promotion: { target: number; promotedAt: number };
   /** Which posting of the career this is, counting from 1, and the label of its province (empty for the first). */
   posting: { index: number; province: string };
-  /** What the steward needs to know to end the posting. */
   prestige: {
     demandsMet: number;
     demandsNeeded: number;
     canEnd: boolean;
-    /** What leaving now would be called, from the crown's present mood. */
     ending: Ending;
     /** The name the next posting is offered, which the player may change. */
     nextName: string;

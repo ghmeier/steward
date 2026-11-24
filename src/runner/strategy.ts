@@ -25,7 +25,7 @@ export type Strategy = PostingPlan & {
    * The plans for the second posting onward, the last repeating for every posting after it. A strategy
    * with none never ends a posting; one with any ends each posting as soon as the crown allows.
    */
-  laterPostings?: PostingPlan[] | undefined;
+  laterPostings: PostingPlan[];
 };
 export type StrategyStats = {
   setupCommands: number;
@@ -106,11 +106,11 @@ export class StrategyPlayer {
   }
 
   private get endsPostings(): boolean {
-    return (this.strategy.laterPostings ?? []).length > 0;
+    return this.strategy.laterPostings.length > 0;
   }
 
   private planFor(index: number): PostingPlan {
-    const laterPostings = this.strategy.laterPostings ?? [];
+    const { laterPostings } = this.strategy;
     if (index === 1 || laterPostings.length === 0) return this.strategy;
     return laterPostings[
       Math.min(index - 2, laterPostings.length - 1)
