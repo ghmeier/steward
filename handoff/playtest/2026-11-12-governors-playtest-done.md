@@ -1,9 +1,9 @@
 ---
 title: "Governors playtest merged: tech tree, illusion relief, pacing and balance"
-status: open
+status: picked-up
 tags: [playtest]
 created: 2026-11-12
-updated: 2026-11-12
+updated: 2026-11-24
 ---
 # Governors playtest merged: tech tree, illusion relief, pacing and balance
 
