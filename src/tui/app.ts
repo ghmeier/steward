@@ -25,12 +25,6 @@ export type Startup =
   | { kind: "ready"; game: Game; notice: string | null }
   | { kind: "refused"; error: string };
 
-/** Whole ticks between the save's timestamp and now; a timestamp that does not parse, or lies in the future, counts as no time away. */
-function ticksAway(savedAt: string, nowMs: number, stepMs: number): number {
-  const awayMs = nowMs - Date.parse(savedAt);
-  return awayMs > 0 ? Math.floor(awayMs / stepMs) : 0;
-}
-
 export function prepareStartup(
   saveDir: string,
   tuning: Tuning,
@@ -42,10 +36,9 @@ export function prepareStartup(
     case "loaded": {
       const game = Game.fromState(result.save.state, tuning);
       const repealed = game.decrees.repealStale();
+      const awayMs = wallNow() - Date.parse(result.save.savedAt);
       const away = offlineNotice(
-        game.offline.catchUp(
-          ticksAway(result.save.savedAt, wallNow(), tuning.stepMs),
-        ),
+        game.offline.catchUp(game.offline.ticksAway(awayMs)),
         tuning,
       );
       const notices = [
@@ -53,11 +46,11 @@ export function prepareStartup(
           ? null
           : copy.notices.repealedStale({ decrees: repealed.join(", ") }),
         away,
-      ].filter((notice) => notice !== null);
+      ];
       return {
         kind: "ready",
         game,
-        notice: notices.length === 0 ? null : notices.join(" "),
+        notice: notices.filter((notice) => notice !== null).join(" ") || null,
       };
     }
     case "missing":

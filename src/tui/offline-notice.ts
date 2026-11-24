@@ -20,5 +20,5 @@ export function offlineNotice(
       ? copy.notices.awayNothingGained({ away })
       : copy.notices.awayGained({ away, gains: gains.join(", ") });
   if (summary.fullStores.length === 0) return report;
-  return `${report} ${copy.notices.awayStoresFull({ stores: new Intl.ListFormat("en").format(summary.fullStores) })}`;
+  return `${report} ${copy.notices.awayStoresFull({ stores: summary.fullStores })}`;
 }

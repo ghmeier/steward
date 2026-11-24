@@ -2,9 +2,11 @@ import { z } from "zod";
 import type { Game } from "./game";
 import { add, log2Fixed } from "./math";
 import { EXTRACTION } from "./prestige";
+import type { FlowProjection } from "./projection";
 import {
   CAPPED_RESOURCES,
   type CappedResource,
+  perResource,
   RESOURCES,
   type Resource,
   SEASONS,
@@ -38,18 +40,19 @@ export class OfflineManager {
     return this.game.tuning.offline;
   }
 
-  private get ticksPerSeason() {
-    return this.game.tuning.economy.ticksPerSeason;
-  }
-
   private get resources() {
     return this.game.state.posting.resources;
   }
 
-  /** Time within the grace window counts in full; past it each doubling of the excess adds one more curve's worth. */
+  /** A span that is not positive, including the NaN an unreadable save timestamp gives, is no time away. */
+  ticksAway(awayMs: number): number {
+    return awayMs > 0 ? Math.floor(awayMs / this.game.tuning.stepMs) : 0;
+  }
+
+  /** Time within the grace window counts in full; past it, each doubling of the excess adds one more curve's worth. */
   compress(realTicks: number): number {
     const { graceTicks, curveTicks } = this.tuning;
-    if (realTicks <= graceTicks) return Math.max(0, realTicks);
+    if (realTicks <= graceTicks) return realTicks;
     const excess = (realTicks - graceTicks) / curveTicks;
     return Math.floor(graceTicks + curveTicks * log2Fixed(1 + excess));
   }
@@ -63,20 +66,18 @@ export class OfflineManager {
     const before = { ...this.resources };
     const debtBefore = this.game.illusion.debtValue;
     const conjuredBefore = this.game.illusion.conjuredValue;
+    // Averaging the flows clones the game once per season, which is wasted work when no time is credited.
     if (compressedTicks > 0) {
       this.applyFlows(compressedTicks);
       this.game.illusion.elapse(compressedTicks);
     }
 
-    const gains = {} as Record<Resource, number>;
-    for (const resource of RESOURCES) {
-      gains[resource] =
-        (this.resources[resource] ?? 0) - (before[resource] ?? 0);
-    }
     return {
       realTicks,
       compressedTicks,
-      gains,
+      gains: perResource(
+        (resource) => (this.resources[resource] ?? 0) - (before[resource] ?? 0),
+      ),
       debtAdded: this.game.illusion.debtValue - debtBefore,
       conjuredFaded: conjuredBefore - this.game.illusion.conjuredValue,
       fullStores: CAPPED_RESOURCES.filter(
@@ -94,18 +95,13 @@ export class OfflineManager {
       rates.coin += oreDugPerTick * this.game.tuning.doctrines.prospectingShare;
     }
 
-    const context = {
-      tick: this.game.state.tick,
-      maxValue: this.game.tuning.maxResourceValue,
-      capOf: (resource: string) => this.game.economy.capOf(resource),
-      absorbed: null,
-    };
+    const context = this.game.economy.addContext(null);
     for (const resource of RESOURCES) {
-      const current = this.resources[resource] ?? 0;
+      const floorAtZero = -(this.resources[resource] ?? 0);
       add(
         this.resources,
         resource,
-        Math.max(rates[resource] * ticks, -current),
+        Math.max(rates[resource] * ticks, floorAtZero),
         context,
       );
     }
@@ -124,39 +120,33 @@ export class OfflineManager {
   }
 
   /**
-   * The per-tick rates averaged over one mid-season tick of each season, so a save left in winter
-   * still gains the grain the other seasons bring. Each probe is a copy whose clock is set to the
-   * next such tick, which is never earlier than the present, so a grudge can only have lapsed.
+   * The per-tick rates averaged over one tick early in each season, so a save left in winter still
+   * gains the grain the other seasons bring. Each probe starts from the next such tick, which is
+   * never earlier than the present, so a grudge can only have lapsed.
    */
-  private averageFlows(): {
-    rates: Record<Resource, number>;
-    growthPerTick: number;
-    oreDugPerTick: number;
-  } {
-    const rates = Object.fromEntries(
-      RESOURCES.map((resource) => [resource, 0]),
-    ) as Record<Resource, number>;
-    let growthPerTick = 0;
-    let oreDugPerTick = 0;
-    for (const season of SEASONS.keys()) {
-      const probe = this.game.clone();
-      probe.state.tick = this.tickInSeason(season);
-      const flows = probe.projection.flows();
-      for (const resource of RESOURCES) {
-        rates[resource] += flows.rates[resource] / SEASONS.length;
-      }
-      growthPerTick += flows.growthPerTick / SEASONS.length;
-      oreDugPerTick += flows.oreDugPerTick / SEASONS.length;
-    }
-    return { rates, growthPerTick, oreDugPerTick };
+  private averageFlows(): Pick<
+    FlowProjection,
+    "rates" | "growthPerTick" | "oreDugPerTick"
+  > {
+    const probes = SEASONS.map((_, season) =>
+      this.game.projection.flows(this.tickInSeason(season)),
+    );
+    const mean = (of: (flows: FlowProjection) => number) =>
+      probes.reduce((sum, flows) => sum + of(flows), 0) / probes.length;
+    return {
+      rates: perResource((resource) => mean((flows) => flows.rates[resource])),
+      growthPerTick: mean((flows) => flows.growthPerTick),
+      oreDugPerTick: mean((flows) => flows.oreDugPerTick),
+    };
   }
 
-  /** The tick before the second tick of the season at this index, in the first year that is not already past. */
+  /** A tick just after the season at this index begins, in the first year where it is not already past. */
   private tickInSeason(index: number): number {
-    const year = this.ticksPerSeason * SEASONS.length;
+    const { ticksPerSeason } = this.game.tuning.economy;
+    const year = ticksPerSeason * SEASONS.length;
     const { tick } = this.game.state;
-    const thisYear = Math.floor(tick / year) * year;
-    const candidate = thisYear + index * this.ticksPerSeason + 1;
+    const candidate =
+      Math.floor(tick / year) * year + index * ticksPerSeason + 1;
     return candidate < tick ? candidate + year : candidate;
   }
 }

@@ -176,7 +176,7 @@ export function runSim(
     }
     if (options.away !== null) {
       const summary = game.offline.catchUp(
-        Math.floor((options.away * 1000) / tuning.stepMs),
+        game.offline.ticksAway(options.away * 1000),
       );
       io.stderr(`offline catch-up: ${JSON.stringify(summary)}`);
     }

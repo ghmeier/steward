@@ -21,36 +21,31 @@ function village(
   return game;
 }
 
-function feedHarvest(game: Game): void {
-  game.decrees.enact({
-    id: "harvest",
-    petition: "harvest",
-    rules: [],
-    otherwise: "feed",
+describe("ticksAway", () => {
+  test("counts whole ticks in a positive span and none in an empty, negative or unreadable one", () => {
+    const { offline } = village({ idle: 1 });
+
+    expect(offline.ticksAway(1050)).toBe(10);
+    expect(offline.ticksAway(0)).toBe(0);
+    expect(offline.ticksAway(-500)).toBe(0);
+    expect(offline.ticksAway(Number.NaN)).toBe(0);
   });
-}
+});
 
 describe("compress", () => {
   const { offline } = village({ idle: 1 });
   const hoursOf = (ticks: number) => ticks / hour;
 
-  test("counts nothing for no time or negative time", () => {
-    expect(offline.compress(0)).toBe(0);
-    expect(offline.compress(-500)).toBe(0);
-  });
-
   test("counts time inside the grace window in full", () => {
-    expect(offline.compress(graceTicks)).toBe(graceTicks);
+    expect(offline.compress(0)).toBe(0);
     expect(offline.compress(1234)).toBe(1234);
+    expect(offline.compress(graceTicks)).toBe(graceTicks);
   });
 
-  test("counts time past the grace window at a diminishing rate", () => {
+  test("counts time past the grace window at a diminishing rate in whole ticks", () => {
     expect(hoursOf(offline.compress(hour))).toBeCloseTo(1.085, 2);
     expect(hoursOf(offline.compress(8 * hour))).toBeCloseTo(3.6, 1);
     expect(hoursOf(offline.compress(week))).toBeCloseTo(7.9, 1);
-  });
-
-  test("returns a whole number of ticks", () => {
     expect(Number.isInteger(offline.compress(week + 1))).toBe(true);
   });
 });
@@ -122,7 +117,12 @@ describe("catchUp", () => {
 
   test("feeding grain to growth stops short of a birth", () => {
     const game = village({ farm: 8, idle: 2 });
-    feedHarvest(game);
+    game.decrees.enact({
+      id: "harvest",
+      petition: "harvest",
+      rules: [],
+      otherwise: "feed",
+    });
 
     game.offline.catchUp(week);
 
@@ -133,26 +133,18 @@ describe("catchUp", () => {
     expect(game.delegates.peasants).toHaveLength(10);
   });
 
-  test("prospecting pays coin in an extraction posting only", () => {
-    const mining = village({ mine: 8, idle: 2 }, { doctrine: EXTRACTION });
-    const trading = village({ mine: 8, idle: 2 }, { doctrine: TRADE });
-
-    const mined = mining.offline.catchUp(hour);
-    const traded = trading.offline.catchUp(hour);
-
-    expect(mined.gains.coin).toBeGreaterThan(0);
-    expect(traded.gains.coin).toBe(0);
-  });
-
-  test("an extraction posting with a full ore store still earns prospecting coin", () => {
+  test("prospecting pays coin on the ore dug in an extraction posting, even with a full ore store, and nothing in a trade posting", () => {
+    const empty = village({ mine: 8, idle: 2 }, { doctrine: EXTRACTION });
     const full = village({ mine: 8, idle: 2 }, { doctrine: EXTRACTION });
     full.state.posting.resources.ore = full.economy.capOf("ore");
-    const empty = village({ mine: 8, idle: 2 }, { doctrine: EXTRACTION });
+    const trading = village({ mine: 8, idle: 2 }, { doctrine: TRADE });
 
-    const fullGains = full.offline.catchUp(hour);
-    const emptyGains = empty.offline.catchUp(hour);
+    const emptyCoin = empty.offline.catchUp(hour).gains.coin;
+    const fullCoin = full.offline.catchUp(hour).gains.coin;
+    const tradedCoin = trading.offline.catchUp(hour).gains.coin;
 
-    expect(fullGains.gains.coin).toBeGreaterThan(0);
-    expect(fullGains.gains.coin).toBeCloseTo(emptyGains.gains.coin, 6);
+    expect(emptyCoin).toBeGreaterThan(0);
+    expect(fullCoin).toBeCloseTo(emptyCoin, 6);
+    expect(tradedCoin).toBe(0);
   });
 });
