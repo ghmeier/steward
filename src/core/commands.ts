@@ -48,7 +48,12 @@ export const commandSchema = z.discriminatedUnion("type", [
   }),
   z.strictObject({ type: z.literal("enactSaved"), name: text }),
   z.strictObject({ type: z.literal("forgetSaved"), name: text }),
-  z.strictObject({ type: z.literal("endPosting"), name: text }),
+  z.strictObject({
+    type: z.literal("endPosting"),
+    name: text,
+    doctrine: text,
+  }),
+  z.strictObject({ type: z.literal("payInCoin") }),
 ]);
 
 export type Command = z.infer<typeof commandSchema>;
@@ -115,6 +120,8 @@ export class CommandManager {
           return this.game.crown.deliver(context);
         case "conjure":
           return this.game.illusion.conjure(command.resource, command.amount);
+        case "payInCoin":
+          return this.game.crown.payInCoin(context);
         case "forge":
           return this.game.illusion.forge(context);
         case "forgeMissing":
@@ -134,7 +141,7 @@ export class CommandManager {
           this.game.savedDecrees.forget(command.name);
           return { ok: true };
         case "endPosting":
-          return this.game.prestige.end(command.name);
+          return this.game.prestige.end(command.name, command.doctrine);
         default: {
           const unreachable: never = command;
           return {

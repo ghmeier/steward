@@ -251,10 +251,36 @@ describe("StrategyPlayer across postings", () => {
     withoutPlan.observe(servedVillage());
 
     expect(ending.next()).toEqual([
-      { type: "endPosting", name: game.prestige.defaultName },
+      {
+        type: "endPosting",
+        name: game.prestige.defaultName,
+        doctrine: tuning.doctrines.entries[0]?.id as string,
+      },
     ]);
     expect(early.next()).toEqual([]);
     expect(withoutPlan.next()).toEqual([]);
+  });
+
+  test("a posting begins under the doctrine its plan names, and under the first the data lists when the plan names none", () => {
+    const { entries } = tuning.doctrines;
+    const named = entries[1]?.id as string;
+    const plan = { setup: [], purchases: [], reactions: [] };
+    const naming = new StrategyPlayer({
+      name: "s",
+      ...plan,
+      laterPostings: [{ setup: [], purchases: [], doctrine: named }],
+    });
+    const silent = new StrategyPlayer({
+      name: "s",
+      ...plan,
+      laterPostings: [{ setup: [], purchases: [] }],
+    });
+
+    naming.observe(servedVillage());
+    silent.observe(servedVillage());
+
+    expect(naming.next()).toMatchObject([{ doctrine: named }]);
+    expect(silent.next()).toMatchObject([{ doctrine: entries[0]?.id }]);
   });
 
   test("a new posting runs its own setup, and the last plan repeats for every posting after it", () => {

@@ -8,7 +8,7 @@ import type { KeyPress } from "./keys";
 export type MenuContext = { view: GameView; tuning: Tuning };
 
 /** Something a menu asks the app to do that is not a game command, so it never enters the command log. */
-export type AppRequest = "newGame" | "endPosting";
+export type AppRequest = "newGame" | { kind: "endPosting"; doctrine: string };
 
 /** What choosing an item (or accepting a number) does. `pop` counts screens removed before any push. */
 export type MenuAction =

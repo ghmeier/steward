@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ResourcePetition } from "./decree";
+import { AGRICULTURE, EXTRACTION } from "./doctrine";
 import { addIssue } from "./errors";
 import type { Game } from "./game";
 import { NO_LABOR_POLICY } from "./labor";
@@ -35,6 +36,8 @@ export type EconomyState = {
   famine: Famine;
   growth: number;
   starved: number;
+  /** Ore mined since the season began, which the extraction doctrine pays coin for when the season ends. */
+  seasonOre: number;
 };
 
 export const economyStateSchema: z.ZodType<EconomyState> = z.strictObject({
@@ -45,6 +48,7 @@ export const economyStateSchema: z.ZodType<EconomyState> = z.strictObject({
   }),
   growth: z.number().min(0),
   starved: count,
+  seasonOre: z.number().min(0),
 });
 
 export function emptyEconomyState(): EconomyState {
@@ -52,6 +56,7 @@ export function emptyEconomyState(): EconomyState {
     famine: { startPopulation: 0, ticks: 0, deaths: 0 },
     growth: 0,
     starved: 0,
+    seasonOre: 0,
   };
 }
 
@@ -314,12 +319,15 @@ export class EconomyManager {
       // Eat before storing the harvest: storing first would let a full granary turn away grain the
       // village then eats, showing a drain that is not there.
       add(resources, "grain", -upkeep, context);
-      add(resources, "grain", produced, context);
+      this.storeHarvest(produced, context);
       economy.famine = { startPopulation: 0, ticks: 0, deaths: 0 };
     } else {
       add(resources, "grain", -grain, context);
       this.advanceFamine();
     }
+
+    economy.seasonOre += oreDug;
+    if (this.seasonEnds) this.payProspecting(context);
 
     return {
       flows: {
@@ -329,6 +337,27 @@ export class EconomyManager {
       },
       eaten,
     };
+  }
+
+  /** Under the agriculture doctrine, harvest the granary has no room for feeds the next peasant instead of being lost. */
+  private storeHarvest(produced: number, context: AddContext): void {
+    const { resources } = this.posting;
+    const held = resources.grain ?? 0;
+    const room = Math.max(this.capOf("grain"), held) - held;
+    add(resources, "grain", produced, context);
+    if (this.game.prestige.hasDoctrine(AGRICULTURE)) {
+      this.growBy(Math.max(0, produced - room));
+    }
+  }
+
+  /** Under the extraction doctrine, a season's end pays coin for a share of the ore mined in it; every posting restarts the count. */
+  private payProspecting(context: AddContext): void {
+    const { economy } = this.posting;
+    if (this.game.prestige.hasDoctrine(EXTRACTION)) {
+      const share = this.tuning.doctrines.prospectingShare;
+      add(this.posting.resources, "coin", economy.seasonOre * share, context);
+    }
+    economy.seasonOre = 0;
   }
 
   /** What a unit of the resource sells for at market, in coin. */
@@ -350,11 +379,16 @@ export class EconomyManager {
   }
 
   feedGrain(amount: number, context: AddContext): void {
-    const { grainPerPeasant } = this.tuning.economy;
-    const { economy } = this.posting;
     if (!this.hasRoom) return;
 
     add(this.posting.resources, "grain", -amount, context);
+    this.growBy(amount);
+  }
+
+  private growBy(amount: number): void {
+    const { grainPerPeasant } = this.tuning.economy;
+    const { economy } = this.posting;
+    if (!this.hasRoom) return;
     economy.growth += amount;
     while (economy.growth >= grainPerPeasant && this.hasRoom) {
       this.admitNewcomer();

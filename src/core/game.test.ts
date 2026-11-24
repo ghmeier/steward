@@ -19,6 +19,7 @@ describe("Game.create", () => {
       famine: { startPopulation: 0, ticks: 0, deaths: 0 },
       growth: 0,
       starved: 0,
+      seasonOre: 0,
     });
     expect(Object.keys(state.posting.rng)).toEqual([...RNG_STREAMS]);
     expect(state.posting.nextDelegateId).toBe(
@@ -127,6 +128,10 @@ describe("parseTuning", () => {
 		["a duplicate id across entries", "archive.entries.1.id", entries[0]?.id, "tuning.archive: repeats id"],
 		["a requires naming an unknown id", "archive.entries.0.requires", ["control.nothing"], 'requires unknown id "control.nothing"'],
 		["a requires cycle", "archive.entries.3.requires", ["control.savedDecrees"], "tuning.archive.entries: requires cycle"],
+		["no trade doctrine", "doctrines.entries", t.doctrines.entries.filter(({ id }) => id !== "trade"), 'tuning.doctrines.entries: must include "trade"'],
+		["a repeated doctrine id", "doctrines.entries.1.id", t.doctrines.entries[0]?.id, "tuning.doctrines.entries: repeats doctrine id"],
+		["a doctrine factor of zero or less", "doctrines.entries.0.effects", { farmYield: -1 }, "a factor must be above zero"],
+		["a province that eases the crown below the first posting", "prestige.provinces.kind.0.escalation", 0.5, "tuning.prestige.provinces.kind[0].escalation"],
 		["no Archive panel play unlock", "archive.play", [], "tuning.archive.play: must include"],
 	];
 

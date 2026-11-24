@@ -187,7 +187,11 @@ export function startApp(options: {
           if (prompt.purpose === "village") {
             foundNewVillage(prompt.seed, result.name);
           } else {
-            session.enqueue({ type: "endPosting", name: result.name });
+            session.enqueue({
+              type: "endPosting",
+              name: result.name,
+              doctrine: prompt.doctrine,
+            });
           }
         }
       }
@@ -210,19 +214,21 @@ export function startApp(options: {
       const result = menuKey(menu, key, menuContext());
       menu = result.state;
       for (const command of result.commands) session.enqueue(command);
-      if (result.requests.includes("newGame")) {
-        const seed = options.newSeed();
-        namePrompt = {
-          purpose: "village",
-          seed,
-          text: defaultVillageName(seed, tuning),
-        };
-      }
-      if (result.requests.includes("endPosting")) {
-        namePrompt = {
-          purpose: "posting",
-          text: session.view().prestige.nextName,
-        };
+      for (const request of result.requests) {
+        if (request === "newGame") {
+          const seed = options.newSeed();
+          namePrompt = {
+            purpose: "village",
+            seed,
+            text: defaultVillageName(seed, tuning),
+          };
+        } else {
+          namePrompt = {
+            purpose: "posting",
+            doctrine: request.doctrine,
+            text: session.view().prestige.nextName,
+          };
+        }
       }
       redraw();
       return;

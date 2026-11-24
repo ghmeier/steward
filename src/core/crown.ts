@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { CommandResult } from "./commands";
 import { copy } from "./copy";
+import { TRADE } from "./doctrine";
 import { addIssue } from "./errors";
 import type { Game } from "./game";
 import { type AddContext, add } from "./math";
@@ -305,7 +306,10 @@ export class CrownManager {
     crown.demand = {
       id: crown.met + crown.missed + 1,
       resource,
-      amount: Math.round(base * (1 + step * crown.met) + crown.surcharge),
+      amount: Math.round(
+        base * this.game.prestige.escalation * (1 + step * crown.met) +
+          crown.surcharge,
+      ),
       delivered: 0,
       issuedAt: this.tick,
       dueAt: this.tick + drawDelay(this.stream, tuning.deadline),
@@ -381,6 +385,33 @@ export class CrownManager {
       };
     }
     this.credit(this.take(context), context);
+    return { ok: true };
+  }
+
+  /**
+   * Under the trade doctrine the crown takes coin for a grain, wood or ore demand, at the price the
+   * market would pay for it. As with delivery, whatever the coin cannot cover is left owing.
+   */
+  payInCoin(context: AddContext): CommandResult {
+    if (!this.game.prestige.hasDoctrine(TRADE)) {
+      return { ok: false, reason: copy.crown.coinNotAccepted };
+    }
+    if (!this.isOpen) return { ok: false, reason: copy.crown.noDemand };
+    const resource = this.crown.demand.resource as Resource;
+    if (resource === "coin") {
+      return { ok: false, reason: copy.crown.alreadyCoin };
+    }
+    const coin = this.game.illusion.apparent("coin");
+    if (coin <= 0) {
+      return {
+        ok: false,
+        reason: copy.crown.villageHoldsNone({ resource: "coin" }),
+      };
+    }
+    const price = this.game.economy.priceOf(resource);
+    const paid = Math.min(this.owed, coin / price);
+    this.game.illusion.spend("coin", paid * price, context);
+    this.credit(paid, context);
     return { ok: true };
   }
 

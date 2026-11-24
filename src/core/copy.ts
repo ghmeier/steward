@@ -50,9 +50,14 @@ export const copy = {
     noDemand: "the crown has made no demand",
     villageHoldsNone: ({ resource }: { resource: string }) =>
       `the village holds no ${resource}`,
+    coinNotAccepted: "the crown takes coin only from a posting under trade",
+    alreadyCoin: "the crown already asks for coin",
   },
   prestige: {
     nameRequired: "a posting needs a name",
+    doctrineRequired: "a posting needs a doctrine",
+    unknownDoctrine: ({ doctrine }: { doctrine: string }) =>
+      `"${doctrine}" is not a doctrine`,
     notYet: ({ met, needed }: { met: number; needed: number }) =>
       `the crown will not release you until ${needed} demands are met, and you have met ${met}`,
     ended: {
@@ -231,6 +236,8 @@ export const copy = {
     stored: ({ amount, cap }: { amount: string; cap: string }) =>
       `${amount} / ${cap}`,
     titleLabel: "Title",
+    provinceLabel: "Province",
+    doctrineLabel: "Doctrine",
     postingTitle: ({
       title,
       village,
@@ -331,6 +338,8 @@ export const copy = {
       `The crown is quiet. Next demand in about ${wait}.`,
     crownMayEnd: ({ key }: { key: string }) =>
       `You have served long enough. Press ${key} to ask the crown for a new posting.`,
+    crownAcceptsCoin: ({ key }: { key: string }) =>
+      `The crown accepts coin: press ${key} to pay a grain, wood or ore demand at the market price.`,
     crownCannotEnd: ({ met, needed }: { met: number; needed: number }) =>
       `The crown will not release you until ${needed} demands are met; you have met ${met}.`,
     crownTally: ({ met, missed }: { met: number; missed: number }) =>
@@ -386,6 +395,37 @@ export const copy = {
       "You keep every panel, control and decree feature you bought, your saved decrees and your rank.",
     postingEndResets:
       "You start again with new resources and peasants, no decrees, no debt and a neutral crown. Stores, tools, market rights, the moneylender's favor, friends at court, the physician and governor slots must be bought again at the same price.",
+    doctrineTitle: "Choose a doctrine",
+    doctrineIntro:
+      "A doctrine shapes the whole of the next posting: it changes some yields and prices and adds one rule.",
+    doctrineSummary: ({
+      label,
+      bonus,
+      cost,
+      rule,
+      description,
+    }: {
+      label: string;
+      bonus: string;
+      cost: string;
+      rule: string;
+      description: string;
+    }) =>
+      `${label}. Bonus: ${bonus}. Cost: ${cost}. Rule: ${rule}. ${description}`,
+    doctrineNone: "nothing",
+    modifierNames: {
+      grainCap: "grain store",
+      woodCap: "wood store",
+      oreCap: "ore store",
+      farmYield: "farm yield",
+      forestYield: "forest yield",
+      mineYield: "mine yield",
+      sellPrice: "sell price",
+      interest: "interest",
+      auditGap: "time between audits",
+      governorDeath: "governor deaths",
+      governorSlots: "governor slots",
+    },
     stayInPosting: "No, stay in this posting",
     endPosting: "Yes, end the posting",
     namePromptHints: "type a name · enter found the village · esc cancel",
@@ -618,6 +658,8 @@ export const copy = {
       correspondence: ({ label, cost }: { label: string; cost: string }) =>
         `${label} (Archive, ${cost}) lets decrees read what is owed, as in "owed ore above 0".`,
       commandLine: "The command line also takes deliver.",
+      doctrines: ({ rules, payKey }: { rules: string; payKey: string }) =>
+        `Ending a posting also asks you to commit to a doctrine, which changes some yields and prices for the whole next posting and adds one rule: ${rules}. The new province adds modifiers of its own and presses the crown's demands and the auditors harder, and every posting after the first presses harder still. Under trade, press ${payKey} in the Crown panel or type pay to hand the crown coin for a demand.`,
       endPosting: ({ key, needed }: { key: string; needed: number }) =>
         `After ${needed} demands are met you may end the posting with ${key} on the Crown panel. The crown's mood then decides the ending, and the ending decides how kind your next province is.`,
     },
@@ -850,6 +892,7 @@ export const copy = {
     needsForging: ({ verb }: { verb: string }) =>
       `${verb} needs forging from the Archive, once you hold the Crown charter`,
     needsDebt: "back needs a debt to repay",
+    needsTrade: "pay needs the trade doctrine",
     needsCrown: ({ verb }: { verb: string }) =>
       `${verb} needs the Crown charter from the Archive`,
     archiveEntryHelp: ({
@@ -883,6 +926,7 @@ export const copy = {
       forget: "delete a saved decree",
       assign: "give a peasant a job",
       deliver: "hand the crown what it demands from the stores",
+      pay: "pay the open crown demand in coin at the market price",
       conjure: "add stock that does not exist, grain or coin only",
       forgeMissing: "deliver what the stores hold, then forge the rest",
       forge: "report the open crown demand as delivered, on paper",

@@ -2,6 +2,7 @@ import type { CrownView } from "./crown";
 import type { Decree } from "./decree";
 import type { DelegateView } from "./delegates";
 import type { DeskEntryView } from "./desk";
+import { TRADE } from "./doctrine";
 import type { Game } from "./game";
 import type { FormerGovernorView, GovernorView } from "./governors";
 import type { IllusionView } from "./illusion";
@@ -50,13 +51,15 @@ export type GameView = {
   /** The steward's rank, which climbs with promotion and then with the crown's charter and a governor in service. */
   title: string;
   promotion: { target: number; promotedAt: number };
-  /** Which posting of the career this is, counting from 1, and the label of its province (empty for the first). */
-  posting: { index: number; province: string };
+  /** Which posting of the career this is, counting from 1, and the labels of its province and doctrine (empty for the first). */
+  posting: { index: number; province: string; doctrine: string };
   prestige: {
     demandsMet: number;
     demandsNeeded: number;
     canEnd: boolean;
     ending: Ending;
+    /** Whether the crown takes coin for a grain, wood or ore demand, which only a posting under trade allows. */
+    coinAccepted: boolean;
     /** The name the next posting is offered, which the player may change. */
     nextName: string;
   };
@@ -188,12 +191,14 @@ export class ViewManager {
       posting: {
         index: this.posting.index,
         province: this.game.prestige.provinceLabel(this.posting.province),
+        doctrine: this.game.prestige.doctrine?.label ?? "",
       },
       prestige: {
         demandsMet: this.game.prestige.demandsMet,
         demandsNeeded: this.game.prestige.demandsNeeded,
         canEnd: this.game.prestige.canEnd,
         ending: this.game.prestige.ending,
+        coinAccepted: this.game.prestige.hasDoctrine(TRADE),
         nextName: this.game.prestige.defaultName,
       },
       growth: {

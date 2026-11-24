@@ -18,6 +18,10 @@ export type PostingPlan = {
   /** Archive entries bought in this order, after the ones the setup commands need, each as soon as it is on offer and affordable. An entry already owned is skipped, so one the posting reset is bought again. */
   purchases: string[];
 };
+export type LaterPosting = PostingPlan & {
+  /** The doctrine the posting is begun under; the first the data lists when absent. */
+  doctrine?: string | undefined;
+};
 export type Strategy = PostingPlan & {
   name: string;
   reactions: Reaction[];
@@ -25,7 +29,7 @@ export type Strategy = PostingPlan & {
    * The plans for the second posting onward, the last repeating for every posting after it. A strategy
    * with none never ends a posting; one with any ends each posting as soon as the crown allows.
    */
-  laterPostings: PostingPlan[];
+  laterPostings: LaterPosting[];
 };
 export type StrategyStats = {
   setupCommands: number;
@@ -72,7 +76,11 @@ function strategySchema(limits: DecreeLimits): z.ZodType<Strategy> {
     name: z.string().min(1),
     ...postingPlan,
     reactions: z.array(reaction),
-    laterPostings: z.array(z.strictObject(postingPlan)).default([]),
+    laterPostings: z
+      .array(
+        z.strictObject({ ...postingPlan, doctrine: z.string().optional() }),
+      )
+      .default([]),
   });
 }
 
@@ -109,12 +117,12 @@ export class StrategyPlayer {
     return this.strategy.laterPostings.length > 0;
   }
 
-  private planFor(index: number): PostingPlan {
+  private planFor(index: number): LaterPosting {
     const { laterPostings } = this.strategy;
     if (index === 1 || laterPostings.length === 0) return this.strategy;
     return laterPostings[
       Math.min(index - 2, laterPostings.length - 1)
-    ] as PostingPlan;
+    ] as LaterPosting;
   }
 
   /** A posting begins from nothing, so setup that was never issued in the last one is dropped and every reaction waits for its condition afresh. */
@@ -197,7 +205,12 @@ export class StrategyPlayer {
       this.held[index] = holds;
     }
     if (this.endsPostings && game.prestige.canEnd) {
-      fired.push({ type: "endPosting", name: game.prestige.defaultName });
+      const next = this.planFor(game.state.posting.index + 1);
+      fired.push({
+        type: "endPosting",
+        name: game.prestige.defaultName,
+        doctrine: next.doctrine ?? game.tuning.doctrines.entries[0]?.id ?? "",
+      });
     }
     this.pending = fired;
     this.purchase = this.nextPurchase(game);

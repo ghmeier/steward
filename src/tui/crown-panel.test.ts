@@ -113,6 +113,12 @@ describe("the Crown panel", () => {
       expect(panel.title).toBe("C(r)own");
     });
 
+    test("the coin key pays the open demand in coin", () => {
+      expect(panel.key(key("c"), context)?.commands).toEqual([
+        { type: "payInCoin" },
+      ]);
+    });
+
     test("the end-posting key opens the posting-end menu once the milestone is reached and explains itself before", () => {
       const early = emptyView();
       const ready = emptyView({
@@ -130,6 +136,35 @@ describe("the Crown panel", () => {
       ]);
       expect(granted?.requests).toEqual([{ kind: "endPosting" }]);
       expect(granted?.commands).toEqual([]);
+    });
+  });
+
+  describe("the offer to pay in coin", () => {
+    const view = (coinAccepted: boolean) =>
+      emptyView({
+        crown: {
+          demand: null,
+          nextDemandTicks: 10,
+          met: 0,
+          missed: 0,
+          favor: "neutral" as const,
+        },
+        unlocks: [CROWN_PANEL],
+        prestige: { ...emptyView().prestige, coinAccepted },
+      });
+
+    test("names the key only in a posting where the crown accepts coin", async () => {
+      const offer = copy.village.crownAcceptsCoin({ key: "c" });
+
+      const trading = await drawPanels([view(true)], {
+        size: { width: 300, height: 30 },
+      });
+      const other = await drawPanels([view(false)], {
+        size: { width: 300, height: 30 },
+      });
+
+      expect(trading).toContain(offer);
+      expect(other).not.toContain(offer);
     });
   });
 

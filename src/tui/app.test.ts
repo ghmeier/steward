@@ -20,6 +20,7 @@ import {
 import { barRow, settledFrame } from "../../test/tui-helpers";
 import { copy } from "../core/copy";
 import type { Decree } from "../core/decree";
+import type { Doctrine } from "../core/doctrine";
 import { Game } from "../core/game";
 import { defaultVillageName } from "../core/posting";
 import { Job } from "../core/realm";
@@ -751,11 +752,15 @@ describe("ending a posting", () => {
     expect(harness.game.state.posting.name).toBe(name);
   });
 
-  test("choosing to end asks for a name, then starts the second posting with that name and the starting stores", async () => {
+  test("choosing to end asks for a doctrine and then a name, and starts the second posting under both", async () => {
     const harness = await launch({ game: readyToEnd(0) });
     const offered = harness.game.prestige.defaultName;
+    const chosen = tuning.doctrines.entries[1] as Doctrine;
 
     await harness.mockInput.typeText("re");
+    harness.mockInput.pressArrow("down");
+    harness.mockInput.pressEnter();
+    const doctrines = await harness.screen();
     harness.mockInput.pressArrow("down");
     harness.mockInput.pressEnter();
     const prompt = await harness.screen();
@@ -764,11 +769,17 @@ describe("ending a posting", () => {
     harness.mockInput.pressEnter();
     await harness.advanceStep();
 
+    expect(doctrines).toContain(copy.menus.doctrineTitle);
+    for (const { label, rule } of tuning.doctrines.entries) {
+      expect(doctrines).toContain(label);
+      expect(doctrines).toContain(rule.label);
+    }
     expect(prompt).toContain(copy.menus.postingNamePromptTitle);
     expect(prompt).toContain(offered);
     const { posting } = harness.game.state;
     expect(posting.index).toBe(2);
     expect(posting.name).toBe("Quillhaven");
+    expect(posting.doctrine).toBe(chosen.id);
     expect(posting.resources.wood).toBeCloseTo(
       tuning.prestige.resources.wood,
       0,
@@ -776,7 +787,24 @@ describe("ending a posting", () => {
     expect(harness.game.delegates.peasants).toHaveLength(
       tuning.prestige.population,
     );
-    expect(await harness.screen()).toContain("posting 2");
+    const ledger = await harness.screen();
+    expect(ledger).toContain("posting 2");
+    expect(ledger).toContain(copy.ledger.doctrineLabel);
+    expect(ledger).toContain(chosen.label);
+  });
+
+  test("escaping from the doctrine screen returns to the question and ends nothing", async () => {
+    const harness = await launch({ game: readyToEnd(0), kittyKeyboard: true });
+
+    await harness.mockInput.typeText("re");
+    harness.mockInput.pressArrow("down");
+    harness.mockInput.pressEnter();
+    await harness.screen();
+    harness.mockInput.pressEscape();
+    const screen = await harness.screen();
+
+    expect(screen).toContain(copy.menus.postingEndTitle);
+    expect(harness.game.state.posting.index).toBe(1);
   });
 
   test("the key before the milestone only says how many demands remain", async () => {

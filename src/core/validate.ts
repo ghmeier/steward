@@ -245,6 +245,7 @@ const posting: z.ZodType<PostingState> = z
     index: positiveCount,
     startedAt: count,
     province: z.string(),
+    doctrine: z.string(),
     name: z.string().trim().min(1),
     seed: uint32,
     rng: z.record(z.string(), rngStream),

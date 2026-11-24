@@ -184,6 +184,17 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
     state.posting.startedAt = 0;
     state.posting.province = "";
   },
+  // Doctrines arrive with the second posting, so an earlier save has none, nor have the postings it already closed.
+  // The ore mined so far this season was never counted, so the count starts afresh.
+  18: (state) => {
+    if (!isRecord(state.career) || !isRecord(state.posting)) return;
+    state.posting.doctrine = "";
+    if (isRecord(state.posting.economy)) state.posting.economy.seasonOre = 0;
+    if (!Array.isArray(state.career.postings)) return;
+    for (const record of state.career.postings) {
+      if (isRecord(record)) record.doctrine = "";
+    }
+  },
 };
 
 function upgrade(record: Record<string, unknown>): void {

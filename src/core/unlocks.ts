@@ -118,6 +118,7 @@ export const COMMAND_UNLOCKS = {
   settleDispute: COURT_PANEL,
   settle: COURT_PANEL,
   deliver: CROWN_PANEL,
+  payInCoin: CROWN_PANEL,
   forge: FORGING,
   forgeMissing: FORGING,
   conjure: CONJURING,
@@ -142,16 +143,23 @@ export function costLines(
 export class UnlockManager {
   constructor(private game: Game) {}
 
-  /** What the owned upgrades make of a modifier: the product of their factors, or the sum of their gaps. */
+  /**
+   * What the owned upgrades, the posting's doctrine and its province make of a modifier: the product
+   * of their factors, or the sum of their gaps.
+   */
   modifier(id: ModifierId): number {
     const isFactor = MODIFIERS[id] === "factor";
+    const fold = (total: number, value: number | undefined): number => {
+      if (value === undefined) return total;
+      return isFactor ? total * value : total + value;
+    };
     let total = isFactor ? 1 : 0;
     for (const entry of this.game.tuning.archive.entries) {
-      const value = entry.effects?.[id];
-      if (value === undefined || !this.enabled(entry.id)) continue;
-      total = isFactor ? total * value : total + value;
+      if (this.enabled(entry.id)) total = fold(total, entry.effects?.[id]);
     }
-    return total;
+    const { doctrine, province } = this.game.prestige;
+    total = fold(total, doctrine?.effects[id]);
+    return fold(total, province?.effects[id]);
   }
 
   enabled(id: UnlockId) {
@@ -334,6 +342,20 @@ const simpleCondition: z.ZodType<Condition> = conditionSchema({
   }
 });
 
+/** A factor must stay positive, but a gap may be negative: a province can shrink a store or shorten the time between audits. */
+export const archiveEffectsSchema: z.ZodType<ArchiveEffects> = z
+  .partialRecord(
+    z.enum(Object.keys(MODIFIERS) as [ModifierId, ...ModifierId[]]),
+    z.number().refine((value) => value !== 0, "must not be zero"),
+  )
+  .superRefine((effects, ctx) => {
+    for (const [id, value] of Object.entries(effects)) {
+      if (MODIFIERS[id as ModifierId] === "factor" && value <= 0) {
+        addIssue(ctx, "a factor must be above zero", [id]);
+      }
+    }
+  });
+
 const archiveCost: z.ZodType<ArchiveCost> = z
   .partialRecord(z.enum(RESOURCES), positive)
   .refine((cost) => Object.keys(cost).length > 0, "must cost something");
@@ -346,12 +368,7 @@ const archiveEntry: z.ZodType<ArchiveEntry> = z.strictObject({
   shown: z
     .union([simpleCondition, z.literal(PROMOTION), z.literal(GOVERNOR_HIRED)])
     .optional(),
-  effects: z
-    .partialRecord(
-      z.enum(Object.keys(MODIFIERS) as [ModifierId, ...ModifierId[]]),
-      positive,
-    )
-    .optional(),
+  effects: archiveEffectsSchema.optional(),
   scope: z.enum(["career", "posting"]).optional(),
 });
 const playUnlock: z.ZodType<PlayUnlock> = z.strictObject({

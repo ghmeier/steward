@@ -335,6 +335,7 @@ export class DecreesPanel extends VillagePanel {
 
 export class CrownPanel extends VillagePanel {
   private static readonly endKey = "e";
+  static readonly coinKey = "c";
   static override readonly keys: PanelKeys = {
     id: "crown",
     focusKey: "r",
@@ -385,6 +386,9 @@ export class CrownPanel extends VillagePanel {
       "",
       copy.village.crownTally({ met: crown.met, missed: crown.missed }),
       copy.village.crownFavor[crown.favor],
+      ...(view.prestige.coinAccepted
+        ? ["", copy.village.crownAcceptsCoin({ key: CrownPanel.coinKey })]
+        : []),
       ...(view.prestige.canEnd
         ? ["", copy.village.crownMayEnd({ key: CrownPanel.endKey })]
         : []),
@@ -412,6 +416,7 @@ export class CrownPanel extends VillagePanel {
     }
     if (name === "return" || name === "enter")
       return step([{ type: "deliver" }]);
+    if (name === CrownPanel.coinKey) return step([{ type: "payInCoin" }]);
     if (name === "f") return step([{ type: "forge" }]);
     if (name === "F") return step([{ type: "forgeMissing" }]);
     return null;
@@ -549,6 +554,19 @@ export class LedgerPanel extends VillagePanel {
     );
   }
 
+  /** A first posting has neither a province nor a doctrine, so it shows neither line. */
+  private postingLines(view: GameView, width: number): string[] {
+    const { province, doctrine } = view.posting;
+    return [
+      ...(province === ""
+        ? []
+        : this.labelled(copy.ledger.provinceLabel, province, width)),
+      ...(doctrine === ""
+        ? []
+        : this.labelled(copy.ledger.doctrineLabel, doctrine, width)),
+    ];
+  }
+
   private promotionLines(view: GameView, width: number): string[] {
     const { target, promotedAt } = view.promotion;
     if (promotedAt > 0) return [];
@@ -602,6 +620,7 @@ export class LedgerPanel extends VillagePanel {
         copy.ledger.season({ season: capitalize(realm.season) }),
       ].flatMap((line) => wrapLine(line, size.width, 2)),
       ...this.titleLines(view, size.width),
+      ...this.postingLines(view, size.width),
       ...this.promotionLines(view, size.width),
       ...this.nextPeasantLines(view, size.width),
     ];

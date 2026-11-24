@@ -13,6 +13,7 @@ export type PostingStart = {
   startedAt: number;
   resources: Record<ResourceId, number>;
   province: string;
+  doctrine: string;
 };
 
 /** Picks from the seed rather than a random stream, so the same seed always founds the same village name. */
@@ -38,6 +39,7 @@ export function newPosting(
     index: start.index,
     startedAt: start.startedAt,
     province: start.province,
+    doctrine: start.doctrine,
     name,
     seed,
     rng,

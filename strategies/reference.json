@@ -141,6 +141,7 @@
   ],
   "laterPostings": [
     {
+      "doctrine": "agriculture",
       "setup": [
         {
           "type": "assignPeasant",

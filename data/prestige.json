@@ -2,14 +2,35 @@
   "demandsMet": 6,
   "population": 12,
   "resources": { "coin": 0, "grain": 200, "ore": 20, "wood": 60 },
+  "escalationPerPosting": 0.25,
   "provinces": {
     "kind": [
-      { "id": "fertile-valley", "label": "Fertile valley" },
-      { "id": "timber-march", "label": "Timber march" }
+      {
+        "id": "fertile-valley",
+        "label": "Fertile valley",
+        "effects": { "farmYield": 1.15 },
+        "escalation": 1
+      },
+      {
+        "id": "timber-march",
+        "label": "Timber march",
+        "effects": { "forestYield": 1.2, "grainCap": -50 },
+        "escalation": 1.05
+      }
     ],
     "harsh": [
-      { "id": "poor-soil", "label": "Poor soil" },
-      { "id": "entrenched-nobles", "label": "Entrenched nobles" }
+      {
+        "id": "poor-soil",
+        "label": "Poor soil",
+        "effects": { "farmYield": 0.8 },
+        "escalation": 1.1
+      },
+      {
+        "id": "entrenched-nobles",
+        "label": "Entrenched nobles",
+        "effects": { "auditGap": -240, "interest": 1.25 },
+        "escalation": 1.15
+      }
     ]
   }
 }

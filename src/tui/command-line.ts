@@ -298,6 +298,16 @@ const VERBS: readonly Verb[] = [
     parse: () => ({ type: "deliver" }),
   },
   {
+    word: "pay",
+    bare: true,
+    description: copy.commandLine.verbHelp.pay,
+    available: (context) =>
+      ownsUnlock(context, COMMAND_UNLOCKS.payInCoin) &&
+      context.view.prestige.coinAccepted,
+    unavailableProblem: () => copy.commandLine.needsTrade,
+    parse: () => ({ type: "payInCoin" }),
+  },
+  {
     word: "conjure",
     description: copy.commandLine.verbHelp.conjure,
     ...needsUnlock(COMMAND_UNLOCKS.conjure, "conjure"),

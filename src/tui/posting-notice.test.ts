@@ -10,6 +10,7 @@ const view = (canEnd: boolean) =>
       demandsNeeded: 6,
       canEnd,
       ending: "reassignment",
+      coinAccepted: false,
       nextName: "Ashford",
     },
   });
