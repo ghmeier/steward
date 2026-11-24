@@ -475,6 +475,43 @@ describe("lineKey", () => {
     expect(result.commands).toHaveLength(1);
     expect(result.commands[0]).toMatchObject({ type: "enactDecree" });
   });
+
+  test("enter on a complete command that is also the start of a longer one issues it without completing", () => {
+    const context = contextWith(forging);
+
+    const result = lineKey(openLine("forge"), key("return"), context);
+
+    expect(result.state).toBeNull();
+    expect(result.commands).toEqual([{ type: "forge" }]);
+  });
+
+  test("enter on an incomplete prefix completes it and issues nothing, then the next enter issues the command", () => {
+    const completed = lineKey(
+      openLine("decree harvest otherwise s"),
+      key("return"),
+      fresh,
+    );
+    const issued = lineKey(
+      completed.state ?? openLine(""),
+      key("return"),
+      fresh,
+    );
+
+    expect(completed.commands).toEqual([]);
+    expect(completed.state?.text).toBe("decree harvest otherwise sell ");
+    expect(issued.state).toBeNull();
+    expect(issued.commands).toHaveLength(1);
+  });
+
+  test("escape on a complete command discards the text instead of issuing it", () => {
+    const result = lineKey(
+      openLine("decree harvest otherwise sell"),
+      key("escape"),
+      fresh,
+    );
+
+    expect(result).toEqual({ state: null, commands: [] });
+  });
 });
 
 describe("renderLine", () => {

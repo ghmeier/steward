@@ -385,6 +385,29 @@ describe("doors", () => {
     expect(await harness.screen()).toContain("(L)edger");
   });
 
+  test("escape closes the line, and colon reopens it empty", async () => {
+    const harness = await launch({
+      game: owning(PALETTE_UNLOCK),
+      kittyKeyboard: true,
+    });
+
+    await harness.mockInput.typeText(":decree wood oth");
+    harness.mockInput.pressEscape();
+    await harness.mockInput.typeText(":");
+
+    expect(await harness.screen()).toContain(": _");
+  });
+
+  test("one enter on a typed complete decree enacts it", async () => {
+    const harness = await launch({ game: owning(PALETTE_UNLOCK) });
+
+    await harness.mockInput.typeText(":decree wood otherwise stockpile");
+    harness.mockInput.pressEnter();
+    await harness.advanceStep();
+
+    expect(Object.keys(harness.game.state.posting.decrees)).toEqual(["wood"]);
+  });
+
   test("with the line open game keys do not assign, but Ctrl-C still quits", async () => {
     const harness = await launch({ game: owning(PALETTE_UNLOCK) });
 
