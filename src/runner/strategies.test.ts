@@ -14,7 +14,11 @@ type Summary = {
   hash: string;
   starved: number;
   promotedAt: number;
+  postings: { index: number; demandsMet: number; endedAt: number | null }[];
 };
+
+// Long enough for the reference strategy to meet the crown's milestone and then serve a second posting.
+const CAREER_STEPS = "75000";
 
 function run(argv: string[]): Summary {
   const stdout: string[] = [];
@@ -28,12 +32,16 @@ function run(argv: string[]): Summary {
   return JSON.parse(stdout.at(-1) as string) as Summary;
 }
 
-function play(name: string, extra: string[] = []): Summary {
+function play(
+  name: string,
+  extra: string[] = [],
+  steps: string = STEPS,
+): Summary {
   return run([
     "--seed",
     "1",
     "--steps",
-    STEPS,
+    steps,
     "--strategy",
     `strategies/${name}.json`,
     ...extra,
@@ -46,6 +54,18 @@ describe("scripted strategies over ten game years", () => {
 
     expect(summary.starved).toBe(0);
     expect(summary.promotedAt).toBeGreaterThan(0);
+  });
+
+  test("the reference strategy ends its first posting and meets a crown demand in the second", () => {
+    const summary = play("reference", [], CAREER_STEPS);
+
+    const [first, second] = summary.postings;
+    expect(first?.endedAt).not.toBeNull();
+    expect(first?.demandsMet).toBeGreaterThanOrEqual(
+      tuning.prestige.demandsMet,
+    );
+    expect(second?.index).toBe(2);
+    expect(second?.demandsMet).toBeGreaterThan(0);
   });
 
   test("a village that farms, feeds and sets its labor reveals every first-tier upgrade before promotion", () => {
@@ -133,6 +153,26 @@ describe("scripted strategies over ten game years", () => {
     ]);
 
     expect(readFileSync(record, "utf8")).toContain("enactDecree");
+    expect(replayed.hash).toBe(played.hash);
+  });
+
+  test("a recorded run that ends a posting replays to the same hash", () => {
+    const record = join(
+      mkdtempSync(join(tmpdir(), "steward-rec-")),
+      "log.json",
+    );
+    const played = play("reference", ["--record", record], CAREER_STEPS);
+
+    const replayed = run([
+      "--seed",
+      "1",
+      "--steps",
+      CAREER_STEPS,
+      "--commands",
+      record,
+    ]);
+
+    expect(readFileSync(record, "utf8")).toContain("endPosting");
     expect(replayed.hash).toBe(played.hash);
   });
 });

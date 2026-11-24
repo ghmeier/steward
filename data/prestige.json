@@ -1,0 +1,15 @@
+{
+  "demandsMet": 6,
+  "population": 12,
+  "resources": { "coin": 0, "grain": 200, "ore": 20, "wood": 60 },
+  "provinces": {
+    "kind": [
+      { "id": "fertile-valley", "label": "Fertile valley" },
+      { "id": "timber-march", "label": "Timber march" }
+    ],
+    "harsh": [
+      { "id": "poor-soil", "label": "Poor soil" },
+      { "id": "entrenched-nobles", "label": "Entrenched nobles" }
+    ]
+  }
+}

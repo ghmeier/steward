@@ -6,9 +6,10 @@ import type { EconomyState } from "./economy";
 import type { FormerGovernor } from "./governors";
 import type { IllusionState } from "./illusion";
 import type { LaborState } from "./labor";
+import type { PostingRecord } from "./prestige";
 import type { RngState } from "./rng";
 
-export const SCHEMA_VERSION = 17;
+export const SCHEMA_VERSION = 18;
 
 export type ResourceId = string;
 
@@ -18,12 +19,19 @@ export type CareerState = {
   /** The first tick each Archive entry was revealed. Revealing latches, because the stock that revealed it can fall back. */
   seen: Record<string, number>;
   followers: string[];
+  /** One record for each posting that has ended, oldest first. */
+  postings: PostingRecord[];
   /** 0 until promotion; a promotion can only happen at tick 1 or later. */
   promotedAt: number;
 };
 
 export type PostingState = {
-  postingId: string;
+  /** Counts from 1 across the career. */
+  index: number;
+  /** The global tick this posting began at; 0 for the first. */
+  startedAt: number;
+  /** Which province the steward was sent to; empty for the first posting. */
+  province: string;
   name: string;
   seed: number;
   rng: Record<string, RngState>;

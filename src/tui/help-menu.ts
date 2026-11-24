@@ -282,6 +282,10 @@ function crownLines(tuning: Tuning): string[] {
       cost: formatCost(costLines(entry)),
     }),
     copy.help.crown.commandLine,
+    copy.help.crown.endPosting({
+      key: keymap.panelHintKey("crown", copy.keys.panelActions.endPosting),
+      needed: tuning.prestige.demandsMet,
+    }),
   ];
 }
 

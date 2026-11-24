@@ -726,6 +726,76 @@ describe("focus", () => {
   });
 });
 
+describe("ending a posting", () => {
+  const readyToEnd = (favor: number): Game => {
+    const game = owning(CROWN_PANEL);
+    game.state.career.promotedAt = 1;
+    game.state.posting.crown.met = tuning.prestige.demandsMet;
+    game.state.posting.crown.favor = favor;
+    return game;
+  };
+
+  test("the Crown key opens a menu naming the ending, and choosing to stay changes nothing", async () => {
+    const harness = await launch({ game: readyToEnd(30) });
+    const { name } = harness.game.state.posting;
+
+    await harness.mockInput.typeText("re");
+    const menu = await harness.screen();
+    harness.mockInput.pressEnter();
+    await harness.advanceStep();
+
+    expect(menu).toContain(copy.menus.postingEndTitle);
+    expect(menu).toContain(copy.menus.postingEndOutlook.promotion);
+    expect(harness.game.state.posting.index).toBe(1);
+    expect(harness.game.state.posting.name).toBe(name);
+  });
+
+  test("choosing to end asks for a name, then starts the second posting with that name and the starting stores", async () => {
+    const harness = await launch({ game: readyToEnd(0) });
+    const offered = harness.game.prestige.defaultName;
+
+    await harness.mockInput.typeText("re");
+    harness.mockInput.pressArrow("down");
+    harness.mockInput.pressEnter();
+    const prompt = await harness.screen();
+    for (const _ of offered) harness.mockInput.pressBackspace();
+    await harness.mockInput.typeText("Quillhaven");
+    harness.mockInput.pressEnter();
+    await harness.advanceStep();
+
+    expect(prompt).toContain(copy.menus.postingNamePromptTitle);
+    expect(prompt).toContain(offered);
+    const { posting } = harness.game.state;
+    expect(posting.index).toBe(2);
+    expect(posting.name).toBe("Quillhaven");
+    expect(posting.resources.wood).toBeCloseTo(
+      tuning.prestige.resources.wood,
+      0,
+    );
+    expect(harness.game.delegates.peasants).toHaveLength(
+      tuning.prestige.population,
+    );
+    expect(await harness.screen()).toContain("posting 2");
+  });
+
+  test("the key before the milestone only says how many demands remain", async () => {
+    const game = readyToEnd(0);
+    game.state.posting.crown.met = 2;
+    const harness = await launch({ game });
+
+    await harness.mockInput.typeText("re");
+
+    const screen = await harness.screen();
+    expect(screen).not.toContain(copy.menus.postingEndTitle);
+    expect(barRow(screen)).toContain(
+      copy.village.crownCannotEnd({
+        met: 2,
+        needed: tuning.prestige.demandsMet,
+      }),
+    );
+  });
+});
+
 describe("new village", () => {
   test("n asks for confirmation, warning about Archive purchases only once the player owns any", async () => {
     const withUnlocks = await launch({ game: owning(ARCHIVE_PANEL) });

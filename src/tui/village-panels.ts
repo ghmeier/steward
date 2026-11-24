@@ -47,7 +47,8 @@ export type PanelSize = { width: number; height: number };
 export type PanelRequest =
   | { kind: "unfocus" }
   | { kind: "openLine"; text: string }
-  | { kind: "message"; text: string };
+  | { kind: "message"; text: string }
+  | { kind: "endPosting" };
 
 export type PanelStep = { commands: Command[]; requests: PanelRequest[] };
 
@@ -333,6 +334,7 @@ export class DecreesPanel extends VillagePanel {
 }
 
 export class CrownPanel extends VillagePanel {
+  private static readonly endKey = "e";
   static override readonly keys: PanelKeys = {
     id: "crown",
     focusKey: "r",
@@ -341,6 +343,7 @@ export class CrownPanel extends VillagePanel {
       { keys: "enter", label: copy.keys.panelActions.deliver },
       { keys: "f", label: copy.keys.panelActions.forge },
       { keys: "F", label: copy.keys.panelActions.forgeMissing },
+      { keys: CrownPanel.endKey, label: copy.keys.panelActions.endPosting },
       { keys: "esc", label: copy.keys.panelActions.back },
     ],
   };
@@ -382,15 +385,35 @@ export class CrownPanel extends VillagePanel {
       "",
       copy.village.crownTally({ met: crown.met, missed: crown.missed }),
       copy.village.crownFavor[crown.favor],
+      ...(view.prestige.canEnd
+        ? ["", copy.village.crownMayEnd({ key: CrownPanel.endKey })]
+        : []),
     ];
     return lines
       .flatMap((line) => wrapLine(line, size.width - 1, 2))
       .join("\n");
   }
 
-  key(key: KeyPress): PanelStep | null {
+  key(key: KeyPress, { view }: MenuContext): PanelStep | null {
     const name = plainKeyName(key);
     if (name === "escape") return UNFOCUS;
+    if (name === CrownPanel.endKey) {
+      const { canEnd, demandsMet, demandsNeeded } = view.prestige;
+      return canEnd
+        ? step([], [{ kind: "endPosting" }])
+        : step(
+            [],
+            [
+              {
+                kind: "message",
+                text: copy.village.crownCannotEnd({
+                  met: demandsMet,
+                  needed: demandsNeeded,
+                }),
+              },
+            ],
+          );
+    }
     if (name === "return" || name === "enter")
       return step([{ type: "deliver" }]);
     if (name === "f") return step([{ type: "forge" }]);
@@ -516,9 +539,16 @@ export class LedgerPanel extends VillagePanel {
   }
 
   private titleLines(view: GameView, width: number): string[] {
+    const { index } = view.posting;
     return this.labelled(
       copy.ledger.titleLabel,
-      copy.ledger.title({ title: view.title, village: view.villageName }),
+      index === 1
+        ? copy.ledger.title({ title: view.title, village: view.villageName })
+        : copy.ledger.postingTitle({
+            title: view.title,
+            village: view.villageName,
+            posting: index,
+          }),
       width,
     );
   }

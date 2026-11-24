@@ -3,11 +3,15 @@ import type { KeyPress } from "./keys";
 import type { MenuRender } from "./menu";
 import { editedText, promptLine } from "./text-edit";
 
-export type NamePrompt = {
-  /** The seed the village will be founded with, drawn when the prompt opened so the default name and the village agree. */
-  seed: number;
-  text: string;
-};
+export type NamePrompt = { text: string } & (
+  | {
+      purpose: "village";
+      /** The seed the village will be founded with, drawn when the prompt opened so the default name and the village agree. */
+      seed: number;
+    }
+  // A new posting's seed is derived by the game, so the typed name is the only choice to make.
+  | { purpose: "posting" }
+);
 
 export type NameResult =
   | { kind: "editing"; prompt: NamePrompt }
@@ -29,9 +33,14 @@ export function nameKey(prompt: NamePrompt, key: KeyPress): NameResult {
 }
 
 export function renderNamePrompt(prompt: NamePrompt): MenuRender {
+  const posting = prompt.purpose === "posting";
   return {
-    title: copy.menus.namePromptTitle,
+    title: posting
+      ? copy.menus.postingNamePromptTitle
+      : copy.menus.namePromptTitle,
     lines: [promptLine(prompt.text)],
-    hints: copy.menus.namePromptHints,
+    hints: posting
+      ? copy.menus.postingNamePromptHints
+      : copy.menus.namePromptHints,
   };
 }

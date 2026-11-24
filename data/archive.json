@@ -171,7 +171,8 @@
       },
       "effects": {
         "grainCap": 400
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "store.woodshed1",
@@ -189,7 +190,8 @@
       },
       "effects": {
         "woodCap": 300
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "store.oreStore1",
@@ -208,7 +210,8 @@
       },
       "effects": {
         "oreCap": 150
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "tools.plough1",
@@ -227,7 +230,8 @@
       },
       "effects": {
         "farmYield": 1.25
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "tools.axes1",
@@ -246,7 +250,8 @@
       },
       "effects": {
         "forestYield": 1.25
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "tools.picks1",
@@ -265,7 +270,8 @@
       },
       "effects": {
         "mineYield": 1.25
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "market.rights",
@@ -284,7 +290,8 @@
       },
       "effects": {
         "sellPrice": 1.25
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "court.petitions",
@@ -319,7 +326,8 @@
       },
       "effects": {
         "grainCap": 800
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "store.woodshed2",
@@ -338,7 +346,8 @@
       },
       "effects": {
         "woodCap": 600
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "store.oreStore2",
@@ -357,7 +366,8 @@
       },
       "effects": {
         "oreCap": 300
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "tools.plough2",
@@ -376,7 +386,8 @@
       },
       "effects": {
         "farmYield": 1.25
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "tools.axes2",
@@ -395,7 +406,8 @@
       },
       "effects": {
         "forestYield": 1.25
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "tools.picks2",
@@ -414,7 +426,8 @@
       },
       "effects": {
         "mineYield": 1.25
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "lenders.favor",
@@ -434,7 +447,8 @@
       },
       "effects": {
         "interest": 0.67
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "court.friends",
@@ -454,7 +468,8 @@
       },
       "effects": {
         "auditGap": 300
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "court.omens",
@@ -479,7 +494,8 @@
       "shown": "governor",
       "effects": {
         "grainCap": 1600
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "store.woodshed3",
@@ -493,7 +509,8 @@
       "shown": "governor",
       "effects": {
         "woodCap": 1200
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "store.oreStore3",
@@ -507,7 +524,8 @@
       "shown": "governor",
       "effects": {
         "oreCap": 600
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "governors.physician",
@@ -521,7 +539,8 @@
       "shown": "governor",
       "effects": {
         "governorDeath": 0.5
-      }
+      },
+      "scope": "posting"
     },
     {
       "id": "governors.slots",
@@ -536,7 +555,8 @@
       "shown": "governor",
       "effects": {
         "governorSlots": 2
-      }
+      },
+      "scope": "posting"
     }
   ],
   "play": [

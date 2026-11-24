@@ -85,6 +85,15 @@ describe("validateState", () => {
     expect(validateState(bare)).toEqual([]);
   });
 
+  test("a posting number past the first needs one career record for each posting before it", () => {
+    const lacking = patched({ "posting.index": 2 });
+
+    expect(validateState(lacking).join("\n")).toContain(
+      "$.career.postings: must hold one record for each posting before the current one",
+    );
+    expect(validateState(patched())).toEqual([]);
+  });
+
   const D = "$.posting.decrees";
   const rejected: [string, Patches, string][] = [
     [

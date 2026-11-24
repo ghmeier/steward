@@ -12,12 +12,20 @@ import { type UnlockId, unlockFor } from "../core/unlocks";
 export type Reaction = { when: Condition; commands: Command[] };
 /** A setup command may also wait for a condition, which it needs only once to be released. */
 export type SetupStep = Command | { when: Condition; command: Command };
-export type Strategy = {
-  name: string;
+/** What a strategy sets up and buys in one posting. */
+export type PostingPlan = {
   setup: SetupStep[];
-  /** Archive entries bought in this order, after the ones the setup commands need, each as soon as it is on offer and affordable. */
+  /** Archive entries bought in this order, after the ones the setup commands need, each as soon as it is on offer and affordable. An entry already owned is skipped, so one the posting reset is bought again. */
   purchases: string[];
+};
+export type Strategy = PostingPlan & {
+  name: string;
   reactions: Reaction[];
+  /**
+   * The plans for the second posting onward, the last repeating for every posting after it. A strategy
+   * with none never ends a posting; one with any ends each posting as soon as the crown allows.
+   */
+  laterPostings?: PostingPlan[] | undefined;
 };
 export type StrategyStats = {
   setupCommands: number;
@@ -56,11 +64,15 @@ function strategySchema(limits: DecreeLimits): z.ZodType<Strategy> {
     commandSchema,
     z.strictObject({ when: conditionSchema(limits), command: commandSchema }),
   ]);
-  return z.strictObject({
-    name: z.string().min(1),
+  const postingPlan = {
     setup: z.array(setupStep),
     purchases: z.array(z.string()),
+  };
+  return z.strictObject({
+    name: z.string().min(1),
+    ...postingPlan,
     reactions: z.array(reaction),
+    laterPostings: z.array(z.strictObject(postingPlan)).default([]),
   });
 }
 
@@ -73,8 +85,9 @@ type WaitingStep = { when: Condition | undefined; command: Command };
 
 export class StrategyPlayer {
   private readonly held: boolean[];
-  private waiting: WaitingStep[];
-  private readonly purchases: UnlockId[];
+  private waiting: WaitingStep[] = [];
+  private purchases: UnlockId[] = [];
+  private postingIndex = 0;
   private game: Game | undefined;
   private pending: Command[] = [];
   private purchase: Command[] = [];
@@ -89,7 +102,27 @@ export class StrategyPlayer {
 
   constructor(private readonly strategy: Strategy) {
     this.held = strategy.reactions.map(() => false);
-    this.waiting = strategy.setup.map((step) =>
+    this.beginPosting(1);
+  }
+
+  private get endsPostings(): boolean {
+    return (this.strategy.laterPostings ?? []).length > 0;
+  }
+
+  private planFor(index: number): PostingPlan {
+    const laterPostings = this.strategy.laterPostings ?? [];
+    if (index === 1 || laterPostings.length === 0) return this.strategy;
+    return laterPostings[
+      Math.min(index - 2, laterPostings.length - 1)
+    ] as PostingPlan;
+  }
+
+  /** A posting begins from nothing, so setup that was never issued in the last one is dropped and every reaction waits for its condition afresh. */
+  private beginPosting(index: number): void {
+    const plan = this.planFor(index);
+    this.postingIndex = index;
+    this.held.fill(false);
+    this.waiting = plan.setup.map((step) =>
       "command" in step
         ? { when: step.when, command: step.command }
         : { when: undefined, command: step },
@@ -100,7 +133,7 @@ export class StrategyPlayer {
           const needed = unlockFor(command.type);
           return needed === undefined ? [] : [needed];
         }),
-        ...strategy.purchases,
+        ...plan.purchases,
       ]),
     ];
   }
@@ -143,6 +176,9 @@ export class StrategyPlayer {
 
   observe(game: Game): void {
     this.game = game;
+    if (game.state.posting.index !== this.postingIndex) {
+      this.beginPosting(game.state.posting.index);
+    }
     for (const step of this.waiting) {
       if (step.when !== undefined && game.conditions.evaluate(step.when, {})) {
         step.when = undefined;
@@ -159,6 +195,9 @@ export class StrategyPlayer {
         );
       }
       this.held[index] = holds;
+    }
+    if (this.endsPostings && game.prestige.canEnd) {
+      fired.push({ type: "endPosting", name: game.prestige.defaultName });
     }
     this.pending = fired;
     this.purchase = this.nextPurchase(game);

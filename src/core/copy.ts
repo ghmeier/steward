@@ -49,6 +49,31 @@ export const copy = {
     villageHoldsNone: ({ resource }: { resource: string }) =>
       `the village holds no ${resource}`,
   },
+  prestige: {
+    nameRequired: "a posting needs a name",
+    notYet: ({ met, needed }: { met: number; needed: number }) =>
+      `the crown will not release you until ${needed} demands are met, and you have met ${met}`,
+    ended: {
+      promotion: ({
+        village,
+        province,
+      }: {
+        village: string;
+        province: string;
+      }) =>
+        `The crown promotes you. You take up a new posting at ${village}, in the province of ${province}.`,
+      reassignment: ({
+        village,
+        province,
+      }: {
+        village: string;
+        province: string;
+      }) =>
+        `The crown reassigns you. You take up a new posting at ${village}, in the province of ${province}.`,
+      scandal: ({ village, province }: { village: string; province: string }) =>
+        `You leave in scandal. The crown sends you to ${village}, in the province of ${province}.`,
+    },
+  },
   archive: {
     cannotAfford: ({ label, resource }: { label: string; resource: string }) =>
       `you do not have enough ${resource} to purchase ${label}`,
@@ -187,6 +212,8 @@ export const copy = {
     saveFailed: ({ error }: { error: string }) => `Save failed: ${error}`,
     newVillageFounded: "A new village is founded.",
     promoted: "The crown has noticed you. You are promoted to steward.",
+    postingMayEnd: ({ key, met }: { key: string; met: number }) =>
+      `${met} demands met. You may ask the crown for a new posting: focus the Crown panel and press ${key}.`,
     // Names beyond the first two are folded into a count so the line stays short in the footer.
     starved: ({
       names,
@@ -214,6 +241,15 @@ export const copy = {
     stored: ({ amount, cap }: { amount: string; cap: string }) =>
       `${amount} / ${cap}`,
     titleLabel: "Title",
+    postingTitle: ({
+      title,
+      village,
+      posting,
+    }: {
+      title: string;
+      village: string;
+      posting: number;
+    }) => `${title} of ${village}, posting ${posting}`,
     title: ({ title, village }: { title: string; village: string }) =>
       `${title} of ${village}`,
     books: ({ books }: { books: string }) => `Books: ${books}`,
@@ -303,6 +339,10 @@ export const copy = {
     crownDueIn: ({ wait }: { wait: string }) => `due in ${wait}`,
     crownQuiet: ({ wait }: { wait: string }) =>
       `The crown is quiet. Next demand in about ${wait}.`,
+    crownMayEnd: ({ key }: { key: string }) =>
+      `You have served long enough. Press ${key} to ask the crown for a new posting.`,
+    crownCannotEnd: ({ met, needed }: { met: number; needed: number }) =>
+      `The crown will not release you until ${needed} demands are met; you have met ${met}.`,
     crownTally: ({ met, missed }: { met: number; missed: number }) =>
       `Met ${met} \u00b7 missed ${missed}`,
     crownFavor: {
@@ -340,6 +380,24 @@ export const copy = {
     keepVillage: "No, keep this village",
     foundVillage: "Yes, found a new village",
     namePromptTitle: "Name your village",
+    postingNamePromptTitle: "Name your new posting",
+    postingNamePromptHints:
+      "type a name · enter take up the posting · esc cancel",
+    postingEndTitle: "End this posting?",
+    postingEndOutlook: {
+      promotion:
+        "The crown regards you warmly. You will be promoted and sent to a kinder province.",
+      reassignment:
+        "The crown regards you evenly. You will be reassigned to a province of any kind.",
+      scandal:
+        "The crown regards you coldly. You will leave in scandal and be sent to a harsh province.",
+    },
+    postingEndKeeps:
+      "You keep every panel, control and decree feature you bought, your saved decrees and your rank.",
+    postingEndResets:
+      "You start again with new resources and peasants, no decrees, no debt and a neutral crown. Stores, tools, market rights, the moneylender's favor, friends at court, the physician and governor slots must be bought again at the same price.",
+    stayInPosting: "No, stay in this posting",
+    endPosting: "Yes, end the posting",
     namePromptHints: "type a name · enter found the village · esc cancel",
     cannotReadSave: ({ error, path }: { error: string; path: string }) =>
       `Steward cannot read its save: ${error}\nThe save at ${path} was left untouched. Fix or move it, then start again.`,
@@ -570,6 +628,8 @@ export const copy = {
       correspondence: ({ label, cost }: { label: string; cost: string }) =>
         `${label} (Archive, ${cost}) lets decrees read what is owed, as in "owed ore above 0".`,
       commandLine: "The command line also takes deliver.",
+      endPosting: ({ key, needed }: { key: string; needed: number }) =>
+        `After ${needed} demands are met you may end the posting with ${key} on the Crown panel. The crown's mood then decides the ending, and the ending decides how kind your next province is.`,
     },
     illusion: {
       teaches: ({ lot }: { lot: string }) =>
@@ -733,6 +793,7 @@ export const copy = {
       write: "write",
       repeal: "repeal",
       deliver: "deliver",
+      endPosting: "end posting",
       forge: "forge",
       forgeMissing: "forge missing",
       back: "back",

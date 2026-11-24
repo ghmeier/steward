@@ -5,6 +5,7 @@ import type { DeskEntryView } from "./desk";
 import type { Game } from "./game";
 import type { FormerGovernorView, GovernorView } from "./governors";
 import type { IllusionView } from "./illusion";
+import type { Ending } from "./prestige";
 import { type CappedResource, type Job, RESOURCES, type Season } from "./realm";
 import type { ResourceId } from "./state";
 import {
@@ -49,6 +50,18 @@ export type GameView = {
   /** The steward's rank, which climbs with promotion and then with the crown's charter and a governor in service. */
   title: string;
   promotion: { target: number; promotedAt: number };
+  /** Which posting of the career this is, counting from 1, and the label of its province (empty for the first). */
+  posting: { index: number; province: string };
+  /** What the steward needs to know to end the posting. */
+  prestige: {
+    demandsMet: number;
+    demandsNeeded: number;
+    canEnd: boolean;
+    /** What leaving now would be called, from the crown's present mood. */
+    ending: Ending;
+    /** The name the next posting is offered, which the player may change. */
+    nextName: string;
+  };
   growth: { stored: number; needed: number; perSecond: number; full: boolean };
   /** Grain the peasants eat each second, whatever the harvest brings in. */
   grainEatenPerSecond: number;
@@ -173,6 +186,17 @@ export class ViewManager {
       promotion: {
         target: this.tuning.village.promotionPopulation,
         promotedAt: this.career.promotedAt,
+      },
+      posting: {
+        index: this.posting.index,
+        province: this.game.prestige.provinceLabel(this.posting.province),
+      },
+      prestige: {
+        demandsMet: this.game.prestige.demandsMet,
+        demandsNeeded: this.game.prestige.demandsNeeded,
+        canEnd: this.game.prestige.canEnd,
+        ending: this.game.prestige.ending,
+        nextName: this.game.prestige.defaultName,
       },
       growth: {
         stored: this.posting.economy.growth,

@@ -174,6 +174,16 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
     delete career.needed;
     career.seen = { ...unlocks };
   },
+  // Every earlier save is the first posting, so its career has no history and its posting no province.
+  // The posting's fixed id is dropped: its number now says the same thing.
+  17: (state) => {
+    if (!isRecord(state.career) || !isRecord(state.posting)) return;
+    state.career.postings = [];
+    delete state.posting.postingId;
+    state.posting.index = 1;
+    state.posting.startedAt = 0;
+    state.posting.province = "";
+  },
 };
 
 function upgrade(record: Record<string, unknown>): void {
