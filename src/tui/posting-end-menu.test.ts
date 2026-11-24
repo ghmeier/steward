@@ -10,6 +10,7 @@ function notesFor(followers: string[]): string[] {
       demandsNeeded: 6,
       canEnd: true,
       ending: "promotion",
+      coinAccepted: false,
       nextName: "Ashford",
       followers,
     },

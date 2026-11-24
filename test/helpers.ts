@@ -1,6 +1,7 @@
 import type { Delegate, Governor } from "../src/core/delegates";
 import { Game } from "../src/core/game";
 import type { AddContext } from "../src/core/math";
+import { TRADE } from "../src/core/prestige";
 import { JOBS, Job, type Resource } from "../src/core/realm";
 import { parseTuning, type Tuning } from "../src/core/tuning";
 import {

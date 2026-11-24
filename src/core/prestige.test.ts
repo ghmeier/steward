@@ -8,7 +8,6 @@ import {
   tuning,
 } from "../../test/helpers";
 import { stateHash } from "../save/hash";
-import { Game } from "./game";
 import { derivePostingSeed, type Ending, TRADE } from "./prestige";
 import { Job } from "./realm";
 
