@@ -12,6 +12,7 @@ import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
 import { type NamePrompt, nameKey, renderNamePrompt } from "./name-prompt";
 import { newGameMenu } from "./new-game-menu";
 import { latestNotice } from "./notices";
+import { offlineNotice } from "./offline-notice";
 import { BAR_LINES, createPanels } from "./panels";
 import { postingEndMenu } from "./posting-end-menu";
 import { Session } from "./session";
@@ -28,19 +29,28 @@ export function prepareStartup(
   saveDir: string,
   tuning: Tuning,
   newSeed: () => number,
+  wallNow: () => number,
 ): Startup {
   const result = loadGame(saveDir);
   switch (result.kind) {
     case "loaded": {
       const game = Game.fromState(result.save.state, tuning);
       const repealed = game.decrees.repealStale();
+      const awayMs = wallNow() - Date.parse(result.save.savedAt);
+      const away = offlineNotice(
+        game.offline.catchUp(game.offline.ticksAway(awayMs)),
+        tuning,
+      );
+      const notices = [
+        repealed.length === 0
+          ? null
+          : copy.notices.repealedStale({ decrees: repealed.join(", ") }),
+        away,
+      ];
       return {
         kind: "ready",
         game,
-        notice:
-          repealed.length === 0
-            ? null
-            : copy.notices.repealedStale({ decrees: repealed.join(", ") }),
+        notice: notices.filter((notice) => notice !== null).join(" ") || null,
       };
     }
     case "missing":

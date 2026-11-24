@@ -42,9 +42,9 @@ export function advance(
   const remainderMs = Math.max(0, totalMs - wholeSteps * accumulator.stepMs);
 
   // Without the cap, a machine that sleeps with the game open wakes up and tries to run hours of
-  // steps in one frame. The excess is dropped rather than carried, and recorded in droppedMs because
-  // it is the second way time passes unseen: phase 10's offline catch-up will consume droppedMs
-  // instead of discarding it.
+  // steps in one frame. The excess is dropped on purpose and only recorded in droppedMs: a stalled
+  // frame is not time away, so it is not routed to offline catch-up, which credits the time between
+  // sessions from the save's timestamp instead.
   const steps = Math.min(wholeSteps, accumulator.maxStepsPerFrame);
   accumulator.droppedMs += (wholeSteps - steps) * accumulator.stepMs;
   accumulator.carriedMs = remainderMs;

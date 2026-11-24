@@ -8,6 +8,7 @@ import { EconomyManager } from "./economy";
 import { GovernorManager } from "./governors";
 import { IllusionManager } from "./illusion";
 import { LaborSettling } from "./labor";
+import { OfflineManager } from "./offline";
 import { defaultVillageName, newPosting } from "./posting";
 import { PrestigeManager } from "./prestige";
 import { ProjectionManager } from "./projection";
@@ -34,6 +35,7 @@ export class Game {
   readonly prestige: PrestigeManager;
   readonly commands: CommandManager;
   readonly projection: ProjectionManager;
+  readonly offline: OfflineManager;
   readonly steps: StepManager;
   readonly view: ViewManager;
 
@@ -55,6 +57,7 @@ export class Game {
     this.prestige = new PrestigeManager(this);
     this.commands = new CommandManager(this);
     this.projection = new ProjectionManager(this);
+    this.offline = new OfflineManager(this);
     this.steps = new StepManager(this);
     this.view = new ViewManager(this);
   }

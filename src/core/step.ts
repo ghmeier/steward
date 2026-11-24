@@ -21,10 +21,10 @@ export class StepManager {
   constructor(private game: Game) {}
 
   /** The phases that move resources every tick; the ledger projects its rates by running exactly this. */
-  runFlows(context: AddContext): { eaten: number } {
+  runFlows(context: AddContext): { eaten: number; oreDug: number } {
     const { flows, eaten } = this.game.economy.run(context);
     this.game.decrees.run(context, flows);
-    return { eaten };
+    return { eaten, oreDug: flows.ore };
   }
 
   /** Promotion is never revoked, so a village that later shrinks stays promoted. */
@@ -39,12 +39,7 @@ export class StepManager {
   step(commands: readonly Command[], options: StepOptions): CommandResult[] {
     this.game.state.tick += 1;
 
-    const context: AddContext = {
-      tick: this.game.state.tick,
-      maxValue: this.game.tuning.maxResourceValue,
-      capOf: (resource) => this.game.economy.capOf(resource),
-      absorbed: options.absorbed,
-    };
+    const context = this.game.economy.addContext(options.absorbed);
     const results = commands.map((command) =>
       this.game.commands.apply(command, context),
     );

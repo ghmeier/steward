@@ -4,6 +4,7 @@ import {
   type AddContext,
   add,
   clampFinite,
+  log2Fixed,
   normalizeZero,
   powInt,
 } from "./math";
@@ -50,6 +51,29 @@ describe("powInt", () => {
   test.each([1.5, Number.NaN])("rejects the exponent %p", (exponent) => {
     expect(() => powInt(2, exponent)).toThrow();
   });
+});
+
+describe("log2Fixed", () => {
+  test("is exact on powers of two", () => {
+    expect(log2Fixed(1)).toBe(0);
+    expect(log2Fixed(8)).toBe(3);
+    expect(log2Fixed(0.25)).toBe(-2);
+    expect(log2Fixed(2 ** 40)).toBe(40);
+  });
+
+  test("matches known logarithms of other values", () => {
+    expect(log2Fixed(3)).toBeCloseTo(1.584962500721156, 12);
+    expect(log2Fixed(1.5)).toBeCloseTo(0.5849625007211562, 12);
+    expect(log2Fixed(1000)).toBeCloseTo(9.965784284662087, 12);
+    expect(log2Fixed(0.1)).toBeCloseTo(-3.321928094887362, 12);
+  });
+
+  test.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    "rejects %p",
+    (value) => {
+      expect(() => log2Fixed(value)).toThrow();
+    },
+  );
 });
 
 describe("normalizeZero", () => {

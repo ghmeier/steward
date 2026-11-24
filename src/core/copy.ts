@@ -202,6 +202,12 @@ export const copy = {
       `Save version ${version} is not supported; it was kept as ${preservedAs}. Started a new game.`,
     repealedStale: ({ decrees }: { decrees: string }) =>
       `Repealed ${decrees}: their policies no longer exist.`,
+    awayGained: ({ away, gains }: { away: string; gains: string }) =>
+      `You were away ${away}. The village kept working at a slower pace and gained ${gains}.`,
+    awayNothingGained: ({ away }: { away: string }) =>
+      `You were away ${away}. The village kept working at a slower pace but gained nothing.`,
+    awayStoresFull: ({ stores }: { stores: readonly string[] }) =>
+      `The ${new Intl.ListFormat("en").format(stores)} stores were full.`,
     saved: "Saved.",
     saveFailed: ({ error }: { error: string }) => `Save failed: ${error}`,
     newVillageFounded: "A new village is founded.",

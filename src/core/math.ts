@@ -18,6 +18,40 @@ export function powInt(base: number, exponent: number): number {
   return result;
 }
 
+const LOG2_FRACTION_BITS = 50;
+
+// Math.log2 is as engine-defined as Math.pow, so the logarithm is built from the same exactly
+// rounded operations: halving or doubling (both exact) brings the value into [1, 2), and each
+// squaring then reveals one binary digit of the fraction.
+export function log2Fixed(value: number): number {
+  if (!(value > 0) || !Number.isFinite(value)) {
+    throw new Error(`log2Fixed needs a positive finite value, got ${value}`);
+  }
+
+  let mantissa = value;
+  let whole = 0;
+  while (mantissa >= 2) {
+    mantissa /= 2;
+    whole += 1;
+  }
+  while (mantissa < 1) {
+    mantissa *= 2;
+    whole -= 1;
+  }
+
+  let fraction = 0;
+  let weight = 0.5;
+  for (let bit = 0; bit < LOG2_FRACTION_BITS; bit++) {
+    mantissa *= mantissa;
+    if (mantissa >= 2) {
+      mantissa /= 2;
+      fraction += weight;
+    }
+    weight /= 2;
+  }
+  return whole + fraction;
+}
+
 export function normalizeZero(value: number): number {
   return value === 0 ? 0 : value;
 }

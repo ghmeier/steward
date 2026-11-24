@@ -4,7 +4,7 @@ import { addIssue } from "./errors";
 import type { Game } from "./game";
 import { NO_LABOR_POLICY } from "./labor";
 import { LaborSplit } from "./labor-split";
-import { type AddContext, add } from "./math";
+import { type AbsorbedAdditionLog, type AddContext, add } from "./math";
 import { AGRICULTURE, EXTRACTION } from "./prestige";
 import {
   CAPPED_RESOURCES,
@@ -226,6 +226,15 @@ export class EconomyManager {
       this.tuning.economy.caps[capped] +
       this.game.unlocks.modifier(CAP_MODIFIER[capped])
     );
+  }
+
+  addContext(absorbed: AbsorbedAdditionLog | null): AddContext {
+    return {
+      tick: this.game.state.tick,
+      maxValue: this.tuning.maxResourceValue,
+      capOf: (resource) => this.capOf(resource),
+      absorbed,
+    };
   }
 
   /** Grain one farmer yields in a tick before the season's multiplier. */

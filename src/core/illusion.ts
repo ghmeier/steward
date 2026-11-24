@@ -4,7 +4,7 @@ import type { CommandResult } from "./commands";
 import { copy } from "./copy";
 import { addIssue } from "./errors";
 import type { Game } from "./game";
-import { type AddContext, add, normalizeZero } from "./math";
+import { type AddContext, add, normalizeZero, powInt } from "./math";
 import { RESOURCES, type Resource } from "./realm";
 import { count, nonNegative, positive, positiveInteger } from "./schema";
 import type { ResourceId } from "./state";
@@ -563,13 +563,24 @@ export class IllusionManager {
     }
   }
 
+  private fade(keep: number): void {
+    for (const resource of CONJURABLE) {
+      this.illusion.conjured[resource] = this.conjuredOf(resource) * keep;
+    }
+  }
+
+  /** Ages the books by many ticks in one step, charging the same interest per tick as the seasons do. */
+  elapse(ticks: number): void {
+    this.fade(powInt(1 - this.tuning.fadePerTick, ticks));
+    this.chargeOnPrincipal(
+      (this.interestPerSeason * ticks) /
+        this.game.tuning.economy.ticksPerSeason,
+    );
+  }
+
   /** Plain arithmetic, so fading and interest draw nothing from a random stream. */
   run(): void {
-    const { conjured } = this.illusion;
-    const keep = 1 - this.tuning.fadePerTick;
-    for (const resource of CONJURABLE) {
-      conjured[resource] = this.conjuredOf(resource) * keep;
-    }
+    this.fade(1 - this.tuning.fadePerTick);
     if (this.game.economy.seasonEnds) {
       this.chargeOnPrincipal(this.interestPerSeason);
     }

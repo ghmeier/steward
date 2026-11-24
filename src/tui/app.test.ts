@@ -13,6 +13,7 @@ import {
   grantUnlocks,
   priceOf,
   quietOptions,
+  sampleVillage,
   setFamineDue,
   setRoster,
   tuning,
@@ -40,6 +41,8 @@ import { keymap } from "./village-panels";
 
 const NEVER_MS = 1e9;
 const NEW_SEED = 321;
+/** A wall clock that reads before any save, so loading never credits time away. */
+const neverAway = () => 0;
 const dirs: string[] = [];
 const apps: App[] = [];
 
@@ -133,7 +136,9 @@ describe("prepareStartup", () => {
   };
 
   test("a missing save starts a new game from the injected seed with a notice", () => {
-    const startup = ready(prepareStartup(tempDir(), tuning, () => 42));
+    const startup = ready(
+      prepareStartup(tempDir(), tuning, () => 42, neverAway),
+    );
 
     expect(stateHash(startup.game.state)).toBe(
       stateHash(Game.create(42, tuning).state),
@@ -146,7 +151,7 @@ describe("prepareStartup", () => {
     const saved = { ...Game.create(5, tuning).state, tick: 12 };
     saveGame(dir, saved);
 
-    const startup = ready(prepareStartup(dir, tuning, () => 1));
+    const startup = ready(prepareStartup(dir, tuning, () => 1, neverAway));
 
     expect(stateHash(startup.game.state)).toBe(stateHash(saved));
     expect(startup.notice).toBeNull();
@@ -157,7 +162,7 @@ describe("prepareStartup", () => {
     const old = { schemaVersion: 0, savedAt: "", contentHash: "", state: {} };
     writeFileSync(join(dir, SAVE_FILE_NAME), JSON.stringify(old));
 
-    const startup = ready(prepareStartup(dir, tuning, () => 42));
+    const startup = ready(prepareStartup(dir, tuning, () => 42, neverAway));
 
     const preserved = join(dir, "save.v0.json");
     expect(existsSync(preserved)).toBe(true);
@@ -180,7 +185,7 @@ describe("prepareStartup", () => {
     };
     saveGame(dir, saved);
 
-    const startup = ready(prepareStartup(dir, tuning, () => 1));
+    const startup = ready(prepareStartup(dir, tuning, () => 1, neverAway));
 
     expect(startup.game.state.posting.decrees.workers).toBeUndefined();
     expect(startup.notice).toBe(
@@ -189,11 +194,61 @@ describe("prepareStartup", () => {
     expect(() => startup.game.steps.step([], quietOptions)).not.toThrow();
   });
 
+  describe("time away", () => {
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    const savedAt = "2026-01-02T00:00:00.000Z";
+
+    function farmSave(savedAtStamp: string): string {
+      const dir = tempDir();
+      const game = sampleVillage(5);
+      setRoster(game, { farm: 6, forest: 2, mine: 2 });
+      saveGame(dir, game.state, { savedAt: savedAtStamp });
+      return dir;
+    }
+
+    test("a week-old save is credited with gains and a notice", () => {
+      const dir = farmSave(savedAt);
+      const before = readSaveFile(join(dir, SAVE_FILE_NAME)).state;
+
+      const startup = ready(
+        prepareStartup(
+          dir,
+          tuning,
+          () => 1,
+          () => Date.parse(savedAt) + WEEK_MS,
+        ),
+      );
+
+      expect(startup.game.state.posting.resources.wood).toBeGreaterThan(
+        before.posting.resources.wood ?? 0,
+      );
+      expect(startup.game.state.tick).toBe(before.tick);
+      expect(startup.notice).toContain("You were away 7d 00h 00m");
+    });
+
+    test.each(["x", ""])("a save stamped %p is not credited", (stamp) => {
+      const dir = farmSave(stamp);
+      const before = readSaveFile(join(dir, SAVE_FILE_NAME)).state;
+
+      const startup = ready(
+        prepareStartup(
+          dir,
+          tuning,
+          () => 1,
+          () => Date.parse(savedAt) + WEEK_MS,
+        ),
+      );
+
+      expect(stateHash(startup.game.state)).toBe(stateHash(before));
+      expect(startup.notice).toBeNull();
+    });
+  });
+
   test("an invalid save is refused and left byte for byte unchanged", () => {
     const path = join(tempDir(), SAVE_FILE_NAME);
     writeFileSync(path, "{ not json");
 
-    const startup = prepareStartup(dirname(path), tuning, () => 1);
+    const startup = prepareStartup(dirname(path), tuning, () => 1, neverAway);
 
     expect(startup.kind).toBe("refused");
     expect(readFileSync(path, "utf8")).toBe("{ not json");
@@ -986,7 +1041,12 @@ describe("notices", () => {
 
     const { announced, later } = await announcedThenLater(harness);
     await harness.app.shutdown();
-    const startup = prepareStartup(harness.saveDir, tuning, () => NEW_SEED);
+    const startup = prepareStartup(
+      harness.saveDir,
+      tuning,
+      () => NEW_SEED,
+      neverAway,
+    );
     if (startup.kind !== "ready") throw new Error("save not loaded");
     const restarted = await launch({
       saveDir: harness.saveDir,

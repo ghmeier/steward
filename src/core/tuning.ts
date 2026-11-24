@@ -6,6 +6,7 @@ import { economyTuningSchema, villageTuningSchema } from "./economy";
 import { addIssue, parseWith } from "./errors";
 import { governorTuningSchema } from "./governors";
 import { illusionTuningSchema } from "./illusion";
+import { offlineTuningSchema } from "./offline";
 import { doctrineTuningSchema, prestigeTuningSchema } from "./prestige";
 import { positive } from "./schema";
 import { archiveTuningSchema } from "./unlocks";
@@ -14,6 +15,7 @@ const tuningSchema = z
   .strictObject({
     stepMs: positive,
     maxResourceValue: positive,
+    offline: offlineTuningSchema,
     decrees: decreeLimitsSchema,
     economy: economyTuningSchema,
     village: villageTuningSchema,

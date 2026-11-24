@@ -1,6 +1,15 @@
 // Each list is in sorted key order, so iterating it is iterating a record in key order.
 export const RESOURCES = ["coin", "grain", "ore", "wood"] as const;
 export type Resource = (typeof RESOURCES)[number];
+
+export function perResource(
+  of: (resource: Resource) => number,
+): Record<Resource, number> {
+  return Object.fromEntries(
+    RESOURCES.map((resource) => [resource, of(resource)]),
+  ) as Record<Resource, number>;
+}
+
 /** The resources a store holds only up to a cap; coin is never stored, so it is not among them. */
 export const CAPPED_RESOURCES = ["grain", "ore", "wood"] as const;
 export type CappedResource = (typeof CAPPED_RESOURCES)[number];

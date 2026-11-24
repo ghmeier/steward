@@ -1,11 +1,13 @@
 import type { Game } from "./game";
-import { RESOURCES, type Resource } from "./realm";
+import { perResource, type Resource } from "./realm";
 
 export type FlowProjection = {
   rates: Record<Resource, number>;
   growthPerTick: number;
   /** Grain the peasants eat in one tick, whatever the harvest brings in. */
   eatenPerTick: number;
+  /** Ore the miners dig in one tick, before any cap or sale, which is what prospecting is paid on. */
+  oreDugPerTick: number;
 };
 
 export class ProjectionManager {
@@ -14,22 +16,18 @@ export class ProjectionManager {
   // Runs the very phases the next step runs, on a copy, so the ledger rate cannot drift from the
   // real change. Commands and the dispute desk are left out on purpose: arrivals, expiries and
   // settlements are one-off events, not flows, and would make the rate jump.
-  flows(): FlowProjection {
+  flows(fromTick = this.game.state.tick): FlowProjection {
     const next = this.game.clone();
-    next.state.tick += 1;
-    const { eaten } = next.steps.runFlows({
-      tick: next.state.tick,
-      maxValue: this.game.tuning.maxResourceValue,
-      capOf: (resource) => this.game.economy.capOf(resource),
-      absorbed: null,
-    });
+    next.state.tick = fromTick + 1;
+    const { eaten, oreDug } = next.steps.runFlows(
+      next.economy.addContext(null),
+    );
 
-    const rates = {} as Record<Resource, number>;
-    for (const resource of RESOURCES) {
-      rates[resource] =
+    const rates = perResource(
+      (resource) =>
         (next.state.posting.resources[resource] ?? 0) -
-        (this.game.state.posting.resources[resource] ?? 0);
-    }
+        (this.game.state.posting.resources[resource] ?? 0),
+    );
     // A birth subtracts grainPerPeasant from the stored growth, so add it back per newborn to
     // report the grain actually fed rather than a negative change.
     const known = new Set(
@@ -42,7 +40,7 @@ export class ProjectionManager {
       next.state.posting.economy.growth -
       this.game.state.posting.economy.growth +
       this.game.tuning.economy.grainPerPeasant * births;
-    return { rates, growthPerTick, eatenPerTick: eaten };
+    return { rates, growthPerTick, eatenPerTick: eaten, oreDugPerTick: oreDug };
   }
 
   projectedRates(): Record<Resource, number> {
