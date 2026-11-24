@@ -1,11 +1,11 @@
 import { z } from "zod";
 import type { ResourcePetition } from "./decree";
-import { AGRICULTURE, EXTRACTION } from "./doctrine";
 import { addIssue } from "./errors";
 import type { Game } from "./game";
 import { NO_LABOR_POLICY } from "./labor";
 import { LaborSplit } from "./labor-split";
 import { type AddContext, add } from "./math";
+import { AGRICULTURE, EXTRACTION } from "./prestige";
 import {
   CAPPED_RESOURCES,
   type CappedResource,
@@ -36,7 +36,7 @@ export type EconomyState = {
   famine: Famine;
   growth: number;
   starved: number;
-  /** Ore mined since the season began, which the extraction doctrine pays coin for when the season ends. */
+  /** Ore mined since the season began; only an extraction posting counts it, since only it is paid for it. */
   seasonOre: number;
 };
 
@@ -326,8 +326,9 @@ export class EconomyManager {
       this.advanceFamine();
     }
 
-    economy.seasonOre += oreDug;
-    if (this.seasonEnds) this.payProspecting(context);
+    if (this.game.prestige.hasDoctrine(EXTRACTION)) {
+      this.prospect(oreDug, context);
+    }
 
     return {
       flows: {
@@ -339,24 +340,17 @@ export class EconomyManager {
     };
   }
 
-  /** Under the agriculture doctrine, harvest the granary has no room for feeds the next peasant instead of being lost. */
   private storeHarvest(produced: number, context: AddContext): void {
-    const { resources } = this.posting;
-    const held = resources.grain ?? 0;
-    const room = Math.max(this.capOf("grain"), held) - held;
-    add(resources, "grain", produced, context);
-    if (this.game.prestige.hasDoctrine(AGRICULTURE)) {
-      this.growBy(Math.max(0, produced - room));
-    }
+    const lost = add(this.posting.resources, "grain", produced, context);
+    if (this.game.prestige.hasDoctrine(AGRICULTURE)) this.growBy(lost);
   }
 
-  /** Under the extraction doctrine, a season's end pays coin for a share of the ore mined in it; every posting restarts the count. */
-  private payProspecting(context: AddContext): void {
+  private prospect(oreDug: number, context: AddContext): void {
     const { economy } = this.posting;
-    if (this.game.prestige.hasDoctrine(EXTRACTION)) {
-      const share = this.tuning.doctrines.prospectingShare;
-      add(this.posting.resources, "coin", economy.seasonOre * share, context);
-    }
+    economy.seasonOre += oreDug;
+    if (!this.seasonEnds) return;
+    const share = this.tuning.doctrines.prospectingShare;
+    add(this.posting.resources, "coin", economy.seasonOre * share, context);
     economy.seasonOre = 0;
   }
 

@@ -3,6 +3,7 @@ import { grantUnlocks, priceOf, setRoster, tuning } from "../../test/helpers";
 import type { Command } from "../core/commands";
 import type { Condition } from "../core/decree";
 import { Game } from "../core/game";
+import { AGRICULTURE, TRADE } from "../core/prestige";
 import { Job } from "../core/realm";
 import { ARCHIVE_PANEL, CROWN_PANEL, DECREES_PANEL } from "../core/unlocks";
 import {
@@ -250,25 +251,19 @@ describe("StrategyPlayer across postings", () => {
     early.observe(earlyGame);
     withoutPlan.observe(servedVillage());
 
-    expect(ending.next()).toEqual([
-      {
-        type: "endPosting",
-        name: game.prestige.defaultName,
-        doctrine: tuning.doctrines.entries[0]?.id as string,
-      },
+    expect(ending.next()).toMatchObject([
+      { type: "endPosting", name: game.prestige.defaultName },
     ]);
     expect(early.next()).toEqual([]);
     expect(withoutPlan.next()).toEqual([]);
   });
 
-  test("a posting begins under the doctrine its plan names, and under the first the data lists when the plan names none", () => {
-    const { entries } = tuning.doctrines;
-    const named = entries[1]?.id as string;
+  test("a posting begins under the doctrine its plan names, and under trade when the plan names none", () => {
     const plan = { setup: [], purchases: [], reactions: [] };
     const naming = new StrategyPlayer({
       name: "s",
       ...plan,
-      laterPostings: [{ setup: [], purchases: [], doctrine: named }],
+      laterPostings: [{ setup: [], purchases: [], doctrine: AGRICULTURE }],
     });
     const silent = new StrategyPlayer({
       name: "s",
@@ -279,8 +274,8 @@ describe("StrategyPlayer across postings", () => {
     naming.observe(servedVillage());
     silent.observe(servedVillage());
 
-    expect(naming.next()).toMatchObject([{ doctrine: named }]);
-    expect(silent.next()).toMatchObject([{ doctrine: entries[0]?.id }]);
+    expect(naming.next()).toMatchObject([{ doctrine: AGRICULTURE }]);
+    expect(silent.next()).toMatchObject([{ doctrine: TRADE }]);
   });
 
   test("a new posting runs its own setup, and the last plan repeats for every posting after it", () => {

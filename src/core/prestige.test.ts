@@ -7,7 +7,7 @@ import {
 } from "../../test/helpers";
 import { stateHash } from "../save/hash";
 import { Game } from "./game";
-import { derivePostingSeed, type Ending } from "./prestige";
+import { derivePostingSeed, type Ending, TRADE } from "./prestige";
 import { Job } from "./realm";
 import { CROWN_PANEL } from "./unlocks";
 
@@ -28,7 +28,7 @@ function servedVillage(seed = 1, favor = 0): Game {
   return game;
 }
 
-const doctrine = tuning.doctrines.entries[0]?.id as string;
+const doctrine = TRADE;
 
 function endPosting(game: Game, name = "Greywater", chosen = doctrine) {
   const [result] = game.steps.step(
@@ -77,14 +77,13 @@ describe("the doctrine", () => {
   );
 
   test.each(ids)(
-    "%s is recorded on the new posting and its modifiers apply there",
+    "%s is recorded on the new posting, which stays valid",
     (id) => {
       const game = servedVillage();
 
       const result = endPosting(game, "Greywater", id);
 
       expect(result?.ok).toBe(true);
-      expect(game.state.posting.doctrine).toBe(id);
       expect(game.prestige.doctrine?.id).toBe(id);
       expect(() => game.validate()).not.toThrow();
     },

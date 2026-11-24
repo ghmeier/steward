@@ -215,7 +215,7 @@ export function startApp(options: {
       menu = result.state;
       for (const command of result.commands) session.enqueue(command);
       for (const request of result.requests) {
-        if (request === "newGame") {
+        if (request.kind === "newGame") {
           const seed = options.newSeed();
           namePrompt = {
             purpose: "village",

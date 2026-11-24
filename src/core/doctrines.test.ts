@@ -3,24 +3,28 @@ import {
   contextFor,
   effectOf,
   grantUnlocks,
+  openDemand,
   revealArchive,
   setRoster,
   tuning,
 } from "../../test/helpers";
-import { AGRICULTURE, EXTRACTION, TRADE } from "./doctrine";
 import { Game } from "./game";
 import { NO_AUDIT_TICK } from "./illusion";
+import { AGRICULTURE, EXTRACTION, TRADE } from "./prestige";
 import { Job, type Resource } from "./realm";
-import { ARCHIVE_PANEL, CROWN_PANEL, type ModifierId } from "./unlocks";
+import {
+  ARCHIVE_PANEL,
+  type ArchiveEffects,
+  CROWN_PANEL,
+  type ModifierId,
+} from "./unlocks";
 
 const { doctrines, prestige } = tuning;
+type ProvinceEntry = (typeof prestige.provinces.kind)[number];
 const provinces = [...prestige.provinces.kind, ...prestige.provinces.harsh];
-const doctrineEffect = (id: string, modifier: ModifierId) =>
-  doctrines.entries.find((entry) => entry.id === id)?.effects[modifier];
-const provinceEffect = (id: string, modifier: ModifierId) =>
-  provinces.find((entry) => entry.id === id)?.effects[modifier];
+const kind = prestige.provinces.kind[0] as ProvinceEntry;
+const harsh = prestige.provinces.harsh[0] as ProvinceEntry;
 
-/** A game partway through the career, set directly into the posting rather than reached by play. */
 function posting(
   doctrine = "",
   province = "",
@@ -33,30 +37,36 @@ function posting(
   return game;
 }
 
+function effect(
+  effects: ArchiveEffects | undefined,
+  modifier: ModifierId,
+): number {
+  const value = effects?.[modifier];
+  if (value === undefined) throw new Error(`nothing changes ${modifier}`);
+  return value;
+}
+
 describe("modifiers", () => {
-  test("Archive entries, the doctrine and the province multiply the same factor", () => {
-    const game = posting(AGRICULTURE, "fertile-valley");
-    grantUnlocks(game, ["tools.plough1"]);
+  test("Archive entries, the doctrine and the province multiply factors and add gaps", () => {
+    const mining = posting(EXTRACTION, "timber-march");
+    grantUnlocks(mining, ["tools.axes1"]);
+    const farming = posting(AGRICULTURE, "timber-march");
+    grantUnlocks(farming, ["store.granary1"]);
+    const { province } = mining.prestige;
 
-    const farmYield = game.unlocks.modifier("farmYield");
+    const forestYield = mining.unlocks.modifier("forestYield");
+    const grainCap = farming.economy.capOf("grain");
 
-    expect(farmYield).toBeCloseTo(
-      effectOf("tools.plough1", "farmYield") *
-        (doctrineEffect(AGRICULTURE, "farmYield") as number) *
-        (provinceEffect("fertile-valley", "farmYield") as number),
+    expect(forestYield).toBeCloseTo(
+      effectOf("tools.axes1", "forestYield") *
+        effect(mining.prestige.doctrine?.effects, "forestYield") *
+        effect(province?.effects, "forestYield"),
     );
-    expect(posting().unlocks.modifier("farmYield")).toBe(1);
-  });
-
-  test("Archive entries, the doctrine and the province add the same gap", () => {
-    const game = posting(AGRICULTURE, "timber-march");
-    grantUnlocks(game, ["store.granary1"]);
-
-    expect(game.economy.capOf("grain")).toBe(
+    expect(grainCap).toBe(
       tuning.economy.caps.grain +
         effectOf("store.granary1", "grainCap") +
-        (doctrineEffect(AGRICULTURE, "grainCap") as number) +
-        (provinceEffect("timber-march", "grainCap") as number),
+        effect(farming.prestige.doctrine?.effects, "grainCap") +
+        effect(province?.effects, "grainCap"),
     );
   });
 
@@ -65,20 +75,17 @@ describe("modifiers", () => {
 
     expect(game.unlocks.modifier("oreCap")).toBe(0);
     expect(game.unlocks.modifier("governorDeath")).toBe(1);
+    expect(posting().unlocks.modifier("farmYield")).toBe(1);
   });
 });
 
 describe("escalation", () => {
   const perPosting = prestige.escalationPerPosting;
-  const kind = prestige.provinces.kind[0];
-  const harsh = prestige.provinces.harsh[0];
-  if (kind === undefined || harsh === undefined)
-    throw new Error("no provinces");
 
   test.each([
     ["the first posting", 1, "", 1],
     [
-      "a second posting in a province that adds nothing",
+      "a second posting in a kind province",
       2,
       kind.id,
       (1 + perPosting) * kind.escalation,
@@ -98,29 +105,18 @@ describe("escalation", () => {
     },
   );
 
-  test("the first demand of a later posting is its base amount times the escalation, and a first posting's is the base", () => {
-    const later = posting(TRADE, harsh.id, 3);
-    const first = posting();
-    const issue = (game: Game) => {
-      game.state.posting.crown.nextDemandTick = game.state.tick;
-      game.crown.run(contextFor(game));
-      return game.state.posting.crown.demand;
-    };
+  test("a later posting's first demand is its base amount times the escalation", () => {
+    const game = posting(TRADE, harsh.id, 3);
+    game.state.posting.crown.nextDemandTick = game.state.tick;
 
-    const laterDemand = issue(later);
-    const firstDemand = issue(first);
+    game.crown.run(contextFor(game));
 
-    const base = (resource: string) =>
-      tuning.crown.baseAmounts[resource as Resource];
-    expect(laterDemand.amount).toBe(
-      Math.round(base(laterDemand.resource) * later.prestige.escalation),
-    );
-    expect(firstDemand.amount).toBe(base(firstDemand.resource));
+    const { demand } = game.state.posting.crown;
+    const base = tuning.crown.baseAmounts[demand.resource as Resource];
+    expect(demand.amount).toBe(Math.round(base * game.prestige.escalation));
   });
 
   test("auditors come at a smaller debt in a harsher posting", () => {
-    const threshold = (game: Game) =>
-      tuning.illusion.audit.debtShare * game.illusion.ceiling;
     const announcedAt = (game: Game, debt: number) => {
       game.state.posting.illusion.debt.coin = debt;
       game.state.posting.illusion.debtSince = game.state.tick;
@@ -130,7 +126,9 @@ describe("escalation", () => {
     };
     const first = posting();
     const harsher = posting(TRADE, harsh.id, 3);
-    const debt = threshold(first) / harsher.prestige.escalation;
+    const debt =
+      (tuning.illusion.audit.debtShare * first.illusion.ceiling) /
+      harsher.prestige.escalation;
 
     expect(announcedAt(first, debt)).toBe(false);
     expect(announcedAt(harsher, debt)).toBe(true);
@@ -139,22 +137,12 @@ describe("escalation", () => {
 });
 
 describe("the trade rule: the crown accepts coin", () => {
-  function demanding(game: Game, resource: Resource, amount: number): void {
-    game.state.posting.crown.demand = {
-      id: 1,
-      resource,
-      amount,
-      delivered: 0,
-      issuedAt: 1,
-      dueAt: 5000,
-    };
-  }
   const payInCoin = (game: Game) =>
     game.commands.apply({ type: "payInCoin" }, contextFor(game));
 
   test("pays an open demand in coin at the sell price and counts it met", () => {
     const game = posting(TRADE);
-    demanding(game, "ore", 80);
+    openDemand(game, "ore", 80);
     game.state.posting.resources.coin = 1000;
     const price = game.economy.priceOf("ore");
 
@@ -163,17 +151,15 @@ describe("the trade rule: the crown accepts coin", () => {
     expect(result.ok).toBe(true);
     expect(game.crown.isOpen).toBe(false);
     expect(game.state.posting.crown.met).toBe(1);
-    const reward = tuning.crown.reward * 80;
     expect(game.state.posting.resources.coin).toBeCloseTo(
-      1000 - 80 * price + reward,
+      1000 - 80 * price + tuning.crown.reward * 80,
     );
   });
 
   test("pays only what the coin covers and leaves the rest owing", () => {
     const game = posting(TRADE);
-    demanding(game, "wood", 100);
-    const price = game.economy.priceOf("wood");
-    game.state.posting.resources.coin = 40 * price;
+    openDemand(game, "wood", 100);
+    game.state.posting.resources.coin = 40 * game.economy.priceOf("wood");
 
     payInCoin(game);
 
@@ -184,13 +170,13 @@ describe("the trade rule: the crown accepts coin", () => {
 
   test("is refused outside a trade posting, for a coin demand, and when no demand is open", () => {
     const farming = posting(AGRICULTURE);
-    demanding(farming, "ore", 80);
-    farming.state.posting.resources.coin = 1000;
+    openDemand(farming, "ore", 80);
     const coinDemand = posting(TRADE);
-    demanding(coinDemand, "coin", 80);
-    coinDemand.state.posting.resources.coin = 1000;
+    openDemand(coinDemand, "coin", 80);
     const quiet = posting(TRADE);
-    quiet.state.posting.resources.coin = 1000;
+    for (const game of [farming, coinDemand, quiet]) {
+      game.state.posting.resources.coin = 1000;
+    }
 
     const results = [farming, coinDemand, quiet].map(payInCoin);
 
@@ -214,15 +200,19 @@ describe("the agriculture rule: full granaries feed growth", () => {
     return game.state.posting.economy.growth - before;
   };
 
-  test("harvest the full granary cannot hold goes toward the next peasant", () => {
+  test("harvest the full granary cannot hold goes toward the next peasant and can admit one", () => {
     const game = harvesting(AGRICULTURE, tuning.economy.caps.grain + 125);
+    const { grainPerPeasant } = tuning.economy;
+    game.state.posting.economy.growth = grainPerPeasant - 0.0001;
+    const peasants = game.delegates.peasants.length;
     const yielded =
       farmers * (game.economy.yieldPerWorker(Job.FARM, 1)?.amount ?? 0);
-    const eaten = game.economy.grainUpkeepPerTick();
+    const overflow = yielded - game.economy.grainUpkeepPerTick();
 
     const gained = harvest(game);
 
-    expect(gained).toBeCloseTo(yielded - eaten);
+    expect(gained).toBeCloseTo(overflow - grainPerPeasant);
+    expect(game.delegates.peasants).toHaveLength(peasants + 1);
   });
 
   test("a harvest that fits, or any other doctrine, adds nothing to growth", () => {
@@ -232,33 +222,26 @@ describe("the agriculture rule: full granaries feed growth", () => {
     expect(harvest(roomy)).toBe(0);
     expect(harvest(trading)).toBe(0);
   });
-
-  test("overflow that completes a peasant's progress admits the peasant", () => {
-    const game = harvesting(AGRICULTURE, tuning.economy.caps.grain + 125);
-    game.state.posting.economy.growth = tuning.economy.grainPerPeasant - 0.0001;
-    const before = game.delegates.peasants.length;
-
-    game.economy.run(contextFor(game));
-
-    expect(game.delegates.peasants).toHaveLength(before + 1);
-  });
 });
 
 describe("the extraction rule: prospecting", () => {
   const seasonEnd = tuning.economy.ticksPerSeason;
+  const miners = 3;
   function mining(doctrine: string, tick: number): Game {
     const game = posting(doctrine);
     game.state.tick = tick;
-    setRoster(game, { [Job.MINE]: 3 });
+    setRoster(game, { [Job.MINE]: miners });
+    game.state.posting.economy.seasonOre = 50;
     return game;
   }
+  const dugAt = (game: Game) =>
+    miners *
+    (game.economy.yieldPerWorker(Job.MINE, game.state.tick)?.amount ?? 0);
   const coinOf = (game: Game) => game.state.posting.resources.coin ?? 0;
 
   test("the season's end pays the share of the ore mined, and the count starts over", () => {
     const game = mining(EXTRACTION, seasonEnd);
-    game.state.posting.economy.seasonOre = 50;
-    const dug =
-      3 * (game.economy.yieldPerWorker(Job.MINE, seasonEnd)?.amount ?? 0);
+    const dug = dugAt(game);
 
     game.economy.run(contextFor(game));
 
@@ -266,25 +249,18 @@ describe("the extraction rule: prospecting", () => {
     expect(game.state.posting.economy.seasonOre).toBe(0);
   });
 
-  test("ore is counted through the season but pays nothing before it ends", () => {
-    const game = mining(EXTRACTION, seasonEnd - 1);
+  test("nothing is paid before the season ends, and another doctrine neither counts nor pays", () => {
+    const early = mining(EXTRACTION, seasonEnd - 1);
+    const trading = mining(TRADE, seasonEnd);
+    const dug = dugAt(early);
 
-    game.economy.run(contextFor(game));
+    early.economy.run(contextFor(early));
+    trading.economy.run(contextFor(trading));
 
-    expect(coinOf(game)).toBe(0);
-    expect(game.state.posting.economy.seasonOre).toBeCloseTo(
-      3 * (game.economy.yieldPerWorker(Job.MINE, seasonEnd - 1)?.amount ?? 0),
-    );
-  });
-
-  test("other doctrines are paid nothing, though the count still restarts", () => {
-    const game = mining(TRADE, seasonEnd);
-    game.state.posting.economy.seasonOre = 50;
-
-    game.economy.run(contextFor(game));
-
-    expect(coinOf(game)).toBe(0);
-    expect(game.state.posting.economy.seasonOre).toBe(0);
+    expect(coinOf(early)).toBe(0);
+    expect(early.state.posting.economy.seasonOre).toBeCloseTo(50 + dug);
+    expect(coinOf(trading)).toBe(0);
+    expect(trading.state.posting.economy.seasonOre).toBe(50);
   });
 });
 

@@ -102,21 +102,18 @@ describe("the Crown panel", () => {
     const panel = new Village().focusable.crown;
     const context = { view: emptyView(), tuning };
 
-    test("enter delivers, the forge key forges, an unowned key falls through and the title marks the focus key", () => {
+    test("enter delivers, the forge key forges, the coin key pays in coin, an unowned key falls through and the title marks the focus key", () => {
       expect(panel.key(key("enter"), context)?.commands).toEqual([
         { type: "deliver" },
       ]);
       expect(panel.key(key("f"), context)?.commands).toEqual([
         { type: "forge" },
       ]);
-      expect(panel.key(key("z"), context)).toBeNull();
-      expect(panel.title).toBe("C(r)own");
-    });
-
-    test("the coin key pays the open demand in coin", () => {
       expect(panel.key(key("c"), context)?.commands).toEqual([
         { type: "payInCoin" },
       ]);
+      expect(panel.key(key("z"), context)).toBeNull();
+      expect(panel.title).toBe("C(r)own");
     });
 
     test("the end-posting key opens the posting-end menu once the milestone is reached and explains itself before", () => {
@@ -139,36 +136,7 @@ describe("the Crown panel", () => {
     });
   });
 
-  describe("the offer to pay in coin", () => {
-    const view = (coinAccepted: boolean) =>
-      emptyView({
-        crown: {
-          demand: null,
-          nextDemandTicks: 10,
-          met: 0,
-          missed: 0,
-          favor: "neutral" as const,
-        },
-        unlocks: [CROWN_PANEL],
-        prestige: { ...emptyView().prestige, coinAccepted },
-      });
-
-    test("names the key only in a posting where the crown accepts coin", async () => {
-      const offer = copy.village.crownAcceptsCoin({ key: "c" });
-
-      const trading = await drawPanels([view(true)], {
-        size: { width: 300, height: 30 },
-      });
-      const other = await drawPanels([view(false)], {
-        size: { width: 300, height: 30 },
-      });
-
-      expect(trading).toContain(offer);
-      expect(other).not.toContain(offer);
-    });
-  });
-
-  describe("the posting-end offer", () => {
+  describe("the posting-end and coin offers", () => {
     const crown = {
       demand: null,
       nextDemandTicks: 10,
@@ -176,25 +144,39 @@ describe("the Crown panel", () => {
       missed: 0,
       favor: "neutral" as const,
     };
-    const view = (canEnd: boolean) =>
+    const view = (fields: { canEnd?: boolean; coinAccepted?: boolean }) =>
       emptyView({
         crown,
         unlocks: [CROWN_PANEL],
-        prestige: { ...emptyView().prestige, canEnd, demandsMet: 6 },
+        prestige: { ...emptyView().prestige, demandsMet: 6, ...fields },
       });
 
     test("offers to end the posting only once the milestone is reached", async () => {
       const offer = copy.village.crownMayEnd({ key: "e" });
 
-      const ready = await drawPanels([view(true)], {
+      const ready = await drawPanels([view({ canEnd: true })], {
         size: { width: 300, height: 30 },
       });
-      const early = await drawPanels([view(false)], {
+      const early = await drawPanels([view({ canEnd: false })], {
         size: { width: 300, height: 30 },
       });
 
       expect(ready).toContain(offer);
       expect(early).not.toContain(offer);
+    });
+
+    test("names the coin key only in a posting where the crown accepts coin", async () => {
+      const offer = copy.village.crownAcceptsCoin({ key: "c" });
+
+      const trading = await drawPanels([view({ coinAccepted: true })], {
+        size: { width: 300, height: 30 },
+      });
+      const other = await drawPanels([view({ coinAccepted: false })], {
+        size: { width: 300, height: 30 },
+      });
+
+      expect(trading).toContain(offer);
+      expect(other).not.toContain(offer);
     });
   });
 });

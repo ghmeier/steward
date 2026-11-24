@@ -2,12 +2,11 @@ import { z } from "zod";
 import { crownTuningSchema } from "./crown";
 import { decreeLimitsSchema } from "./decree";
 import { deskTuningSchema } from "./desk-tuning";
-import { doctrineTuningSchema } from "./doctrine";
 import { economyTuningSchema, villageTuningSchema } from "./economy";
 import { addIssue, parseWith } from "./errors";
 import { governorTuningSchema } from "./governors";
 import { illusionTuningSchema } from "./illusion";
-import { prestigeTuningSchema } from "./prestige";
+import { doctrineTuningSchema, prestigeTuningSchema } from "./prestige";
 import { positive } from "./schema";
 import { archiveTuningSchema } from "./unlocks";
 

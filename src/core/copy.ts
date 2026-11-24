@@ -55,7 +55,6 @@ export const copy = {
   },
   prestige: {
     nameRequired: "a posting needs a name",
-    doctrineRequired: "a posting needs a doctrine",
     unknownDoctrine: ({ doctrine }: { doctrine: string }) =>
       `"${doctrine}" is not a doctrine`,
     notYet: ({ met, needed }: { met: number; needed: number }) =>

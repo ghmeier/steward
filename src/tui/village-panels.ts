@@ -554,17 +554,15 @@ export class LedgerPanel extends VillagePanel {
     );
   }
 
-  /** A first posting has neither a province nor a doctrine, so it shows neither line. */
   private postingLines(view: GameView, width: number): string[] {
     const { province, doctrine } = view.posting;
-    return [
-      ...(province === ""
-        ? []
-        : this.labelled(copy.ledger.provinceLabel, province, width)),
-      ...(doctrine === ""
-        ? []
-        : this.labelled(copy.ledger.doctrineLabel, doctrine, width)),
+    const rows: [string, string][] = [
+      [copy.ledger.provinceLabel, province],
+      [copy.ledger.doctrineLabel, doctrine],
     ];
+    return rows.flatMap(([label, value]) =>
+      value === "" ? [] : this.labelled(label, value, width),
+    );
   }
 
   private promotionLines(view: GameView, width: number): string[] {

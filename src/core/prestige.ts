@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { CommandResult } from "./commands";
 import { copy } from "./copy";
 import type { FavorBand } from "./crown";
-import type { Doctrine } from "./doctrine";
+import { addIssue } from "./errors";
 import type { Game } from "./game";
 import { defaultVillageName, newPosting } from "./posting";
 import { RESOURCES } from "./realm";
@@ -15,7 +15,7 @@ import {
   positiveInteger,
   repeatIssues,
 } from "./schema";
-import { archiveEffectsSchema } from "./unlocks";
+import { type ArchiveEffects, archiveEffectsSchema } from "./unlocks";
 
 export const ENDINGS = ["promotion", "reassignment", "scandal"] as const;
 export type Ending = (typeof ENDINGS)[number];
@@ -31,7 +31,7 @@ export type PostingRecord = {
   name: string;
   /** Empty for the first posting. */
   province: string;
-  /** The doctrine the steward committed to for this posting; empty for the first. */
+  /** Empty for the first posting. */
   doctrine: string;
   startedAt: number;
   endedAt: number;
@@ -53,6 +53,39 @@ export const postingRecordSchema: z.ZodType<PostingRecord> = z.strictObject({
   demandsMet: count,
   demandsMissed: count,
 });
+
+/** The doctrines whose rule the game's code acts on; the data may rename and retune them but not drop one. */
+export const TRADE = "trade";
+export const AGRICULTURE = "agriculture";
+export const EXTRACTION = "extraction";
+
+export type Doctrine = {
+  id: string;
+  label: string;
+  rule: { label: string; description: string };
+  effects: ArchiveEffects;
+};
+
+const doctrine: z.ZodType<Doctrine> = z.strictObject({
+  id: name,
+  label: name,
+  rule: z.strictObject({ label: name, description: name }),
+  effects: archiveEffectsSchema,
+});
+
+export const doctrineTuningSchema = z
+  .strictObject({
+    /** The share of a season's mined ore that an extraction posting is paid in coin when the season ends. */
+    prospectingShare: nonNegative,
+    entries: z.array(doctrine),
+  })
+  .superRefine((value, ctx) => {
+    const ids = value.entries.map(({ id }) => id);
+    repeatIssues(ids, "doctrine id", ctx, ["entries"]);
+    for (const id of [TRADE, AGRICULTURE, EXTRACTION]) {
+      if (!ids.includes(id)) addIssue(ctx, `must include "${id}"`, ["entries"]);
+    }
+  });
 
 const province = z.strictObject({
   id: name,
@@ -134,25 +167,31 @@ export class PrestigeManager {
     return [...kind, ...harsh];
   }
 
+  private provinceById(id: string): Province | undefined {
+    const { kind, harsh } = this.tuning.provinces;
+    return (
+      kind.find((entry) => entry.id === id) ??
+      harsh.find((entry) => entry.id === id)
+    );
+  }
+
+  private doctrineById(id: string): Doctrine | undefined {
+    return this.game.tuning.doctrines.entries.find((entry) => entry.id === id);
+  }
+
   provinceLabel(id: string): string {
-    return this.provinces.find((entry) => entry.id === id)?.label ?? id;
+    return this.provinceById(id)?.label ?? id;
   }
 
-  /** The province the posting is in; none for the first posting. */
   get province(): Province | undefined {
-    return this.provinces.find((entry) => entry.id === this.posting.province);
+    return this.provinceById(this.posting.province);
   }
 
-  /** The doctrine the posting was begun under; none for the first posting. */
   get doctrine(): Doctrine | undefined {
     return this.doctrineById(this.posting.doctrine);
   }
 
-  doctrineById(id: string): Doctrine | undefined {
-    return this.game.tuning.doctrines.entries.find((entry) => entry.id === id);
-  }
-
-  /** Whether the posting runs under the doctrine, so each rule asks by name instead of reading the data. */
+  /** Each rule asks for its doctrine by id, so the data can rename and retune a doctrine without touching the rule. */
   hasDoctrine(id: string): boolean {
     return this.posting.doctrine === id;
   }
@@ -202,7 +241,6 @@ export class PrestigeManager {
   end(newName: string, doctrineId: string): CommandResult {
     const title = newName.trim();
     if (title === "") throw new Error(copy.prestige.nameRequired);
-    if (doctrineId === "") throw new Error(copy.prestige.doctrineRequired);
     if (this.doctrineById(doctrineId) === undefined) {
       throw new Error(copy.prestige.unknownDoctrine({ doctrine: doctrineId }));
     }

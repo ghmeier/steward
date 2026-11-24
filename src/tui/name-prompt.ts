@@ -9,7 +9,7 @@ export type NamePrompt = { text: string } & (
       /** The seed the village will be founded with, drawn when the prompt opened so the default name and the village agree. */
       seed: number;
     }
-  // A new posting's seed is derived by the game, so the name and the doctrine chosen before it are all the player decides.
+  // A new posting's seed is derived by the game, so the typed name is the only choice to make.
   | { purpose: "posting"; doctrine: string }
 );
 

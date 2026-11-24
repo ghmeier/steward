@@ -7,6 +7,7 @@ import {
 } from "../core/decree";
 import { addIssue, parseWith } from "../core/errors";
 import type { Game } from "../core/game";
+import { TRADE } from "../core/prestige";
 import { type UnlockId, unlockFor } from "../core/unlocks";
 
 export type Reaction = { when: Condition; commands: Command[] };
@@ -19,7 +20,7 @@ export type PostingPlan = {
   purchases: string[];
 };
 export type LaterPosting = PostingPlan & {
-  /** The doctrine the posting is begun under; the first the data lists when absent. */
+  /** The doctrine the posting is begun under; trade when absent. */
   doctrine?: string | undefined;
 };
 export type Strategy = PostingPlan & {
@@ -209,7 +210,7 @@ export class StrategyPlayer {
       fired.push({
         type: "endPosting",
         name: game.prestige.defaultName,
-        doctrine: next.doctrine ?? game.tuning.doctrines.entries[0]?.id ?? "",
+        doctrine: next.doctrine ?? TRADE,
       });
     }
     this.pending = fired;

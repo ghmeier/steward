@@ -205,14 +205,16 @@ describe("menu app requests", () => {
   const asking: ScreenBuilder = () => ({
     kind: "list",
     title: "Ask",
-    items: [{ label: "go", action: { kind: "app", request: "newGame" } }],
+    items: [
+      { label: "go", action: { kind: "app", request: { kind: "newGame" } } },
+    ],
   });
 
   test("an app item returns the request, emits no command and closes; a command item returns no request", () => {
     const app = menuKey(openMenu(asking), key("return"), context);
     const command = menuKey(press(openMenu(root), "j"), key("return"), context);
 
-    expect(app.requests).toEqual(["newGame"]);
+    expect(app.requests).toEqual([{ kind: "newGame" }]);
     expect(app.commands).toEqual([]);
     expect(app.state).toBeNull();
     expect(command.requests).toEqual([]);

@@ -2,11 +2,10 @@ import type { CrownView } from "./crown";
 import type { Decree } from "./decree";
 import type { DelegateView } from "./delegates";
 import type { DeskEntryView } from "./desk";
-import { TRADE } from "./doctrine";
 import type { Game } from "./game";
 import type { FormerGovernorView, GovernorView } from "./governors";
 import type { IllusionView } from "./illusion";
-import type { Ending } from "./prestige";
+import { type Ending, TRADE } from "./prestige";
 import { type CappedResource, type Job, RESOURCES, type Season } from "./realm";
 import type { ResourceId } from "./state";
 import {
@@ -58,7 +57,6 @@ export type GameView = {
     demandsNeeded: number;
     canEnd: boolean;
     ending: Ending;
-    /** Whether the crown takes coin for a grain, wood or ore demand, which only a posting under trade allows. */
     coinAccepted: boolean;
     /** The name the next posting is offered, which the player may change. */
     nextName: string;

@@ -32,7 +32,7 @@ export type PostingState = {
   startedAt: number;
   /** Which province the steward was sent to; empty for the first posting. */
   province: string;
-  /** The doctrine committed to when the posting began; empty for the first posting. */
+  /** Empty for the first posting. */
   doctrine: string;
   name: string;
   seed: number;

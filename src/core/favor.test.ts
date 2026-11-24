@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   contextFor,
   grantUnlocks,
+  openDemand,
   quietOptions,
   setRoster,
   tuning,
@@ -30,17 +31,6 @@ function favorOf(game: Game): number {
 
 function stock(game: Game, resource: string, amount: number): void {
   game.state.posting.resources[resource] = amount;
-}
-
-function openDemand(game: Game, resource: Resource, amount: number): void {
-  game.state.posting.crown.demand = {
-    id: 1,
-    resource,
-    amount,
-    delivered: 0,
-    issuedAt: game.state.tick,
-    dueAt: game.state.tick + crownTuning.deadline.minTicks,
-  };
 }
 
 function command(game: Game, issued: Command) {

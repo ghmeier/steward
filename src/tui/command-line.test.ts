@@ -38,7 +38,6 @@ type Setup = {
   tuning?: Tuning;
   /** Debt to record in one resource, as forging leaves behind. */
   owing?: { resource: Resource; amount: number };
-  /** The doctrine the posting runs under. */
   doctrine?: string;
   /** Leaves the Decrees panel unowned, which every other setup has. */
   withoutDecrees?: true;

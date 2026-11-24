@@ -149,17 +149,24 @@ export class UnlockManager {
    */
   modifier(id: ModifierId): number {
     const isFactor = MODIFIERS[id] === "factor";
-    const fold = (total: number, value: number | undefined): number => {
-      if (value === undefined) return total;
-      return isFactor ? total * value : total + value;
-    };
     let total = isFactor ? 1 : 0;
+    for (const value of this.valuesOf(id)) {
+      total = isFactor ? total * value : total + value;
+    }
+    return total;
+  }
+
+  private valuesOf(id: ModifierId): number[] {
+    const values: number[] = [];
     for (const entry of this.game.tuning.archive.entries) {
-      if (this.enabled(entry.id)) total = fold(total, entry.effects?.[id]);
+      const value = entry.effects?.[id];
+      if (value !== undefined && this.enabled(entry.id)) values.push(value);
     }
     const { doctrine, province } = this.game.prestige;
-    total = fold(total, doctrine?.effects[id]);
-    return fold(total, province?.effects[id]);
+    for (const value of [doctrine?.effects[id], province?.effects[id]]) {
+      if (value !== undefined) values.push(value);
+    }
+    return values;
   }
 
   enabled(id: UnlockId) {

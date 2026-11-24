@@ -20,9 +20,9 @@ import {
 import { barRow, settledFrame } from "../../test/tui-helpers";
 import { copy } from "../core/copy";
 import type { Decree } from "../core/decree";
-import type { Doctrine } from "../core/doctrine";
 import { Game } from "../core/game";
 import { defaultVillageName } from "../core/posting";
+import type { Doctrine } from "../core/prestige";
 import { Job } from "../core/realm";
 import {
   ARCHIVE_PANEL,
