@@ -46,7 +46,12 @@ const desk = (changes: Partial<Tuning["desk"]>): Tuning => ({
 function rulingsWith(resources: Record<string, number>): Tuning {
   const free = ({
     templates,
-  }: Tuning["desk"]["kinds"]["merchant" | "traveller" | "petition" | "omen"]) =>
+  }: Tuning["desk"]["kinds"][
+    | "merchant"
+    | "traveller"
+    | "petition"
+    | "omen"
+    | "return"]) =>
     templates.map((template) => ({
       ...template,
       options: template.options.map(({ id, label }) => ({ id, label })),
@@ -70,6 +75,7 @@ function rulingsWith(resources: Record<string, number>): Tuning {
       omen: { ...kinds.omen, templates: free(kinds.omen) },
       candidate: kinds.candidate,
       audit: kinds.audit,
+      return: { ...kinds.return, templates: free(kinds.return) },
     },
   });
 }
