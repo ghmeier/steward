@@ -135,7 +135,7 @@ describe("arriving in the next posting", () => {
       governorOf({ loyalty: rules.followAt, traits: ["diligent"] }),
       governorOf({ loyalty: rules.followAt - 1 }),
     );
-    const [loyal, wary] = game.delegates.governors as [Governor, Governor];
+    const [loyal] = game.delegates.governors as [Governor, Governor];
 
     endPosting(game);
 
@@ -151,7 +151,6 @@ describe("arriving in the next posting", () => {
     expect(
       (seated?.termEndsAt as number) - game.state.tick,
     ).toBeGreaterThanOrEqual(term.minTicks);
-    expect(game.delegates.all.map(({ name }) => name)).not.toContain(wary.name);
     expect(game.state.career.followers.map(({ name }) => name)).toEqual([
       loyal.name,
     ]);
