@@ -1,8 +1,8 @@
+import { formatGains } from "../core/amount";
 import { copy } from "../core/copy";
 import type { OfflineSummary } from "../core/offline";
-import { RESOURCES } from "../core/realm";
 import type { Tuning } from "../core/tuning";
-import { formatAmount, formatTicks } from "./format";
+import { formatTicks } from "./format";
 
 /** What the player was away for and what it earned, or null when no time was credited. */
 export function offlineNotice(
@@ -12,13 +12,11 @@ export function offlineNotice(
   if (summary.compressedTicks === 0) return null;
 
   const away = formatTicks(summary.realTicks, tuning.stepMs);
-  const gains = RESOURCES.filter((resource) => summary.gains[resource] > 0).map(
-    (resource) => `${formatAmount(summary.gains[resource])} ${resource}`,
-  );
+  const gains = formatGains(summary.gains);
   const report =
-    gains.length === 0
+    gains === null
       ? copy.notices.awayNothingGained({ away })
-      : copy.notices.awayGained({ away, gains: gains.join(", ") });
+      : copy.notices.awayGained({ away, gains });
   if (summary.fullStores.length === 0) return report;
   return `${report} ${copy.notices.awayStoresFull({ stores: summary.fullStores })}`;
 }

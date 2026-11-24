@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formatGains } from "./amount";
 import type { CommandResult } from "./commands";
 import { copy } from "./copy";
 import { sortedKeys } from "./data";
@@ -316,7 +317,7 @@ export class DeskManager {
     if (entry.kind === "return") {
       return text
         .replaceAll("{away}", this.awayText(entry.away))
-        .replaceAll("{gains}", this.gainsText(entry.gains))
+        .replaceAll("{gains}", formatGains(entry.gains) ?? copy.desk.noGains)
         .replaceAll("{reporter}", entry.reporter);
     }
     return this.partiesOf(entry).reduce(
@@ -329,15 +330,6 @@ export class DeskManager {
   private awayText(ticks: number): string {
     const minutes = Math.round((ticks * this.tuning.stepMs) / 60_000);
     return copy.desk.timeAway({ minutes });
-  }
-
-  private gainsText(gains: ReturnReport["gains"]): string {
-    const parts = RESOURCES.filter(
-      (resource) => gains[resource] !== undefined,
-    ).map((resource) => `${show(gains[resource] ?? 0)} ${resource}`);
-    return parts.length === 0
-      ? copy.desk.noGains
-      : new Intl.ListFormat("en").format(parts);
   }
 
   /** What choosing the option adds and removes; an audit's is worked out from the books and a hire's from the entry, not the template. */
@@ -609,45 +601,35 @@ export class DeskManager {
     desk.nextDisputeId += 1;
   }
 
-  /**
-   * Places the auditors on the desk. The template is picked from the entry id rather than drawn, so
-   * an audit consumes nothing from the desk's random stream and never shifts the arrivals after it.
-   */
   placeAudit(dueAt: number): void {
+    this.place({ kind: "audit", dueAt });
+  }
+
+  /** Puts the report of the time away on the desk, in place of any earlier one nobody answered. */
+  placeReturn(report: Omit<ReturnReport, keyof EntryBase | "kind">): void {
     const { desk } = this.posting;
-    const templates = this.templatesOf("audit");
-    const template = templates[desk.nextDisputeId % templates.length];
-    if (template === undefined) {
-      throw new Error("audit template pick landed outside its range");
-    }
-    desk.disputes.push({
-      id: desk.nextDisputeId,
-      template: template.id,
-      arrivedAt: this.state.tick,
-      kind: "audit",
-      dueAt,
-    });
-    desk.nextDisputeId += 1;
+    desk.disputes = desk.disputes.filter((entry) => entry.kind !== "return");
+    this.place({ kind: "return", ...report });
   }
 
   /**
-   * Puts the report of the time away on the desk, in place of any earlier one nobody answered. Like
-   * an audit it is picked from the entry id rather than drawn, so it never shifts the arrivals after it.
+   * The template is picked from the entry id rather than drawn, so a placed entry consumes nothing
+   * from the desk's random stream and never shifts the arrivals after it.
    */
-  placeReturn(report: Omit<ReturnReport, keyof EntryBase | "kind">): void {
+  private place(
+    entry: Omit<Audit, keyof EntryBase> | Omit<ReturnReport, keyof EntryBase>,
+  ): void {
     const { desk } = this.posting;
-    const templates = this.templatesOf("return");
+    const templates = this.templatesOf(entry.kind);
     const template = templates[desk.nextDisputeId % templates.length];
     if (template === undefined) {
-      throw new Error("return template pick landed outside its range");
+      throw new Error(`${entry.kind} template pick landed outside its range`);
     }
-    desk.disputes = desk.disputes.filter((entry) => entry.kind !== "return");
     desk.disputes.push({
+      ...entry,
       id: desk.nextDisputeId,
       template: template.id,
       arrivedAt: this.state.tick,
-      kind: "return",
-      ...report,
     });
     desk.nextDisputeId += 1;
   }

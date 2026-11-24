@@ -9,9 +9,11 @@ import {
   tuning,
 } from "../../test/helpers";
 import { parseSave, serializeSave } from "../save/save";
+import { formatAmount } from "./amount";
 import { copy } from "./copy";
 import type { DeskEntry, ReturnReport } from "./desk";
 import { Game } from "./game";
+import { normalizeZero } from "./math";
 import { AGRICULTURE, EXTRACTION, TRADE } from "./prestige";
 import { TRUE_REPORTS } from "./unlocks";
 
@@ -168,18 +170,27 @@ describe("return report", () => {
     rules: [],
     otherwise: "sell",
   } as const;
-  const laborOn = (policy: string) =>
-    ({ id: "labor", petition: "labor", rules: [], otherwise: policy }) as const;
+
+  // The labor signal reads the allocation in force, which a decree only sets once a tick has run.
+  function enactLabor(game: Game, policy: string): void {
+    game.decrees.enact({
+      id: "labor",
+      petition: "labor",
+      rules: [],
+      otherwise: policy,
+    });
+    game.steps.runFlows(contextFor(game));
+  }
 
   const reportsOn = (game: Game): ReturnReport[] =>
     game.state.posting.desk.disputes.filter(
       (entry): entry is ReturnReport => entry.kind === "return",
     );
 
-  /** What the report's first option charges in coin, which is the base amount times the report's scale. */
+  /** What the report's first option charges in coin, which is the template's amount times the report's scale. */
   function coinCost(game: Game): number {
     const [report] = game.desk.view().filter(({ kind }) => kind === "return");
-    return 0 - (report?.options[0]?.resources.coin ?? 0);
+    return normalizeZero(-(report?.options[0]?.resources.coin ?? 0));
   }
 
   function baseCoinCost(game: Game): number {
@@ -194,10 +205,12 @@ describe("return report", () => {
     return Math.min(returnScaleMax, signals * hours * returnScalePerHour);
   }
 
+  const braggart = governorOf({ traits: ["braggart"] });
+
   function braggartVillage(trueReports: boolean): Game {
     const game = village({ farm: 2, forest: 6, idle: 2 });
     if (trueReports) grantUnlocks(game, [TRUE_REPORTS]);
-    addGovernors(game, governorOf({ traits: ["braggart"] }));
+    addGovernors(game, braggart);
     return game;
   }
 
@@ -228,7 +241,7 @@ describe("return report", () => {
 
   test("a village with no policy left running pays nothing to settle the report", () => {
     const game = village({ farm: 4, forest: 4 });
-    game.decrees.enact(laborOn("balanced"));
+    enactLabor(game, "balanced");
 
     game.offline.catchUp(week);
 
@@ -240,34 +253,48 @@ describe("return report", () => {
     const food = village({ farm: 4, forest: 4 });
     food.decrees.enact(sellGrain);
     const labor = village({ farm: 4, forest: 4 });
-    labor.decrees.enact(laborOn("farm"));
+    enactLabor(labor, "farm");
     const both = village({ farm: 4, forest: 4 });
     both.decrees.enact(sellGrain);
-    both.decrees.enact(laborOn("farm"));
+    enactLabor(both, "farm");
 
     food.offline.catchUp(week);
     labor.offline.catchUp(week);
     const { compressedTicks } = both.offline.catchUp(week);
 
     expect(coinCost(food)).toBeGreaterThan(0);
-    expect(coinCost(both)).toBeGreaterThan(coinCost(food));
     expect(coinCost(labor)).toBe(coinCost(food));
     expect(coinCost(both)).toBe(
       Math.round(baseCoinCost(both) * expectedScale(compressedTicks, 2)),
     );
+    expect(coinCost(both)).toBeGreaterThan(coinCost(food));
   });
 
-  test("a custom labor split counts as lopsided only from the configured share", () => {
+  test("a custom labor split in force counts as lopsided only from the configured share", () => {
     const lopsided = village({ farm: 4, forest: 4 });
-    lopsided.decrees.enact(laborOn("farm 80 forest 20"));
+    enactLabor(lopsided, "farm 80 forest 20");
     const spread = village({ farm: 4, forest: 4 });
-    spread.decrees.enact(laborOn("farm 79 forest 21"));
+    enactLabor(spread, "farm 79 forest 21");
 
     lopsided.offline.catchUp(week);
     spread.offline.catchUp(week);
 
     expect(coinCost(lopsided)).toBeGreaterThan(0);
     expect(coinCost(spread)).toBe(0);
+  });
+
+  test("a lopsided labor decree enacted after the last tick is not yet in force and costs nothing", () => {
+    const game = village({ farm: 4, forest: 4 });
+    game.decrees.enact({
+      id: "labor",
+      petition: "labor",
+      rules: [],
+      otherwise: "farm",
+    });
+
+    game.offline.catchUp(week);
+
+    expect(coinCost(game)).toBe(0);
   });
 
   test("the scale stops at the configured maximum", () => {
@@ -277,45 +304,48 @@ describe("return report", () => {
     });
     setRoster(capped, { farm: 4, forest: 4 });
     capped.decrees.enact(sellGrain);
-    capped.decrees.enact(laborOn("farm"));
+    enactLabor(capped, "farm");
 
     capped.offline.catchUp(week);
 
     expect(reportsOn(capped)[0]?.scale).toBe(1);
   });
 
-  test("a governor inflates the gains by their report factor and signs the report", () => {
-    const game = braggartVillage(false);
-    const [governor] = game.delegates.governors;
-    if (governor === undefined) throw new Error("no governor");
+  test("a governor signs the report and inflates the gains by their report factor unless true reports are owned", () => {
+    const inflated = braggartVillage(false);
+    const honest = braggartVillage(true);
 
-    const summary = game.offline.catchUp(week);
+    const inflatedSummary = inflated.offline.catchUp(week);
+    const honestSummary = honest.offline.catchUp(week);
 
-    const [report] = reportsOn(game);
-    expect(report?.reporter).toBe(governor.name);
-    expect(report?.gains.wood).toBeCloseTo(
-      summary.gains.wood * game.governors.reportFactorOf(governor),
+    const [inflatedReport] = reportsOn(inflated);
+    expect(inflatedReport?.reporter).toBe(braggart.name);
+    expect(inflatedReport?.gains.wood).toBeCloseTo(
+      inflatedSummary.gains.wood * inflated.governors.reportFactorOf(braggart),
       6,
     );
-    expect(report?.gains.wood).toBeGreaterThan(summary.gains.wood);
+    expect(inflatedReport?.gains.wood).toBeGreaterThan(
+      inflatedSummary.gains.wood,
+    );
+    expect(reportsOn(honest)[0]?.gains.wood).toBeCloseTo(
+      honestSummary.gains.wood,
+      6,
+    );
   });
 
-  test("a governor reports accurately once true reports are owned", () => {
-    const game = braggartVillage(true);
-
-    const summary = game.offline.catchUp(week);
-
-    expect(reportsOn(game)[0]?.gains.wood).toBeCloseTo(summary.gains.wood, 6);
-  });
-
-  test("a clerk reports accurately when no governor serves", () => {
+  test("a clerk reports the gains accurately, formatted as the startup notice formats them, when no governor serves", () => {
     const game = village({ farm: 2, forest: 6, idle: 2 });
 
     const summary = game.offline.catchUp(week);
 
     const [report] = reportsOn(game);
+    const [label] = game.desk
+      .view()
+      .filter(({ kind }) => kind === "return")
+      .map((entry) => entry.label);
     expect(report?.reporter).toBe(copy.desk.clerk);
     expect(report?.gains.wood).toBeCloseTo(summary.gains.wood, 6);
+    expect(label).toContain(`${formatAmount(summary.gains.wood)} wood`);
   });
 
   test("a full desk keeps all its entries and the report, and none expires", () => {

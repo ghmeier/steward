@@ -1,3 +1,5 @@
+import { RESOURCES, type Resource } from "./realm";
+
 const SUFFIXES = ["M", "B", "T"];
 
 export function withThousandsSeparators(whole: string): string {
@@ -26,4 +28,14 @@ export function formatMagnitude(magnitude: number): string {
 export function formatAmount(value: number): string {
   const body = formatMagnitude(Math.abs(value));
   return value < 0 && body !== "0.0" ? `-${body}` : body;
+}
+
+/** Each resource that rose, such as "1,234.5 grain and 80.0 wood"; null when nothing did. */
+export function formatGains(
+  gains: Partial<Record<Resource, number>>,
+): string | null {
+  const parts = RESOURCES.filter((resource) => (gains[resource] ?? 0) > 0).map(
+    (resource) => `${formatAmount(gains[resource] ?? 0)} ${resource}`,
+  );
+  return parts.length === 0 ? null : new Intl.ListFormat("en").format(parts);
 }

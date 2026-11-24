@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { copy } from "./copy";
 import type { Game } from "./game";
+import { NO_LABOR_POLICY } from "./labor";
 import { add, log2Fixed } from "./math";
 import { EXTRACTION } from "./prestige";
 import type { FlowProjection } from "./projection";
@@ -100,22 +101,22 @@ export class OfflineManager {
     return summary;
   }
 
-  /** Food is on when a harvest decree chose to sell at exit; labor when a decree sends most workers to one job. */
+  /** Food is on when a harvest decree chose to sell at exit; labor when the allocation in force sends most workers to one job. */
   private get signals(): number {
-    const { policies } = this.game.projection.flows();
-    const enacted = Object.values(this.game.decrees.enacted);
-    const selling = enacted.some(
-      ({ id, petition }) => petition === "harvest" && policies[id] === "sell",
-    );
-    const lopsided = enacted.some(
-      ({ id, petition }) =>
-        petition === "labor" && this.isLopsided(policies[id] ?? ""),
-    );
-    return Number(selling) + Number(lopsided);
+    return Number(this.sellingHarvest) + Number(this.lopsidedLabor);
   }
 
-  private isLopsided(laborPolicy: string): boolean {
-    const shares = this.game.economy.laborSharesFor(laborPolicy);
+  private get sellingHarvest(): boolean {
+    const { policies } = this.game.projection.flows();
+    return Object.values(this.game.decrees.enacted).some(
+      ({ id, petition }) => petition === "harvest" && policies[id] === "sell",
+    );
+  }
+
+  private get lopsidedLabor(): boolean {
+    const { policy } = this.game.labor;
+    if (policy === NO_LABOR_POLICY) return false;
+    const shares = this.game.economy.laborSharesFor(policy);
     return WORKING_JOBS.some((job) => shares[job] >= this.tuning.lopsidedShare);
   }
 
