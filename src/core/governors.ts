@@ -23,6 +23,19 @@ import {
 } from "./schema";
 import { GOVERNORS, TRUE_REPORTS } from "./unlocks";
 
+/** A governor chosen to go with the steward to the next posting; the new posting draws their village, job and term. */
+export type Follower = {
+  name: string;
+  traits: Trait[];
+  loyalty: number;
+};
+
+export const followerSchema: z.ZodType<Follower> = z.strictObject({
+  name: z.string().min(1),
+  traits: traitList,
+  loyalty: count,
+});
+
 export type DepartureReason = "retired" | "died" | "dismissed";
 
 export type FormerGovernor = {
@@ -33,6 +46,8 @@ export type FormerGovernor = {
   reason: DepartureReason;
   /** Coin the governor had kept back, which they handed over on leaving. */
   handedOver: number;
+  /** The loyalty the governor left with; a dismissed governor leaves with none. */
+  loyalty: number;
   /** What the governor died of; absent for one who retired or was dismissed. */
   cause?: string | undefined;
 };
@@ -44,6 +59,7 @@ export const formerGovernorSchema: z.ZodType<FormerGovernor> = z.strictObject({
   leftAt: count,
   reason: z.enum(["retired", "died", "dismissed"]),
   handedOver: z.number().min(0),
+  loyalty: count,
   cause: name.optional(),
 });
 
@@ -72,6 +88,13 @@ export const governorTuningSchema = z.strictObject({
   causes: z.array(name).min(1),
   price: countRange,
   empireBuilderLimit: positiveInteger,
+  loyalty: z.strictObject({
+    perSeason: count,
+    backedAudit: count,
+    missedDemand: count,
+    followAt: positiveInteger,
+    followerCap: count,
+  }),
   traits: z.record(
     z.enum(TRAITS),
     z.strictObject({ output: positive, report: positive }),
@@ -107,6 +130,8 @@ class TraitSet {
   }
 }
 
+export type LoyaltyStanding = "wary" | "steady" | "devoted";
+
 export type GovernorView = {
   id: number;
   name: string;
@@ -121,6 +146,7 @@ export type GovernorView = {
   truth: { realPerSecond: number; gapPerSecond: number } | null;
   /** Whole seasons until the term ends, counting the one in progress; the governor may die sooner. */
   seasonsLeft: number;
+  standing: LoyaltyStanding;
 };
 /** A governor who has left, oldest first, so a change in the list's length is a new departure. */
 export type FormerGovernorView = {
@@ -210,6 +236,12 @@ export class GovernorManager {
       : this.reportedWorkersOf(governor) * yielded.amount;
   }
 
+  private standingOf(loyalty: number): LoyaltyStanding {
+    const { followAt } = this.tuning.loyalty;
+    if (loyalty >= followAt) return "devoted";
+    return loyalty >= Math.ceil(followAt / 2) ? "steady" : "wary";
+  }
+
   view(): GovernorView[] {
     const trueReports = this.game.unlocks.enabled(TRUE_REPORTS);
     const { stepMs, economy } = this.game.tuning;
@@ -239,6 +271,7 @@ export class GovernorManager {
         seasonsLeft: Math.ceil(
           (governor.termEndsAt - this.game.state.tick) / ticksPerSeason,
         ),
+        standing: this.standingOf(governor.loyalty),
       };
     });
   }
@@ -307,7 +340,58 @@ export class GovernorManager {
       hiredAt: tick,
       termEndsAt: tick + candidate.term,
       hoard: 0,
+      loyalty: 0,
     });
+  }
+
+  /** The new posting has not drawn from the governors stream yet, so each follower's job, village and term replay the same. */
+  seat(followers: readonly Follower[]): void {
+    const { tick } = this.game.state;
+    for (const follower of followers) {
+      this.game.delegates.createGovernor({
+        name: follower.name,
+        job: this.pick(WORKING_JOBS),
+        village: this.between(this.tuning.village),
+        traits: [...follower.traits],
+        hiredAt: tick,
+        termEndsAt: tick + drawDelay(this.stream, this.tuning.term),
+        hoard: 0,
+        loyalty: follower.loyalty,
+      });
+    }
+  }
+
+  /**
+   * The most loyal governors at or above the threshold, up to the cap. Ties go to whoever has served
+   * longest, then to the lower id, so the same roster always sends the same followers.
+   */
+  chooseFollowers(): Follower[] {
+    const { followAt, followerCap } = this.tuning.loyalty;
+    return this.roster
+      .filter((governor) => governor.loyalty >= followAt)
+      .sort(
+        (a, b) => b.loyalty - a.loyalty || a.hiredAt - b.hiredAt || a.id - b.id,
+      )
+      .slice(0, followerCap)
+      .map(({ name, traits, loyalty }) => ({
+        name,
+        traits: [...traits],
+        loyalty,
+      }));
+  }
+
+  recordBackedAudit(): void {
+    this.shiftLoyalty(this.tuning.loyalty.backedAudit);
+  }
+
+  recordMissedDemand(): void {
+    this.shiftLoyalty(-this.tuning.loyalty.missedDemand);
+  }
+
+  private shiftLoyalty(delta: number): void {
+    for (const governor of this.roster) {
+      governor.loyalty = Math.max(0, governor.loyalty + delta);
+    }
   }
 
   private depart(
@@ -325,6 +409,7 @@ export class GovernorManager {
       leftAt: tick,
       reason,
       handedOver: governor.hoard,
+      loyalty: reason === "dismissed" ? 0 : governor.loyalty,
       cause,
     });
     this.game.delegates.remove(governor.id);
@@ -368,12 +453,14 @@ export class GovernorManager {
         this.depart(governor, "retired", context);
       } else if (seasonEnds && chance(this.stream, this.deathPerMille)) {
         this.depart(governor, "died", context, this.pick(this.tuning.causes));
-      } else if (
-        seasonEnds &&
-        this.traitsOf(governor).has("empire-builder") &&
-        governor.village < this.tuning.empireBuilderLimit
-      ) {
-        governor.village += 1;
+      } else if (seasonEnds) {
+        governor.loyalty += this.tuning.loyalty.perSeason;
+        if (
+          this.traitsOf(governor).has("empire-builder") &&
+          governor.village < this.tuning.empireBuilderLimit
+        ) {
+          governor.village += 1;
+        }
       }
     }
   }

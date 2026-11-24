@@ -195,6 +195,19 @@ const UPGRADES: Record<number, (state: Record<string, unknown>) => void> = {
       if (isRecord(record)) record.doctrine = "";
     }
   },
+  // Loyalty is new, so every governor, serving or departed, starts with none. The career's list of
+  // followers held names nobody ever filled in, so it starts empty in its new shape.
+  19: (state) => {
+    const career = state.career as Record<string, unknown>;
+    const posting = state.posting as {
+      delegates: Record<string, unknown>[];
+      formerStaff: Record<string, unknown>[];
+    };
+    career.followers = [];
+    for (const governor of [...posting.delegates, ...posting.formerStaff]) {
+      if (governor.kind !== "peasant") governor.loyalty = 0;
+    }
+  },
 };
 
 function upgrade(record: Record<string, unknown>): void {

@@ -357,6 +357,7 @@ export class CrownManager {
   private countMiss(uncovered: number): void {
     this.crown.surcharge += this.tuning.surcharge * uncovered;
     this.crown.missed += 1;
+    this.game.governors.recordMissedDemand();
   }
 
   /** The crown's reaction to an audit that was backed or deepened; a failed one goes through `recordFailedAudit`. */

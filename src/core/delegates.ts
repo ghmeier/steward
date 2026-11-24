@@ -22,6 +22,8 @@ export type Governor = DelegateBase & {
   termEndsAt: number;
   /** Coin value the governor has kept back, handed over when they leave. */
   hoard: number;
+  /** How far the governor has come to serve the steward personally; the most loyal follow to the next posting. */
+  loyalty: number;
 };
 
 export type Delegate = Peasant | Governor;
@@ -45,6 +47,7 @@ export const delegateSchema: z.ZodType<Delegate> = z.discriminatedUnion(
       hiredAt: count,
       termEndsAt: count,
       hoard: z.number().min(0),
+      loyalty: count,
     }),
   ],
 );

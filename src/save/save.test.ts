@@ -639,3 +639,59 @@ describe("version 18 upgrade", () => {
     expect(state.career.postings.map(({ doctrine }) => doctrine)).toEqual([""]);
   });
 });
+
+describe("version 19 upgrade", () => {
+  function version19Save(): Record<string, unknown> {
+    const game = Game.create(42, loadTuning());
+    const state = structuredClone(game.state) as unknown as {
+      career: { followers: unknown };
+      posting: {
+        delegates: unknown[];
+        formerStaff: unknown[];
+        nextDelegateId: number;
+      };
+    };
+    state.career.followers = ["Ada"];
+    const id = state.posting.nextDelegateId;
+    state.posting.nextDelegateId += 1;
+    state.posting.delegates.push({
+      id,
+      name: "Governor Gwen",
+      kind: "governor",
+      job: "farm",
+      grudgeUntil: 0,
+      village: 6,
+      traits: [],
+      hiredAt: 0,
+      termEndsAt: 5000,
+      hoard: 0,
+    });
+    state.posting.formerStaff.push({
+      name: "Old Orrin",
+      traits: [],
+      hiredAt: 0,
+      leftAt: 10,
+      reason: "retired",
+      handedOver: 0,
+    });
+    return { ...state, schemaVersion: 19 };
+  }
+
+  test("every serving and former governor starts with no loyalty, and the career's list of followers is emptied", () => {
+    writeSave(19, version19Save());
+
+    const state = loaded(dir);
+
+    expect(state.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(state.career.followers).toEqual([]);
+    expect(state.posting.formerStaff.map(({ loyalty }) => loyalty)).toEqual([
+      0,
+    ]);
+    const governors = state.posting.delegates.filter(
+      ({ kind }) => kind === "governor",
+    );
+    expect(
+      governors.map((entry) => "loyalty" in entry && entry.loyalty),
+    ).toEqual([0]);
+  });
+});

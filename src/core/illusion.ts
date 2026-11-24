@@ -465,6 +465,7 @@ export class IllusionManager {
   private passAudit(outcome: "backed" | "deepened"): void {
     this.closeAudit(outcome);
     this.game.crown.recordAudit(outcome);
+    if (outcome === "backed") this.game.governors.recordBackedAudit();
   }
 
   failAudit(context: AddContext): void {

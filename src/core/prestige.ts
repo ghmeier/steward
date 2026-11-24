@@ -260,6 +260,8 @@ export class PrestigeManager {
       ending,
     });
 
+    state.career.followers = this.game.governors.chooseFollowers();
+
     const seed = this.nextSeed;
     const provinceId = this.drawProvince(ending, seed);
     this.game.unlocks.dropPostingScoped();
@@ -270,6 +272,8 @@ export class PrestigeManager {
       province: provinceId,
       doctrine: doctrineId,
     });
+    // Followers take their seats first so the roster already holds their names when the peasants are named.
+    this.game.governors.seat(state.career.followers);
     this.game.delegates.createPeasants(this.tuning.population);
     // The charter is a career purchase, so nothing in the new posting buys it and schedules the first demand.
     this.game.crown.scheduleFirstDemand();

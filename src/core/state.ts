@@ -3,13 +3,13 @@ import type { Decree } from "./decree";
 import type { Delegate } from "./delegates";
 import type { DeskState } from "./desk";
 import type { EconomyState } from "./economy";
-import type { FormerGovernor } from "./governors";
+import type { Follower, FormerGovernor } from "./governors";
 import type { IllusionState } from "./illusion";
 import type { LaborState } from "./labor";
 import type { PostingRecord } from "./prestige";
 import type { RngState } from "./rng";
 
-export const SCHEMA_VERSION = 19;
+export const SCHEMA_VERSION = 20;
 
 export type ResourceId = string;
 
@@ -18,7 +18,8 @@ export type CareerState = {
   savedDecrees: Record<string, Decree>;
   /** The first tick each Archive entry was revealed. Revealing latches, because the stock that revealed it can fall back. */
   seen: Record<string, number>;
-  followers: string[];
+  /** Governors who go with the steward into the next posting, chosen when a posting ends. */
+  followers: Follower[];
   /** One record for each posting that has ended, oldest first. */
   postings: PostingRecord[];
   /** 0 until promotion; a promotion can only happen at tick 1 or later. */

@@ -6,6 +6,13 @@
   "causes": ["a fever", "a fall from a horse", "a winter cough", "bad fish"],
   "price": { "min": 60, "max": 140 },
   "empireBuilderLimit": 14,
+  "loyalty": {
+    "perSeason": 1,
+    "backedAudit": 3,
+    "missedDemand": 5,
+    "followAt": 6,
+    "followerCap": 2
+  },
   "traits": {
     "braggart": { "output": 1, "report": 1.4 },
     "diligent": { "output": 1.15, "report": 1 },

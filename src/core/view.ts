@@ -60,6 +60,8 @@ export type GameView = {
     coinAccepted: boolean;
     /** The name the next posting is offered, which the player may change. */
     nextName: string;
+    /** Governors who would follow the steward if the posting ended now, most loyal first. */
+    followers: string[];
   };
   growth: { stored: number; needed: number; perSecond: number; full: boolean };
   /** Grain the peasants eat each second, whatever the harvest brings in. */
@@ -198,6 +200,9 @@ export class ViewManager {
         ending: this.game.prestige.ending,
         coinAccepted: this.game.prestige.hasDoctrine(TRADE),
         nextName: this.game.prestige.defaultName,
+        followers: this.game.governors
+          .chooseFollowers()
+          .map(({ name }) => name),
       },
       growth: {
         stored: this.posting.economy.growth,

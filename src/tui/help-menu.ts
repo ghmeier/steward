@@ -424,6 +424,11 @@ function governorLines({ tuning, view }: MenuContext): string[] {
       death: percent(view.live.governorDeathPerMille / 1000),
     }),
     copy.help.governors.dismissal,
+    "",
+    copy.help.governors.loyalty({
+      followAt: plain(governors.loyalty.followAt),
+      cap: plain(governors.loyalty.followerCap),
+    }),
   ];
 }
 

@@ -305,6 +305,11 @@ export const copy = {
     governorReports: ({ rate, resource }: { rate: string; resource: string }) =>
       `reports ${rate} ${resource}/s`,
     governorIdle: "has no work",
+    governorStanding: {
+      wary: "wary of you",
+      steady: "steady",
+      devoted: "devoted to you",
+    },
     governorBringsIn: ({
       real,
       resource,
@@ -425,6 +430,10 @@ export const copy = {
       governorDeath: "governor deaths",
       governorSlots: "governor slots",
     },
+    postingEndFollowers: ({ names }: { names: string[] }) =>
+      `Following you to the new posting as governors: ${new Intl.ListFormat("en").format(names)}.`,
+    postingEndNoFollowers:
+      "No governor is loyal enough to follow you to the new posting.",
     stayInPosting: "No, stay in this posting",
     endPosting: "Yes, end the posting",
     namePromptHints: "type a name · enter found the village · esc cancel",
@@ -796,6 +805,8 @@ export const copy = {
         death: string;
       }) =>
         `A governor serves ${shortest} to ${longest}, then retires, and each season carries a ${death} chance that they die. Either way their village leaves the population and a candidate may arrive to replace them.`,
+      loyalty: ({ followAt, cap }: { followAt: string; cap: string }) =>
+        `Each governor grows more loyal to you: a little each season they serve, more when they serve through an audit you back, and less when the crown's demand goes unmet. A governor is wary at first, steady once they are halfway to ${followAt}, and devoted at ${followAt} or more. When you end the posting, up to ${cap} of the most devoted governors follow you and take up governorships in the next one, keeping their loyalty.`,
       dismissal:
         "A failed audit dismisses one governor: the one whose reports exaggerate the most, or the newest hire if none exaggerates.",
     },

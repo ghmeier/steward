@@ -11,6 +11,10 @@ export const postingEndMenu: ScreenBuilder = ({ view }) => ({
     copy.menus.postingEndKeeps,
     copy.menus.postingEndResets,
     "",
+    view.prestige.followers.length > 0
+      ? copy.menus.postingEndFollowers({ names: view.prestige.followers })
+      : copy.menus.postingEndNoFollowers,
+    "",
   ],
   items: [
     { label: copy.menus.stayInPosting, action: { kind: "close" } },
