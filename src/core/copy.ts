@@ -430,8 +430,8 @@ export const copy = {
       governorDeath: "governor deaths",
       governorSlots: "governor slots",
     },
-    postingEndFollowers: ({ names }: { names: string }) =>
-      `Following you to the new posting as governors: ${names}.`,
+    postingEndFollowers: ({ names }: { names: string[] }) =>
+      `Following you to the new posting as governors: ${new Intl.ListFormat("en").format(names)}.`,
     postingEndNoFollowers:
       "No governor is loyal enough to follow you to the new posting.",
     stayInPosting: "No, stay in this posting",

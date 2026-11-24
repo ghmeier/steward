@@ -12,14 +12,7 @@ export const postingEndMenu: ScreenBuilder = ({ view }) => ({
     copy.menus.postingEndResets,
     "",
     view.prestige.followers.length > 0
-      ? copy.menus.postingEndFollowers({
-          names: [
-            view.prestige.followers.slice(0, -1).join(", "),
-            view.prestige.followers.at(-1),
-          ]
-            .filter(Boolean)
-            .join(" and "),
-        })
+      ? copy.menus.postingEndFollowers({ names: view.prestige.followers })
       : copy.menus.postingEndNoFollowers,
     "",
   ],

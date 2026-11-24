@@ -6,6 +6,7 @@ import { parseTuning, type Tuning } from "../src/core/tuning";
 import {
   ARCHIVE_PANEL,
   type ArchiveEntry,
+  CROWN_PANEL,
   type ModifierId,
 } from "../src/core/unlocks";
 import type { GameView } from "../src/core/view";
@@ -376,4 +377,26 @@ export function topicLines(
   const section = helpSections(context).find((s) => s.id === topic);
   if (section === undefined) throw new Error(`no help topic ${topic}`);
   return section.lines;
+}
+
+/** A posting that has met enough crown demands to end. */
+export function servedVillage(seed = 1, favor = 0): Game {
+  const game = Game.create(seed, tuning);
+  game.state.tick = 5000;
+  grantUnlocks(game, [CROWN_PANEL]);
+  game.state.posting.crown.met = tuning.prestige.demandsMet;
+  game.state.posting.crown.favor = favor;
+  return game;
+}
+
+export function endPosting(
+  game: Game,
+  name = "Greywater",
+  doctrine: string = TRADE,
+) {
+  const [result] = game.steps.step(
+    [{ type: "endPosting", name, doctrine }],
+    quietOptions,
+  );
+  return result;
 }

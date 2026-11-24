@@ -46,7 +46,7 @@ export type FormerGovernor = {
   reason: DepartureReason;
   /** Coin the governor had kept back, which they handed over on leaving. */
   handedOver: number;
-  /** The loyalty the governor left with; nothing for a dismissed governor, whose hoard was taken back. */
+  /** The loyalty the governor left with; a dismissed governor leaves with none. */
   loyalty: number;
   /** What the governor died of; absent for one who retired or was dismissed. */
   cause?: string | undefined;
@@ -92,9 +92,6 @@ export const governorTuningSchema = z.strictObject({
     perSeason: count,
     backedAudit: count,
     missedDemand: count,
-    /** What loyalty becomes when the governor's hoard is seized. */
-    seized: count,
-    /** The loyalty at which a governor will follow the steward. */
     followAt: positiveInteger,
     followerCap: count,
   }),
@@ -239,7 +236,6 @@ export class GovernorManager {
       : this.reportedWorkersOf(governor) * yielded.amount;
   }
 
-  /** Devoted is the loyalty at which a governor follows; steady is half of that, rounded up. */
   private standingOf(loyalty: number): LoyaltyStanding {
     const { followAt } = this.tuning.loyalty;
     if (loyalty >= followAt) return "devoted";
@@ -348,10 +344,7 @@ export class GovernorManager {
     });
   }
 
-  /**
-   * Seats each follower in a new posting as a governor with a freshly drawn village, job and term. Those
-   * draws come from the governors stream, which the new posting has not used yet, so arrival is deterministic.
-   */
+  /** The new posting has not drawn from the governors stream yet, so each follower's job, village and term replay the same. */
   seat(followers: readonly Follower[]): void {
     const { tick } = this.game.state;
     for (const follower of followers) {
@@ -387,19 +380,17 @@ export class GovernorManager {
       }));
   }
 
-  /** Every governor serving when an audit is backed gains the same loyalty. */
   recordBackedAudit(): void {
-    for (const governor of this.roster) {
-      governor.loyalty += this.tuning.loyalty.backedAudit;
-    }
+    this.shiftLoyalty(this.tuning.loyalty.backedAudit);
   }
 
   recordMissedDemand(): void {
+    this.shiftLoyalty(-this.tuning.loyalty.missedDemand);
+  }
+
+  private shiftLoyalty(delta: number): void {
     for (const governor of this.roster) {
-      governor.loyalty = Math.max(
-        0,
-        governor.loyalty - this.tuning.loyalty.missedDemand,
-      );
+      governor.loyalty = Math.max(0, governor.loyalty + delta);
     }
   }
 
@@ -418,9 +409,7 @@ export class GovernorManager {
       leftAt: tick,
       reason,
       handedOver: governor.hoard,
-      // A dismissed governor's hoard is taken back by the audit, which ends any attachment to the steward.
-      loyalty:
-        reason === "dismissed" ? this.tuning.loyalty.seized : governor.loyalty,
+      loyalty: reason === "dismissed" ? 0 : governor.loyalty,
       cause,
     });
     this.game.delegates.remove(governor.id);

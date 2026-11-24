@@ -170,10 +170,6 @@ export class DelegateManager {
     const held = new Set(this.all.map((delegate) => delegate.name));
     // A candidate on the desk has been named but is not on the roster yet.
     for (const entry of this.game.desk.candidates) held.add(entry.name);
-    // Followers are seated after the peasants are named, so their names must already be off the table.
-    for (const follower of this.game.state.career.followers) {
-      held.add(follower.name);
-    }
     const free = this.availableNames.filter((name) => !held.has(name));
     const stream = this.game.state.posting.rng.names;
     if (stream === undefined || free.length === 0) {

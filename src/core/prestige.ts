@@ -272,8 +272,9 @@ export class PrestigeManager {
       province: provinceId,
       doctrine: doctrineId,
     });
-    this.game.delegates.createPeasants(this.tuning.population);
+    // Followers take their seats first so the roster already holds their names when the peasants are named.
     this.game.governors.seat(state.career.followers);
+    this.game.delegates.createPeasants(this.tuning.population);
     // The charter is a career purchase, so nothing in the new posting buys it and schedules the first demand.
     this.game.crown.scheduleFirstDemand();
     return {

@@ -19,18 +19,15 @@ function notesFor(followers: string[]): string[] {
 }
 
 describe("the posting-end menu", () => {
-  test("names the governors who will follow", () => {
-    const notes = notesFor(["Ada", "Bram"]);
+  test("names the governors who will follow, or says that none will", () => {
+    const withFollowers = notesFor(["Ada", "Bram"]);
+    const withoutFollowers = notesFor([]);
 
-    expect(notes).toContain(
-      copy.menus.postingEndFollowers({ names: "Ada and Bram" }),
+    expect(withFollowers).toContain(
+      copy.menus.postingEndFollowers({ names: ["Ada", "Bram"] }),
     );
-    expect(notes).not.toContain(copy.menus.postingEndNoFollowers);
-  });
-
-  test("says so when no governor will follow", () => {
-    const notes = notesFor([]);
-
-    expect(notes).toContain(copy.menus.postingEndNoFollowers);
+    expect(withFollowers.join("\n")).toContain("Ada and Bram");
+    expect(withFollowers).not.toContain(copy.menus.postingEndNoFollowers);
+    expect(withoutFollowers).toContain(copy.menus.postingEndNoFollowers);
   });
 });

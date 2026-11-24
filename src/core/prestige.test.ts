@@ -1,15 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import {
+  endPosting,
   grantUnlocks,
   quietOptions,
   revealArchive,
+  servedVillage,
   tuning,
 } from "../../test/helpers";
 import { stateHash } from "../save/hash";
 import { Game } from "./game";
 import { derivePostingSeed, type Ending, TRADE } from "./prestige";
 import { Job } from "./realm";
-import { CROWN_PANEL } from "./unlocks";
 
 const { prestige } = tuning;
 const provinceIds = (list: { id: string }[]) => list.map(({ id }) => id);
@@ -19,24 +20,7 @@ const allProvinces = [
   ...harshProvinces,
 ];
 
-function servedVillage(seed = 1, favor = 0): Game {
-  const game = Game.create(seed, tuning);
-  game.state.tick = 5000;
-  grantUnlocks(game, [CROWN_PANEL]);
-  game.state.posting.crown.met = prestige.demandsMet;
-  game.state.posting.crown.favor = favor;
-  return game;
-}
-
 const doctrine = TRADE;
-
-function endPosting(game: Game, name = "Greywater", chosen = doctrine) {
-  const [result] = game.steps.step(
-    [{ type: "endPosting", name, doctrine: chosen }],
-    quietOptions,
-  );
-  return result;
-}
 
 describe("endPosting", () => {
   test("is refused before the milestone or without a name, and allowed once the milestone is reached", () => {

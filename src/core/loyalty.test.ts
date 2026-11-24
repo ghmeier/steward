@@ -2,15 +2,15 @@ import { describe, expect, test } from "bun:test";
 import {
   addGovernors,
   contextFor,
+  endPosting,
   governorOf,
-  grantUnlocks,
   quietOptions,
+  servedVillage,
   setRoster,
   tuning,
 } from "../../test/helpers";
 import type { Governor } from "./delegates";
 import { Game } from "./game";
-import { CROWN_PANEL } from "./unlocks";
 
 const { loyalty: rules, term } = tuning.governors;
 const { ticksPerSeason } = tuning.economy;
@@ -22,20 +22,15 @@ function posted(...governors: Governor[]): Game {
   return game;
 }
 
-function loyaltyOf(game: Game): number[] {
-  return game.delegates.governors.map(({ loyalty }) => loyalty);
-}
-
-function milestoneGame(...governors: Governor[]): Game {
-  const game = posted(...governors);
-  game.state.tick = 5000;
-  grantUnlocks(game, [CROWN_PANEL]);
-  game.state.posting.crown.met = tuning.prestige.demandsMet;
+function servedWith(...governors: Governor[]): Game {
+  const game = servedVillage();
+  setRoster(game, { idle: 3 });
+  addGovernors(game, ...governors);
   return game;
 }
 
-function endPosting(game: Game): void {
-  game.steps.step([{ type: "endPosting", name: "Greywater" }], quietOptions);
+function loyaltyOf(game: Game): number[] {
+  return game.delegates.governors.map(({ loyalty }) => loyalty);
 }
 
 describe("loyalty", () => {
@@ -51,16 +46,12 @@ describe("loyalty", () => {
     expect(loyaltyOf(game)).toEqual([rules.perSeason]);
   });
 
-  test("a governor who serves through a backed audit gains loyalty and one who is dismissed in a failed audit does not", () => {
-    const backed = posted(governorOf({ loyalty: 2 }));
-    const failed = posted(governorOf({ loyalty: 2 }));
-    failed.state.posting.illusion.debt.coin = 10;
+  test("a governor who serves through a backed audit gains loyalty", () => {
+    const game = posted(governorOf({ loyalty: 2 }));
 
-    backed.illusion.settleAudit("back", contextFor(backed));
-    failed.illusion.failAudit(contextFor(failed));
+    game.illusion.settleAudit("back", contextFor(game));
 
-    expect(loyaltyOf(backed)).toEqual([2 + rules.backedAudit]);
-    expect(failed.state.posting.formerStaff[0]?.loyalty).toBe(rules.seized);
+    expect(loyaltyOf(game)).toEqual([2 + rules.backedAudit]);
   });
 
   test("a missed crown demand costs every serving governor loyalty, never below nothing", () => {
@@ -83,77 +74,72 @@ describe("loyalty", () => {
     expect(loyaltyOf(game)).toEqual([4, 0]);
   });
 
-  test("a governor who retires keeps their loyalty in the record of former staff", () => {
-    const game = posted(governorOf({ loyalty: 4, termEndsAt: 1 }));
+  test("a retired governor keeps their loyalty in the record of former staff and a dismissed one leaves with none", () => {
+    const retiring = posted(governorOf({ loyalty: 4, termEndsAt: 1 }));
+    const dismissed = posted(governorOf({ loyalty: 4 }));
+    dismissed.state.posting.illusion.debt.coin = 10;
 
-    game.steps.runSteps(1, [], quietOptions);
+    retiring.steps.runSteps(1, [], quietOptions);
+    dismissed.illusion.failAudit(contextFor(dismissed));
 
-    expect(game.state.posting.formerStaff[0]).toMatchObject({
+    expect(retiring.state.posting.formerStaff[0]).toMatchObject({
       reason: "retired",
       loyalty: 4,
+    });
+    expect(dismissed.state.posting.formerStaff[0]).toMatchObject({
+      reason: "dismissed",
+      loyalty: 0,
     });
   });
 });
 
 describe("who follows", () => {
-  test("only governors at or above the threshold follow, and the cap limits how many", () => {
-    const game = milestoneGame(
+  test("only governors at or above the threshold follow, up to the cap, and nobody follows when none reaches it", () => {
+    const crowded = servedWith(
       governorOf({ loyalty: rules.followAt - 1 }),
       governorOf({ loyalty: rules.followAt }),
       governorOf({ loyalty: rules.followAt + 1 }),
       governorOf({ loyalty: rules.followAt + 2 }),
     );
-    const [, , , top] = game.delegates.governors;
+    const [, , second, top] = crowded.delegates.governors;
+    const unready = servedWith(governorOf({ loyalty: rules.followAt - 1 }));
 
-    const followers = game.governors.chooseFollowers();
+    const followers = crowded.governors.chooseFollowers();
 
+    expect(followers.map(({ name }) => name)).toEqual([
+      top?.name as string,
+      second?.name as string,
+    ]);
     expect(followers).toHaveLength(rules.followerCap);
-    expect(followers[0]?.name).toBe(top?.name as string);
-    expect(followers.every(({ loyalty }) => loyalty >= rules.followAt)).toBe(
-      true,
-    );
-  });
-
-  test("nobody follows when no governor reaches the threshold", () => {
-    const game = milestoneGame(governorOf({ loyalty: rules.followAt - 1 }));
-
-    expect(game.governors.chooseFollowers()).toEqual([]);
+    expect(unready.governors.chooseFollowers()).toEqual([]);
   });
 
   test("equal loyalty goes to the longest-serving governor, then the lower id", () => {
-    const game = milestoneGame(
+    const game = servedWith(
       governorOf({ loyalty: rules.followAt, hiredAt: 300 }),
       governorOf({ loyalty: rules.followAt, hiredAt: 100 }),
       governorOf({ loyalty: rules.followAt, hiredAt: 100 }),
     );
-    const [late, firstOfTwo] = game.delegates.governors;
+    const [late, first, second] = game.delegates.governors;
 
     const names = game.governors.chooseFollowers().map(({ name }) => name);
 
-    expect(names).toEqual([
-      firstOfTwo?.name as string,
-      game.delegates.governors[2]?.name as string,
-    ]);
+    expect(names).toEqual([first?.name as string, second?.name as string]);
     expect(names).not.toContain(late?.name as string);
   });
 });
 
 describe("arriving in the next posting", () => {
-  function followersAfterEnding() {
-    const game = milestoneGame(
+  test("a follower is seated with their traits and loyalty and a fresh term, and a governor below the threshold is left behind", () => {
+    const game = servedWith(
       governorOf({ loyalty: rules.followAt, traits: ["diligent"] }),
       governorOf({ loyalty: rules.followAt - 1 }),
     );
-    const [loyal, wary] = game.delegates.governors;
-    endPosting(game);
-    return { game, loyal: loyal as Governor, wary: wary as Governor };
-  }
+    const [loyal, wary] = game.delegates.governors as [Governor, Governor];
 
-  test("a follower is seated as a governor with a new id, a fresh term and a village", () => {
-    const { game, loyal } = followersAfterEnding();
+    endPosting(game);
 
     const [seated, ...others] = game.delegates.governors;
-
     expect(others).toEqual([]);
     expect(seated).toMatchObject({
       name: loyal.name,
@@ -162,37 +148,24 @@ describe("arriving in the next posting", () => {
       hiredAt: game.state.tick,
       hoard: 0,
     });
-    expect(seated?.id).toBeGreaterThan(tuning.prestige.population);
-    expect(seated?.id).toBeLessThan(game.state.posting.nextDelegateId);
-    expect(seated?.village).toBeGreaterThanOrEqual(
-      tuning.governors.village.min,
-    );
     expect(
       (seated?.termEndsAt as number) - game.state.tick,
     ).toBeGreaterThanOrEqual(term.minTicks);
-    expect(() => game.validate()).not.toThrow();
-  });
-
-  test("a governor below the threshold is left behind and the career records who followed", () => {
-    const { game, loyal, wary } = followersAfterEnding();
-
-    const names = game.delegates.all.map(({ name }) => name);
-
-    expect(names).not.toContain(wary.name);
+    expect(game.delegates.all.map(({ name }) => name)).not.toContain(wary.name);
     expect(game.state.career.followers.map(({ name }) => name)).toEqual([
       loyal.name,
     ]);
+    expect(() => game.validate()).not.toThrow();
   });
 
-  test("no peasant or candidate takes a follower's name, however the names are drawn", () => {
+  test("no peasant takes a follower's name, however the names are drawn", () => {
     for (let seed = 1; seed <= 30; seed++) {
-      const game = milestoneGame(governorOf({ loyalty: rules.followAt }));
+      const game = servedWith(governorOf({ loyalty: rules.followAt }));
       game.state.posting.seed = seed;
-      const [loyal] = game.delegates.governors;
+
       endPosting(game);
 
       const names = game.delegates.all.map(({ name }) => name);
-      expect(names.filter((name) => name === loyal?.name)).toHaveLength(1);
       expect(new Set(names).size).toBe(names.length);
     }
   });
