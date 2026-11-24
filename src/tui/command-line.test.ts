@@ -447,11 +447,14 @@ describe("lineKey", () => {
     },
   );
 
-  test("escape closes the line without a command", () => {
-    expect(lineKey(openLine("decree "), key("escape"), fresh)).toEqual({
-      state: null,
-      commands: [],
-    });
+  test("escape discards the line, even a complete command, without issuing it", () => {
+    const result = lineKey(
+      openLine("decree harvest otherwise sell"),
+      key("escape"),
+      fresh,
+    );
+
+    expect(result).toEqual({ state: null, commands: [] });
   });
 
   test("down moves the highlight and tab completes that suggestion; up stops at the top", () => {
@@ -501,16 +504,6 @@ describe("lineKey", () => {
     expect(completed.state?.text).toBe("decree harvest otherwise sell ");
     expect(issued.state).toBeNull();
     expect(issued.commands).toHaveLength(1);
-  });
-
-  test("escape on a complete command discards the text instead of issuing it", () => {
-    const result = lineKey(
-      openLine("decree harvest otherwise sell"),
-      key("escape"),
-      fresh,
-    );
-
-    expect(result).toEqual({ state: null, commands: [] });
   });
 });
 
