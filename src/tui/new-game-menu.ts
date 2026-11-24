@@ -16,7 +16,7 @@ export const newGameMenu: ScreenBuilder = ({ view }) => ({
     { label: copy.menus.keepVillage, action: { kind: "close" } },
     {
       label: copy.menus.foundVillage,
-      action: { kind: "app", request: "newGame" },
+      action: { kind: "app", request: { kind: "newGame" } },
     },
   ],
 });

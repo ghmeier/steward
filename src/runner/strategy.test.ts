@@ -3,6 +3,7 @@ import { grantUnlocks, priceOf, setRoster, tuning } from "../../test/helpers";
 import type { Command } from "../core/commands";
 import type { Condition } from "../core/decree";
 import { Game } from "../core/game";
+import { AGRICULTURE, TRADE } from "../core/prestige";
 import { Job } from "../core/realm";
 import { ARCHIVE_PANEL, CROWN_PANEL, DECREES_PANEL } from "../core/unlocks";
 import {
@@ -250,11 +251,31 @@ describe("StrategyPlayer across postings", () => {
     early.observe(earlyGame);
     withoutPlan.observe(servedVillage());
 
-    expect(ending.next()).toEqual([
+    expect(ending.next()).toMatchObject([
       { type: "endPosting", name: game.prestige.defaultName },
     ]);
     expect(early.next()).toEqual([]);
     expect(withoutPlan.next()).toEqual([]);
+  });
+
+  test("a posting begins under the doctrine its plan names, and under trade when the plan names none", () => {
+    const plan = { setup: [], purchases: [], reactions: [] };
+    const naming = new StrategyPlayer({
+      name: "s",
+      ...plan,
+      laterPostings: [{ setup: [], purchases: [], doctrine: AGRICULTURE }],
+    });
+    const silent = new StrategyPlayer({
+      name: "s",
+      ...plan,
+      laterPostings: [{ setup: [], purchases: [] }],
+    });
+
+    naming.observe(servedVillage());
+    silent.observe(servedVillage());
+
+    expect(naming.next()).toMatchObject([{ doctrine: AGRICULTURE }]);
+    expect(silent.next()).toMatchObject([{ doctrine: TRADE }]);
   });
 
   test("a new posting runs its own setup, and the last plan repeats for every posting after it", () => {

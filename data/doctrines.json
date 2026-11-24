@@ -1,0 +1,32 @@
+{
+  "prospectingShare": 0.5,
+  "entries": [
+    {
+      "id": "trade",
+      "label": "Trade",
+      "rule": {
+        "label": "The crown accepts coin",
+        "description": "A grain, wood or ore demand can be paid in coin at the market price."
+      },
+      "effects": { "sellPrice": 1.25, "farmYield": 0.9 }
+    },
+    {
+      "id": "agriculture",
+      "label": "Agriculture",
+      "rule": {
+        "label": "Full granaries feed growth",
+        "description": "Harvest the granary has no room for goes toward the next peasant instead of being lost."
+      },
+      "effects": { "farmYield": 1.2, "grainCap": 125, "mineYield": 0.8 }
+    },
+    {
+      "id": "extraction",
+      "label": "Extraction",
+      "rule": {
+        "label": "Prospecting",
+        "description": "Each season's end pays coin for a share of the ore mined that season."
+      },
+      "effects": { "mineYield": 1.2, "forestYield": 1.2, "farmYield": 0.85 }
+    }
+  ]
+}

@@ -38,6 +38,7 @@ type Setup = {
   tuning?: Tuning;
   /** Debt to record in one resource, as forging leaves behind. */
   owing?: { resource: Resource; amount: number };
+  doctrine?: string;
   /** Leaves the Decrees panel unowned, which every other setup has. */
   withoutDecrees?: true;
 };
@@ -61,6 +62,9 @@ function contextWith(setup: Setup = {}): MenuContext {
   if (setup.saved !== undefined) {
     grantUnlocks(game, [SAVED_DECREES_UNLOCK]);
     game.savedDecrees.save(setup.saved.name, setup.saved.decree);
+  }
+  if (setup.doctrine !== undefined) {
+    game.state.posting.doctrine = setup.doctrine;
   }
   if (setup.coin !== undefined) game.state.posting.resources.coin = setup.coin;
   if (setup.owing !== undefined) {
@@ -168,6 +172,9 @@ const parseRows: [string, Setup, Outcome | null][] = [
 	["assign x idle", {}, bad(line.needsEntry({ verb: "assign", label: label(PALETTE_UNLOCK) }))],
 	["deliver", crowned, ok({ type: "deliver" })],
 	["deliver", {}, bad(line.needsCrown({ verb: "deliver" }))],
+	["pay", { ...crowned, doctrine: "trade" }, ok({ type: "payInCoin" })],
+	["pay", { ...crowned, doctrine: "agriculture" }, bad(line.needsTrade)],
+	["pay", crowned, bad(line.needsTrade)],
 	["conjure grain 25", conjuring, ok({ type: "conjure", resource: "grain", amount: 25 })],
 	["conjure coin 5", conjuring, ok({ type: "conjure", resource: "coin", amount: 5 })],
 	["conjure ore 5", conjuring, bad(line.notExpected({ word: "ore", expected: expected.resourceToConjure }))],

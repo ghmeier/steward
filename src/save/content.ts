@@ -14,6 +14,7 @@ export const TUNING_SECTION_FILES = {
   illusion: "illusion.json",
   governors: "governors.json",
   prestige: "prestige.json",
+  doctrines: "doctrines.json",
 } as const;
 
 /** The merged, unparsed contents of every tuning data file. */

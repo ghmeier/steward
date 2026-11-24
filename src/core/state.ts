@@ -9,7 +9,7 @@ import type { LaborState } from "./labor";
 import type { PostingRecord } from "./prestige";
 import type { RngState } from "./rng";
 
-export const SCHEMA_VERSION = 18;
+export const SCHEMA_VERSION = 19;
 
 export type ResourceId = string;
 
@@ -32,6 +32,8 @@ export type PostingState = {
   startedAt: number;
   /** Which province the steward was sent to; empty for the first posting. */
   province: string;
+  /** Empty for the first posting. */
+  doctrine: string;
   name: string;
   seed: number;
   rng: Record<string, RngState>;

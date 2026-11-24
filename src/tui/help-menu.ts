@@ -17,7 +17,7 @@ import { describePolicy, percent } from "./decree-format";
 import { capitalize, formatCost, plain } from "./format";
 import { type KeyPress, peasantKeyFor, plainKeyName } from "./keys";
 import type { MenuContext, MenuRender } from "./menu";
-import { keymap, type PanelSize } from "./village-panels";
+import { CrownPanel, keymap, type PanelSize } from "./village-panels";
 import { wrapLine } from "./wrap";
 
 function perSecond(perTick: number, tuning: Tuning): string {
@@ -285,6 +285,12 @@ function crownLines(tuning: Tuning): string[] {
     copy.help.crown.endPosting({
       key: keymap.panelHintKey("crown", copy.keys.panelActions.endPosting),
       needed: tuning.prestige.demandsMet,
+    }),
+    copy.help.crown.doctrines({
+      payKey: CrownPanel.coinKey,
+      rules: tuning.doctrines.entries
+        .map(({ label, rule }) => `${label} (${rule.label.toLowerCase()})`)
+        .join(", "),
     }),
   ];
 }

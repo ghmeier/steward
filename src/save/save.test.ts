@@ -596,3 +596,46 @@ describe("version 17 upgrade", () => {
     expect(Object.hasOwn(state.posting, "postingId")).toBe(false);
   });
 });
+
+describe("version 18 upgrade", () => {
+  function version18Save(): Record<string, unknown> {
+    const state = structuredClone(Game.create(42, loadTuning()).state) as {
+      career: { postings: unknown[] };
+      tick: number;
+      posting: {
+        index: number;
+        doctrine?: string;
+        economy: { seasonOre?: number };
+      };
+    };
+    delete state.posting.doctrine;
+    delete state.posting.economy.seasonOre;
+    state.tick = 900;
+    state.posting.index = 2;
+    state.career.postings = [
+      {
+        index: 1,
+        name: "Ashford",
+        province: "",
+        startedAt: 0,
+        endedAt: 900,
+        ending: "promotion",
+        favor: 30,
+        demandsMet: 6,
+        demandsMissed: 0,
+      },
+    ];
+    return { ...state, schemaVersion: 18 };
+  }
+
+  test("a version 18 save gains no doctrine, for its posting and for the postings it closed, and an empty ore count", () => {
+    writeSave(18, version18Save());
+
+    const state = loaded(dir);
+
+    expect(state.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(state.posting.doctrine).toBe("");
+    expect(state.posting.economy.seasonOre).toBe(0);
+    expect(state.career.postings.map(({ doctrine }) => doctrine)).toEqual([""]);
+  });
+});

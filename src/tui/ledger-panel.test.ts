@@ -484,12 +484,12 @@ describe("the Ledger panel", () => {
     });
   });
 
-  describe("the title line across postings", () => {
-    const titled = (index: number) =>
+  describe("the posting lines", () => {
+    const titled = (index: number, province = "", doctrine = "") =>
       emptyView({
         title: "Steward",
         villageName: "Larkhill",
-        posting: { index, province: "" },
+        posting: { index, province, doctrine },
       });
 
     test("names the posting from the second onward and leaves the first plain", async () => {
@@ -511,6 +511,20 @@ describe("the Ledger panel", () => {
           posting: 2,
         }),
       );
+    });
+
+    test("show the province and doctrine when the posting has them and neither in a first posting", async () => {
+      const later = await drawPanels([titled(2, "Poor soil", "Trade")], {
+        size: { width: 160, height: 30 },
+      });
+      const first = await drawPanels([titled(1)], {
+        size: { width: 160, height: 30 },
+      });
+
+      expect(later).toContain(`${copy.ledger.provinceLabel}  Poor soil`);
+      expect(later).toContain(`${copy.ledger.doctrineLabel}  Trade`);
+      expect(first).not.toContain(copy.ledger.provinceLabel);
+      expect(first).not.toContain(copy.ledger.doctrineLabel);
     });
   });
 });

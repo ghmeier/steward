@@ -301,6 +301,22 @@ export function contextFor(game: Game): AddContext {
   };
 }
 
+/** Opens a crown demand directly, due after the shortest deadline the crown draws. */
+export function openDemand(
+  game: Game,
+  resource: Resource,
+  amount: number,
+): void {
+  game.state.posting.crown.demand = {
+    id: 1,
+    resource,
+    amount,
+    delivered: 0,
+    issuedAt: game.state.tick,
+    dueAt: game.state.tick + tuning.crown.deadline.minTicks,
+  };
+}
+
 export function grantUnlocks(game: Game, ids: readonly string[]): void {
   for (const id of ids) game.state.career.unlocks[id] = 0;
 }

@@ -521,7 +521,10 @@ export class IllusionManager {
   private get isAuditDue(): boolean {
     if (!this.hasDebt || this.isInAuditGap) return false;
     const { debtShare, ageTicks } = this.tuning.audit;
-    const share = debtShare * this.game.crown.debtShareFactor;
+    // A lower share means auditors come sooner, so the escalation divides it to press harder.
+    const share =
+      (debtShare * this.game.crown.debtShareFactor) /
+      this.game.prestige.escalation;
     return (
       this.debtValue >= share * this.ceiling ||
       this.game.state.tick - this.illusion.debtSince >= ageTicks

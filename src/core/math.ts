@@ -40,12 +40,13 @@ export type AddContext = {
   absorbed: AbsorbedAdditionLog | null;
 };
 
+/** Returns how much of the change the stores did not take, so a caller can put what the cap turned away to use. */
 export function add(
   resources: Record<string, number>,
   resource: string,
   delta: number,
   context: AddContext,
-): void {
+): number {
   const current = resources[resource] ?? 0;
   // Stock already above the cap, such as a save from before caps existed, is kept until spent;
   // an addition never pulls it down, it only stops growing.
@@ -58,15 +59,17 @@ export function add(
     context.maxValue,
   );
   resources[resource] = next;
+  const lost = current + delta - next;
 
   // A value pinned at the clamp or the cap also leaves the stored number unchanged, but that is
   // saturation, not floating-point absorption, so it is not logged.
   const pinned = next === ceiling || next === -context.maxValue;
   if (delta === 0 || next !== current || pinned || context.absorbed === null) {
-    return;
+    return lost;
   }
 
   const entry = context.absorbed[resource];
   if (entry) entry.count += 1;
   else context.absorbed[resource] = { count: 1, firstTick: context.tick };
+  return lost;
 }

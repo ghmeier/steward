@@ -7,7 +7,7 @@ import {
 } from "../../test/helpers";
 import { stateHash } from "../save/hash";
 import { Game } from "./game";
-import { derivePostingSeed, type Ending } from "./prestige";
+import { derivePostingSeed, type Ending, TRADE } from "./prestige";
 import { Job } from "./realm";
 import { CROWN_PANEL } from "./unlocks";
 
@@ -28,9 +28,11 @@ function servedVillage(seed = 1, favor = 0): Game {
   return game;
 }
 
-function endPosting(game: Game, name = "Greywater") {
+const doctrine = TRADE;
+
+function endPosting(game: Game, name = "Greywater", chosen = doctrine) {
   const [result] = game.steps.step(
-    [{ type: "endPosting", name }],
+    [{ type: "endPosting", name, doctrine: chosen }],
     quietOptions,
   );
   return result;
@@ -58,6 +60,49 @@ describe("endPosting", () => {
   });
 });
 
+describe("the doctrine", () => {
+  const ids = tuning.doctrines.entries.map(({ id }) => id);
+
+  test.each(["", "farming", "Trade"])(
+    "endPosting is refused for the doctrine %p and leaves the posting as it was",
+    (chosen) => {
+      const game = servedVillage();
+
+      const result = endPosting(game, "Greywater", chosen);
+
+      expect(result?.ok).toBe(false);
+      expect(game.state.posting.index).toBe(1);
+      expect(game.state.career.postings).toEqual([]);
+    },
+  );
+
+  test.each(ids)(
+    "%s is recorded on the new posting, which stays valid",
+    (id) => {
+      const game = servedVillage();
+
+      const result = endPosting(game, "Greywater", id);
+
+      expect(result?.ok).toBe(true);
+      expect(game.prestige.doctrine?.id).toBe(id);
+      expect(() => game.validate()).not.toThrow();
+    },
+  );
+
+  test("the closed posting's record keeps the doctrine it ran under, and the first posting has none", () => {
+    const game = servedVillage();
+    endPosting(game, "Greywater", ids[0] as string);
+    game.state.posting.crown.met = prestige.demandsMet;
+
+    endPosting(game, "Dunmere", ids[1] as string);
+
+    expect(game.state.career.postings.map(({ doctrine }) => doctrine)).toEqual([
+      "",
+      ids[0] as string,
+    ]);
+  });
+});
+
 describe("the ending", () => {
   test.each<[string, number, Ending]>([
     ["warm favor is a promotion", 30, "promotion"],
@@ -82,6 +127,7 @@ describe("the ending", () => {
         index: 1,
         name: closed.name,
         province: "",
+        doctrine: "",
         startedAt: 0,
         endedAt: game.state.tick,
         ending: "promotion",
@@ -163,7 +209,7 @@ describe("the new posting", () => {
     game.state.posting.resources.coin = 9999;
     game.state.posting.illusion.debt = { coin: 40, grain: 0, ore: 0, wood: 0 };
 
-    game.prestige.end("Dunmere");
+    game.prestige.end("Dunmere", doctrine);
 
     const { posting, tick } = game.state;
     const { firstDemand } = tuning.crown;
@@ -192,7 +238,10 @@ describe("replay across postings", () => {
   test("a command log that ends the posting replays from the milestone to the same hash", () => {
     const start = servedVillage(7).state.tick;
     const log = [
-      { tick: start + 5, command: { type: "endPosting", name: "Greywater" } },
+      {
+        tick: start + 5,
+        command: { type: "endPosting", name: "Greywater", doctrine },
+      },
       {
         tick: start + 20,
         command: { type: "assignPeasant", peasant: 1, job: Job.FARM },

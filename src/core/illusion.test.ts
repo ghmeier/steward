@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   contextFor,
   grantUnlocks,
+  openDemand,
   priceOf,
   quietOptions,
   revealArchive,
@@ -12,7 +13,6 @@ import type { Command } from "./commands";
 import { copy } from "./copy";
 import { Game } from "./game";
 import { NO_AUDIT_TICK, NO_DEBT_TICK } from "./illusion";
-import type { Resource } from "./realm";
 import { ARCHIVE_PANEL, CONJURING, CROWN_PANEL, FORGING } from "./unlocks";
 
 const { illusion: illusionTuning, crown: crownTuning } = tuning;
@@ -32,17 +32,6 @@ function village(peasants = tuning.village.promotionPopulation): Game {
 function command(game: Game, issued: Command) {
   game.state.tick += 1;
   return game.commands.apply(issued, contextFor(game));
-}
-
-function openDemand(game: Game, resource: Resource, amount: number): void {
-  game.state.posting.crown.demand = {
-    id: 1,
-    resource,
-    amount,
-    delivered: 0,
-    issuedAt: game.state.tick,
-    dueAt: game.state.tick + crownTuning.deadline.minTicks,
-  };
 }
 
 function stock(game: Game, resource: string, amount: number): void {

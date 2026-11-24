@@ -4,6 +4,7 @@ import { copy } from "./copy";
 import { addIssue } from "./errors";
 import type { Game } from "./game";
 import { type AddContext, add } from "./math";
+import { TRADE } from "./prestige";
 import { RESOURCES, type Resource } from "./realm";
 import { drawDelay, intBelow, type RngState } from "./rng";
 import {
@@ -265,17 +266,13 @@ export class CrownManager {
     return this.game.state.posting.resources;
   }
 
-  private get held(): number {
-    return this.game.illusion.apparent(this.crown.demand.resource);
-  }
-
   /**
-   * What the crown may take of the open demand's resource. Grain keeps a reserve of seasons of
-   * upkeep so that a demand larger than the stores cannot empty the granary and starve the village.
-   * Only real grain is protected; conjured grain is not food, so it can always be handed over.
+   * What the crown may take of a resource. Grain keeps a reserve of seasons of upkeep so that a
+   * demand larger than the stores cannot empty the granary and starve the village. Only real grain
+   * is protected; conjured grain is not food, so it can always be handed over.
    */
-  private get available(): number {
-    return this.held - this.reservedOf(this.crown.demand.resource);
+  private availableIn(resource: ResourceId): number {
+    return this.game.illusion.apparent(resource) - this.reservedOf(resource);
   }
 
   /** The real stock of a resource that neither the crown nor failed auditors may take, so the village can still eat. */
@@ -305,7 +302,10 @@ export class CrownManager {
     crown.demand = {
       id: crown.met + crown.missed + 1,
       resource,
-      amount: Math.round(base * (1 + step * crown.met) + crown.surcharge),
+      amount: Math.round(
+        base * this.game.prestige.escalation * (1 + step * crown.met) +
+          crown.surcharge,
+      ),
       delivered: 0,
       issuedAt: this.tick,
       dueAt: this.tick + drawDelay(this.stream, tuning.deadline),
@@ -327,10 +327,26 @@ export class CrownManager {
     this.close();
   }
 
-  /** Removes as much of what is owed as the store appears to hold beyond any reserve and returns the amount removed. */
-  private take(context: AddContext): number {
-    const taken = Math.min(this.owed, this.available);
-    this.game.illusion.spend(this.crown.demand.resource, taken, context);
+  /** Units of `currency` that settle one unit of the open demand, at the market's prices. */
+  private rateIn(currency: Resource): number {
+    const { economy } = this.game;
+    return (
+      economy.priceOf(this.crown.demand.resource as Resource) /
+      economy.priceOf(currency)
+    );
+  }
+
+  /**
+   * Removes as much of what is owed as the store appears to hold of `currency` beyond any reserve,
+   * and returns how much of the demand that settles.
+   */
+  private take(
+    context: AddContext,
+    currency = this.crown.demand.resource as Resource,
+  ): number {
+    const rate = this.rateIn(currency);
+    const taken = Math.min(this.owed, this.availableIn(currency) / rate);
+    this.game.illusion.spend(currency, taken * rate, context);
     return taken;
   }
 
@@ -371,16 +387,30 @@ export class CrownManager {
 
   /** Paying in full before the deadline earns a reward that collection at the deadline does not. */
   deliver(context: AddContext): CommandResult {
+    return this.hand(context, this.crown.demand.resource as Resource);
+  }
+
+  /** Under the trade doctrine the crown takes coin for a grain, wood or ore demand, at the market price. */
+  payInCoin(context: AddContext): CommandResult {
+    if (!this.game.prestige.hasDoctrine(TRADE)) {
+      return { ok: false, reason: copy.crown.coinNotAccepted };
+    }
+    if (this.isOpen && this.crown.demand.resource === "coin") {
+      return { ok: false, reason: copy.crown.alreadyCoin };
+    }
+    return this.hand(context, "coin");
+  }
+
+  /** Whatever the store cannot cover is left owing until the deadline. */
+  private hand(context: AddContext, currency: Resource): CommandResult {
     if (!this.isOpen) return { ok: false, reason: copy.crown.noDemand };
-    if (this.available <= 0) {
+    if (this.availableIn(currency) <= 0) {
       return {
         ok: false,
-        reason: copy.crown.villageHoldsNone({
-          resource: this.crown.demand.resource,
-        }),
+        reason: copy.crown.villageHoldsNone({ resource: currency }),
       };
     }
-    this.credit(this.take(context), context);
+    this.credit(this.take(context, currency), context);
     return { ok: true };
   }
 

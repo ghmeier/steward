@@ -86,6 +86,7 @@ export class Game {
           startedAt: 0,
           resources: tuning.economy.initialResources,
           province: "",
+          doctrine: "",
         }),
       },
       tuning,

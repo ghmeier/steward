@@ -10,7 +10,7 @@ export type NamePrompt = { text: string } & (
       seed: number;
     }
   // A new posting's seed is derived by the game, so the typed name is the only choice to make.
-  | { purpose: "posting" }
+  | { purpose: "posting"; doctrine: string }
 );
 
 export type NameResult =
