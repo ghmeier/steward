@@ -6,7 +6,7 @@ import { delegateSchema } from "./delegates";
 import { deskStateSchema } from "./desk";
 import { economyStateSchema } from "./economy";
 import { addIssue, formatIssue } from "./errors";
-import { formerGovernorSchema } from "./governors";
+import { followerSchema, formerGovernorSchema } from "./governors";
 import { illusionStateSchema, NO_AUDIT_TICK } from "./illusion";
 import { laborStateSchema } from "./labor";
 import { postingRecordSchema } from "./prestige";
@@ -266,7 +266,7 @@ const career = z.strictObject({
   unlocks: z.record(z.string(), count),
   savedDecrees: decreeRecord(false),
   seen: z.record(z.string(), count),
-  followers: z.array(z.string()),
+  followers: z.array(followerSchema),
   postings: z.array(postingRecordSchema),
   promotedAt: count,
 });

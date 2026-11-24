@@ -12,6 +12,7 @@ const view = (canEnd: boolean) =>
       ending: "reassignment",
       coinAccepted: false,
       nextName: "Ashford",
+      followers: [],
     },
   });
 

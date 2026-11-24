@@ -246,6 +246,7 @@ export function governorOf(fields: Partial<Governor> = {}): Governor {
     hiredAt: 0,
     termEndsAt: 1_000_000,
     hoard: 0,
+    loyalty: 0,
     ...fields,
   };
 }

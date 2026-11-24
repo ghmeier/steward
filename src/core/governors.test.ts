@@ -273,6 +273,7 @@ describe("reported output", () => {
         (10 * 1.4 * tuning.economy.orePerWorker * 1000) / tuning.stepMs,
       truth: null,
       seasonsLeft: Math.ceil((governor?.termEndsAt as number) / ticksPerSeason),
+      standing: "wary",
     });
   });
 });
@@ -333,6 +334,7 @@ describe("terms", () => {
         leftAt: 5,
         reason: "retired",
         handedOver: 0,
+        loyalty: 0,
       },
     ]);
   });

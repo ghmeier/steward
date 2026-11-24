@@ -45,6 +45,7 @@ export class Roster {
         `${marker} ${governor.name}  ${governor.job}`,
         copy.village.governorVillage({ village: governor.village }),
         copy.village.governorSeasonsLeft({ seasons: governor.seasonsLeft }),
+        copy.village.governorStanding[governor.standing],
         copy.governors.traitRowList({ traits: governor.traits }),
         Roster.outputPhrase(governor),
       ],

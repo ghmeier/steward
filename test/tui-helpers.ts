@@ -127,6 +127,7 @@ export function emptyView(overrides: Partial<GameView> = {}): GameView {
       ending: "reassignment",
       coinAccepted: false,
       nextName: "Brackenmoor",
+      followers: [],
     },
     growth: { stored: 0, needed: 25, perSecond: 0, full: false },
     grainEatenPerSecond: 0,
