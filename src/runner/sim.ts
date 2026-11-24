@@ -32,6 +32,7 @@ const USAGE = `usage: bun run sim (--seed <uint32> | --load <path>) --steps <n> 
                      tick a state went bad
   --strategy <path>  JSON strategy file to play (excludes --commands)
   --record <path>    with --strategy, write the issued commands as a command log
+  --away <seconds>   with --load, credit this much time away before the steps run
   --grant <ids>      testing aid, only with --seed: comma-separated unlock ids
                      written into the career at tick 0`;
 
@@ -62,6 +63,7 @@ type Options = {
   strategy: string | null;
   record: string | null;
   grant: string[];
+  away: number | null;
 };
 
 function parseFlags(argv: string[]) {
@@ -81,6 +83,7 @@ function parseFlags(argv: string[]) {
         strategy: { type: "string" },
         record: { type: "string" },
         grant: { type: "string" },
+        away: { type: "string" },
       },
     }).values;
   } catch (error) {
@@ -101,6 +104,9 @@ function parseOptions(argv: string[]): Options {
   }
   if (flags.grant !== undefined && flags.seed === undefined) {
     throw new UsageError("--grant requires --seed");
+  }
+  if (flags.away !== undefined && flags.load === undefined) {
+    throw new UsageError("--away requires --load");
   }
   if (flags.steps === undefined) throw new UsageError("--steps is required");
   const seed =
@@ -123,6 +129,7 @@ function parseOptions(argv: string[]): Options {
     strategy: flags.strategy ?? null,
     record: flags.record ?? null,
     grant: flags.grant === undefined ? [] : flags.grant.split(","),
+    away: flags.away === undefined ? null : parseCount(flags.away, "--away", 0),
   };
 }
 
@@ -166,6 +173,12 @@ export function runSim(
           `repealed decrees whose policies no longer exist: ${repealed.join(", ")}`,
         );
       }
+    }
+    if (options.away !== null) {
+      const summary = game.offline.catchUp(
+        Math.floor((options.away * 1000) / tuning.stepMs),
+      );
+      io.stderr(`offline catch-up: ${JSON.stringify(summary)}`);
     }
     const known = new Set([
       ...tuning.archive.entries.map((entry) => entry.id),

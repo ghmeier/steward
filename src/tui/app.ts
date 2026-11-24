@@ -12,6 +12,7 @@ import { type MenuState, menuKey, openMenu, renderMenu } from "./menu";
 import { type NamePrompt, nameKey, renderNamePrompt } from "./name-prompt";
 import { newGameMenu } from "./new-game-menu";
 import { latestNotice } from "./notices";
+import { offlineNotice } from "./offline-notice";
 import { BAR_LINES, createPanels } from "./panels";
 import { postingEndMenu } from "./posting-end-menu";
 import { Session } from "./session";
@@ -24,23 +25,39 @@ export type Startup =
   | { kind: "ready"; game: Game; notice: string | null }
   | { kind: "refused"; error: string };
 
+/** Whole ticks between the save's timestamp and now; a timestamp that does not parse, or lies in the future, counts as no time away. */
+function ticksAway(savedAt: string, nowMs: number, stepMs: number): number {
+  const awayMs = nowMs - Date.parse(savedAt);
+  return awayMs > 0 ? Math.floor(awayMs / stepMs) : 0;
+}
+
 export function prepareStartup(
   saveDir: string,
   tuning: Tuning,
   newSeed: () => number,
+  wallNow: () => number,
 ): Startup {
   const result = loadGame(saveDir);
   switch (result.kind) {
     case "loaded": {
       const game = Game.fromState(result.save.state, tuning);
       const repealed = game.decrees.repealStale();
+      const away = offlineNotice(
+        game.offline.catchUp(
+          ticksAway(result.save.savedAt, wallNow(), tuning.stepMs),
+        ),
+        tuning,
+      );
+      const notices = [
+        repealed.length === 0
+          ? null
+          : copy.notices.repealedStale({ decrees: repealed.join(", ") }),
+        away,
+      ].filter((notice) => notice !== null);
       return {
         kind: "ready",
         game,
-        notice:
-          repealed.length === 0
-            ? null
-            : copy.notices.repealedStale({ decrees: repealed.join(", ") }),
+        notice: notices.length === 0 ? null : notices.join(" "),
       };
     }
     case "missing":

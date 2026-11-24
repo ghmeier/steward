@@ -9,7 +9,7 @@ async function main(): Promise<number> {
   const tuning = loadTuning();
   const saveDir = defaultSaveDir();
   const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
-  const startup = prepareStartup(saveDir, tuning, newSeed);
+  const startup = prepareStartup(saveDir, tuning, newSeed, Date.now);
   if (startup.kind === "refused") {
     console.error(
       copy.menus.cannotReadSave({

@@ -1,6 +1,7 @@
 {
   "stepMs": 100,
   "maxResourceValue": 1e300,
+  "offline": { "graceTicks": 18000, "curveTicks": 36000 },
   "decrees": { "maxRules": 4, "maxConditionNodes": 8, "maxConditionDepth": 3 },
   "economy": {
     "ticksPerSeason": 600,
