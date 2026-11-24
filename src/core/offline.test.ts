@@ -143,4 +143,16 @@ describe("catchUp", () => {
     expect(mined.gains.coin).toBeGreaterThan(0);
     expect(traded.gains.coin).toBe(0);
   });
+
+  test("an extraction posting with a full ore store still earns prospecting coin", () => {
+    const full = village({ mine: 8, idle: 2 }, { doctrine: EXTRACTION });
+    full.state.posting.resources.ore = full.economy.capOf("ore");
+    const empty = village({ mine: 8, idle: 2 }, { doctrine: EXTRACTION });
+
+    const fullGains = full.offline.catchUp(hour);
+    const emptyGains = empty.offline.catchUp(hour);
+
+    expect(fullGains.gains.coin).toBeGreaterThan(0);
+    expect(fullGains.gains.coin).toBeCloseTo(emptyGains.gains.coin, 6);
+  });
 });

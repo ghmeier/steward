@@ -87,12 +87,11 @@ export class OfflineManager {
   }
 
   private applyFlows(ticks: number): void {
-    const { rates, growthPerTick } = this.averageFlows();
+    const { rates, growthPerTick, oreDugPerTick } = this.averageFlows();
     if (this.game.prestige.hasDoctrine(EXTRACTION)) {
-      // The one-tick projection sees the prospecting payout only on a season-end tick, so the share
-      // of the mined ore is added here instead.
-      rates.coin +=
-        Math.max(0, rates.ore) * this.game.tuning.doctrines.prospectingShare;
+      // The one-tick projection sees the prospecting payout only on a season-end tick, and the net
+      // ore change is zero once the store is full, so the share of the ore dug is added here instead.
+      rates.coin += oreDugPerTick * this.game.tuning.doctrines.prospectingShare;
     }
 
     const context = {
@@ -132,11 +131,13 @@ export class OfflineManager {
   private averageFlows(): {
     rates: Record<Resource, number>;
     growthPerTick: number;
+    oreDugPerTick: number;
   } {
     const rates = Object.fromEntries(
       RESOURCES.map((resource) => [resource, 0]),
     ) as Record<Resource, number>;
     let growthPerTick = 0;
+    let oreDugPerTick = 0;
     for (const season of SEASONS.keys()) {
       const probe = this.game.clone();
       probe.state.tick = this.tickInSeason(season);
@@ -145,8 +146,9 @@ export class OfflineManager {
         rates[resource] += flows.rates[resource] / SEASONS.length;
       }
       growthPerTick += flows.growthPerTick / SEASONS.length;
+      oreDugPerTick += flows.oreDugPerTick / SEASONS.length;
     }
-    return { rates, growthPerTick };
+    return { rates, growthPerTick, oreDugPerTick };
   }
 
   /** The tick before the second tick of the season at this index, in the first year that is not already past. */

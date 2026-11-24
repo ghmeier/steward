@@ -6,6 +6,8 @@ export type FlowProjection = {
   growthPerTick: number;
   /** Grain the peasants eat in one tick, whatever the harvest brings in. */
   eatenPerTick: number;
+  /** Ore the miners dig in one tick, before any cap or sale, which is what prospecting is paid on. */
+  oreDugPerTick: number;
 };
 
 export class ProjectionManager {
@@ -17,7 +19,7 @@ export class ProjectionManager {
   flows(): FlowProjection {
     const next = this.game.clone();
     next.state.tick += 1;
-    const { eaten } = next.steps.runFlows({
+    const { eaten, oreDug } = next.steps.runFlows({
       tick: next.state.tick,
       maxValue: this.game.tuning.maxResourceValue,
       capOf: (resource) => this.game.economy.capOf(resource),
@@ -42,7 +44,7 @@ export class ProjectionManager {
       next.state.posting.economy.growth -
       this.game.state.posting.economy.growth +
       this.game.tuning.economy.grainPerPeasant * births;
-    return { rates, growthPerTick, eatenPerTick: eaten };
+    return { rates, growthPerTick, eatenPerTick: eaten, oreDugPerTick: oreDug };
   }
 
   projectedRates(): Record<Resource, number> {
