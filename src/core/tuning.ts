@@ -6,6 +6,7 @@ import { economyTuningSchema, villageTuningSchema } from "./economy";
 import { addIssue, parseWith } from "./errors";
 import { governorTuningSchema } from "./governors";
 import { illusionTuningSchema } from "./illusion";
+import { prestigeTuningSchema } from "./prestige";
 import { positive } from "./schema";
 import { archiveTuningSchema } from "./unlocks";
 
@@ -21,6 +22,7 @@ const tuningSchema = z
     crown: crownTuningSchema,
     illusion: illusionTuningSchema,
     governors: governorTuningSchema,
+    prestige: prestigeTuningSchema,
   })
   .superRefine((tuning, ctx) => {
     // Governors and open candidates are named from the same pool as peasants, and the pool must
@@ -38,6 +40,13 @@ const tuningSchema = z
         ["village", "names"],
       );
     }
+    if (tuning.prestige.population > tuning.economy.maxPopulation) {
+      addIssue(
+        ctx,
+        `must not exceed economy.maxPopulation (${tuning.economy.maxPopulation})`,
+        ["prestige", "population"],
+      );
+    }
     if (tuning.village.promotionPopulation > tuning.economy.maxPopulation) {
       addIssue(
         ctx,
@@ -49,7 +58,7 @@ const tuningSchema = z
 
 export type Tuning = z.infer<typeof tuningSchema>;
 
-/** Takes the merged contents of tuning.json, village.json, desk.json, archive.json, crown.json, illusion.json and governors.json. */
+/** Takes the merged contents of tuning.json, village.json, desk.json, archive.json, crown.json, illusion.json, governors.json and prestige.json. */
 export function parseTuning(value: unknown): Tuning {
   return parseWith(tuningSchema, value, "tuning");
 }

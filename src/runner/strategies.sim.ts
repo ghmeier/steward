@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,7 +14,11 @@ type Summary = {
   hash: string;
   starved: number;
   promotedAt: number;
+  postings: { index: number; demandsMet: number; endedAt: number | null }[];
 };
+
+// Long enough for the reference strategy to meet the crown's milestone and then serve a second posting.
+const CAREER_STEPS = "75000";
 
 function run(argv: string[]): Summary {
   const stdout: string[] = [];
@@ -28,24 +32,53 @@ function run(argv: string[]): Summary {
   return JSON.parse(stdout.at(-1) as string) as Summary;
 }
 
-function play(name: string, extra: string[] = []): Summary {
+function play(
+  name: string,
+  extra: string[] = [],
+  steps: string = STEPS,
+): Summary {
   return run([
     "--seed",
     "1",
     "--steps",
-    STEPS,
+    steps,
     "--strategy",
     `strategies/${name}.json`,
     ...extra,
   ]);
 }
 
+function recordedRun(name: string, steps: string) {
+  const record = join(mkdtempSync(join(tmpdir(), "steward-rec-")), "log.json");
+  const summary = play(name, ["--record", record], steps);
+  const replay = () =>
+    run(["--seed", "1", "--steps", steps, "--commands", record]);
+  return { summary, log: readFileSync(record, "utf8"), replay };
+}
+
 describe("scripted strategies over ten game years", () => {
+  // Several invariants read one career, because each run to the second posting takes about a second.
+  let career: ReturnType<typeof recordedRun>;
+  beforeAll(() => {
+    career = recordedRun("reference", CAREER_STEPS);
+  });
+
   test("the reference strategy never starves and is promoted within the run", () => {
     const summary = play("reference");
 
     expect(summary.starved).toBe(0);
     expect(summary.promotedAt).toBeGreaterThan(0);
+  });
+
+  test("the reference strategy ends its first posting and meets a crown demand in the second", () => {
+    const [first, second] = career.summary.postings;
+
+    expect(first?.endedAt).not.toBeNull();
+    expect(first?.demandsMet).toBeGreaterThanOrEqual(
+      tuning.prestige.demandsMet,
+    );
+    expect(second?.index).toBe(2);
+    expect(second?.demandsMet).toBeGreaterThan(0);
   });
 
   test("a village that farms, feeds and sets its labor reveals every first-tier upgrade before promotion", () => {
@@ -95,6 +128,7 @@ describe("scripted strategies over ten game years", () => {
       ],
       purchases: [],
       reactions: [],
+      laterPostings: [],
     });
     const firstTier = archiveUpgrades.filter(
       ({ shown, requires }) =>
@@ -117,22 +151,18 @@ describe("scripted strategies over ten game years", () => {
   });
 
   test("a recorded seasonal run replays to the same hash", () => {
-    const record = join(
-      mkdtempSync(join(tmpdir(), "steward-rec-")),
-      "log.json",
-    );
-    const played = play("seasonal", ["--record", record]);
+    const seasonal = recordedRun("seasonal", STEPS);
 
-    const replayed = run([
-      "--seed",
-      "1",
-      "--steps",
-      STEPS,
-      "--commands",
-      record,
-    ]);
+    const replayed = seasonal.replay();
 
-    expect(readFileSync(record, "utf8")).toContain("enactDecree");
-    expect(replayed.hash).toBe(played.hash);
+    expect(seasonal.log).toContain("enactDecree");
+    expect(replayed.hash).toBe(seasonal.summary.hash);
+  });
+
+  test("a recorded run that ends a posting replays to the same hash", () => {
+    const replayed = career.replay();
+
+    expect(career.log).toContain("endPosting");
+    expect(replayed.hash).toBe(career.summary.hash);
   });
 });

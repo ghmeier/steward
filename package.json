@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test": "bun test",
+    "test:sim": "bun test ./src/runner/strategies.sim.ts",
     "sim": "bun src/runner/sim.ts",
     "play": "bun src/tui/main.ts",
     "golden:update": "bun scripts/update-golden.ts",

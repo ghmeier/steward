@@ -565,3 +565,34 @@ describe("version 16 upgrade", () => {
     expect(seen[PALETTE_UNLOCK]).toBe(40);
   });
 });
+
+describe("version 17 upgrade", () => {
+  function version17Save(): Record<string, unknown> {
+    const state = structuredClone(Game.create(42, loadTuning()).state) as {
+      career: { postings?: unknown };
+      posting: { index?: number; startedAt?: number; province?: string };
+    };
+    delete state.career.postings;
+    delete state.posting.index;
+    delete state.posting.startedAt;
+    delete state.posting.province;
+    return {
+      ...state,
+      schemaVersion: 17,
+      posting: { ...state.posting, postingId: "posting-1" },
+    };
+  }
+
+  test("a version 17 save becomes the first posting of a career with no history", () => {
+    writeSave(17, version17Save());
+
+    const state = loaded(dir);
+
+    expect(state.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(state.career.postings).toEqual([]);
+    expect(state.posting.index).toBe(1);
+    expect(state.posting.startedAt).toBe(0);
+    expect(state.posting.province).toBe("");
+    expect(Object.hasOwn(state.posting, "postingId")).toBe(false);
+  });
+});

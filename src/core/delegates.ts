@@ -196,6 +196,10 @@ export class DelegateManager {
     return governor;
   }
 
+  createPeasants(count: number): void {
+    for (let i = 0; i < count; i++) this.create();
+  }
+
   create(): Peasant {
     const name = this.findName();
     const delegate: Peasant = {

@@ -483,4 +483,34 @@ describe("the Ledger panel", () => {
       expect(other).toBeNull();
     });
   });
+
+  describe("the title line across postings", () => {
+    const titled = (index: number) =>
+      emptyView({
+        title: "Steward",
+        villageName: "Larkhill",
+        posting: { index, province: "" },
+      });
+
+    test("names the posting from the second onward and leaves the first plain", async () => {
+      const first = await drawPanels([titled(1)], {
+        size: { width: 160, height: 30 },
+      });
+      const second = await drawPanels([titled(2)], {
+        size: { width: 160, height: 30 },
+      });
+
+      expect(first).toContain(
+        copy.ledger.title({ title: "Steward", village: "Larkhill" }),
+      );
+      expect(first).not.toContain("posting 1");
+      expect(second).toContain(
+        copy.ledger.postingTitle({
+          title: "Steward",
+          village: "Larkhill",
+          posting: 2,
+        }),
+      );
+    });
+  });
 });

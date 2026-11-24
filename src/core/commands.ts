@@ -48,6 +48,7 @@ export const commandSchema = z.discriminatedUnion("type", [
   }),
   z.strictObject({ type: z.literal("enactSaved"), name: text }),
   z.strictObject({ type: z.literal("forgetSaved"), name: text }),
+  z.strictObject({ type: z.literal("endPosting"), name: text }),
 ]);
 
 export type Command = z.infer<typeof commandSchema>;
@@ -132,6 +133,8 @@ export class CommandManager {
         case "forgetSaved":
           this.game.savedDecrees.forget(command.name);
           return { ok: true };
+        case "endPosting":
+          return this.game.prestige.end(command.name);
         default: {
           const unreachable: never = command;
           return {

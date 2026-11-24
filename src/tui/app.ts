@@ -2,6 +2,7 @@ import type { CliRenderer, KeyEvent } from "@opentui/core";
 import { copy } from "../core/copy";
 import { errorMessage } from "../core/errors";
 import { Game } from "../core/game";
+import { defaultVillageName } from "../core/posting";
 import type { Tuning } from "../core/tuning";
 import { loadGame, saveGame } from "../save/save";
 import { type LineState, lineKey, openLine, renderLine } from "./command-line";
@@ -12,6 +13,7 @@ import { type NamePrompt, nameKey, renderNamePrompt } from "./name-prompt";
 import { newGameMenu } from "./new-game-menu";
 import { latestNotice } from "./notices";
 import { BAR_LINES, createPanels } from "./panels";
+import { postingEndMenu } from "./posting-end-menu";
 import { Session } from "./session";
 import { keymap, type PanelStep, Village } from "./village-panels";
 
@@ -170,6 +172,7 @@ export function startApp(options: {
     for (const request of result.requests) {
       if (request.kind === "unfocus") focus = null;
       else if (request.kind === "openLine") line = openLine(request.text);
+      else if (request.kind === "endPosting") menu = openMenu(postingEndMenu);
       else message = request.text;
     }
   };
@@ -178,9 +181,15 @@ export function startApp(options: {
       const result = nameKey(namePrompt, key);
       if (result.kind === "editing") namePrompt = result.prompt;
       else {
-        const { seed } = namePrompt;
+        const prompt = namePrompt;
         namePrompt = null;
-        if (result.kind === "confirmed") foundNewVillage(seed, result.name);
+        if (result.kind === "confirmed") {
+          if (prompt.purpose === "village") {
+            foundNewVillage(prompt.seed, result.name);
+          } else {
+            session.enqueue({ type: "endPosting", name: result.name });
+          }
+        }
       }
       redraw();
       return;
@@ -203,7 +212,17 @@ export function startApp(options: {
       for (const command of result.commands) session.enqueue(command);
       if (result.requests.includes("newGame")) {
         const seed = options.newSeed();
-        namePrompt = { seed, text: Game.defaultVillageName(seed, tuning) };
+        namePrompt = {
+          purpose: "village",
+          seed,
+          text: defaultVillageName(seed, tuning),
+        };
+      }
+      if (result.requests.includes("endPosting")) {
+        namePrompt = {
+          purpose: "posting",
+          text: session.view().prestige.nextName,
+        };
       }
       redraw();
       return;
@@ -247,6 +266,10 @@ export function startApp(options: {
     if (lastRejection !== undefined) message = lastRejection.reason;
     const previous = lastView;
     lastView = session.view();
+    if (previous.posting.index !== lastView.posting.index) {
+      village.peasants.reset(lastView);
+      focus = null;
+    }
     const notice = latestNotice(previous, lastView, {
       tuning,
       expired: result.expired,

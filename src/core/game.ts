@@ -1,24 +1,18 @@
 import { CommandManager } from "./commands";
 import { ConditionManager } from "./conditions";
-import { CrownManager, emptyCrownState } from "./crown";
+import { CrownManager } from "./crown";
 import { DecreeEngine } from "./decree-engine";
 import { DelegateManager } from "./delegates";
-import { DeskManager, initialDeskState } from "./desk";
-import { EconomyManager, emptyEconomyState } from "./economy";
+import { DeskManager } from "./desk";
+import { EconomyManager } from "./economy";
 import { GovernorManager } from "./governors";
-import { emptyIllusionState, IllusionManager } from "./illusion";
-import { emptyLaborState, LaborSettling } from "./labor";
+import { IllusionManager } from "./illusion";
+import { LaborSettling } from "./labor";
+import { defaultVillageName, newPosting } from "./posting";
+import { PrestigeManager } from "./prestige";
 import { ProjectionManager } from "./projection";
-import { RESOURCES } from "./realm";
-import { type RngState, seedStream } from "./rng";
 import { SavedDecreeManager } from "./saved-decrees";
-import {
-  type GameState,
-  type PostingState,
-  type ResourceId,
-  RNG_STREAMS,
-  SCHEMA_VERSION,
-} from "./state";
+import { type GameState, SCHEMA_VERSION } from "./state";
 import { StepManager } from "./step";
 import type { Tuning } from "./tuning";
 import { UnlockManager } from "./unlocks";
@@ -37,6 +31,7 @@ export class Game {
   readonly governors: GovernorManager;
   readonly crown: CrownManager;
   readonly illusion: IllusionManager;
+  readonly prestige: PrestigeManager;
   readonly commands: CommandManager;
   readonly projection: ProjectionManager;
   readonly steps: StepManager;
@@ -57,55 +52,23 @@ export class Game {
     this.governors = new GovernorManager(this);
     this.crown = new CrownManager(this);
     this.illusion = new IllusionManager(this);
+    this.prestige = new PrestigeManager(this);
     this.commands = new CommandManager(this);
     this.projection = new ProjectionManager(this);
     this.steps = new StepManager(this);
     this.view = new ViewManager(this);
   }
 
-  /** Picks from the seed rather than a random stream, so the same seed always founds the same village name. */
-  static defaultVillageName(seed: number, tuning: Tuning): string {
-    const { villageNames } = tuning.village;
-    return villageNames[seed % villageNames.length] as string;
-  }
-
   /** Starts a new game: seeds every random stream and gathers the initial village. */
   static create(
     seed: number,
     tuning: Tuning,
-    name: string = Game.defaultVillageName(seed, tuning),
+    name: string = defaultVillageName(seed, tuning),
   ): Game {
     if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
       throw new RangeError(`seed must be a uint32, got ${seed}`);
     }
 
-    const rng: Record<string, RngState> = {};
-    const resources: Record<ResourceId, number> = {};
-    for (const resource of RESOURCES) {
-      resources[resource] = tuning.economy.initialResources[resource];
-    }
-    for (const name of RNG_STREAMS) {
-      rng[name] = seedStream(seed, name);
-    }
-    const arrivals = rng.disputes;
-    if (arrivals === undefined)
-      throw new Error("the disputes stream is missing");
-    const posting: PostingState = {
-      postingId: "posting-1",
-      name,
-      seed,
-      rng,
-      resources,
-      economy: emptyEconomyState(),
-      delegates: [],
-      nextDelegateId: 1,
-      formerStaff: [],
-      decrees: {},
-      labor: emptyLaborState(),
-      desk: initialDeskState(arrivals, tuning.desk),
-      crown: emptyCrownState(),
-      illusion: emptyIllusionState(),
-    };
     const game = new Game(
       {
         schemaVersion: SCHEMA_VERSION,
@@ -115,15 +78,19 @@ export class Game {
           savedDecrees: {},
           seen: {},
           followers: [],
+          postings: [],
           promotedAt: 0,
         },
-        posting,
+        posting: newPosting(seed, name, tuning, {
+          index: 1,
+          startedAt: 0,
+          resources: tuning.economy.initialResources,
+          province: "",
+        }),
       },
       tuning,
     );
-    for (let i = 0; i < tuning.economy.initialPopulation; i++) {
-      game.delegates.create();
-    }
+    game.delegates.createPeasants(tuning.economy.initialPopulation);
     return game;
   }
 

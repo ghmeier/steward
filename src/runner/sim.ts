@@ -198,6 +198,7 @@ export function runSim(
   const issued: CommandLogEntry[] = [];
   let minPopulation = game.delegates.population;
   const crownOutcomes: { tick: number; outcome: "met" | "missed" }[] = [];
+  let postingIndex = state.posting.index;
   let crownMet = state.posting.crown.met;
   let crownMissed = state.posting.crown.missed;
   let peakDebt = 0;
@@ -224,6 +225,12 @@ export function runSim(
           for (const command of commands) issued.push({ tick, command });
         }
         const { met, missed } = state.posting.crown;
+        // A new posting starts its own tally, so the old posting's counts are not a baseline for it.
+        if (state.posting.index !== postingIndex) {
+          postingIndex = state.posting.index;
+          crownMet = 0;
+          crownMissed = 0;
+        }
         if (met > crownMet) crownOutcomes.push({ tick, outcome: "met" });
         if (missed > crownMissed)
           crownOutcomes.push({ tick, outcome: "missed" });
@@ -270,6 +277,10 @@ export function runSim(
       starved: state.posting.economy.starved,
       minPopulation,
       promotedAt: state.career.promotedAt,
+      postings: [
+        ...state.career.postings,
+        { ...game.prestige.openRecord, endedAt: null, ending: null },
+      ],
       crown: {
         met: state.posting.crown.met,
         missed: state.posting.crown.missed,

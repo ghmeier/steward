@@ -9,6 +9,7 @@ import { addIssue, formatIssue } from "./errors";
 import { formerGovernorSchema } from "./governors";
 import { illusionStateSchema, NO_AUDIT_TICK } from "./illusion";
 import { laborStateSchema } from "./labor";
+import { postingRecordSchema } from "./prestige";
 import { RESOURCES } from "./realm";
 import { ascendingIdIssues, count, positiveCount, uint32 } from "./schema";
 import { type GameState, type PostingState, SCHEMA_VERSION } from "./state";
@@ -151,7 +152,40 @@ function rosterIssues(posting: PostingState, ctx: z.RefinementCtx): void {
   }
 }
 
+function postingHistoryIssues(state: GameState, ctx: z.RefinementCtx): void {
+  const { postings } = state.career;
+  if (postings.length !== state.posting.index - 1) {
+    addIssue(
+      ctx,
+      "must hold one record for each posting before the current one",
+      ["career", "postings"],
+    );
+  }
+  for (const [index, record] of postings.entries()) {
+    if (record.index !== index + 1) {
+      addIssue(ctx, "must be numbered in order from 1", [
+        "career",
+        "postings",
+        index,
+        "index",
+      ]);
+    }
+    if (record.endedAt > state.tick) {
+      addIssue(ctx, "must be no later than the tick", [
+        "career",
+        "postings",
+        index,
+        "endedAt",
+      ]);
+    }
+  }
+  if (state.posting.startedAt > state.tick) {
+    addIssue(ctx, "must be no later than the tick", ["posting", "startedAt"]);
+  }
+}
+
 function tickBoundIssues(state: GameState, ctx: z.RefinementCtx): void {
+  postingHistoryIssues(state, ctx);
   if (state.career.promotedAt > state.tick) {
     addIssue(ctx, "must not exceed tick", ["career", "promotedAt"]);
   }
@@ -208,7 +242,9 @@ const resources = z
 
 const posting: z.ZodType<PostingState> = z
   .strictObject({
-    postingId: z.string(),
+    index: positiveCount,
+    startedAt: count,
+    province: z.string(),
     name: z.string().trim().min(1),
     seed: uint32,
     rng: z.record(z.string(), rngStream),
@@ -230,6 +266,7 @@ const career = z.strictObject({
   savedDecrees: decreeRecord(false),
   seen: z.record(z.string(), count),
   followers: z.array(z.string()),
+  postings: z.array(postingRecordSchema),
   promotedAt: count,
 });
 

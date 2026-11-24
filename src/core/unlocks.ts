@@ -44,6 +44,9 @@ export const MODIFIERS = {
 export type ModifierId = keyof typeof MODIFIERS;
 export type ArchiveEffects = Partial<Record<ModifierId, number>>;
 
+/** Whether an entry outlasts the posting it was bought in. */
+export type ArchiveScope = "career" | "posting";
+
 export type ArchiveEntry = {
   id: UnlockId;
   label: string;
@@ -52,6 +55,8 @@ export type ArchiveEntry = {
   requires: UnlockId[];
   shown?: ArchiveShown | undefined;
   effects?: ArchiveEffects | undefined;
+  /** Absent means career: most entries are panels and controls that a new posting should not take away. */
+  scope?: ArchiveScope | undefined;
 };
 
 export type ArchiveCostPart = {
@@ -151,6 +156,14 @@ export class UnlockManager {
 
   enabled(id: UnlockId) {
     return Object.hasOwn(this.game.state.career.unlocks, id);
+  }
+
+  /** Forgets what the posting's own purchases bought; the entries stay seen, so they are offered again once their prerequisites are. */
+  dropPostingScoped(): void {
+    const { unlocks } = this.game.state.career;
+    for (const entry of this.game.tuning.archive.entries) {
+      if (entry.scope === "posting") delete unlocks[entry.id];
+    }
   }
 
   get purchased(): UnlockId[] {
@@ -339,6 +352,7 @@ const archiveEntry: z.ZodType<ArchiveEntry> = z.strictObject({
       positive,
     )
     .optional(),
+  scope: z.enum(["career", "posting"]).optional(),
 });
 const playUnlock: z.ZodType<PlayUnlock> = z.strictObject({
   id: name,

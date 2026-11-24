@@ -3,11 +3,15 @@ import type { KeyPress } from "./keys";
 import type { MenuRender } from "./menu";
 import { editedText, promptLine } from "./text-edit";
 
-export type NamePrompt = {
-  /** The seed the village will be founded with, drawn when the prompt opened so the default name and the village agree. */
-  seed: number;
-  text: string;
-};
+export type NamePrompt = { text: string } & (
+  | {
+      purpose: "village";
+      /** The seed the village will be founded with, drawn when the prompt opened so the default name and the village agree. */
+      seed: number;
+    }
+  // A new posting's seed is derived by the game, so the typed name is the only choice to make.
+  | { purpose: "posting" }
+);
 
 export type NameResult =
   | { kind: "editing"; prompt: NamePrompt }
@@ -28,10 +32,20 @@ export function nameKey(prompt: NamePrompt, key: KeyPress): NameResult {
     : { kind: "editing", prompt: { ...prompt, text } };
 }
 
-export function renderNamePrompt(prompt: NamePrompt): MenuRender {
-  return {
+const PROMPT_COPY: Record<
+  NamePrompt["purpose"],
+  { title: string; hints: string }
+> = {
+  village: {
     title: copy.menus.namePromptTitle,
-    lines: [promptLine(prompt.text)],
     hints: copy.menus.namePromptHints,
-  };
+  },
+  posting: {
+    title: copy.menus.postingNamePromptTitle,
+    hints: copy.menus.postingNamePromptHints,
+  },
+};
+
+export function renderNamePrompt(prompt: NamePrompt): MenuRender {
+  return { ...PROMPT_COPY[prompt.purpose], lines: [promptLine(prompt.text)] };
 }

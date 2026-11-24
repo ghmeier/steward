@@ -4,6 +4,7 @@ import { auditNotice } from "./audit-notices";
 import { crownNotice } from "./crown-notices";
 import { deskNotice } from "./desk-notices";
 import { governorNotice } from "./governor-notices";
+import { postingMilestoneNotice } from "./posting-notice";
 import { promotionNotice } from "./promotion-notice";
 import { starvationNotice } from "./starvation-notice";
 import { unlockNotice } from "./unlock-notices";
@@ -27,6 +28,7 @@ export const notices: readonly Notice[] = [
   governorNotice,
   unlockNotice,
   promotionNotice,
+  postingMilestoneNotice,
 ];
 
 export function latestNotice(
@@ -34,6 +36,8 @@ export function latestNotice(
   next: GameView,
   frame: Parameters<Notice>[2],
 ): string | null {
+  // A new posting replaces the whole village, so differences between the two views are not events.
+  if (previous.posting.index !== next.posting.index) return null;
   return (
     notices
       .map((notice) => notice(previous, next, frame))

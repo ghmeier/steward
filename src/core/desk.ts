@@ -142,10 +142,11 @@ export const deskStateSchema: z.ZodType<DeskState> = z
 export function initialDeskState(
   arrivals: RngState,
   tuning: DeskTuning,
+  from = 0,
 ): DeskState {
   return {
     nextDisputeId: 1,
-    nextArrivalTick: drawDelay(arrivals, tuning.arrival),
+    nextArrivalTick: from + drawDelay(arrivals, tuning.arrival),
     disputes: [],
   };
 }

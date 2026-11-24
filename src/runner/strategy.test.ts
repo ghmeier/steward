@@ -67,6 +67,7 @@ function playerWith(...reactions: Reaction[]) {
     setup: [noop],
     purchases: [],
     reactions,
+    laterPostings: [],
   });
 }
 
@@ -144,7 +145,13 @@ describe("StrategyPlayer", () => {
 
 describe("StrategyPlayer with locked panels", () => {
   function playerFor(setup: SetupStep[], purchases: string[] = []) {
-    return new StrategyPlayer({ name: "s", setup, purchases, reactions: [] });
+    return new StrategyPlayer({
+      name: "s",
+      setup,
+      purchases,
+      reactions: [],
+      laterPostings: [],
+    });
   }
 
   test("a setup command that needs the Decrees panel waits until the panel is owned", () => {
@@ -197,5 +204,103 @@ describe("StrategyPlayer with locked panels", () => {
 
     expect(unaffordable).toEqual([]);
     expect(affordable).toEqual([{ type: "buyUnlock", id: DECREES_PANEL }]);
+  });
+});
+
+describe("StrategyPlayer across postings", () => {
+  const sellAll: Command = {
+    type: "enactDecree",
+    decree: {
+      id: "wood-sales",
+      petition: "wood",
+      rules: [],
+      otherwise: "sell",
+    },
+  };
+
+  function servedVillage(): Game {
+    const game = Game.create(1, tuning);
+    grantUnlocks(game, [CROWN_PANEL, DECREES_PANEL, ARCHIVE_PANEL]);
+    game.state.posting.crown.met = tuning.prestige.demandsMet;
+    return game;
+  }
+
+  test("only a strategy with a plan for later postings ends the posting, and only once the milestone is reached", () => {
+    const plan = { setup: [], purchases: [], reactions: [] };
+    const ending = new StrategyPlayer({
+      name: "s",
+      ...plan,
+      laterPostings: [{ setup: [], purchases: [] }],
+    });
+    const early = new StrategyPlayer({
+      name: "s",
+      ...plan,
+      laterPostings: [{ setup: [], purchases: [] }],
+    });
+    const withoutPlan = new StrategyPlayer({
+      name: "s",
+      ...plan,
+      laterPostings: [],
+    });
+    const game = servedVillage();
+    const earlyGame = servedVillage();
+    earlyGame.state.posting.crown.met = 0;
+
+    ending.observe(game);
+    early.observe(earlyGame);
+    withoutPlan.observe(servedVillage());
+
+    expect(ending.next()).toEqual([
+      { type: "endPosting", name: game.prestige.defaultName },
+    ]);
+    expect(early.next()).toEqual([]);
+    expect(withoutPlan.next()).toEqual([]);
+  });
+
+  test("a new posting runs its own setup, and the last plan repeats for every posting after it", () => {
+    const player = new StrategyPlayer({
+      name: "s",
+      setup: [noop],
+      purchases: [],
+      reactions: [],
+      laterPostings: [{ setup: [sellAll], purchases: [] }],
+    });
+    const game = servedVillage();
+    player.observe(game);
+    player.next();
+    game.state.posting.crown.met = 0;
+
+    game.state.posting.index = 2;
+    player.observe(game);
+    const second = player.next();
+    game.state.posting.index = 3;
+    player.observe(game);
+    const third = player.next();
+
+    expect(second).toEqual([sellAll]);
+    expect(third).toEqual([sellAll]);
+  });
+
+  test("an entry the new posting reset is bought again while one the career kept is not", () => {
+    const player = new StrategyPlayer({
+      name: "s",
+      setup: [],
+      purchases: [],
+      reactions: [],
+      laterPostings: [
+        { setup: [], purchases: ["store.granary1", "control.palette"] },
+      ],
+    });
+    const game = servedVillage();
+    game.state.career.seen["store.granary1"] = 0;
+    game.state.career.unlocks["control.palette"] = 0;
+    Object.assign(game.state.posting.resources, { wood: 1000 });
+    game.state.posting.crown.met = 0;
+    game.state.posting.index = 2;
+
+    player.observe(game);
+    const handed = player.next();
+
+    expect(handed).toEqual([{ type: "buyUnlock", id: "store.granary1" }]);
   });
 });

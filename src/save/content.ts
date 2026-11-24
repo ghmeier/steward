@@ -13,6 +13,7 @@ export const TUNING_SECTION_FILES = {
   crown: "crown.json",
   illusion: "illusion.json",
   governors: "governors.json",
+  prestige: "prestige.json",
 } as const;
 
 /** The merged, unparsed contents of every tuning data file. */
