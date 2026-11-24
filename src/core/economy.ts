@@ -415,14 +415,19 @@ export class EconomyManager {
     ) as WorkingJob;
   }
 
-  laborTargetFor(policy: string): Record<Job, number> {
+  /** The share of the peasants a labor policy puts on each job, for a named preset or a custom split. */
+  laborSharesFor(policy: string): Record<WorkingJob, number> {
     const allocations = this.tuning.economy.laborAllocations;
     if (Object.hasOwn(allocations, policy) && allocations[policy]) {
-      return this.laborTargets(allocations[policy]);
+      return allocations[policy];
     }
     const split = LaborSplit.fromPolicy(policy);
     if (!split?.ok) throw new Error(`unknown labor policy "${policy}"`);
-    return this.laborTargets(split.split.shares());
+    return split.split.shares();
+  }
+
+  laborTargetFor(policy: string): Record<Job, number> {
+    return this.laborTargets(this.laborSharesFor(policy));
   }
 
   laborTargets(

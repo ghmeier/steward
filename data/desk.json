@@ -720,6 +720,46 @@
         }
       ]
     },
+    "return": {
+      "templates": [
+        {
+          "id": "while-you-were-away",
+          "text": "{reporter} has kept the books for the {away} you were gone. The village carried on under the orders you left and gained {gains}. Orders left running unwatched can cost more than they earn, and any such cost is entered below.",
+          "options": [
+            {
+              "id": "pay-coin",
+              "label": "Pay what the stretch cost in coin",
+              "resources": { "coin": -30 }
+            },
+            {
+              "id": "pay-stores",
+              "label": "Make it up from the granary and the woodpile",
+              "resources": { "grain": -35, "wood": -15 }
+            }
+          ],
+          "expiry": "pay-coin",
+          "expired": "The report was filed unread, and the bill was paid from the strongbox."
+        },
+        {
+          "id": "ledger-of-absence",
+          "text": "{reporter} lays a ledger of your absence on the desk: {away} away, {gains} gained. Orders left running unwatched can cost more than they earn, and any such cost is entered below.",
+          "options": [
+            {
+              "id": "pay-coin",
+              "label": "Settle the account in coin",
+              "resources": { "coin": -30 }
+            },
+            {
+              "id": "pay-stores",
+              "label": "Settle it in grain and wood",
+              "resources": { "grain": -35, "wood": -15 }
+            }
+          ],
+          "expiry": "pay-coin",
+          "expired": "The ledger was filed unread, and the account was settled from the strongbox."
+        }
+      ]
+    },
     "petition": {
       "weight": 2,
       "unlock": "court.petitions",

@@ -11,12 +11,13 @@ import {
 import type { Game } from "./game";
 import type { CandidateDetails } from "./governors";
 import type { AddContext } from "./math";
-import { add } from "./math";
-import { WORKING_JOBS } from "./realm";
+import { add, normalizeZero } from "./math";
+import { RESOURCES, type Resource, WORKING_JOBS } from "./realm";
 import { drawDelay, intBelow, type RngState } from "./rng";
 import {
   ascendingIdIssues,
   count,
+  nonNegative,
   positive,
   positiveCount,
   traitList,
@@ -33,8 +34,8 @@ export const DRAWN_KINDS = [
 ] as const;
 export type DrawnKind = (typeof DRAWN_KINDS)[number];
 
-/** Audits are placed by the illusion manager rather than drawn, so they are not among the drawn kinds. */
-export const DESK_KINDS = [...DRAWN_KINDS, "audit"] as const;
+/** Audits and return reports are placed by the managers that cause them rather than drawn, so they are not among the drawn kinds. */
+export const DESK_KINDS = [...DRAWN_KINDS, "audit", "return"] as const;
 export type DeskKind = (typeof DESK_KINDS)[number];
 
 type EntryBase = {
@@ -69,13 +70,26 @@ export type Candidate = EntryBase & { kind: "candidate" } & CandidateDetails;
 
 export type Audit = EntryBase & { kind: "audit"; dueAt: number };
 
+/** What the village did while the player was away, as one reporter tells it; the figures are kept so a reload reads the same. */
+export type ReturnReport = EntryBase & {
+  kind: "return";
+  /** Option amounts are multiplied by this; zero when no policy was left running, so the options cost nothing. */
+  scale: number;
+  /** Real ticks the player was away. */
+  away: number;
+  /** The stores that rose, as the reporter claims. */
+  gains: Partial<Record<Resource, number>>;
+  reporter: string;
+};
+
 export type DeskEntry =
   | Dispute
   | Petition
   | Offer
   | Traveller
   | Candidate
-  | Audit;
+  | Audit
+  | ReturnReport;
 
 /** The option that hires a candidate; the template schema requires it. */
 export const HIRE = "hire";
@@ -126,6 +140,14 @@ const deskEntry = z.discriminatedUnion("kind", [
     term: positiveCount,
   }),
   z.strictObject({ ...deskEntryBase, kind: z.literal("audit"), dueAt: count }),
+  z.strictObject({
+    ...deskEntryBase,
+    scale: nonNegative,
+    kind: z.literal("return"),
+    away: count,
+    gains: z.partialRecord(z.enum(RESOURCES), positive),
+    reporter: z.string().min(1),
+  }),
 ]);
 
 export const deskStateSchema: z.ZodType<DeskState> = z
@@ -291,11 +313,31 @@ export class DeskManager {
           copy.governors.traitList({ traits: entry.traits }),
         );
     }
+    if (entry.kind === "return") {
+      return text
+        .replaceAll("{away}", this.awayText(entry.away))
+        .replaceAll("{gains}", this.gainsText(entry.gains))
+        .replaceAll("{reporter}", entry.reporter);
+    }
     return this.partiesOf(entry).reduce(
       (filled, party, index) =>
         filled.replaceAll(`{${PARTY_PLACEHOLDERS[index]}}`, this.nameOf(party)),
       text,
     );
+  }
+
+  private awayText(ticks: number): string {
+    const minutes = Math.round((ticks * this.tuning.stepMs) / 60_000);
+    return copy.desk.timeAway({ minutes });
+  }
+
+  private gainsText(gains: ReturnReport["gains"]): string {
+    const parts = RESOURCES.filter(
+      (resource) => gains[resource] !== undefined,
+    ).map((resource) => `${show(gains[resource] ?? 0)} ${resource}`);
+    return parts.length === 0
+      ? copy.desk.noGains
+      : new Intl.ListFormat("en").format(parts);
   }
 
   /** What choosing the option adds and removes; an audit's is worked out from the books and a hire's from the entry, not the template. */
@@ -308,7 +350,7 @@ export class DeskManager {
     return Object.fromEntries(
       Object.entries(option.resources ?? {}).map(([resource, amount]) => [
         resource,
-        Math.round(amount * scale),
+        normalizeZero(Math.round(amount * scale)),
       ]),
     );
   }
@@ -588,6 +630,28 @@ export class DeskManager {
     desk.nextDisputeId += 1;
   }
 
+  /**
+   * Puts the report of the time away on the desk, in place of any earlier one nobody answered. Like
+   * an audit it is picked from the entry id rather than drawn, so it never shifts the arrivals after it.
+   */
+  placeReturn(report: Omit<ReturnReport, keyof EntryBase | "kind">): void {
+    const { desk } = this.posting;
+    const templates = this.templatesOf("return");
+    const template = templates[desk.nextDisputeId % templates.length];
+    if (template === undefined) {
+      throw new Error("return template pick landed outside its range");
+    }
+    desk.disputes = desk.disputes.filter((entry) => entry.kind !== "return");
+    desk.disputes.push({
+      id: desk.nextDisputeId,
+      template: template.id,
+      arrivedAt: this.state.tick,
+      kind: "return",
+      ...report,
+    });
+    desk.nextDisputeId += 1;
+  }
+
   private expire(entry: DeskEntry, context: AddContext): void {
     const template = this.templateOf(entry);
     if (entry.kind === "audit") {
@@ -630,9 +694,14 @@ export class DeskManager {
     desk.disputes = desk.disputes.filter((entry) => !lapsed.includes(entry));
     for (const entry of lapsed) this.expire(entry, context);
 
-    // Auditors wait out their own deadline, so overflow pushes out the oldest entry that is not one.
-    while (desk.disputes.length > this.tuning.desk.slots) {
-      const index = desk.disputes.findIndex((entry) => entry.kind !== "audit");
+    // Auditors wait out their own deadline and a return report waits until it is settled, so it takes
+    // no slot, and overflow pushes out the oldest entry that is neither.
+    const slotted = () =>
+      desk.disputes.filter((entry) => entry.kind !== "return").length;
+    while (slotted() > this.tuning.desk.slots) {
+      const index = desk.disputes.findIndex(
+        (entry) => entry.kind !== "audit" && entry.kind !== "return",
+      );
       if (index < 0) break;
       const [oldest] = desk.disputes.splice(index, 1);
       if (oldest === undefined) break;

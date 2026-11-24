@@ -148,6 +148,13 @@ export const copy = {
       have: string;
     }) => `not enough real ${resource} (need ${need}, have ${have})`,
     noRoomForPeasant: "the village has no room for another peasant",
+    clerk: "The clerk",
+    noGains: "nothing worth the ink",
+    timeAway: ({ minutes }: { minutes: number }) => {
+      if (minutes < 120) return `${minutes} minutes`;
+      if (minutes < 48 * 60) return `${Math.round(minutes / 60)} hours`;
+      return `${Math.round(minutes / (24 * 60))} days`;
+    },
   },
   notices: {
     archiveOpens: ({ key }: { key: string }) =>

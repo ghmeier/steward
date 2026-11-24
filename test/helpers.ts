@@ -204,6 +204,28 @@ export const economyTestTuning: Tuning = {
           },
         ],
       },
+      return: {
+        templates: [
+          {
+            id: "report",
+            text: "{reporter} reports {gains} after {away}.",
+            options: [
+              {
+                id: "pay-coin",
+                label: "Pay in coin",
+                resources: { coin: -10 },
+              },
+              {
+                id: "pay-grain",
+                label: "Pay in grain",
+                resources: { grain: -10 },
+              },
+            ],
+            expiry: "pay-coin",
+            expired: "The report was filed unread.",
+          },
+        ],
+      },
     },
   },
 };

@@ -26,6 +26,7 @@ const optionResources = z
 export const PARTY_PLACEHOLDERS = ["first", "second"];
 const PETITIONER_PLACEHOLDERS = ["first"];
 const CANDIDATE_PLACEHOLDERS = ["name", "village", "price", "job", "traits"];
+const RETURN_PLACEHOLDERS = ["away", "gains", "reporter"];
 const NO_PLACEHOLDERS: string[] = [];
 
 function deskOption(placeholders: readonly string[]) {
@@ -176,18 +177,29 @@ const candidateKind = z.strictObject({
     ),
 });
 
-const auditKind = z.strictObject({
-  templates: z
-    .array(auditTemplate)
-    .min(1)
-    .superRefine((templates, ctx) =>
-      repeatIssues(
-        templates.map((template) => template.id),
-        "id",
-        ctx,
+// Placed by the game when its cause arrives rather than drawn, so the kind has no weight or unlock.
+function placedKind<Template extends z.ZodType<{ id: string }>>(
+  template: Template,
+) {
+  return z.strictObject({
+    templates: z
+      .array(template)
+      .min(1)
+      .superRefine((templates, ctx) =>
+        repeatIssues(
+          templates.map((candidate) => candidate.id),
+          "id",
+          ctx,
+        ),
       ),
-    ),
-});
+  });
+}
+
+const auditKind = placedKind(auditTemplate);
+
+const returnKind = placedKind(
+  deskTemplate(deskOption(RETURN_PLACEHOLDERS), RETURN_PLACEHOLDERS),
+);
 
 export const deskTuningSchema = z.strictObject({
   slots: positiveInteger,
@@ -207,6 +219,7 @@ export const deskTuningSchema = z.strictObject({
     omen: deskKind(merchantOption, NO_PLACEHOLDERS),
     candidate: candidateKind,
     audit: auditKind,
+    return: returnKind,
   }),
 });
 

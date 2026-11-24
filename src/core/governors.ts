@@ -208,7 +208,7 @@ export class GovernorManager {
 
   /** Workers the governor claims, which exceeds the real figure for a skimmer, braggart or empire-builder. */
   reportedWorkersOf(governor: Governor): number {
-    return this.workersOf(governor) * this.traitsOf(governor).report;
+    return this.workersOf(governor) * this.reportFactorOf(governor);
   }
 
   private isWorking(governor: Governor, tick: number): boolean {
@@ -419,15 +419,23 @@ export class GovernorManager {
     return this.reportedWorkersOf(governor) - this.workersOf(governor);
   }
 
-  /** Blames whoever inflated their reports the most, or the newest hire when every report was honest. */
-  dismissAfterFailedAudit(context: AddContext): void {
+  /** Whoever inflates their reports the most, or the newest hire when every report is honest; undefined with no governors. */
+  get leadingReporter(): Governor | undefined {
     const [worst] = [...this.roster].sort(
       (a, b) => this.exaggerationOf(b) - this.exaggerationOf(a),
     );
-    const blamed =
-      worst !== undefined && this.exaggerationOf(worst) > 0
-        ? worst
-        : this.roster.at(-1);
+    return worst !== undefined && this.exaggerationOf(worst) > 0
+      ? worst
+      : this.roster.at(-1);
+  }
+
+  /** How many times the real figure the governor's reports claim. */
+  reportFactorOf(governor: Governor): number {
+    return this.traitsOf(governor).report;
+  }
+
+  dismissAfterFailedAudit(context: AddContext): void {
+    const blamed = this.leadingReporter;
     if (blamed !== undefined) this.depart(blamed, "dismissed", context);
   }
 
