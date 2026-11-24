@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -48,7 +48,21 @@ function play(
   ]);
 }
 
+function recordedRun(name: string, steps: string) {
+  const record = join(mkdtempSync(join(tmpdir(), "steward-rec-")), "log.json");
+  const summary = play(name, ["--record", record], steps);
+  const replay = () =>
+    run(["--seed", "1", "--steps", steps, "--commands", record]);
+  return { summary, log: readFileSync(record, "utf8"), replay };
+}
+
 describe("scripted strategies over ten game years", () => {
+  // Several invariants read one career, because each run to the second posting takes about a second.
+  let career: ReturnType<typeof recordedRun>;
+  beforeAll(() => {
+    career = recordedRun("reference", CAREER_STEPS);
+  });
+
   test("the reference strategy never starves and is promoted within the run", () => {
     const summary = play("reference");
 
@@ -57,9 +71,8 @@ describe("scripted strategies over ten game years", () => {
   });
 
   test("the reference strategy ends its first posting and meets a crown demand in the second", () => {
-    const summary = play("reference", [], CAREER_STEPS);
+    const [first, second] = career.summary.postings;
 
-    const [first, second] = summary.postings;
     expect(first?.endedAt).not.toBeNull();
     expect(first?.demandsMet).toBeGreaterThanOrEqual(
       tuning.prestige.demandsMet,
@@ -115,6 +128,7 @@ describe("scripted strategies over ten game years", () => {
       ],
       purchases: [],
       reactions: [],
+      laterPostings: [],
     });
     const firstTier = archiveUpgrades.filter(
       ({ shown, requires }) =>
@@ -137,42 +151,18 @@ describe("scripted strategies over ten game years", () => {
   });
 
   test("a recorded seasonal run replays to the same hash", () => {
-    const record = join(
-      mkdtempSync(join(tmpdir(), "steward-rec-")),
-      "log.json",
-    );
-    const played = play("seasonal", ["--record", record]);
+    const seasonal = recordedRun("seasonal", STEPS);
 
-    const replayed = run([
-      "--seed",
-      "1",
-      "--steps",
-      STEPS,
-      "--commands",
-      record,
-    ]);
+    const replayed = seasonal.replay();
 
-    expect(readFileSync(record, "utf8")).toContain("enactDecree");
-    expect(replayed.hash).toBe(played.hash);
+    expect(seasonal.log).toContain("enactDecree");
+    expect(replayed.hash).toBe(seasonal.summary.hash);
   });
 
   test("a recorded run that ends a posting replays to the same hash", () => {
-    const record = join(
-      mkdtempSync(join(tmpdir(), "steward-rec-")),
-      "log.json",
-    );
-    const played = play("reference", ["--record", record], CAREER_STEPS);
+    const replayed = career.replay();
 
-    const replayed = run([
-      "--seed",
-      "1",
-      "--steps",
-      CAREER_STEPS,
-      "--commands",
-      record,
-    ]);
-
-    expect(readFileSync(record, "utf8")).toContain("endPosting");
-    expect(replayed.hash).toBe(played.hash);
+    expect(career.log).toContain("endPosting");
+    expect(replayed.hash).toBe(career.summary.hash);
   });
 });
